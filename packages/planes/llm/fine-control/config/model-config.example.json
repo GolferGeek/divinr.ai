@@ -1,0 +1,53 @@
+{
+  "agents": {
+    "agent_selection": {
+      "default": { "provider": "openai", "model": "gpt-4o-mini" },
+      "fast": { "provider": "openai", "model": "gpt-3.5-turbo" },
+      "reasoning": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-20241022"
+      }
+    },
+    "delegation": {
+      "default": { "provider": "openai", "model": "gpt-4o-mini" },
+      "fast": { "provider": "openai", "model": "gpt-3.5-turbo" }
+    },
+    "response_coordination": {
+      "default": {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "parameters": { "temperature": 0.2, "maxTokens": 800 }
+      }
+    },
+    "conversation_analysis": {
+      "default": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-20241022"
+      }
+    },
+    "error_handling": {
+      "default": {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "parameters": { "temperature": 0.0, "maxTokens": 200 }
+      }
+    }
+  },
+  "environmentDefaults": {
+    "development": {
+      "provider": "ollama",
+      "model": "llama3.2:1b",
+      "parameters": { "temperature": 0.3, "maxTokens": 512 }
+    },
+    "staging": {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "parameters": { "temperature": 0.2, "maxTokens": 800 }
+    },
+    "production": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "parameters": { "temperature": 0.2, "maxTokens": 800 }
+    }
+  }
+}

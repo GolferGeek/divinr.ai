@@ -1,0 +1,36 @@
+{
+  "name": "@divinr/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "dev:electron": "NODE_ENV=development electron electron/main.cjs --dev",
+    "build:electron": "vite build && electron-builder --mac --config electron-builder.json",
+    "lint": "eslint src --ext .ts",
+    "test": "echo \"web tests planned in next phase\"",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
+    "@divinr/prediction-planes": "workspace:*",
+    "@ionic/vue": "^8.8.3",
+    "@ionic/vue-router": "^8.8.3",
+    "ionicons": "^8.0.13",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.31",
+    "vue-router": "^5.0.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.5",
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vue-tsc": "^3.2.6"
+  }
+}

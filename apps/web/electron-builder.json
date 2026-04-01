@@ -1,0 +1,15 @@
+{
+  "appId": "ai.divinr.app",
+  "productName": "Divinr AI",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*"
+  ],
+  "mac": {
+    "category": "public.app-category.finance",
+    "target": ["dmg"]
+  }
+}

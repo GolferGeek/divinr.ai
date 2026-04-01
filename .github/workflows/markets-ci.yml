@@ -1,0 +1,36 @@
+name: markets-ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  markets-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm -w run build
+
+      - name: Planes contracts
+        run: pnpm --filter @orchestratorai/planes run test
+
+      - name: Full Markets CI Gates
+        run: pnpm -w run ci:full-markets

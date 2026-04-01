@@ -1,0 +1,104 @@
+{
+  "name": "@orchestratorai/planes",
+  "version": "1.0.0",
+  "description": "Provider planes — infrastructure abstractions for multi-cloud deployment",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./database": {
+      "types": "./dist/database/index.d.ts",
+      "default": "./dist/database/index.js"
+    },
+    "./database/*": {
+      "types": "./dist/database/*.d.ts",
+      "default": "./dist/database/*.js"
+    },
+    "./llm": {
+      "types": "./dist/llm/index.d.ts",
+      "default": "./dist/llm/index.js"
+    },
+    "./llm/*": {
+      "types": "./dist/llm/*.d.ts",
+      "default": "./dist/llm/*.js"
+    },
+    "./observability": {
+      "types": "./dist/observability/index.d.ts",
+      "default": "./dist/observability/index.js"
+    },
+    "./observability/*": {
+      "types": "./dist/observability/*.d.ts",
+      "default": "./dist/observability/*.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "default": "./dist/config/index.js"
+    },
+    "./config/*": {
+      "types": "./dist/config/*.d.ts",
+      "default": "./dist/config/*.js"
+    },
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "default": "./dist/auth/index.js"
+    },
+    "./auth/*": {
+      "types": "./dist/auth/*.d.ts",
+      "default": "./dist/auth/*.js"
+    },
+    "./rbac": {
+      "types": "./dist/rbac/index.d.ts",
+      "default": "./dist/rbac/index.js"
+    },
+    "./rbac/*": {
+      "types": "./dist/rbac/*.d.ts",
+      "default": "./dist/rbac/*.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "clean": "rm -rf dist",
+    "test": "pnpm run test:contracts",
+    "test:contracts": "tsx tests/provider-contracts.test.ts",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@azure-rest/ai-inference": "latest",
+    "@azure/identity": "^4.13.1",
+    "@azure/keyvault-secrets": "^4.10.0",
+    "@google-cloud/secret-manager": "^6.1.1",
+    "@google-cloud/vertexai": "latest",
+    "@nestjs/axios": "latest",
+    "@nestjs/common": "latest",
+    "@nestjs/config": "latest",
+    "@nestjs/core": "latest",
+    "@nestjs/swagger": "latest",
+    "@orchestrator-ai/transport-types": "workspace:*",
+    "@supabase/supabase-js": "latest",
+    "class-transformer": "latest",
+    "class-validator": "latest",
+    "dotenv": "latest",
+    "jose": "latest",
+    "mssql": "latest",
+    "pg": "latest",
+    "rxjs": "latest",
+    "uuid": "latest"
+  },
+  "devDependencies": {
+    "@types/express": "latest",
+    "@types/mssql": "^9.1.11",
+    "@types/node": "latest",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.21.0",
+    "typescript": "latest"
+  }
+}

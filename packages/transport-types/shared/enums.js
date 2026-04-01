@@ -1,0 +1,53 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.A2AErrorCode = exports.JsonRpcErrorCode = exports.AgentTaskMode = void 0;
+var AgentTaskMode;
+(function (AgentTaskMode) {
+    AgentTaskMode["CONVERSE"] = "converse";
+    AgentTaskMode["PLAN"] = "plan";
+    AgentTaskMode["BUILD"] = "build";
+    AgentTaskMode["HUMAN_RESPONSE"] = "human_response";
+    AgentTaskMode["ORCHESTRATE_CREATE"] = "orchestrate_create";
+    AgentTaskMode["ORCHESTRATE_EXECUTE"] = "orchestrate_execute";
+    AgentTaskMode["ORCHESTRATE_CONTINUE"] = "orchestrate_continue";
+    AgentTaskMode["ORCHESTRATE_SAVE_RECIPE"] = "orchestrate_save_recipe";
+    AgentTaskMode["ORCHESTRATOR_PLAN_CREATE"] = "orchestrator_plan_create";
+    AgentTaskMode["ORCHESTRATOR_PLAN_UPDATE"] = "orchestrator_plan_update";
+    AgentTaskMode["ORCHESTRATOR_PLAN_REVIEW"] = "orchestrator_plan_review";
+    AgentTaskMode["ORCHESTRATOR_PLAN_APPROVE"] = "orchestrator_plan_approve";
+    AgentTaskMode["ORCHESTRATOR_PLAN_REJECT"] = "orchestrator_plan_reject";
+    AgentTaskMode["ORCHESTRATOR_PLAN_ARCHIVE"] = "orchestrator_plan_archive";
+    AgentTaskMode["ORCHESTRATOR_RUN_START"] = "orchestrator_run_start";
+    AgentTaskMode["ORCHESTRATOR_RUN_CONTINUE"] = "orchestrator_run_continue";
+    AgentTaskMode["ORCHESTRATOR_RUN_PAUSE"] = "orchestrator_run_pause";
+    AgentTaskMode["ORCHESTRATOR_RUN_RESUME"] = "orchestrator_run_resume";
+    AgentTaskMode["ORCHESTRATOR_RUN_HUMAN_RESPONSE"] = "orchestrator_run_human_response";
+    AgentTaskMode["ORCHESTRATOR_RUN_ROLLBACK_STEP"] = "orchestrator_run_rollback_step";
+    AgentTaskMode["ORCHESTRATOR_RUN_CANCEL"] = "orchestrator_run_cancel";
+    AgentTaskMode["ORCHESTRATOR_RUN_EVALUATE"] = "orchestrator_run_evaluate";
+    AgentTaskMode["ORCHESTRATOR_RECIPE_SAVE"] = "orchestrator_recipe_save";
+    AgentTaskMode["ORCHESTRATOR_RECIPE_UPDATE"] = "orchestrator_recipe_update";
+    AgentTaskMode["ORCHESTRATOR_RECIPE_VALIDATE"] = "orchestrator_recipe_validate";
+    AgentTaskMode["ORCHESTRATOR_RECIPE_DELETE"] = "orchestrator_recipe_delete";
+    AgentTaskMode["ORCHESTRATOR_RECIPE_LOAD"] = "orchestrator_recipe_load";
+    AgentTaskMode["ORCHESTRATOR_RECIPE_LIST"] = "orchestrator_recipe_list";
+})(AgentTaskMode || (exports.AgentTaskMode = AgentTaskMode = {}));
+var JsonRpcErrorCode;
+(function (JsonRpcErrorCode) {
+    JsonRpcErrorCode[JsonRpcErrorCode["PARSE_ERROR"] = -32700] = "PARSE_ERROR";
+    JsonRpcErrorCode[JsonRpcErrorCode["INVALID_REQUEST"] = -32600] = "INVALID_REQUEST";
+    JsonRpcErrorCode[JsonRpcErrorCode["METHOD_NOT_FOUND"] = -32601] = "METHOD_NOT_FOUND";
+    JsonRpcErrorCode[JsonRpcErrorCode["INVALID_PARAMS"] = -32602] = "INVALID_PARAMS";
+    JsonRpcErrorCode[JsonRpcErrorCode["INTERNAL_ERROR"] = -32603] = "INTERNAL_ERROR";
+    JsonRpcErrorCode[JsonRpcErrorCode["SERVER_ERROR_START"] = -32099] = "SERVER_ERROR_START";
+    JsonRpcErrorCode[JsonRpcErrorCode["SERVER_ERROR_END"] = -32000] = "SERVER_ERROR_END";
+})(JsonRpcErrorCode || (exports.JsonRpcErrorCode = JsonRpcErrorCode = {}));
+var A2AErrorCode;
+(function (A2AErrorCode) {
+    A2AErrorCode[A2AErrorCode["UNAUTHORIZED"] = -32001] = "UNAUTHORIZED";
+    A2AErrorCode[A2AErrorCode["FORBIDDEN"] = -32003] = "FORBIDDEN";
+    A2AErrorCode[A2AErrorCode["NOT_FOUND"] = -32004] = "NOT_FOUND";
+    A2AErrorCode[A2AErrorCode["CONFLICT"] = -32009] = "CONFLICT";
+    A2AErrorCode[A2AErrorCode["RATE_LIMITED"] = -32042] = "RATE_LIMITED";
+})(A2AErrorCode || (exports.A2AErrorCode = A2AErrorCode = {}));
+//# sourceMappingURL=enums.js.map

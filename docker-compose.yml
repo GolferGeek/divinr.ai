@@ -1,0 +1,23 @@
+name: divinr.ai
+
+services:
+  divinr.ai:
+    image: postgres:16-alpine
+    container_name: divinr.ai
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: divinr_ai
+    ports:
+      - '5434:5432'
+    volumes:
+      - divinr-ai-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d divinr_ai']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  divinr-ai-postgres:

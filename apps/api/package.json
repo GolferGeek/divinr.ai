@@ -1,0 +1,39 @@
+{
+  "name": "@divinr/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "node dist/main.js",
+    "lint": "eslint src --ext .ts",
+    "test": "pnpm run test:unit && pnpm run test:compliance && pnpm run test:markets:smoke",
+    "test:unit": "tsx tests/unit/auth-middleware.test.ts && tsx tests/unit/risk-score-aggregation.test.ts && tsx tests/unit/stocks-prediction-plane.test.ts && tsx tests/unit/prediction-runner-parsing.test.ts && tsx tests/unit/learning-engine.test.ts && tsx tests/unit/nightly-evaluation.test.ts && tsx tests/unit/sprint7-views.test.ts && tsx tests/unit/portfolio-system.test.ts",
+    "test:compliance": "pnpm run test:compliance:core && pnpm run test:compliance:boundary && pnpm run test:compliance:mutation",
+    "test:compliance:core": "tsx tests/compliance/run-compliance-tests.ts",
+    "test:compliance:boundary": "tsx tests/compliance/run-boundary-tests.ts",
+    "test:compliance:mutation": "tsx tests/compliance/run-mutation-safety-tests.ts",
+    "test:markets": "pnpm run test:markets:smoke && pnpm run test:markets:http",
+    "test:markets:http": "tsx tests/markets/run-markets-http-tests.ts",
+    "test:markets:smoke": "tsx tests/markets/run-markets-smoke-tests.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@divinr/prediction-planes": "workspace:*",
+    "@nestjs/common": "latest",
+    "@nestjs/config": "latest",
+    "@nestjs/core": "latest",
+    "@nestjs/platform-express": "latest",
+    "@nestjs/schedule": "^6.1.1",
+    "@orchestrator-ai/transport-types": "workspace:*",
+    "@orchestratorai/planes": "workspace:*",
+    "pg": "^8.20.0",
+    "reflect-metadata": "latest",
+    "rxjs": "latest"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.20.0",
+    "@types/supertest": "latest",
+    "supertest": "latest",
+    "tsx": "latest"
+  }
+}

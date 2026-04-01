@@ -1,0 +1,26 @@
+{
+  "name": "divinr-ai",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.8.0",
+  "scripts": {
+    "build": "turbo run build",
+    "ci:compliance": "pnpm -w run test:compliance",
+    "ci:full-markets": "pnpm -w run ci:compliance && pnpm -w run ci:markets",
+    "ci:markets": "pnpm -w run test:markets && pnpm -w run verify:markets",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:compliance": "turbo run test:compliance",
+    "test:markets": "turbo run test:markets",
+    "verify:markets": "node scripts/verify-markets-readiness.mjs",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "latest",
+    "typescript": "latest",
+    "eslint": "latest",
+    "@typescript-eslint/eslint-plugin": "latest",
+    "@typescript-eslint/parser": "latest"
+  }
+}

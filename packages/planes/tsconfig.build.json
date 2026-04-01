@@ -1,0 +1,57 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "declarationMap": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "skipLibCheck": true,
+    "strict": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": false,
+    "noUncheckedIndexedAccess": false,
+    "paths": {
+      "@orchestrator-ai/transport-types": ["../transport-types/dist/cjs"]
+    }
+  },
+  "include": [
+    "index.ts",
+    "database/index.ts",
+    "database/database.interface.ts",
+    "database/database.module.ts",
+    "database/supabase-database.service.ts",
+    "database/sqlserver-database.service.ts",
+    "database/postgresql-database.service.ts",
+    "database/supabase-client.service.ts",
+    "database/supabase-client.config.ts",
+    "llm/index.ts",
+    "llm/llm.interface.ts",
+    "llm/llm.types.ts",
+    "llm/llm.module.ts",
+    "llm/simplified/**/*.ts",
+    "llm/azure-foundry/**/*.ts",
+    "llm/vertex-ai/**/*.ts",
+    "observability/**/*.ts",
+    "config/**/*.ts",
+    "auth/**/*.ts",
+    "rbac/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.spec.ts",
+    "observability/services/legacy/**/*.ts",
+    "llm/fine-control/**/*.ts"
+  ]
+}
