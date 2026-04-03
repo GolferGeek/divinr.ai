@@ -19,6 +19,10 @@ import { AnalystPortfolioService } from './services/analyst-portfolio.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
 import { EodSettlementService } from './services/eod-settlement.service';
 import { OrchestratorBaseDataService } from './services/orchestrator-base-data.service';
+import { CrawlerService } from './services/crawler.service';
+import { PredictorGeneratorService } from './services/predictor-generator.service';
+import { PredictionGeneratorService } from './services/prediction-generator.service';
+import { OutcomeTrackingService } from './services/outcome-tracking.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -51,6 +55,10 @@ export class MarketsController {
     private readonly userPortfolio: UserPortfolioService,
     private readonly eodSettlement: EodSettlementService,
     private readonly baseData: OrchestratorBaseDataService,
+    private readonly crawler: CrawlerService,
+    private readonly predictorGenerator: PredictorGeneratorService,
+    private readonly predictionGenerator: PredictionGeneratorService,
+    private readonly outcomeTracking: OutcomeTrackingService,
   ) {
     this.markets = markets;
   }
@@ -956,5 +964,44 @@ export class MarketsController {
   async triggerLearningCycle(@Req() req: { user?: AuthenticatedUser }) {
     this.getUser(req);
     return this.learningEngine.runLearningCycle();
+  }
+
+  @Post('admin/run-crawl')
+  async triggerCrawl(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.crawler.runCrawl();
+  }
+
+  @Post('admin/run-predictor-generation')
+  async triggerPredictorGeneration(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.predictorGenerator.runGeneration();
+  }
+
+  @Post('admin/run-prediction-generation')
+  async triggerPredictionGeneration(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.predictionGenerator.runGeneration();
+  }
+
+  @Post('admin/run-outcome-tracking')
+  async triggerOutcomeTracking(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.outcomeTracking.runTracking();
+  }
+
+  @Post('admin/run-pipeline')
+  async triggerFullPipeline(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    const crawlResult = await this.crawler.runCrawl();
+    const predictorResult = await this.predictorGenerator.runGeneration();
+    const predictionResult = await this.predictionGenerator.runGeneration();
+    const outcomeResult = await this.outcomeTracking.runTracking();
+    return {
+      crawl: crawlResult,
+      predictors: predictorResult,
+      predictions: predictionResult,
+      outcomes: outcomeResult,
+    };
   }
 }
