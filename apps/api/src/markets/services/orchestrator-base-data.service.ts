@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+// eslint-disable-next-line no-restricted-imports -- Direct pg needed for optional orchestrator cross-DB connection
 import { Pool } from 'pg';
 
 /**

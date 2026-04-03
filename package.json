@@ -16,6 +16,13 @@
     "verify:markets": "node scripts/verify-markets-readiness.mjs",
     "typecheck": "turbo run typecheck"
   },
+  "pnpm": {
+    "overrides": {
+      "@nestjs/common": "11.1.18",
+      "@nestjs/core": "11.1.18",
+      "@nestjs/config": "4.0.3"
+    }
+  },
   "devDependencies": {
     "turbo": "latest",
     "typescript": "latest",

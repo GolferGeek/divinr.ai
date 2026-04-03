@@ -17,6 +17,7 @@ import { AnalystPortfolioService } from './services/analyst-portfolio.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
 import { EodSettlementService } from './services/eod-settlement.service';
 import { OrchestratorBaseDataService } from './services/orchestrator-base-data.service';
+import { AnalystPipelineService } from './services/analyst-pipeline.service';
 
 @Module({
   controllers: [MarketsController],
@@ -37,7 +38,9 @@ import { OrchestratorBaseDataService } from './services/orchestrator-base-data.s
     UserPortfolioService,
     EodSettlementService,
     OrchestratorBaseDataService,
+    AnalystPipelineService,
     MarketsService,
   ],
+  exports: [MarketsService],
 })
 export class MarketsModule {}

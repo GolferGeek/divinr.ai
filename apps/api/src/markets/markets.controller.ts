@@ -19,6 +19,7 @@ import { AnalystPortfolioService } from './services/analyst-portfolio.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
 import { EodSettlementService } from './services/eod-settlement.service';
 import { OrchestratorBaseDataService } from './services/orchestrator-base-data.service';
+import { AnalystPipelineService } from './services/analyst-pipeline.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -51,6 +52,7 @@ export class MarketsController {
     private readonly userPortfolio: UserPortfolioService,
     private readonly eodSettlement: EodSettlementService,
     private readonly baseData: OrchestratorBaseDataService,
+    private readonly analystPipeline: AnalystPipelineService,
   ) {
     this.markets = markets;
   }
@@ -956,5 +958,11 @@ export class MarketsController {
   async triggerLearningCycle(@Req() req: { user?: AuthenticatedUser }) {
     this.getUser(req);
     return this.learningEngine.runLearningCycle();
+  }
+
+  @Post('admin/run-pipeline')
+  async triggerPipeline(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.analystPipeline.runPipeline();
   }
 }

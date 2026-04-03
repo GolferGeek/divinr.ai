@@ -26,6 +26,7 @@
     "@nestjs/schedule": "^6.1.1",
     "@orchestrator-ai/transport-types": "workspace:*",
     "@orchestratorai/planes": "workspace:*",
+    "dotenv": "^17.4.0",
     "pg": "^8.20.0",
     "reflect-metadata": "latest",
     "rxjs": "latest"

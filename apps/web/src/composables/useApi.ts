@@ -1,7 +1,22 @@
 import { ref } from 'vue';
 import { useTenantStore } from '../stores/tenant.store';
 
-const BASE_URL = '/api/markets';
+/**
+ * Base URL for API calls.
+ * - Web (dev): relative '/api/markets' (Vite proxy handles routing)
+ * - Web (prod): relative '/api/markets' (Nginx proxy handles routing)
+ * - Electron: configurable base URL from localStorage or window.electronAPI
+ */
+function getBaseUrl(): string {
+  // Electron environment: use configured API URL
+  if (typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI) {
+    const stored = localStorage.getItem('divinr_api_url');
+    return stored ? `${stored}/markets` : 'http://localhost:6100/markets';
+  }
+  return '/api/markets';
+}
+
+const BASE_URL = getBaseUrl();
 
 export function useApi() {
   const loading = ref(false);
