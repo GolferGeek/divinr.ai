@@ -73,12 +73,14 @@ export class AnalystPipelineService {
     };
 
     try {
-      // Step 1: Get all active instruments from watchlists
+      // Step 1: Get all active __base__ instruments — pipeline runs once for base,
+      // all orgs see the results
       const instrumentsResult = await this.db.rawQuery(`
         SELECT DISTINCT i.id, i.organization_slug, i.symbol, i.name
         FROM prediction.instruments i
         WHERE i.is_active = true
-        ORDER BY i.organization_slug, i.symbol
+          AND i.organization_slug = '__base__'
+        ORDER BY i.symbol
         LIMIT 100
       `);
 

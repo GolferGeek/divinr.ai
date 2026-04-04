@@ -271,15 +271,24 @@ export class MarketsService {
     await this.schema.ensureSchema();
     await this.requireRead(userId, organizationSlug);
 
-    const result = await this.db
-      .from('prediction', 'instruments')
-      .select('*')
-      .eq('organization_slug', organizationSlug)
-      .order('symbol', { ascending: true });
+    // Show org-specific instruments; fall back to __base__ only for symbols the org doesn't have
+    const result = await this.db.rawQuery(
+      `select * from prediction.instruments
+       where organization_slug = $1
+       union all
+       select b.* from prediction.instruments b
+       where b.organization_slug = '__base__'
+         and not exists (
+           select 1 from prediction.instruments o
+           where o.organization_slug = $1 and o.symbol = b.symbol
+         )
+       order by symbol asc`,
+      [organizationSlug],
+    );
     if (result.error) {
       throw new Error(result.error.message);
     }
-    return (result.data as MarketInstrument[]) ?? [];
+    return ((result.data as MarketInstrument[] | null) ?? []);
   }
 
   async createInstrument(input: CreateInstrumentInput): Promise<MarketInstrument> {
@@ -519,8 +528,8 @@ export class MarketsService {
       `
       select *
       from prediction.market_analysts
-      where organization_slug = $1
-      order by created_at asc
+      where (organization_slug = $1 or organization_slug = '__base__')
+      order by case when organization_slug = $1 then 0 else 1 end, created_at asc
       `,
       [organizationSlug],
     );
@@ -543,9 +552,9 @@ export class MarketsService {
       select a.*
       from prediction.market_instrument_analyst_assignments ia
       join prediction.market_analysts a on a.id = ia.analyst_id
-      where ia.organization_slug = $1
+      where (ia.organization_slug = $1 or ia.organization_slug = '__base__')
         and ia.instrument_id = $2
-      order by ia.created_at asc
+      order by case when ia.organization_slug = $1 then 0 else 1 end, ia.created_at asc
       `,
       [organizationSlug, instrumentId],
     );
@@ -599,7 +608,7 @@ export class MarketsService {
       `
       select *
       from prediction.tenant_source_entitlements
-      where organization_slug = $1
+      where (organization_slug = $1 or organization_slug = '__base__')
       `,
       [organizationSlug],
     );
@@ -1135,7 +1144,7 @@ Respond ONLY with valid JSON.`,
       `
       select mp.*
       from prediction.market_predictors mp
-      where mp.organization_slug = $1
+      where (mp.organization_slug = $1 or mp.organization_slug = '__base__')
         and mp.instrument_id = $2
         ${statusClause}
       order by mp.relevance_score desc, mp.updated_at desc
@@ -1914,6 +1923,102 @@ Respond ONLY with valid JSON.`,
     return (result.data as PredictionOutcome[] | null) ?? [];
   }
 
+  /**
+   * Get the latest predictions grouped by instrument, with all analyst stances.
+   * Used by the dashboard to show prediction cards.
+   */
+  async getDashboardPredictions(
+    organizationSlug: string,
+    userId: string,
+  ): Promise<Array<{
+    instrument_id: string;
+    symbol: string;
+    name: string;
+    run_id: string;
+    created_at: string;
+    arbitrator: { direction: string; confidence: number; rationale: string } | null;
+    analysts: Array<{
+      analyst_id: string;
+      analyst_name: string;
+      analyst_slug: string;
+      direction: string;
+      confidence: number;
+      rationale: string;
+      key_factors: unknown;
+      risks: unknown;
+    }>;
+  }>> {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    // Get latest prediction run per instrument
+    const runsResult = await this.db.rawQuery(
+      `
+      select distinct on (instrument_id)
+        r.id as run_id, r.instrument_id, r.created_at,
+        i.symbol, i.name
+      from prediction.orchestration_runs r
+      join prediction.instruments i on i.id = r.instrument_id
+      where (r.organization_slug = $1 or r.organization_slug = '__base__')
+        and r.run_type = 'prediction'
+        and r.status = 'completed'
+      order by r.instrument_id, r.completed_at desc
+      `,
+      [organizationSlug],
+    );
+    if (runsResult.error) throw new Error(runsResult.error.message);
+    const runs = (runsResult.data as Array<{ run_id: string; instrument_id: string; created_at: string; symbol: string; name: string }>) ?? [];
+
+    const dashboardPredictions = [];
+
+    for (const run of runs) {
+      // Get all predictions for this run
+      const predsResult = await this.db.rawQuery(
+        `
+        select mp.predicted_direction, mp.confidence, mp.rationale, mp.role,
+               mp.analyst_id, mp.key_factors, mp.risks,
+               ma.display_name as analyst_name, ma.slug as analyst_slug
+        from prediction.market_predictions mp
+        left join prediction.market_analysts ma on ma.id = mp.analyst_id
+        where mp.run_id = $1
+          and (mp.organization_slug = $2 or mp.organization_slug = '__base__')
+        order by mp.role, mp.created_at
+        `,
+        [run.run_id, organizationSlug],
+      );
+      if (predsResult.error) continue;
+      const preds = (predsResult.data as Array<Record<string, unknown>>) ?? [];
+
+      const arbitratorPred = preds.find(p => p.role === 'arbitrator');
+      const analystPreds = preds.filter(p => p.role === 'analyst' || p.role === 'paper');
+
+      dashboardPredictions.push({
+        instrument_id: run.instrument_id,
+        symbol: run.symbol,
+        name: run.name,
+        run_id: run.run_id,
+        created_at: run.created_at,
+        arbitrator: arbitratorPred ? {
+          direction: String(arbitratorPred.predicted_direction),
+          confidence: Number(arbitratorPred.confidence),
+          rationale: String(arbitratorPred.rationale || ''),
+        } : null,
+        analysts: analystPreds.map(p => ({
+          analyst_id: String(p.analyst_id || ''),
+          analyst_name: String(p.analyst_name || 'Unknown'),
+          analyst_slug: String(p.analyst_slug || ''),
+          direction: String(p.predicted_direction),
+          confidence: Number(p.confidence),
+          rationale: String(p.rationale || ''),
+          key_factors: p.key_factors,
+          risks: p.risks,
+        })),
+      });
+    }
+
+    return dashboardPredictions;
+  }
+
   async listRiskAssessments(
     input: ListRiskAssessmentsInput,
   ): Promise<RiskAssessment[]> {
@@ -2119,7 +2224,7 @@ Respond ONLY with valid JSON.`,
 
     const result = await this.db.rawQuery(
       `select * from prediction.risk_dimensions
-       where (organization_slug = $1 or organization_slug = '__template__')
+       where (organization_slug = $1 or organization_slug = '__base__')
          and is_active = true
        order by
          case when organization_slug = $1 then 0 else 1 end,

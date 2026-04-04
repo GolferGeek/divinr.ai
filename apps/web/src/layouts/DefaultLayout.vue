@@ -1,20 +1,23 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import {
-  IonPage, IonSplitPane, IonMenu, IonHeader, IonToolbar, IonTitle,
-  IonContent, IonList, IonItem, IonIcon, IonLabel, IonMenuButton,
-  IonButtons, IonRouterOutlet, IonChip, IonButton,
+  IonPage, IonHeader, IonToolbar, IonTitle,
+  IonContent, IonIcon, IonLabel, IonChip, IonButton,
+  IonButtons,
 } from '@ionic/vue';
 import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
   analyticsOutline, shieldOutline, briefcaseOutline, newspaperOutline,
-  ribbonOutline, bulbOutline, logOutOutline, earthOutline,
+  ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
 } from 'ionicons/icons';
 import { useTenantStore } from '../stores/tenant.store';
 import { useDomainStore } from '../stores/domain.store';
+import { useActivityStore } from '../stores/activity.store';
+import ActivityPanel from '../components/ActivityPanel.vue';
 
 const tenant = useTenantStore();
 const domain = useDomainStore();
+const activity = useActivityStore();
 const router = useRouter();
 
 const navItems = [
@@ -46,57 +49,180 @@ function orgLabel(): string {
 </script>
 
 <template>
-  <ion-split-pane content-id="main-content" when="md">
-    <ion-menu content-id="main-content" type="overlay">
-      <ion-header>
-        <ion-toolbar color="primary">
-          <ion-title>Divinr AI</ion-title>
-        </ion-toolbar>
-      </ion-header>
-      <ion-content>
-        <ion-list lines="none">
-          <ion-item
+  <ion-page>
+    <div class="app-shell">
+      <nav class="sidebar">
+        <div class="sidebar-header">Divinr AI</div>
+        <ul class="sidebar-nav">
+          <li
             v-for="item in navItems"
             :key="item.to"
-            :router-link="item.to"
-            router-direction="root"
-            :detail="false"
-            button
+            class="sidebar-item"
+            :class="{ active: $route.path === item.to }"
+            @click="router.push(item.to)"
           >
-            <ion-icon slot="start" :icon="item.icon" />
-            <ion-label>{{ item.title }}</ion-label>
-          </ion-item>
-        </ion-list>
-      </ion-content>
-    </ion-menu>
-
-    <ion-page id="main-content">
-      <ion-header>
-        <ion-toolbar>
-          <ion-buttons slot="start">
-            <ion-menu-button />
-          </ion-buttons>
-          <ion-title>Divinr AI</ion-title>
-          <ion-buttons slot="end">
-            <ion-chip color="medium" outline>
-              <ion-icon :icon="earthOutline" />
-              <ion-label>{{ domain.activeUniverse }}</ion-label>
-            </ion-chip>
-            <ion-chip color="primary" outline>
-              <ion-label>{{ orgLabel() }}</ion-label>
-            </ion-chip>
-            <ion-chip color="medium">
-              <ion-label>{{ tenant.userId }}</ion-label>
-            </ion-chip>
-            <ion-button fill="clear" @click="logout">
-              <ion-icon :icon="logOutOutline" />
-            </ion-button>
-          </ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-      <ion-content class="ion-padding">
-        <ion-router-outlet />
-      </ion-content>
-    </ion-page>
-  </ion-split-pane>
+            <ion-icon :icon="item.icon" />
+            <span>{{ item.title }}</span>
+          </li>
+        </ul>
+        <div class="sidebar-footer">
+          <button
+            class="activity-btn"
+            :class="{ active: activity.panelOpen }"
+            @click="activity.toggle()"
+          >
+            <ion-icon :icon="pulseOutline" />
+            <span>Activity</span>
+            <span v-if="activity.connected" class="live-dot" />
+          </button>
+        </div>
+      </nav>
+      <div class="main-area">
+        <ion-header>
+          <ion-toolbar>
+            <ion-title>Divinr AI</ion-title>
+            <ion-buttons slot="end">
+              <ion-chip color="medium" outline>
+                <ion-icon :icon="earthOutline" />
+                <ion-label>{{ domain.activeUniverse }}</ion-label>
+              </ion-chip>
+              <ion-chip color="primary" outline>
+                <ion-label>{{ orgLabel() }}</ion-label>
+              </ion-chip>
+              <ion-chip color="medium">
+                <ion-label>{{ tenant.userId }}</ion-label>
+              </ion-chip>
+              <ion-button fill="clear" @click="logout">
+                <ion-icon :icon="logOutOutline" />
+              </ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding">
+          <router-view />
+        </ion-content>
+      </div>
+    </div>
+    <ActivityPanel />
+  </ion-page>
 </template>
+
+<style scoped>
+.app-shell {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: #fff;
+  border-right: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  padding: 16px 20px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ion-color-primary, #3880ff);
+}
+
+.sidebar-nav {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  flex: 1;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  color: #333;
+  font-size: 0.95rem;
+  transition: background 0.15s;
+}
+
+.sidebar-item:hover {
+  background: #f0f0f0;
+}
+
+.sidebar-item.active {
+  background: #e8f0fe;
+  color: var(--ion-color-primary, #3880ff);
+  font-weight: 600;
+}
+
+.sidebar-item ion-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.sidebar-footer {
+  padding: 8px 12px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.activity-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 8px;
+  border: none;
+  border-radius: 6px;
+  background: #1a1a2e;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.15s;
+}
+
+.activity-btn:hover {
+  background: #16213e;
+  color: #fff;
+}
+
+.activity-btn.active {
+  background: #0f3460;
+  color: #43a047;
+}
+
+.activity-btn ion-icon {
+  font-size: 1.1rem;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #43a047;
+  margin-left: auto;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+}
+</style>

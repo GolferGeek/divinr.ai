@@ -100,5 +100,5 @@ Package the Vue/Ionic web app in an Electron shell as a real desktop application
 
 - **DGX Spark**: 128GB RAM, runs database + inference + analyst pipeline
 - **Mac Studio**: Available as web/API server if needed
-- **No Docker**: Everything runs through Node
+- **No Docker for Divinr apps**: The API, web, and Electron apps run through Node directly. Supabase runs locally via Docker as a machine-level service (shared across projects, not Divinr-specific).
 - **Dev/Prod split**: Same codebase, different directories, different ports

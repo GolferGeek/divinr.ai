@@ -3,7 +3,7 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 
 // Preload env before NestJS bootstrap so process.env is populated
-config({ path: resolve(__dirname, '../../../../scripts/.env') });
+config({ path: resolve(__dirname, '../../../../.env') });
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';

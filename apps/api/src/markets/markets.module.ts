@@ -18,6 +18,10 @@ import { UserPortfolioService } from './services/user-portfolio.service';
 import { EodSettlementService } from './services/eod-settlement.service';
 import { OrchestratorBaseDataService } from './services/orchestrator-base-data.service';
 import { AnalystPipelineService } from './services/analyst-pipeline.service';
+import { CrawlerService } from './services/crawler.service';
+import { PredictorGeneratorService } from './services/predictor-generator.service';
+import { PredictionGeneratorService } from './services/prediction-generator.service';
+import { OutcomeTrackingService } from './services/outcome-tracking.service';
 
 @Module({
   controllers: [MarketsController],
@@ -39,6 +43,10 @@ import { AnalystPipelineService } from './services/analyst-pipeline.service';
     EodSettlementService,
     OrchestratorBaseDataService,
     AnalystPipelineService,
+    CrawlerService,
+    PredictorGeneratorService,
+    PredictionGeneratorService,
+    OutcomeTrackingService,
     MarketsService,
   ],
   exports: [MarketsService],

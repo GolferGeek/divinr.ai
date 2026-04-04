@@ -29,6 +29,7 @@
     "dotenv": "^17.4.0",
     "pg": "^8.20.0",
     "reflect-metadata": "latest",
+    "rss-parser": "^3.13.0",
     "rxjs": "latest"
   },
   "devDependencies": {

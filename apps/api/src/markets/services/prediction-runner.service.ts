@@ -375,7 +375,7 @@ Respond ONLY with valid JSON.`;
   ): string {
     const parts = [
       `Assess ${instrument.symbol} (${instrument.name}) for prediction.`,
-      `Your weight in the ensemble: ${analyst.default_weight.toFixed(1)}`,
+      `Your weight in the ensemble: ${Number(analyst.default_weight).toFixed(1)}`,
     ];
     if (sharedContext) parts.push(`\n${sharedContext}`);
     if (contextProviderText) parts.push(contextProviderText);
@@ -393,7 +393,8 @@ Respond ONLY with valid JSON.`;
     if (analystIds.length > 0) {
       const result = await this.db.rawQuery(
         `select id, display_name, default_weight from prediction.market_analysts
-         where organization_slug = $1 and id = any($2::text[])`,
+         where (organization_slug = $1 or organization_slug = '__base__')
+           and id = any($2::text[])`,
         [organizationSlug, analystIds],
       );
       const rows = (result.data as Array<{ id: string; display_name: string; default_weight: number }> | null) ?? [];
@@ -434,7 +435,7 @@ Respond ONLY with valid JSON.`;
       `select ma.* from prediction.market_analysts ma
        join prediction.market_instrument_analyst_assignments a
          on a.analyst_id = ma.id and a.organization_slug = ma.organization_slug
-       where a.organization_slug = $1
+       where (a.organization_slug = $1 or a.organization_slug = '__base__')
          and a.instrument_id = $2
          and ma.analyst_type = 'personality'
          and ma.is_enabled = true
@@ -449,12 +450,12 @@ Respond ONLY with valid JSON.`;
     // Fallback: all enabled personality analysts for the org
     const all = await this.db.rawQuery(
       `select * from prediction.market_analysts
-       where organization_slug = $1
+       where (organization_slug = $1 or organization_slug = '__base__')
          and analyst_type = 'personality'
          and is_enabled = true
          and is_active = true
          and workflow_scope in ('prediction', 'both')
-       order by default_weight desc, created_at asc`,
+       order by case when organization_slug = $1 then 0 else 1 end, default_weight desc, created_at asc`,
       [organizationSlug],
     );
     return (all.data as MarketAnalyst[] | null) ?? [];
@@ -468,7 +469,7 @@ Respond ONLY with valid JSON.`;
     const composite = await this.db.rawQuery(
       `select overall_score, confidence, dimension_scores
        from prediction.risk_composite_scores
-       where organization_slug = $1 and instrument_id = $2 and status = 'active'
+       where (organization_slug = $1 or organization_slug = '__base__') and instrument_id = $2 and status = 'active'
        order by created_at desc limit 1`,
       [organizationSlug, instrumentId],
     );
@@ -482,7 +483,7 @@ Respond ONLY with valid JSON.`;
     // Fallback to legacy risk assessment
     const legacy = await this.db.rawQuery(
       `select * from prediction.market_risk_assessments
-       where organization_slug = $1 and instrument_id = $2
+       where (organization_slug = $1 or organization_slug = '__base__') and instrument_id = $2
        order by created_at desc limit 1`,
       [organizationSlug, instrumentId],
     );
@@ -498,7 +499,7 @@ Respond ONLY with valid JSON.`;
       `select mp.relevance_score, mp.rationale, ma.title
        from prediction.market_predictors mp
        join prediction.market_articles ma on ma.id = mp.article_id
-       where mp.organization_slug = $1 and mp.instrument_id = $2 and mp.status = 'active'
+       where (mp.organization_slug = $1 or mp.organization_slug = '__base__') and mp.instrument_id = $2 and mp.status = 'active'
        order by mp.relevance_score desc limit 20`,
       [organizationSlug, instrumentId],
     );

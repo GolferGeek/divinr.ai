@@ -23,7 +23,7 @@ import { AuthMiddleware } from './auth/auth.middleware';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: resolve(__dirname, '../../../../scripts/.env'),
+      envFilePath: resolve(__dirname, '../../../../.env'),
     }),
     ScheduleModule.forRoot(),
     DatabaseModule,

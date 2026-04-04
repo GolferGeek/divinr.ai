@@ -207,6 +207,10 @@ export class MarketsSchemaService {
       alter table prediction.source_catalog add column if not exists external_source_id text;
       alter table prediction.source_catalog add column if not exists domain_slug text not null default 'financial';
       alter table prediction.source_catalog add column if not exists universe_slug text;
+      alter table prediction.source_catalog add column if not exists source_type text not null default 'rss';
+      alter table prediction.source_catalog add column if not exists crawl_frequency_minutes int not null default 15;
+      alter table prediction.source_catalog add column if not exists last_crawled_at timestamptz;
+      alter table prediction.source_catalog add column if not exists last_crawl_error text;
       create unique index if not exists prediction_source_origin_external_id_unique_idx
       on prediction.source_catalog (source_origin, external_source_id)
       where external_source_id is not null;
@@ -237,6 +241,9 @@ export class MarketsSchemaService {
       create index if not exists prediction_market_articles_source_id_idx on prediction.market_articles(source_id);
       create index if not exists prediction_market_articles_published_idx on prediction.market_articles(published_at desc);
       create index if not exists prediction_market_articles_external_org_idx on prediction.market_articles(external_organization_slug);
+
+      -- Allow null external_organization_slug for Divinr-native articles
+      alter table prediction.market_articles alter column external_organization_slug drop not null;
     `;
   }
 
@@ -257,6 +264,11 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_market_predictors_instrument_status_idx
       on prediction.market_predictors (organization_slug, instrument_id, status);
+
+      -- Allow 'expired' status for predictor TTL expiration
+      alter table prediction.market_predictors drop constraint if exists market_predictors_status_check;
+      alter table prediction.market_predictors add constraint market_predictors_status_check
+        check (status in ('active', 'dismissed', 'expired'));
     `;
   }
 

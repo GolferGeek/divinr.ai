@@ -241,7 +241,7 @@ export class RiskRunnerService {
       `select mp.relevance_score, mp.rationale, ma.title
        from prediction.market_predictors mp
        join prediction.market_articles ma on ma.id = mp.article_id
-       where mp.organization_slug = $1
+       where (mp.organization_slug = $1 or mp.organization_slug = '__base__')
          and mp.instrument_id = $2
          and mp.status = 'active'
        order by mp.relevance_score desc
@@ -262,7 +262,7 @@ export class RiskRunnerService {
     const result = await this.db.rawQuery(
       `select display_name, default_weight, persona_prompt
        from prediction.market_analysts
-       where organization_slug = $1
+       where (organization_slug = $1 or organization_slug = '__base__')
          and analyst_type = 'personality'
          and is_enabled = true
          and is_active = true
