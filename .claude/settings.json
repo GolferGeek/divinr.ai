@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /home/golfergeek/projects/divinr.ai/*.sql)",
+      "Bash(npx tsc:*)",
+      "Bash(nohup node:*)",
+      "Bash(echo \"API restarted, PID: $!\")",
+      "Bash(curl -s -H \"x-user-id: admin@alpha-capital.demo\" \"http://localhost:6100/markets/predictions/dashboard?organizationSlug=alpha-capital\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -H \"x-user-id: admin@alpha-capital.demo\" \"http://localhost:6100/markets/predictions/dashboard?organizationSlug=alpha-capital&debug=1\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(m['name']\\) for m in d.get\\('models',[]\\)]\")",
+      "Bash(fuser -k 6100/tcp)",
+      "Bash(curl -s -X POST -H \"x-user-id: admin@alpha-capital.demo\" \"http://localhost:6100/markets/admin/run-pipeline\")",
+      "Bash(curl -s -X POST -H \"x-user-id: admin@alpha-capital.demo\" \"http://localhost:6100/markets/admin/run-prediction-generation\")",
+      "Bash(curl -s -X POST -H \"x-user-id: admin@alpha-capital.demo\" \"http://localhost:6100/markets/admin/run-prediction-generation\" -m 120)",
+      "Bash(curl -s -X POST -H \"x-user-id: admin@alpha-capital.demo\" \"http://localhost:6100/markets/admin/run-prediction-generation\" -m 300)",
+      "Bash(python3 -c ':*)",
+      "Read(//home/golfergeek/.claude/projects/-home-golfergeek-projects-divinr-ai/edf9fa6c-f34e-4109-9829-bd700f3c6068/subagents/**)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}

@@ -9,6 +9,7 @@ import { arrowUpOutline, arrowDownOutline, removeOutline, cartOutline, trendingD
 import { useApi } from '../composables/useApi';
 import { useInstrumentsStore } from '../stores/instruments.store';
 import { useDomainStore } from '../stores/domain.store';
+import AnalystPredictionModal from '../components/AnalystPredictionModal.vue';
 
 interface AnalystStance {
   analyst_id: string;
@@ -38,6 +39,21 @@ const { get } = useApi();
 
 const predictions = ref<DashboardPrediction[]>([]);
 const loading = ref(true);
+
+// Modal state
+const modalOpen = ref(false);
+const modalSymbol = ref('');
+const modalName = ref('');
+const modalAnalysts = ref<AnalystStance[]>([]);
+const modalInitialIndex = ref(0);
+
+function openAnalystModal(pred: DashboardPrediction, analystIndex: number) {
+  modalSymbol.value = pred.symbol;
+  modalName.value = pred.name;
+  modalAnalysts.value = pred.analysts;
+  modalInitialIndex.value = analystIndex;
+  modalOpen.value = true;
+}
 
 onMounted(async () => {
   await instruments.fetch().catch(() => {});
@@ -159,9 +175,10 @@ function timeAgo(dateStr: string): string {
               <!-- Analyst Stances -->
               <div v-if="pred.analysts.length > 0" class="analyst-stances">
                 <div
-                  v-for="a in pred.analysts.filter(x => x.direction !== 'flat')"
+                  v-for="(a, aIdx) in pred.analysts.filter(x => x.direction !== 'flat')"
                   :key="a.analyst_id"
-                  class="stance-row"
+                  class="stance-row clickable"
+                  @click.stop="openAnalystModal(pred, pred.analysts.indexOf(a))"
                 >
                   <span class="stance-name">{{ shortName(a.analyst_name) }}</span>
                   <ion-chip
@@ -204,6 +221,15 @@ function timeAgo(dateStr: string): string {
         </ion-col>
       </ion-row>
     </ion-grid>
+
+    <AnalystPredictionModal
+      :is-open="modalOpen"
+      :symbol="modalSymbol"
+      :name="modalName"
+      :analysts="modalAnalysts"
+      :initial-index="modalInitialIndex"
+      @close="modalOpen = false"
+    />
   </div>
 </template>
 
@@ -268,6 +294,17 @@ function timeAgo(dateStr: string): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.stance-row.clickable {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.stance-row.clickable:hover {
+  background: #f0f4ff;
 }
 
 .stance-name {
