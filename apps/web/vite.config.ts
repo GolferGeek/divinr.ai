@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     port: Number(process.env.VITE_WEB_PORT) || 6101,
+    allowedHosts: ['divinr.ai', 'www.divinr.ai', 'localhost'],
     proxy: {
       '/api': {
         target: `http://localhost:${process.env.VITE_API_PORT || '6100'}`,

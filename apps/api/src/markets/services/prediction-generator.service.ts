@@ -14,12 +14,14 @@ interface InstrumentWithPredictors {
   name: string;
   active_predictor_count: number;
   avg_relevance: number;
+  signal_strength: number;
+  max_relevance: number;
   dominant_direction?: string;
 }
 
 interface ThresholdConfig {
-  minPredictors: number;
-  minAvgRelevance: number;
+  signalThreshold: number;
+  urgentRelevance: number;
   maxRunAgeMinutes: number;
 }
 
@@ -75,8 +77,8 @@ export class PredictionGeneratorService {
 
   private getThresholdConfig(): ThresholdConfig {
     return {
-      minPredictors: parseInt(process.env.MARKETS_MIN_PREDICTORS || '0', 10),
-      minAvgRelevance: parseFloat(process.env.MARKETS_MIN_AVG_RELEVANCE || '0'),
+      signalThreshold: parseFloat(process.env.MARKETS_SIGNAL_THRESHOLD || '1.5'),
+      urgentRelevance: parseFloat(process.env.MARKETS_URGENT_RELEVANCE || '0.75'),
       maxRunAgeMinutes: parseInt(process.env.MARKETS_MAX_RUN_AGE_MINUTES || '60', 10),
     };
   }
@@ -117,23 +119,31 @@ export class PredictionGeneratorService {
 
       this.logger.log(
         `Evaluating ${instruments.length} instruments for prediction generation ` +
-          `(threshold: ${config.minPredictors} predictors, ${config.minAvgRelevance} avg relevance)`,
+          `(signal threshold: ${config.signalThreshold}, urgent: ${config.urgentRelevance})`,
       );
 
       for (const inst of instruments) {
         try {
-          // Check threshold
-          if (
-            inst.active_predictor_count < config.minPredictors ||
-            inst.avg_relevance < config.minAvgRelevance
-          ) {
+          // Signal-based threshold: sum of relevance scores must exceed threshold,
+          // OR any single predictor with urgent relevance triggers immediately
+          const hasUrgent = inst.max_relevance >= config.urgentRelevance;
+          const meetsSignal = inst.signal_strength >= config.signalThreshold;
+
+          if (!hasUrgent && !meetsSignal) {
             thresholdsNotMet++;
             this.logger.debug(
-              `Threshold not met for ${inst.symbol}: ` +
-                `${inst.active_predictor_count} predictors (need ${config.minPredictors}), ` +
-                `avg relevance ${inst.avg_relevance.toFixed(2)} (need ${config.minAvgRelevance})`,
+              `Signal not met for ${inst.symbol}: ` +
+                `signal=${inst.signal_strength.toFixed(2)} (need ${config.signalThreshold}), ` +
+                `max=${inst.max_relevance.toFixed(2)} (urgent at ${config.urgentRelevance}), ` +
+                `${inst.active_predictor_count} predictors`,
             );
             continue;
+          }
+
+          if (hasUrgent) {
+            this.logger.log(
+              `Urgent signal for ${inst.symbol}: predictor at ${inst.max_relevance.toFixed(2)} relevance — triggering prediction`,
+            );
           }
 
           // Check if a recent run already exists
@@ -158,7 +168,7 @@ export class PredictionGeneratorService {
             this.emit('run.complete', `${inst.symbol} prediction complete`, { symbol: inst.symbol, runId });
             this.logger.log(
               `Triggered prediction run ${runId} for ${inst.symbol} ` +
-                `(${inst.active_predictor_count} predictors, avg relevance ${inst.avg_relevance.toFixed(2)})`,
+                `(signal=${inst.signal_strength.toFixed(2)}, max=${inst.max_relevance.toFixed(2)}, ${inst.active_predictor_count} predictors)`,
             );
           }
         } catch (err) {
@@ -200,7 +210,9 @@ export class PredictionGeneratorService {
         i.symbol,
         i.name,
         count(mp.id)::int as active_predictor_count,
-        coalesce(avg(mp.relevance_score), 0)::float as avg_relevance
+        coalesce(avg(mp.relevance_score), 0)::float as avg_relevance,
+        coalesce(sum(mp.relevance_score), 0)::float as signal_strength,
+        coalesce(max(mp.relevance_score), 0)::float as max_relevance
       from prediction.instruments i
       left join prediction.market_predictors mp
         on mp.instrument_id = i.id

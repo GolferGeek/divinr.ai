@@ -16,7 +16,7 @@ export class RiskScoreAggregationService {
   private readonly logger = new Logger(RiskScoreAggregationService.name);
 
   validateDimensionWeights(dimensions: RiskDimension[]): void {
-    const totalWeight = dimensions.reduce((sum, d) => sum + d.weight, 0);
+    const totalWeight = dimensions.reduce((sum, d) => sum + Number(d.weight), 0);
     if (Math.abs(totalWeight - 1.0) > 0.01) {
       this.logger.warn(
         `Dimension weights sum to ${totalWeight.toFixed(3)}, expected ~1.0. Results will be normalized.`,
@@ -46,8 +46,9 @@ export class RiskScoreAggregationService {
       }
 
       dimensionScores[dimension.slug] = assessment.score;
-      weightedSum += assessment.score * dimension.weight;
-      totalWeight += dimension.weight;
+      const weight = Number(dimension.weight);
+      weightedSum += Number(assessment.score) * weight;
+      totalWeight += weight;
       confidences.push(assessment.confidence);
     }
 

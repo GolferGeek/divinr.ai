@@ -15,7 +15,27 @@
       "Bash(curl -s -X POST -H \"x-user-id: admin@alpha-capital.demo\" \"http://localhost:6100/markets/admin/run-prediction-generation\" -m 120)",
       "Bash(curl -s -X POST -H \"x-user-id: admin@alpha-capital.demo\" \"http://localhost:6100/markets/admin/run-prediction-generation\" -m 300)",
       "Bash(python3 -c ':*)",
-      "Read(//home/golfergeek/.claude/projects/-home-golfergeek-projects-divinr-ai/edf9fa6c-f34e-4109-9829-bd700f3c6068/subagents/**)"
+      "Read(//home/golfergeek/.claude/projects/-home-golfergeek-projects-divinr-ai/edf9fa6c-f34e-4109-9829-bd700f3c6068/subagents/**)",
+      "WebFetch(domain:divinr.ai)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} - %{redirect_url}\\\\nIP: %{remote_ip}\\\\n\" https://divinr.ai)",
+      "Bash(curl -s -I https://divinr.ai)",
+      "Bash(fuser -k 7100/tcp)",
+      "Bash(curl -s -X POST -H 'x-user-id: admin@alpha-capital.demo' -H 'Content-Type: application/json' -d '{\"label\": \"orchestrator-enterprise\", \"allowedMachineIdentities\": [\"tailscale:gg-macstudio\"]}' http://localhost:7100/a2a/admin/keys)",
+      "Bash(curl -s -X POST -H 'Authorization: Bearer div_sk_1c84295d04e1c916009c2f6d637b3cd7474d4163defa3dc175d845c30dca8d6a' -H 'X-Machine-Identity: tailscale:gg-macstudio' -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"invoke\",\"params\":{\"context\":{\"tenantId\":\"alpha-capital\"},\"data\":{\"content\":{\"capability\":\"markets/predictions\"}}}}' http://localhost:7100/a2a)",
+      "Bash(curl -s -X POST -H \"x-user-id: admin@alpha-capital.demo\" \"http://localhost:7100/markets/admin/run-prediction-generation\" -m 10)",
+      "Bash(fuser -k 6101/tcp)",
+      "Bash(VITE_API_PORT=7100 VITE_WEB_PORT=7101 nohup pnpm --filter @divinr/web dev)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" https://divinr.ai)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" \"https://divinr.ai/api/markets/risk-dimensions?organizationSlug=alpha-capital\" -H \"x-user-id: admin@alpha-capital.demo\")",
+      "Bash(curl -s \"https://divinr.ai/api/markets/risk-dimensions?organizationSlug=alpha-capital\" -H \"x-user-id: admin@alpha-capital.demo\")",
+      "Bash(curl -s \"http://localhost:7100/markets/risk-assessments?organizationSlug=alpha-capital\" -H \"x-user-id: admin@alpha-capital.demo\")",
+      "Bash(curl -s \"http://localhost:7100/markets/runs?organizationSlug=__base__&status=completed\" -H \"x-user-id: admin@alpha-capital.demo\")",
+      "Bash(curl -s \"http://localhost:7100/markets/instruments/1bf91aea-5d6f-4de4-9a24-0feff57b18ad/composite-score?organizationSlug=alpha-capital\" -H \"x-user-id: admin@alpha-capital.demo\")",
+      "Bash(curl -s \"http://localhost:7100/markets/runs/f2b73084-5afd-414e-b535-0fd6ff91e99f/risk-details?organizationSlug=alpha-capital\" -H \"x-user-id: admin@alpha-capital.demo\")",
+      "Bash(curl -s -X POST -H 'x-user-id: admin@alpha-capital.demo' -H 'Content-Type: application/json' -d '{\"organizationSlug\": \"alpha-capital\"}' http://localhost:7100/markets/instruments/1bf91aea-5d6f-4de4-9a24-0feff57b18ad/rerun-risk)",
+      "Bash(fuser 7100/tcp)",
+      "Bash(curl -s -X POST -H 'x-user-id: admin@alpha-capital.demo' -H 'Content-Type: application/json' -d '{\"organizationSlug\": \"alpha-capital\"}' http://localhost:7100/markets/instruments/1bf91aea-5d6f-4de4-9a24-0feff57b18ad/rerun-risk -m 600)",
+      "Bash(curl -s -X POST -H 'x-user-id: admin@alpha-capital.demo' -H 'Content-Type: application/json' -d '{\"organizationSlug\": \"alpha-capital\"}' http://localhost:7100/markets/runs/f2b73084-5afd-414e-b535-0fd6ff91e99f/rerun-debate -m 600)"
     ],
     "additionalDirectories": [
       "/tmp"

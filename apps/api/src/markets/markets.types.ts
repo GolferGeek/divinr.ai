@@ -48,6 +48,10 @@ export interface MarketAnalyst {
   current_config_version_id: string | null;
   paper_config_version_id: string | null;
   learning_enabled: boolean;
+  memory_patterns: Array<{ pattern: string; instruments?: string[]; confidence: number; source_run_id?: string; created_at: string }>;
+  memory_corrections: Array<{ correction: string; source_run_id?: string; created_at: string }>;
+  memory_instrument_notes: Record<string, Array<{ note: string; created_at: string }>>;
+  memory_calibration: { predictions_made?: number; correct?: number; by_confidence_band?: Record<string, { total: number; correct: number }> };
   created_by: string;
   created_at: string;
   updated_at: string;

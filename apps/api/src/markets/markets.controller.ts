@@ -614,6 +614,10 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { query: orgSlug });
+    // When no filters provided, return composite scores across all instruments
+    if (!runId && !instrumentId) {
+      return this.markets.getDashboardRiskSummary(identity.organizationSlug, identity.userId);
+    }
     return this.markets.listRiskAssessments({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -956,6 +960,39 @@ export class MarketsController {
     return this.baseData.getBaseRiskAssessments({
       limit: limit ? Number(limit) : undefined,
     });
+  }
+
+  @Post('instruments/:instrumentId/rerun-risk')
+  async rerunRisk(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('instrumentId') instrumentId: string,
+    @Body() body: { organizationSlug?: string },
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
+    // All pipeline runs use __base__ — instruments and analysts are base-level
+    const enqueued = await this.markets.enqueueRun({
+      organizationSlug: '__base__',
+      userId: identity.userId,
+      instrumentId,
+      runType: 'risk',
+    });
+    const processed = await this.markets.processNextQueuedRun({
+      organizationSlug: '__base__',
+      userId: identity.userId,
+    });
+    return { enqueued, processed };
+  }
+
+  @Post('runs/:runId/rerun-debate')
+  async rerunDebate(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('runId') runId: string,
+    @Body() body: { organizationSlug?: string },
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
+    return this.markets.rerunDebate(identity.organizationSlug, identity.userId, runId);
   }
 
   // ─── Admin: Settlement, Learning & Evaluation ─────────────────

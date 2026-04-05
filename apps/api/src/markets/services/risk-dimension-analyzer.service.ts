@@ -115,7 +115,7 @@ Respond ONLY with valid JSON. No markdown, no explanation outside the JSON.`;
 
     if (input.analystPerspectives.length > 0) {
       const perspectiveLines = input.analystPerspectives.map(
-        (a) => `- ${a.name} (weight ${a.weight.toFixed(1)}): ${a.perspective.slice(0, 300)}`,
+        (a) => `- ${a.name} (weight ${Number(a.weight).toFixed(1)}): ${a.perspective.slice(0, 300)}`,
       );
       parts.push(`\nAnalyst perspectives to consider:\n${perspectiveLines.join('\n')}`);
     }

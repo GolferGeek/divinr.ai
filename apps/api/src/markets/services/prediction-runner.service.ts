@@ -379,7 +379,51 @@ Respond ONLY with valid JSON.`;
     ];
     if (sharedContext) parts.push(`\n${sharedContext}`);
     if (contextProviderText) parts.push(contextProviderText);
+
+    // Inject analyst memory
+    const memoryText = this.buildMemoryContext(analyst, instrument.symbol);
+    if (memoryText) parts.push(memoryText);
+
     return parts.join('\n');
+  }
+
+  private buildMemoryContext(analyst: MarketAnalyst, symbol: string): string {
+    const sections: string[] = [];
+
+    // Patterns
+    const patterns = analyst.memory_patterns ?? [];
+    if (patterns.length > 0) {
+      const relevant = patterns
+        .filter(p => !p.instruments || p.instruments.length === 0 || p.instruments.includes(symbol))
+        .slice(0, 5);
+      if (relevant.length > 0) {
+        sections.push('Patterns you have learned:\n' + relevant.map(p => `- ${p.pattern} (confidence: ${p.confidence})`).join('\n'));
+      }
+    }
+
+    // Self-corrections
+    const corrections = analyst.memory_corrections ?? [];
+    if (corrections.length > 0) {
+      const recent = corrections.slice(-3);
+      sections.push('Self-corrections from past analyses:\n' + recent.map(c => `- ${c.correction}`).join('\n'));
+    }
+
+    // Instrument-specific notes
+    const notes = analyst.memory_instrument_notes?.[symbol] ?? [];
+    if (notes.length > 0) {
+      const recent = notes.slice(-5);
+      sections.push(`Your notes on ${symbol}:\n` + recent.map(n => `- ${n.note}`).join('\n'));
+    }
+
+    // Calibration
+    const cal = analyst.memory_calibration ?? {};
+    if (cal.predictions_made && cal.predictions_made > 0) {
+      const accuracy = cal.correct ? ((cal.correct / cal.predictions_made) * 100).toFixed(0) : '0';
+      sections.push(`Your track record: ${cal.predictions_made} predictions, ${accuracy}% accuracy. Calibrate your confidence accordingly.`);
+    }
+
+    if (sections.length === 0) return '';
+    return '\n--- Your Memory ---\n' + sections.join('\n\n');
   }
 
   private async buildArbitratorContext(

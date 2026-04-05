@@ -204,6 +204,54 @@ export class RiskRunnerService {
     return { compositeScore, dimensionAssessments: assessments, legacyAssessment, debateId };
   }
 
+  /**
+   * Re-run just the debate for an existing risk run.
+   * Uses existing dimension assessments, runs a fresh Blue/Red/Arbiter debate.
+   */
+  async rerunDebate(input: {
+    context: unknown;
+    runId: string;
+    organizationSlug: string;
+    instrumentId: string;
+    instrumentSymbol: string;
+    compositeScoreId: string;
+    overallScore: number;
+    dimensionAssessments: unknown[];
+  }): Promise<Record<string, unknown>> {
+    const debateResult = await this.debateService.runDebate({
+      context: input.context as never,
+      runId: input.runId,
+      organizationSlug: input.organizationSlug,
+      instrumentId: input.instrumentId,
+      instrumentSymbol: input.instrumentSymbol,
+      compositeScoreId: input.compositeScoreId,
+      overallScore: input.overallScore,
+      dimensionAssessments: input.dimensionAssessments as never[],
+    });
+
+    // Update composite score with new debate adjustment
+    if (debateResult.adjustment !== 0) {
+      await this.updateCompositeWithDebate(
+        input.compositeScoreId,
+        debateResult.debate.id,
+        debateResult.adjustment,
+        debateResult.adjustedScore,
+        input.overallScore,
+      );
+    }
+
+    this.logger.log(
+      `Debate re-run for ${input.instrumentSymbol}: adjustment=${debateResult.adjustment}, new score=${debateResult.adjustedScore}`,
+    );
+
+    return {
+      debate: debateResult.debate,
+      adjustment: debateResult.adjustment,
+      adjustedScore: debateResult.adjustedScore,
+      originalScore: input.overallScore,
+    };
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────
 
   private async loadDimensions(organizationSlug: string): Promise<RiskDimension[]> {

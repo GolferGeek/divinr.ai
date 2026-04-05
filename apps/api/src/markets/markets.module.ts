@@ -49,6 +49,6 @@ import { OutcomeTrackingService } from './services/outcome-tracking.service';
     OutcomeTrackingService,
     MarketsService,
   ],
-  exports: [MarketsService],
+  exports: [MarketsService, AnalystPortfolioService],
 })
 export class MarketsModule {}

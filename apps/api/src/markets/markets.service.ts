@@ -341,6 +341,10 @@ export class MarketsService {
       current_config_version_id: null,
       paper_config_version_id: null,
       learning_enabled: true,
+      memory_patterns: [],
+      memory_corrections: [],
+      memory_instrument_notes: {},
+      memory_calibration: {},
       created_by: input.userId,
       created_at: now,
       updated_at: now,
@@ -2019,6 +2023,39 @@ Respond ONLY with valid JSON.`,
     return dashboardPredictions;
   }
 
+  /**
+   * Dashboard risk summary — latest composite score per instrument.
+   */
+  async getDashboardRiskSummary(
+    organizationSlug: string,
+    userId: string,
+  ): Promise<Array<Record<string, unknown>>> {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    const result = await this.db.rawQuery(
+      `
+      select distinct on (cs.instrument_id)
+        cs.id, cs.instrument_id, cs.run_id, cs.overall_score as risk_score,
+        cs.confidence, cs.debate_adjustment,
+        i.symbol, i.name,
+        case
+          when cs.overall_score <= 33 then 'low'
+          when cs.overall_score <= 66 then 'medium'
+          else 'high'
+        end as verdict,
+        cs.created_at
+      from prediction.risk_composite_scores cs
+      join prediction.instruments i on i.id = cs.instrument_id
+      where (cs.organization_slug = $1 or cs.organization_slug = '__base__')
+      order by cs.instrument_id, cs.created_at desc
+      `,
+      [organizationSlug],
+    );
+    if (result.error) throw new Error(result.error.message);
+    return (result.data as Array<Record<string, unknown>>) ?? [];
+  }
+
   async listRiskAssessments(
     input: ListRiskAssessmentsInput,
   ): Promise<RiskAssessment[]> {
@@ -2191,7 +2228,7 @@ Respond ONLY with valid JSON.`,
 
     const composite = await this.db.rawQuery(
       `select * from prediction.risk_composite_scores
-       where run_id = $1 and organization_slug = $2
+       where run_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
        order by created_at desc limit 1`,
       [runId, organizationSlug],
     );
@@ -2201,7 +2238,7 @@ Respond ONLY with valid JSON.`,
       `select rda.*, rd.slug as dimension_slug, rd.name as dimension_name
        from prediction.risk_dimension_assessments rda
        left join prediction.risk_dimensions rd on rd.id = rda.dimension_id
-       where rda.run_id = $1 and rda.organization_slug = $2
+       where rda.run_id = $1 and (rda.organization_slug = $2 or rda.organization_slug = '__base__')
        order by rd.display_order asc`,
       [runId, organizationSlug],
     );
@@ -2209,13 +2246,70 @@ Respond ONLY with valid JSON.`,
 
     const debate = await this.db.rawQuery(
       `select * from prediction.risk_debates
-       where run_id = $1 and organization_slug = $2
+       where run_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
        order by created_at desc limit 1`,
       [runId, organizationSlug],
     );
     const debateRow = ((debate.data as Record<string, unknown>[] | null) ?? [])[0] ?? null;
 
     return { compositeScore: compositeRow, dimensionAssessments: assessmentRows, debate: debateRow };
+  }
+
+  /**
+   * Re-run the risk debate for an existing risk run.
+   * Loads the existing composite score and dimension assessments, then runs a fresh debate.
+   */
+  async rerunDebate(
+    organizationSlug: string,
+    userId: string,
+    runId: string,
+  ): Promise<Record<string, unknown>> {
+    await this.schema.ensureSchema();
+    await this.requireWrite(userId, organizationSlug);
+
+    // Load existing composite score
+    const comp = await this.db.rawQuery(
+      `select * from prediction.risk_composite_scores
+       where run_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+       order by created_at desc limit 1`,
+      [runId, organizationSlug],
+    );
+    const compositeRow = ((comp.data as Record<string, unknown>[] | null) ?? [])[0];
+    if (!compositeRow) throw new BadRequestException('No composite score found for this run');
+
+    // Load dimension assessments
+    const dims = await this.db.rawQuery(
+      `select * from prediction.risk_dimension_assessments
+       where run_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+       order by created_at asc`,
+      [runId, organizationSlug],
+    );
+    const dimRows = (dims.data as Record<string, unknown>[] | null) ?? [];
+
+    // Look up instrument symbol
+    const inst = await this.db.rawQuery(
+      `select symbol from prediction.instruments where id = $1 limit 1`,
+      [compositeRow.instrument_id],
+    );
+    const symbol = ((inst.data as Array<{ symbol: string }> | null) ?? [])[0]?.symbol ?? 'UNKNOWN';
+
+    // Run the debate via the risk runner's debate service
+    const context = this.buildExecutionContext(
+      String(compositeRow.organization_slug),
+      userId,
+      'risk',
+    );
+
+    return this.riskRunner.rerunDebate({
+      context,
+      runId,
+      organizationSlug: String(compositeRow.organization_slug),
+      instrumentId: String(compositeRow.instrument_id),
+      instrumentSymbol: symbol,
+      compositeScoreId: String(compositeRow.id),
+      overallScore: Number(compositeRow.pre_debate_score ?? compositeRow.overall_score),
+      dimensionAssessments: dimRows as never[],
+    });
   }
 
   async listRiskDimensions(organizationSlug: string, userId: string) {
@@ -2283,7 +2377,7 @@ Respond ONLY with valid JSON.`,
       `select rcs.*, orr.created_at as run_created_at
        from prediction.risk_composite_scores rcs
        join prediction.orchestration_runs orr on orr.id = rcs.run_id
-       where rcs.organization_slug = $1 and rcs.instrument_id = $2 and rcs.status = 'active'
+       where (rcs.organization_slug = $1 or rcs.organization_slug = '__base__') and rcs.instrument_id = $2 and rcs.status = 'active'
        order by rcs.created_at desc limit 1`,
       [organizationSlug, instrumentId],
     );
@@ -2293,7 +2387,7 @@ Respond ONLY with valid JSON.`,
     const trend = await this.db.rawQuery(
       `select overall_score, debate_adjustment, confidence, created_at
        from prediction.risk_composite_scores
-       where organization_slug = $1 and instrument_id = $2
+       where (organization_slug = $1 or organization_slug = '__base__') and instrument_id = $2
        order by created_at desc limit 10`,
       [organizationSlug, instrumentId],
     );
@@ -2411,5 +2505,79 @@ Respond ONLY with valid JSON.`,
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as Record<string, unknown>[] | null) ?? [];
+  }
+
+  /**
+   * Daily report — aggregates predictions, risk scores, and outcomes for the last 24h.
+   */
+  async getDailyReport(organizationSlug: string, userId: string) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    // Prediction runs completed today
+    const runs = await this.db.rawQuery(
+      `select r.id, r.instrument_id, r.run_type, r.status, r.created_at, r.completed_at,
+              i.symbol, i.name
+       from prediction.orchestration_runs r
+       join prediction.instruments i on i.id = r.instrument_id
+       where (r.organization_slug = $1 or r.organization_slug = '__base__')
+         and r.created_at >= now() - interval '24 hours'
+       order by r.created_at desc`,
+      [organizationSlug],
+    );
+    const runRows = (runs.data as Array<Record<string, unknown>>) ?? [];
+
+    // Predictions made today
+    const preds = await this.db.rawQuery(
+      `select mp.instrument_id, mp.predicted_direction, mp.confidence, mp.role,
+              ma.display_name as analyst_name, i.symbol
+       from prediction.market_predictions mp
+       left join prediction.market_analysts ma on ma.id = mp.analyst_id
+       join prediction.instruments i on i.id = mp.instrument_id
+       where (mp.organization_slug = $1 or mp.organization_slug = '__base__')
+         and mp.created_at >= now() - interval '24 hours'
+       order by mp.created_at desc`,
+      [organizationSlug],
+    );
+    const predRows = (preds.data as Array<Record<string, unknown>>) ?? [];
+
+    // Risk scores generated today
+    const risks = await this.db.rawQuery(
+      `select cs.instrument_id, cs.overall_score, cs.pre_debate_score,
+              cs.debate_adjustment, cs.confidence, i.symbol
+       from prediction.risk_composite_scores cs
+       join prediction.instruments i on i.id = cs.instrument_id
+       where (cs.organization_slug = $1 or cs.organization_slug = '__base__')
+         and cs.created_at >= now() - interval '24 hours'
+       order by cs.created_at desc`,
+      [organizationSlug],
+    );
+    const riskRows = (risks.data as Array<Record<string, unknown>>) ?? [];
+
+    // Learning reports
+    const reports = await this.db.rawQuery(
+      `select * from prediction.learning_reports
+       where report_date >= (now() - interval '24 hours')::date
+       order by created_at desc limit 5`,
+    );
+    const reportRows = (reports.data as Array<Record<string, unknown>>) ?? [];
+
+    return {
+      period: '24h',
+      generatedAt: new Date().toISOString(),
+      summary: {
+        runsCompleted: runRows.filter(r => r.status === 'completed').length,
+        runsFailed: runRows.filter(r => r.status === 'failed').length,
+        predictionsMade: predRows.length,
+        analystPredictions: predRows.filter(r => r.role === 'analyst').length,
+        arbitratorPredictions: predRows.filter(r => r.role === 'arbitrator').length,
+        riskAssessments: riskRows.length,
+        instrumentsCovered: new Set(predRows.map(r => r.symbol)).size,
+      },
+      runs: runRows,
+      predictions: predRows,
+      riskScores: riskRows,
+      learningReports: reportRows,
+    };
   }
 }

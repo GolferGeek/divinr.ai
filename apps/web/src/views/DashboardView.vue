@@ -82,9 +82,9 @@ function directionLabel(dir: string): string {
 }
 
 function shortName(name: string): string {
-  // "Technical Tina" → "Tina", "Fundamental Fred" → "Fred"
-  const parts = name.split(' ');
-  return parts.length > 1 ? parts[parts.length - 1] : name;
+  // "Technical Tina — Technical Analyst" → "Technical Tina"
+  const dashIdx = name.indexOf('—');
+  return dashIdx > 0 ? name.slice(0, dashIdx).trim() : name;
 }
 
 function timeAgo(dateStr: string): string {

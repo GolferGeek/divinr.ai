@@ -164,6 +164,10 @@ export class MarketsSchemaService {
       alter table prediction.market_analysts add column if not exists current_config_version_id text;
       alter table prediction.market_analysts add column if not exists paper_config_version_id text;
       alter table prediction.market_analysts add column if not exists learning_enabled boolean not null default true;
+      alter table prediction.market_analysts add column if not exists memory_patterns jsonb not null default '[]';
+      alter table prediction.market_analysts add column if not exists memory_corrections jsonb not null default '[]';
+      alter table prediction.market_analysts add column if not exists memory_instrument_notes jsonb not null default '{}';
+      alter table prediction.market_analysts add column if not exists memory_calibration jsonb not null default '{}';
     `;
   }
 

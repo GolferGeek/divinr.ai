@@ -53,6 +53,12 @@ export class AuthMiddleware implements NestMiddleware {
 
     if (authHeader?.startsWith('Bearer ') && this.identityProvider) {
       const token = authHeader.slice(7);
+
+      // Service API keys are handled by ServiceApiKeyGuard, not JWT validation
+      if (token.startsWith('div_sk_')) {
+        return next();
+      }
+
       try {
         const principal = await this.identityProvider.validateToken(token);
 
