@@ -381,11 +381,32 @@ export class CrawlerService {
       published_at?: string;
     },
   ): Promise<boolean> {
-    // Use URL as the external_article_id for deduplication
-    const externalArticleId = item.url;
-    const contentHash = item.content
-      ? Buffer.from(item.content).toString('base64').slice(0, 64)
-      : null;
+    // Normalize URL: strip tracking params and fragments for dedup
+    const normalizedUrl = item.url.split('?')[0].split('#')[0];
+    const externalArticleId = normalizedUrl;
+    const contentHash = item.title
+      ? Buffer.from(item.title.toLowerCase().trim()).toString('base64').slice(0, 64)
+      : item.content
+        ? Buffer.from(item.content).toString('base64').slice(0, 64)
+        : null;
+
+    // Skip if we already have an article with same title from same source (title-based dedup)
+    if (item.title) {
+      const existing = await this.db.rawQuery(
+        `select 1 from prediction.market_articles
+         where source_id = $1 and title = $2 limit 1`,
+        [source.id, item.title],
+      );
+      if (((existing.data as unknown[] | null) ?? []).length > 0) {
+        return false;
+      }
+    }
+
+    // Clean up summary — don't store if it's just the title repeated
+    let summary = item.summary || null;
+    if (summary && item.title && summary.trim().replace(/\s+/g, ' ') === item.title.trim().replace(/\s+/g, ' ')) {
+      summary = null;
+    }
 
     const result = await this.db.rawQuery(
       `
@@ -406,7 +427,7 @@ export class CrawlerService {
         source.id,
         item.title || null,
         item.url,
-        item.summary || null,
+        summary,
         item.author || null,
         item.content || null,
         contentHash,
