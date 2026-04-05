@@ -2244,6 +2244,27 @@ Respond ONLY with valid JSON.`,
     );
     const assessmentRows = (assessments.data as Record<string, unknown>[] | null) ?? [];
 
+    // Check for per-analyst risk assessments (new format)
+    const analystAssessments = await this.db.rawQuery(
+      `select ara.*, ma.display_name as analyst_name, ma.slug as analyst_slug
+       from prediction.analyst_risk_assessments ara
+       left join prediction.market_analysts ma on ma.id = ara.analyst_id
+       where ara.run_id = $1 and (ara.organization_slug = $2 or ara.organization_slug = '__base__')
+       order by ara.score desc`,
+      [runId, organizationSlug],
+    );
+    const analystRows = (analystAssessments.data as Record<string, unknown>[] | null) ?? [];
+
+    // If per-analyst assessments exist, use those as dimensionAssessments (same data shape: score, confidence, reasoning, evidence)
+    const effectiveAssessments = analystRows.length > 0
+      ? analystRows.map(a => ({
+          ...a,
+          dimension_name: a.analyst_name,
+          dimension_slug: a.analyst_slug,
+          dimension_id: a.analyst_id,
+        }))
+      : assessmentRows;
+
     const debate = await this.db.rawQuery(
       `select * from prediction.risk_debates
        where run_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
@@ -2252,7 +2273,7 @@ Respond ONLY with valid JSON.`,
     );
     const debateRow = ((debate.data as Record<string, unknown>[] | null) ?? [])[0] ?? null;
 
-    return { compositeScore: compositeRow, dimensionAssessments: assessmentRows, debate: debateRow };
+    return { compositeScore: compositeRow, dimensionAssessments: effectiveAssessments, debate: debateRow };
   }
 
   /**

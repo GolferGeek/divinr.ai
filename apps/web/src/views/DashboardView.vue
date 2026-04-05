@@ -82,7 +82,8 @@ function directionLabel(dir: string): string {
 }
 
 function shortName(name: string): string {
-  // "Technical Tina — Technical Analyst" → "Technical Tina"
+  // "Technical Tina — Technical Analyst" → "Technical Tina" (legacy format)
+  // "Technical Analyst" → "Technical Analyst" (new format)
   const dashIdx = name.indexOf('—');
   return dashIdx > 0 ? name.slice(0, dashIdx).trim() : name;
 }

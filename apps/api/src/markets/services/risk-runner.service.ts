@@ -8,6 +8,7 @@ import type { PredictionPlaneState } from '@divinr/prediction-planes';
 import { MarketsLlmService } from './markets-llm.service';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 import { ContextProviderService } from './context-provider.service';
+import { DataSourceService } from './data-source.service';
 import { RiskDimensionAnalyzerService, type AnalystPerspective } from './risk-dimension-analyzer.service';
 import { RiskScoreAggregationService } from './risk-score-aggregation.service';
 import { RiskDebateService } from './risk-debate.service';
@@ -54,6 +55,7 @@ export class RiskRunnerService {
     private readonly dimensionAnalyzer: RiskDimensionAnalyzerService,
     private readonly scoreAggregation: RiskScoreAggregationService,
     private readonly debateService: RiskDebateService,
+    private readonly dataSources: DataSourceService,
   ) {
     this.plane = new StocksPredictionPlane();
     this.planeState = this.plane.state;
@@ -141,8 +143,31 @@ export class RiskRunnerService {
       await this.persistDimensionAssessment(assessment);
     }
 
+    // 5b. Per-analyst risk assessment
+    const analystRiskAssessments = await this.runAnalystRiskAssessments(
+      context, run, instrument, planeContext, contextProviderText, predictorLines,
+    );
+
     // 6. Aggregate into composite score
-    const aggregation = this.scoreAggregation.aggregateAssessments(assessments, dimensions);
+    // If we have analyst risk assessments, use those for aggregation; otherwise fall back to dimension assessments
+    let aggregation;
+    if (analystRiskAssessments.length > 0) {
+      // Weighted average of analyst risk scores, using analyst default_weight
+      const totalWeight = analystRiskAssessments.reduce((sum, a) => sum + a.weight, 0);
+      const weightedSum = analystRiskAssessments.reduce((sum, a) => sum + a.score * a.weight, 0);
+      const overallScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 50;
+      const confidences = analystRiskAssessments.map(a => a.confidence);
+      const confidence = confidences.length > 0
+        ? Math.pow(confidences.reduce((prod, c) => prod * Math.max(c, 0.01), 1), 1 / confidences.length)
+        : 0.5;
+      const dimensionScores: Record<string, number> = {};
+      for (const a of analystRiskAssessments) {
+        dimensionScores[a.analystSlug] = a.score;
+      }
+      aggregation = { overallScore, dimensionScores, confidence };
+    } else {
+      aggregation = this.scoreAggregation.aggregateAssessments(assessments, dimensions);
+    }
 
     // 7. Persist pre-debate composite
     const compositeId = randomUUID();
@@ -156,10 +181,22 @@ export class RiskRunnerService {
       confidence: aggregation.confidence,
     });
 
-    // 8. Debate
+    // 8. Debate — draw Blue (most bullish/lowest risk) and Red (most bearish/highest risk) from analyst pool
     let debateId: string | null = null;
     if (this.llmService.isLlmEnabled()) {
       try {
+        // Use analyst risk assessments for debate context if available
+        const debateAssessments = analystRiskAssessments.length > 0
+          ? analystRiskAssessments.map(a => ({
+              ...assessments[0],  // base structure
+              dimension_id: a.analystId,
+              score: a.score,
+              confidence: a.confidence,
+              reasoning: a.reasoning ?? '',
+              evidence: a.evidence ?? [],
+            }))
+          : assessments;
+
         const debateResult = await this.debateService.runDebate({
           context,
           runId: run.id,
@@ -168,7 +205,7 @@ export class RiskRunnerService {
           instrumentSymbol: instrument.symbol,
           compositeScoreId: compositeId,
           overallScore: aggregation.overallScore,
-          dimensionAssessments: assessments,
+          dimensionAssessments: debateAssessments,
         });
 
         debateId = debateResult.debate.id;
@@ -253,6 +290,105 @@ export class RiskRunnerService {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────
+
+  // ─── Per-Analyst Risk Assessment ─────────────────────────────
+
+  private async runAnalystRiskAssessments(
+    context: ExecutionContext,
+    run: MarketRun,
+    instrument: MarketInstrument,
+    planeContext: string,
+    contextProviderText: string,
+    predictorLines: string[],
+  ): Promise<Array<{ analystId: string; analystSlug: string; score: number; confidence: number; weight: number; reasoning: string | null; evidence: string[]; }>> {
+    // Load personality analysts
+    const result = await this.db.rawQuery(
+      `select id, slug, display_name, persona_prompt, default_weight
+       from prediction.market_analysts
+       where (organization_slug = $1 or organization_slug = '__base__')
+         and analyst_type = 'personality' and is_enabled = true and is_active = true
+         and workflow_scope in ('risk', 'both')
+       order by default_weight desc`,
+      [run.organization_slug],
+    );
+    const analysts = (result.data as Array<{
+      id: string; slug: string; display_name: string; persona_prompt: string; default_weight: number;
+    }> | null) ?? [];
+
+    if (analysts.length === 0) return [];
+
+    const assessments: Array<{ analystId: string; analystSlug: string; score: number; confidence: number; weight: number; reasoning: string | null; evidence: string[]; }> = [];
+
+    for (const analyst of analysts) {
+      try {
+        // Fetch specialized data for this analyst
+        let dataSourceText = '';
+        try {
+          const dsResult = await this.dataSources.fetchForAnalyst(analyst.id, instrument.symbol);
+          dataSourceText = dsResult.context;
+        } catch { /* graceful degradation */ }
+
+        const systemPrompt = `You are the ${analyst.display_name}. ${analyst.persona_prompt}
+You are assessing the risk for a specific financial instrument from YOUR perspective and expertise.
+Respond with valid JSON only:
+{
+  "score": <integer 0-100, where 0=no risk from your perspective, 100=extreme risk>,
+  "confidence": <number 0.0-1.0>,
+  "reasoning": "<your risk assessment from your perspective>",
+  "evidence": ["<evidence point 1>", "<evidence point 2>"]
+}`;
+
+        const userPrompt = [
+          `Assess the risk for ${instrument.symbol} (${instrument.name}) from your perspective as ${analyst.display_name}.`,
+          planeContext,
+          contextProviderText,
+          dataSourceText ? `\nYour specialized data:\n${dataSourceText}` : '',
+          predictorLines.length > 0 ? `\nActive article signals:\n${predictorLines.slice(0, 10).join('\n')}` : '',
+        ].filter(Boolean).join('\n');
+
+        let score = 50;
+        let confidence = 0.5;
+        let reasoning: string | null = null;
+        let evidence: string[] = [];
+
+        if (this.llmService.isLlmEnabled()) {
+          const llmResult = await this.llmService.generateText(context, systemPrompt, userPrompt);
+          const match = llmResult.text.match(/\{[\s\S]*\}/);
+          if (match) {
+            const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+            score = Math.min(100, Math.max(0, Math.round(Number(parsed['score']) || 50)));
+            confidence = Math.min(1, Math.max(0, Number(parsed['confidence']) || 0.5));
+            reasoning = String(parsed['reasoning'] || '');
+            evidence = Array.isArray(parsed['evidence']) ? (parsed['evidence'] as string[]).map(String) : [];
+          }
+        }
+
+        // Persist to analyst_risk_assessments table
+        await this.db.rawQuery(
+          `insert into prediction.analyst_risk_assessments
+            (id, run_id, organization_slug, instrument_id, analyst_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, created_at)
+           values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, '{}', null, null, now())`,
+          [run.id, run.organization_slug, run.instrument_id, analyst.id, score, confidence, reasoning, JSON.stringify(evidence)],
+        );
+
+        assessments.push({
+          analystId: analyst.id,
+          analystSlug: analyst.slug,
+          score,
+          confidence,
+          weight: analyst.default_weight,
+          reasoning,
+          evidence,
+        });
+
+        this.logger.log(`${analyst.display_name} risk for ${instrument.symbol}: score=${score}, confidence=${confidence.toFixed(2)}`);
+      } catch (err) {
+        this.logger.warn(`Analyst risk assessment failed for ${analyst.slug}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    return assessments;
+  }
 
   private async loadDimensions(organizationSlug: string): Promise<RiskDimension[]> {
     // First try org-specific dimensions, then fall back to templates

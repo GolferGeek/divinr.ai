@@ -8,6 +8,10 @@ import {
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 import { PredictionRunnerService } from './prediction-runner.service';
 import { RiskRunnerService } from './risk-runner.service';
+import { CrawlerService } from './crawler.service';
+import { PredictorGeneratorService } from './predictor-generator.service';
+import { PredictionGeneratorService } from './prediction-generator.service';
+import { OutcomeTrackingService } from './outcome-tracking.service';
 
 /**
  * Analyst Pipeline — runs every 30 minutes.
@@ -33,6 +37,10 @@ export class AnalystPipelineService {
     private readonly schema: MarketsSchemaService,
     private readonly predictionRunner: PredictionRunnerService,
     private readonly riskRunner: RiskRunnerService,
+    private readonly crawlerService: CrawlerService,
+    private readonly predictorGenerator: PredictorGeneratorService,
+    private readonly predictionGenerator: PredictionGeneratorService,
+    private readonly outcomeTracking: OutcomeTrackingService,
     private readonly configService: ConfigService,
   ) {
     this.enabled =
@@ -56,7 +64,14 @@ export class AnalystPipelineService {
   }
 
   /**
-   * Run the pipeline manually (called from admin endpoint).
+   * Run the full integrated pipeline manually (called from admin endpoint).
+   *
+   * Unified pipeline flow:
+   * 1. Crawl articles
+   * 2. Per-analyst article scoring (5 scores per article)
+   * 3. Signal-based prediction generation (triggers runs when threshold met)
+   * 4. Outcome tracking
+   * 5. Log pipeline metrics
    */
   async runPipeline(): Promise<PipelineResult> {
     await this.schema.ensureSchema();
@@ -73,131 +88,58 @@ export class AnalystPipelineService {
     };
 
     try {
-      // Step 1: Get all active __base__ instruments — pipeline runs once for base,
-      // all orgs see the results
-      const instrumentsResult = await this.db.rawQuery(`
-        SELECT DISTINCT i.id, i.organization_slug, i.symbol, i.name
-        FROM prediction.instruments i
-        WHERE i.is_active = true
-          AND i.organization_slug = '__base__'
-        ORDER BY i.symbol
-        LIMIT 100
-      `);
-
-      if (instrumentsResult.error) {
-        result.errors.push(
-          `Failed to query instruments: ${instrumentsResult.error.message}`,
-        );
-        return this.finalize(result, startTime);
+      // Step 1: Crawl new articles
+      this.logger.log('Pipeline Step 1: Crawling articles');
+      const crawlStart = Date.now();
+      try {
+        const crawlResult = await this.crawlerService.runCrawl();
+        result.newArticlesFound = crawlResult.articlesNew;
+        this.logger.log(`Crawl: ${crawlResult.articlesNew} new articles (${Date.now() - crawlStart}ms)`);
+      } catch (err) {
+        result.errors.push(`Crawl failed: ${err instanceof Error ? err.message : String(err)}`);
       }
 
-      const instruments =
-        (instrumentsResult.data as Array<{
-          id: string;
-          organization_slug: string;
-          symbol: string;
-          name: string;
-        }>) ?? [];
-
-      result.instrumentsProcessed = instruments.length;
-      this.logger.log(
-        `Pipeline: processing ${instruments.length} active instruments`,
-      );
-
-      // Step 2-3: Check for new articles and score as predictors
-      // (Articles come from FireCrawl external sync — this step checks
-      //  if there are unscored articles for each instrument)
-      for (const instrument of instruments) {
-        try {
-          const unscoredResult = await this.db.rawQuery(
-            `
-            SELECT ma.id as article_id
-            FROM prediction.market_articles ma
-            WHERE NOT EXISTS (
-              SELECT 1 FROM prediction.market_predictors mp
-              WHERE mp.article_id = ma.id
-                AND mp.instrument_id = $1
-                AND mp.organization_slug = $2
-            )
-            LIMIT 10
-          `,
-            [instrument.id, instrument.organization_slug],
-          );
-
-          const unscoredArticles =
-            (unscoredResult.data as Array<{ article_id: string }>) ?? [];
-          result.newArticlesFound += unscoredArticles.length;
-
-          // Step 4: Enqueue prediction run if new predictors exist
-          if (unscoredArticles.length > 0) {
-            const enqueueResult = await this.db.rawQuery(
-              `
-              INSERT INTO prediction.orchestration_runs
-                (id, organization_slug, instrument_id, run_type, status, requested_by)
-              VALUES (gen_random_uuid(), $1, $2, 'prediction', 'queued', 'pipeline')
-              ON CONFLICT DO NOTHING
-              RETURNING id
-            `,
-              [instrument.organization_slug, instrument.id],
-            );
-
-            if (!enqueueResult.error) {
-              const enqueued =
-                (enqueueResult.data as Array<{ id: string }>) ?? [];
-              if (enqueued.length > 0) {
-                result.predictionRunsEnqueued++;
-              }
-            }
-          }
-
-          // Step 5: Enqueue risk run if recent prediction run completed
-          const recentPredRunResult = await this.db.rawQuery(
-            `
-            SELECT id FROM prediction.orchestration_runs
-            WHERE organization_slug = $1
-              AND instrument_id = $2
-              AND run_type = 'prediction'
-              AND status = 'completed'
-              AND completed_at > now() - interval '1 hour'
-            LIMIT 1
-          `,
-            [instrument.organization_slug, instrument.id],
-          );
-
-          const recentPredRuns =
-            (recentPredRunResult.data as Array<{ id: string }>) ?? [];
-          if (recentPredRuns.length > 0) {
-            const riskEnqueue = await this.db.rawQuery(
-              `
-              INSERT INTO prediction.orchestration_runs
-                (id, organization_slug, instrument_id, run_type, status, requested_by)
-              VALUES (gen_random_uuid(), $1, $2, 'risk', 'queued', 'pipeline')
-              ON CONFLICT DO NOTHING
-              RETURNING id
-            `,
-              [instrument.organization_slug, instrument.id],
-            );
-
-            if (!riskEnqueue.error) {
-              const enqueued =
-                (riskEnqueue.data as Array<{ id: string }>) ?? [];
-              if (enqueued.length > 0) {
-                result.riskRunsEnqueued++;
-              }
-            }
-          }
-        } catch (err) {
-          result.errors.push(
-            `Error processing ${instrument.symbol}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
+      // Step 2: Per-analyst article scoring
+      this.logger.log('Pipeline Step 2: Per-analyst article scoring');
+      const scoringStart = Date.now();
+      try {
+        const scoringResult = await this.predictorGenerator.runGeneration();
+        result.predictorsScored = scoringResult.predictorsCreated;
+        result.instrumentsProcessed = scoringResult.instrumentsAffected;
+        this.logger.log(`Scoring: ${scoringResult.predictorsCreated} predictors created (${Date.now() - scoringStart}ms)`);
+      } catch (err) {
+        result.errors.push(`Scoring failed: ${err instanceof Error ? err.message : String(err)}`);
       }
 
+      // Step 3: Signal-based prediction generation (includes risk runs)
+      this.logger.log('Pipeline Step 3: Signal-based prediction + risk generation');
+      const predStart = Date.now();
+      try {
+        const predResult = await this.predictionGenerator.runGeneration();
+        result.predictionRunsEnqueued = predResult.runsTriggered;
+        result.runsProcessed = predResult.runsTriggered;
+        this.logger.log(`Predictions: ${predResult.runsTriggered} runs triggered (${Date.now() - predStart}ms)`);
+      } catch (err) {
+        result.errors.push(`Prediction generation failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      // Step 4: Outcome tracking
+      this.logger.log('Pipeline Step 4: Outcome tracking');
+      const outcomeStart = Date.now();
+      try {
+        const outcomeResult = await this.outcomeTracking.runTracking();
+        this.logger.log(`Outcomes: ${outcomeResult.snapshotsCaptured} snapshots, ${outcomeResult.predictionsResolved} resolved (${Date.now() - outcomeStart}ms)`);
+      } catch (err) {
+        result.errors.push(`Outcome tracking failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      const totalDuration = Date.now() - startTime;
       this.logger.log(
         `Pipeline complete: ${result.instrumentsProcessed} instruments, ` +
           `${result.newArticlesFound} new articles, ` +
+          `${result.predictorsScored} predictors, ` +
           `${result.predictionRunsEnqueued} prediction runs, ` +
-          `${result.riskRunsEnqueued} risk runs`,
+          `${totalDuration}ms total`,
       );
     } catch (err) {
       result.errors.push(

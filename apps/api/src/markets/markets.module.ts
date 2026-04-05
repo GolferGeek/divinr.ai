@@ -22,6 +22,7 @@ import { CrawlerService } from './services/crawler.service';
 import { PredictorGeneratorService } from './services/predictor-generator.service';
 import { PredictionGeneratorService } from './services/prediction-generator.service';
 import { OutcomeTrackingService } from './services/outcome-tracking.service';
+import { DataSourceService } from './services/data-source.service';
 
 @Module({
   controllers: [MarketsController],
@@ -47,6 +48,7 @@ import { OutcomeTrackingService } from './services/outcome-tracking.service';
     PredictorGeneratorService,
     PredictionGeneratorService,
     OutcomeTrackingService,
+    DataSourceService,
     MarketsService,
   ],
   exports: [MarketsService, AnalystPortfolioService],

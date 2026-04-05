@@ -33,19 +33,22 @@ This effort makes each analyst a true specialist with:
 ### 1. Each Analyst Runs the Full Pipeline
 Not just predictions. Each analyst does: article scoring → risk assessment → prediction → debate participation. The arbitrator synthesizes at each stage across all analysts.
 
-### 2. Per-Analyst Data Sources
-Each analyst has assigned data sources through a source abstraction layer. The same interface handles free and paid tiers — upgrading is a config change, not a code rewrite.
+### 2. Articles as Shared Foundation, Specialization as Additive
+All analysts see the same crawled articles — that's the shared "what's happening in the world" layer that grounds them in current events. But each analyst interprets articles through their own lens and *also* receives specialized data on top. The Technical Analyst reads "MSFT broke through $385" and thinks about chart patterns; the Fundamentals Analyst reads the same article and focuses on the earnings guidance buried in paragraph three. Articles are the common ground; specialized data sources (indicators, filings, economic data, sentiment feeds) are additive layers that give each analyst the tools to analyze those events through their expertise.
 
-### 3. Free-Tier First
+### 3. Per-Analyst Data Sources
+Each analyst has assigned specialized data sources through a source abstraction layer. The same interface handles free and paid tiers — upgrading is a config change, not a code rewrite.
+
+### 4. Free-Tier First
 Start with free APIs (FRED, SEC EDGAR, Finnhub free, Twelve Data free, Polygon.io free). Build the pipeline so paid upgrades are trivial when revenue justifies them. ~$114/month gets the full paid stack when needed.
 
-### 4. Sentiment via LLM
+### 5. Sentiment via LLM
 No paid sentiment APIs. The Sentiment Analyst runs our existing articles + Reddit posts through their persona to extract sentiment signals. Our LLM does the scoring.
 
-### 5. Professional Names
+### 6. Professional Names
 "Technical Analyst", "Fundamentals Analyst", "Macro Strategist" — not "Technical Tina". The persona drives behavior, the name describes the role.
 
-### 6. Only GolferGeek Modifies Base Analysts
+### 7. Only GolferGeek Modifies Base Analysts
 All base analysts are `__base__`. Tenants see output but cannot change analyst configurations, data sources, or memory. This is the product differentiator.
 
 ## What Needs to Happen
@@ -57,27 +60,29 @@ All base analysts are `__base__`. Tenants see output but cannot change analyst c
 - Create `data_source_registry` and `analyst_source_assignments` tables
 - Register free-tier sources
 
-### Phase 2: Per-Analyst Data Sources
-- Build context providers (adapters) for each analyst:
-  - Technical: Twelve Data (RSI, MACD, SMA, Bollinger)
-  - Fundamentals: FMP (ratios, earnings) + SEC EDGAR (filings)
-  - Sentiment: Finnhub (ratings, insider txns) + Reddit (posts → LLM scoring)
-  - Macro: FRED (yield curve, CPI, unemployment, VIX, GDP)
-  - Momentum: Twelve Data (ROC) + FMP (screener, sector perf) + Polygon (volume)
-- Per-analyst article scoring (each analyst scores through their own lens)
+### Phase 2: Data Source Adapters
+- Build adapters for each external data source (Twelve Data, FMP, SEC EDGAR, Finnhub, FRED, Polygon.io, Reddit)
+- Wire adapters into context provider system based on analyst_source_assignments
 - Rate limiting and caching per source
+- Each analyst's prediction prompt now includes their specialized data
 
-### Phase 3: Per-Analyst Risk Assessment
+### Phase 3: Per-Analyst Article Scoring
+- Each analyst scores articles through their own lens (5 scores per article)
+- Per-analyst predictor pools with independent signal thresholds
+- Update market_predictors unique constraint to allow per-analyst rows
+
+### Phase 4: Per-Analyst Risk Assessment
 - Each analyst does their own risk assessment (replace generic dimension system)
 - Arbitrator synthesizes risk across all analyst perspectives
 - Debate draws Blue/Red from the analyst pool (most bullish vs most bearish)
+- Historical dimension-based risk data preserved read-only
 
-### Phase 4: Full Pipeline Integration
+### Phase 5: Full Pipeline Integration
 - Each analyst runs context → articles → risk → prediction as a unit
 - Arbitrator synthesizes at each stage
 - Memory accumulates across all pipeline stages
 
-### Phase 5: Trade Recommendations
+### Phase 6: Trade Recommendations
 - Portfolio manager role
 - Position sizing based on signal + risk + calibration
 - Paper trading validation before live recommendations
@@ -90,6 +95,9 @@ All base analysts are `__base__`. Tenants see output but cannot change analyst c
 - Azure cloud deployment (triggered by revenue)
 - Mobile-specific features (web works on mobile via Ionic)
 - Paid data source tiers (start free, upgrade when revenue justifies)
+- Real-time streaming data (batch pipeline on 30-minute cycles)
+- Custom per-tenant analysts (tenants see base analyst output only)
+- Trade execution (trade recommendations are in scope; execution is not)
 
 ## Supporting Documents
 

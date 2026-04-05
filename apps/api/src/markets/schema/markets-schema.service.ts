@@ -41,6 +41,7 @@ export class MarketsSchemaService {
       ${this.riskDebatesDdl()}
       ${this.learningSystemDdl()}
       ${this.portfolioSystemDdl()}
+      ${this.dataSourceDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -52,6 +53,8 @@ export class MarketsSchemaService {
     await this.seedDefaultSources();
     await this.seedDefaultRiskDimensions();
     await this.seedDefaultPositionSizing();
+    await this.migrateAnalystNames();
+    await this.seedDataSources();
     this.schemaReady = true;
     this.logger.log('Prediction schema ready');
   }
@@ -273,6 +276,16 @@ export class MarketsSchemaService {
       alter table prediction.market_predictors drop constraint if exists market_predictors_status_check;
       alter table prediction.market_predictors add constraint market_predictors_status_check
         check (status in ('active', 'dismissed', 'expired'));
+
+      -- Per-analyst article scoring: add scored_by_analyst_id and update unique constraint
+      alter table prediction.market_predictors add column if not exists scored_by_analyst_id text;
+
+      -- Replace original unique constraint with per-analyst version
+      -- (original: organization_slug, instrument_id, article_id)
+      -- (new: organization_slug, instrument_id, article_id, scored_by_analyst_id)
+      drop index if exists prediction.market_predictors_organization_slug_instrument_id_article_key;
+      create unique index if not exists market_predictors_org_instrument_article_analyst_key
+        on prediction.market_predictors (organization_slug, instrument_id, article_id, scored_by_analyst_id);
     `;
   }
 
@@ -853,5 +866,134 @@ export class MarketsSchemaService {
         unique (organization_slug, tier_name)
       );
     `;
+  }
+
+  // ─── Analyst Intelligence Platform ─────────────────────────────
+
+  private dataSourceDdl(): string {
+    return `
+      create table if not exists prediction.data_source_registry (
+        id text primary key,
+        name text not null,
+        provider_type text not null check (provider_type in ('api', 'crawler', 'computed')) default 'api',
+        base_url text,
+        api_key_env_var text,
+        tier text not null default 'free' check (tier in ('free', 'paid')),
+        rate_limit_per_minute int not null default 60,
+        cache_ttl_seconds int not null default 900,
+        is_active boolean not null default true,
+        created_at timestamptz not null default now()
+      );
+
+      create table if not exists prediction.analyst_source_assignments (
+        id text primary key default gen_random_uuid()::text,
+        analyst_id text not null,
+        source_id text not null references prediction.data_source_registry(id),
+        data_types text[] not null default '{}',
+        priority int not null default 0,
+        is_active boolean not null default true,
+        unique(analyst_id, source_id)
+      );
+
+      alter table prediction.market_predictions
+        add column if not exists source_context jsonb not null default '{}';
+
+      create table if not exists prediction.analyst_risk_assessments (
+        id text primary key default gen_random_uuid()::text,
+        run_id text not null,
+        organization_slug text not null,
+        instrument_id text not null,
+        analyst_id text not null,
+        score int not null check (score >= 0 and score <= 100),
+        confidence numeric not null check (confidence >= 0 and confidence <= 1),
+        reasoning text,
+        evidence jsonb default '[]',
+        source_data jsonb default '{}',
+        model_provider text,
+        model_name text,
+        created_at timestamptz not null default now()
+      );
+      create index if not exists prediction_analyst_risk_assessments_run_idx
+        on prediction.analyst_risk_assessments (run_id);
+      create index if not exists prediction_analyst_risk_assessments_instrument_idx
+        on prediction.analyst_risk_assessments (organization_slug, instrument_id);
+    `;
+  }
+
+  private async migrateAnalystNames(): Promise<void> {
+    const migrations = [
+      { oldSlug: 'technical-tina', newSlug: 'technical-analyst', newName: 'Technical Analyst', newPrompt: null },
+      { oldSlug: 'fundamental-fred', newSlug: 'fundamentals-analyst', newName: 'Fundamentals Analyst', newPrompt: null },
+      { oldSlug: 'sentiment-sally', newSlug: 'sentiment-analyst', newName: 'Sentiment Analyst', newPrompt: null },
+      { oldSlug: 'aggressive-alex', newSlug: 'momentum-analyst', newName: 'Momentum Analyst', newPrompt: null },
+      {
+        oldSlug: 'cautious-carl',
+        newSlug: 'macro-strategist',
+        newName: 'Macro Strategist',
+        newPrompt: 'You are a Macro Strategist, focused on macroeconomic indicators, central bank policy, and cross-asset analysis. Focus on: interest rates, inflation data, employment figures, Fed policy signals, yield curves, sector rotation, and geopolitical risks. You assess how macro forces create tailwinds or headwinds for individual instruments.',
+      },
+    ];
+
+    for (const m of migrations) {
+      const sql = m.newPrompt
+        ? `update prediction.market_analysts set slug = $1, display_name = $2, persona_prompt = $3 where slug = $4`
+        : `update prediction.market_analysts set slug = $1, display_name = $2 where slug = $3`;
+      const params = m.newPrompt
+        ? [m.newSlug, m.newName, m.newPrompt, m.oldSlug]
+        : [m.newSlug, m.newName, m.oldSlug];
+      await this.db.rawQuery(sql, params);
+    }
+  }
+
+  private async seedDataSources(): Promise<void> {
+    const seedSql = `
+      insert into prediction.data_source_registry
+        (id, name, provider_type, base_url, api_key_env_var, tier, rate_limit_per_minute, cache_ttl_seconds, is_active)
+      values
+        ('ds-twelve-data', 'Twelve Data', 'api', 'https://api.twelvedata.com', 'TWELVE_DATA_API_KEY', 'free', 8, 900, true),
+        ('ds-fmp', 'Financial Modeling Prep', 'api', 'https://financialmodelingprep.com/api/v3', 'FMP_API_KEY', 'free', 4, 86400, true),
+        ('ds-sec-edgar', 'SEC EDGAR', 'api', 'https://data.sec.gov', null, 'free', 600, 86400, true),
+        ('ds-finnhub', 'Finnhub', 'api', 'https://finnhub.io/api/v1', 'FINNHUB_API_KEY', 'free', 60, 1800, true),
+        ('ds-fred', 'FRED', 'api', 'https://api.stlouisfed.org/fred', 'FRED_API_KEY', 'free', 120, 3600, true),
+        ('ds-polygon', 'Polygon.io', 'api', 'https://api.polygon.io', 'POLYGON_API_KEY', 'free', 5, 900, true),
+        ('ds-reddit', 'Reddit', 'crawler', 'https://www.reddit.com', null, 'free', 100, 1800, true)
+      on conflict (id) do nothing;
+    `;
+    const result = await this.db.rawQuery(seedSql);
+    if (result.error) {
+      this.logger.warn(`Failed to seed data sources: ${result.error.message}`);
+      return;
+    }
+
+    // Seed analyst-source assignments
+    // We need analyst IDs — look them up by slug for __base__
+    const assignmentsSql = `
+      insert into prediction.analyst_source_assignments (id, analyst_id, source_id, data_types, priority)
+      select
+        gen_random_uuid()::text,
+        ma.id,
+        ds.id,
+        v.data_types,
+        v.priority
+      from (values
+        ('technical-analyst', 'ds-twelve-data', ARRAY['rsi','macd','sma','ema','bbands'], 1),
+        ('technical-analyst', 'ds-polygon', ARRAY['ohlcv','volume'], 2),
+        ('fundamentals-analyst', 'ds-fmp', ARRAY['ratios','earnings','income-statement'], 1),
+        ('fundamentals-analyst', 'ds-sec-edgar', ARRAY['filings','financials'], 2),
+        ('sentiment-analyst', 'ds-finnhub', ARRAY['recommendations','insider-transactions','price-targets'], 1),
+        ('sentiment-analyst', 'ds-reddit', ARRAY['posts'], 2),
+        ('macro-strategist', 'ds-fred', ARRAY['yield-curve','cpi','unemployment','vix','gdp','fed-funds'], 1),
+        ('momentum-analyst', 'ds-twelve-data', ARRAY['roc'], 1),
+        ('momentum-analyst', 'ds-fmp', ARRAY['earnings-surprise','sector-performance'], 2),
+        ('momentum-analyst', 'ds-polygon', ARRAY['volume','ohlcv'], 3)
+      ) as v(analyst_slug, source_id, data_types, priority)
+      join prediction.market_analysts ma on ma.slug = v.analyst_slug and ma.organization_slug = '__base__'
+      join prediction.data_source_registry ds on ds.id = v.source_id
+      on conflict (analyst_id, source_id) do nothing;
+    `;
+    const aResult = await this.db.rawQuery(assignmentsSql);
+    if (aResult.error) {
+      this.logger.warn(`Failed to seed analyst-source assignments: ${aResult.error.message}`);
+    }
   }
 }

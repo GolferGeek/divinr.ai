@@ -181,9 +181,9 @@ async function assignAnalyst(orgSlug: string, instrumentId: string, analystId: s
 
 const DEFAULT_ANALYSTS = [
   {
-    slug: 'fundamental-fred',
-    name: 'Fundamental Fred',
-    prompt: 'You are Fundamental Fred, a data-driven fundamentals analyst. Focus on: earnings quality, revenue trends, margins, balance sheet strength, valuation metrics, competitive position. Always ground your analysis in financial data.',
+    slug: 'fundamentals-analyst',
+    name: 'Fundamentals Analyst',
+    prompt: 'You are a Fundamentals Analyst, a data-driven specialist in financial statement analysis and valuation. Focus on: earnings quality, revenue trends, margins, balance sheet strength, valuation metrics, competitive position. Always ground your analysis in financial data.',
     weight: 1.0,
     tier: {
       gold: 'Provide comprehensive analysis of earnings, revenue, margins, debt levels, P/E ratios, competitive moat, and management quality. Multi-step reasoning with full evidence.',
@@ -192,9 +192,9 @@ const DEFAULT_ANALYSTS = [
     },
   },
   {
-    slug: 'technical-tina',
-    name: 'Technical Tina',
-    prompt: 'You are Technical Tina, a chart patterns and price action specialist. Focus on: chart patterns, support/resistance levels, volume analysis, momentum indicators, trend identification. Let the price action tell the story.',
+    slug: 'technical-analyst',
+    name: 'Technical Analyst',
+    prompt: 'You are a Technical Analyst, a chart patterns and price action specialist. Focus on: chart patterns, support/resistance levels, volume analysis, momentum indicators, trend identification. Let the price action tell the story.',
     weight: 1.0,
     tier: {
       gold: 'Comprehensive technical analysis covering trends, support/resistance zones, volume profile, RSI, MACD, moving averages, and chart patterns with timeframe alignment.',
@@ -203,9 +203,9 @@ const DEFAULT_ANALYSTS = [
     },
   },
   {
-    slug: 'sentiment-sally',
-    name: 'Sentiment Sally',
-    prompt: 'You are Sentiment Sally, a market sentiment and psychology analyst. Focus on: news tone, social media buzz, analyst ratings changes, insider activity, institutional flows. Read the crowd, but think independently.',
+    slug: 'sentiment-analyst',
+    name: 'Sentiment Analyst',
+    prompt: 'You are a Sentiment Analyst, a market sentiment and psychology specialist. Focus on: news tone, social media buzz, analyst ratings changes, insider activity, institutional flows. Read the crowd, but think independently.',
     weight: 1.0,
     tier: {
       gold: 'Comprehensive sentiment analysis covering news tone, social media sentiment, analyst consensus shifts, insider patterns, institutional flows, and options positioning.',
@@ -214,9 +214,9 @@ const DEFAULT_ANALYSTS = [
     },
   },
   {
-    slug: 'aggressive-alex',
-    name: 'Aggressive Alex',
-    prompt: 'You are Aggressive Alex, focused on momentum and high-conviction plays. Focus on: breakouts, trend acceleration, volume surges, relative strength. You look for asymmetric opportunities with strong catalysts.',
+    slug: 'momentum-analyst',
+    name: 'Momentum Analyst',
+    prompt: 'You are a Momentum Analyst, focused on trend acceleration and high-conviction breakout plays. Focus on: breakouts, trend acceleration, volume surges, relative strength, earnings momentum. You look for asymmetric opportunities with strong catalysts.',
     weight: 1.1,
     tier: {
       gold: 'Identify breakout setups, trend acceleration signals, volume confirmation, relative strength vs sector, and catalyst alignment. Assess risk/reward asymmetry.',
@@ -225,14 +225,14 @@ const DEFAULT_ANALYSTS = [
     },
   },
   {
-    slug: 'cautious-carl',
-    name: 'Cautious Carl',
-    prompt: 'You are Cautious Carl, focused on risk management and downside protection. Focus on: downside protection, margin of safety, position sizing discipline. Your job is to protect capital first, grow it second.',
+    slug: 'macro-strategist',
+    name: 'Macro Strategist',
+    prompt: 'You are a Macro Strategist, focused on macroeconomic indicators, central bank policy, and cross-asset analysis. Focus on: interest rates, inflation data, employment figures, Fed policy signals, yield curves, sector rotation, and geopolitical risks. You assess how macro forces create tailwinds or headwinds for individual instruments.',
     weight: 0.9,
     tier: {
-      gold: 'Assess downside risks, margin of safety, hidden risks, correlation exposure, tail risk, and risk/reward asymmetry. Recommend position sizing.',
-      silver: 'Key risk focus: what could go wrong, maximum downside, and margin of safety assessment.',
-      bronze: 'Quick risk check: biggest risk factor and whether downside is protected.',
+      gold: 'Analyze interest rate trajectory, inflation trends, yield curve dynamics, Fed policy signals, employment data, GDP trends, geopolitical risks, and currency impacts. Assess macro tailwinds and headwinds.',
+      silver: 'Key macro focus: interest rate direction, inflation trend, yield curve shape, and major policy signals.',
+      bronze: 'Quick macro check: is the macro environment supportive or hostile for this instrument?',
     },
   },
 ];
@@ -263,8 +263,8 @@ const ORGS: OrgConfig[] = [
     name: 'Alpha Capital',
     adminEmail: 'admin@alpha-capital.demo',
     analystEmail: 'analyst@alpha-capital.demo',
-    disabledAnalysts: ['cautious-carl'],
-    weightOverrides: { 'aggressive-alex': 1.3 },
+    disabledAnalysts: ['macro-strategist'],
+    weightOverrides: { 'momentum-analyst': 1.3 },
     customAnalysts: [
       {
         slug: 'momentum-maria',
@@ -279,8 +279,8 @@ const ORGS: OrgConfig[] = [
     name: 'Steadfast Advisors',
     adminEmail: 'admin@steadfast-advisors.demo',
     analystEmail: 'analyst@steadfast-advisors.demo',
-    disabledAnalysts: ['aggressive-alex'],
-    weightOverrides: { 'fundamental-fred': 1.2, 'cautious-carl': 1.2 },
+    disabledAnalysts: ['momentum-analyst'],
+    weightOverrides: { 'fundamentals-analyst': 1.2, 'macro-strategist': 1.2 },
     customAnalysts: [
       {
         slug: 'value-victor',
@@ -295,8 +295,8 @@ const ORGS: OrgConfig[] = [
     name: 'Apex Quant',
     adminEmail: 'admin@apex-quant.demo',
     analystEmail: 'analyst@apex-quant.demo',
-    disabledAnalysts: ['fundamental-fred'],
-    weightOverrides: { 'technical-tina': 1.3 },
+    disabledAnalysts: ['fundamentals-analyst'],
+    weightOverrides: { 'technical-analyst': 1.3 },
     customAnalysts: [
       {
         slug: 'quant-quinn',

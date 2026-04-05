@@ -8,6 +8,7 @@ import type { PredictionPlaneState } from '@divinr/prediction-planes';
 import { MarketsLlmService } from './markets-llm.service';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 import { ContextProviderService } from './context-provider.service';
+import { DataSourceService } from './data-source.service';
 import type {
   MarketRun,
   MarketInstrument,
@@ -48,6 +49,7 @@ export class PredictionRunnerService {
     private readonly schema: MarketsSchemaService,
     private readonly llmService: MarketsLlmService,
     private readonly contextProviders: ContextProviderService,
+    private readonly dataSources: DataSourceService,
   ) {
     this.planeState = new StocksPredictionPlane().state;
   }
@@ -170,9 +172,42 @@ export class PredictionRunnerService {
     contextProviderText: string,
     isPaper: boolean,
   ): Promise<{ outcome: PredictionOutcome; artifactId: string }> {
+    // Fetch specialized data for this analyst
+    let dataSourceText = '';
+    let sourceContext: Record<string, unknown> = {};
+    try {
+      const dsResult = await this.dataSources.fetchForAnalyst(analyst.id, instrument.symbol);
+      dataSourceText = dsResult.context;
+      sourceContext = dsResult.sourceContext;
+    } catch (err) {
+      this.logger.warn(`Data source fetch failed for ${analyst.slug}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // Load per-analyst predictor lines (articles this analyst scored as relevant)
+    const analystPredictorLines = await this.loadPredictorLines(run.organization_slug, run.instrument_id, analyst.id);
+    const analystPredictorContext = analystPredictorLines.length > 0
+      ? `\nArticles you scored as relevant:\n${analystPredictorLines.join('\n')}`
+      : '';
+
+    // Load this analyst's own risk assessment for this instrument (if available)
+    let analystRiskContext = '';
+    try {
+      const riskResult = await this.db.rawQuery(
+        `select score, confidence, reasoning from prediction.analyst_risk_assessments
+         where analyst_id = $1 and instrument_id = $2
+         order by created_at desc limit 1`,
+        [analyst.id, run.instrument_id],
+      );
+      const riskRows = (riskResult.data as Array<{ score: number; confidence: number; reasoning: string | null }> | null) ?? [];
+      if (riskRows.length > 0) {
+        const r = riskRows[0];
+        analystRiskContext = `\nYour latest risk assessment for this instrument: score=${r.score}/100, confidence=${(r.confidence * 100).toFixed(0)}%${r.reasoning ? `. ${r.reasoning.slice(0, 300)}` : ''}`;
+      }
+    } catch { /* no risk data available */ }
+
     const systemPrompt = this.buildAnalystSystemPrompt(analyst);
     const userPrompt = this.buildAnalystUserPrompt(
-      instrument, analyst, sharedContext, contextProviderText,
+      instrument, analyst, sharedContext, contextProviderText, dataSourceText + analystPredictorContext + analystRiskContext,
     );
 
     let outputText: string;
@@ -215,13 +250,13 @@ export class PredictionRunnerService {
       `insert into prediction.market_predictions
         (id, run_id, organization_slug, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
-         key_factors, risks, config_version_id, is_paper, created_at)
-       values ($1, $2, $3, $4, $5, 'analyst', $6, $7, 240, $8, $9, $10, $11, $12, $13)`,
+         key_factors, risks, config_version_id, is_paper, source_context, created_at)
+       values ($1, $2, $3, $4, $5, 'analyst', $6, $7, 240, $8, $9, $10, $11, $12, $13, $14)`,
       [
         predictionId, run.id, run.organization_slug, run.instrument_id,
         analyst.id, parsed.direction, parsed.confidence, parsed.rationale,
         JSON.stringify(parsed.key_factors), JSON.stringify(parsed.risks),
-        configVersionId, isPaper, new Date().toISOString(),
+        configVersionId, isPaper, JSON.stringify(sourceContext), new Date().toISOString(),
       ],
     );
 
@@ -372,6 +407,7 @@ Respond ONLY with valid JSON.`;
     analyst: MarketAnalyst,
     sharedContext: string,
     contextProviderText: string,
+    dataSourceText?: string,
   ): string {
     const parts = [
       `Assess ${instrument.symbol} (${instrument.name}) for prediction.`,
@@ -379,6 +415,9 @@ Respond ONLY with valid JSON.`;
     ];
     if (sharedContext) parts.push(`\n${sharedContext}`);
     if (contextProviderText) parts.push(contextProviderText);
+
+    // Inject specialized data source context
+    if (dataSourceText) parts.push(`\n--- Your Specialized Data ---\n${dataSourceText}`);
 
     // Inject analyst memory
     const memoryText = this.buildMemoryContext(analyst, instrument.symbol);
@@ -538,15 +577,23 @@ Respond ONLY with valid JSON.`;
     return null;
   }
 
-  private async loadPredictorLines(organizationSlug: string, instrumentId: string): Promise<string[]> {
-    const result = await this.db.rawQuery(
-      `select mp.relevance_score, mp.rationale, ma.title
-       from prediction.market_predictors mp
-       join prediction.market_articles ma on ma.id = mp.article_id
-       where (mp.organization_slug = $1 or mp.organization_slug = '__base__') and mp.instrument_id = $2 and mp.status = 'active'
-       order by mp.relevance_score desc limit 20`,
-      [organizationSlug, instrumentId],
-    );
+  private async loadPredictorLines(organizationSlug: string, instrumentId: string, analystId?: string): Promise<string[]> {
+    const query = analystId
+      ? `select mp.relevance_score, mp.rationale, ma.title
+         from prediction.market_predictors mp
+         join prediction.market_articles ma on ma.id = mp.article_id
+         where (mp.organization_slug = $1 or mp.organization_slug = '__base__') and mp.instrument_id = $2 and mp.status = 'active'
+           and mp.scored_by_analyst_id = $3
+         order by mp.relevance_score desc limit 20`
+      : `select mp.relevance_score, mp.rationale, ma.title
+         from prediction.market_predictors mp
+         join prediction.market_articles ma on ma.id = mp.article_id
+         where (mp.organization_slug = $1 or mp.organization_slug = '__base__') and mp.instrument_id = $2 and mp.status = 'active'
+         order by mp.relevance_score desc limit 20`;
+    const params = analystId
+      ? [organizationSlug, instrumentId, analystId]
+      : [organizationSlug, instrumentId];
+    const result = await this.db.rawQuery(query, params);
     const rows = (result.data as Array<{ relevance_score: number; rationale: string | null; title: string | null }> | null) ?? [];
     return rows.map((r, i) => {
       const title = r.title ?? '(untitled)';

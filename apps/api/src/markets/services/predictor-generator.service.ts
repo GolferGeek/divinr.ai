@@ -24,6 +24,13 @@ interface ActiveInstrument {
   asset_type: string;
 }
 
+interface ScoringAnalyst {
+  id: string;
+  slug: string;
+  display_name: string;
+  scoring_focus: string;
+}
+
 interface PredictorGenResult {
   articlesProcessed: number;
   predictorsCreated: number;
@@ -31,6 +38,15 @@ interface PredictorGenResult {
   instrumentsAffected: number;
   errors: string[];
 }
+
+/** Per-analyst scoring focus — determines how each analyst evaluates article relevance */
+const ANALYST_SCORING_FOCUS: Record<string, string> = {
+  'technical-analyst': 'Score relevance for technical analysis — price levels, volume, chart patterns, support/resistance, technical indicators like RSI, MACD, moving averages.',
+  'fundamentals-analyst': 'Score relevance for fundamental analysis — earnings, revenue, margins, valuation metrics, balance sheet, filings, competitive position.',
+  'sentiment-analyst': 'Score sentiment signals — analyst ratings, insider activity, crowd behavior, social media buzz, contrarian indicators.',
+  'macro-strategist': 'Score macro relevance — economic indicators, Fed policy, interest rates, inflation, employment, GDP, yield curves, sector rotation.',
+  'momentum-analyst': 'Score momentum signals — breakouts, volume spikes, trend changes, earnings acceleration, relative strength.',
+};
 
 /**
  * PredictorGeneratorService — Scores new articles against active instruments
@@ -108,24 +124,30 @@ export class PredictorGeneratorService {
         return { articlesProcessed: 0, predictorsCreated: 0, predictorsDismissed: 0, instrumentsAffected: 0, errors: [] };
       }
 
-      // For each instrument, find unscored articles and score them
+      // Load personality analysts for per-analyst scoring
+      const analysts = await this.getPersonalityAnalysts();
+
+      // For each instrument, find unscored articles and score them per analyst
       for (const instrument of instruments) {
         try {
-          const unscoredArticles = await this.getUnscoredArticles(instrument);
+          const unscoredArticles = await this.getUnscoredArticles(instrument, analysts);
           if (unscoredArticles.length === 0) continue;
 
-          this.emit('instrument.scoring', `Scoring ${unscoredArticles.length} articles for ${instrument.symbol}`, { symbol: instrument.symbol, articleCount: unscoredArticles.length });
+          this.emit('instrument.scoring', `Scoring ${unscoredArticles.length} articles for ${instrument.symbol} (${analysts.length} analysts)`, { symbol: instrument.symbol, articleCount: unscoredArticles.length });
           for (const article of unscoredArticles) {
             try {
-              const result = await this.scoreArticleForInstrument(article, instrument);
-              articlesProcessed++;
+              // Score through each analyst's lens
+              for (const analyst of analysts) {
+                const result = await this.scoreArticleForInstrument(article, instrument, analyst);
+                articlesProcessed++;
 
-              if (result.dismissed) {
-                predictorsDismissed++;
-              } else {
-                predictorsCreated++;
-                affectedInstruments.add(instrument.id);
-                this.emit('predictor.created', `Predictor: "${(article.title || 'untitled').slice(0, 60)}" → ${instrument.symbol} (relevance: ${result.relevanceScore.toFixed(2)})`, { symbol: instrument.symbol, title: article.title, relevance: result.relevanceScore });
+                if (result.dismissed) {
+                  predictorsDismissed++;
+                } else {
+                  predictorsCreated++;
+                  affectedInstruments.add(instrument.id);
+                  this.emit('predictor.created', `Predictor: ${analyst.display_name} → "${(article.title || 'untitled').slice(0, 50)}" → ${instrument.symbol} (${result.relevanceScore.toFixed(2)})`, { symbol: instrument.symbol, analyst: analyst.slug, relevance: result.relevanceScore });
+                }
               }
             } catch (err) {
               const msg = `Error scoring article ${article.id} for ${instrument.symbol}: ${err instanceof Error ? err.message : String(err)}`;
@@ -161,6 +183,23 @@ export class PredictorGeneratorService {
   }
 
   /**
+   * Get all personality analysts from __base__ for per-analyst article scoring.
+   */
+  private async getPersonalityAnalysts(): Promise<ScoringAnalyst[]> {
+    const result = await this.db.rawQuery(
+      `select id, slug, display_name from prediction.market_analysts
+       where organization_slug = '__base__' and analyst_type = 'personality'
+         and is_enabled = true and is_active = true
+       order by slug`,
+    );
+    const rows = (result.data as Array<{ id: string; slug: string; display_name: string }> | null) ?? [];
+    return rows.map(r => ({
+      ...r,
+      scoring_focus: ANALYST_SCORING_FOCUS[r.slug] ?? 'Score general relevance to this instrument.',
+    }));
+  }
+
+  /**
    * Get all active __base__ instruments. Pipeline runs once for base instruments;
    * all orgs see the base results.
    */
@@ -180,26 +219,30 @@ export class PredictorGeneratorService {
   }
 
   /**
-   * Find articles that have NOT yet been scored against a specific instrument.
+   * Find articles that have NOT yet been scored by ALL analysts against a specific instrument.
    * Only considers articles from the last 7 days to avoid scoring stale content.
    * Limited to 20 per instrument per cycle to avoid overwhelming the LLM.
    */
-  private async getUnscoredArticles(instrument: ActiveInstrument): Promise<UnscoredArticle[]> {
+  private async getUnscoredArticles(instrument: ActiveInstrument, analysts: ScoringAnalyst[]): Promise<UnscoredArticle[]> {
+    // Find articles that are missing scoring by at least one analyst
+    const analystCount = analysts.length;
     const result = await this.db.rawQuery(
       `
       select ma.id, ma.title, ma.summary, ma.content, ma.source_id, ma.published_at
       from prediction.market_articles ma
-      where ma.id not in (
-        select mp.article_id
+      where (
+        select count(distinct mp.scored_by_analyst_id)
         from prediction.market_predictors mp
         where mp.instrument_id = $1
           and mp.organization_slug = $2
-      )
+          and mp.article_id = ma.id
+          and mp.scored_by_analyst_id is not null
+      ) < $3
       and coalesce(ma.published_at, ma.first_seen_at, ma.created_at) >= now() - interval '7 days'
       order by coalesce(ma.published_at, ma.first_seen_at, ma.created_at) desc
       limit 20
       `,
-      [instrument.id, instrument.organization_slug],
+      [instrument.id, instrument.organization_slug, analystCount],
     );
     if (result.error) {
       this.logger.error(`Failed to query unscored articles for ${instrument.symbol}: ${result.error.message}`);
@@ -209,17 +252,18 @@ export class PredictorGeneratorService {
   }
 
   /**
-   * Score a single article's relevance to an instrument using LLM.
-   * Creates a market_predictor row with the score.
+   * Score a single article's relevance to an instrument through an analyst's lens.
+   * Creates a market_predictor row with the score and scored_by_analyst_id.
    */
   private async scoreArticleForInstrument(
     article: UnscoredArticle,
     instrument: ActiveInstrument,
+    analyst: ScoringAnalyst,
   ): Promise<{ relevanceScore: number; rationale: string; dismissed: boolean }> {
     // Quick keyword check for a preliminary score
     const quickScore = this.quickKeywordCheck(article, instrument);
 
-    // Use LLM for nuanced scoring when available, even if keyword check found nothing
+    // Use LLM for nuanced per-analyst scoring when available
     let relevanceScore = quickScore;
     let rationale = quickScore > 0 ? 'Keyword match' : 'No keyword match';
     let dismissed = false;
@@ -238,14 +282,15 @@ export class PredictorGeneratorService {
       try {
         const llmResult = await this.marketsLlm.generateText(
           context,
-          `You are scoring the relevance of a news article to a specific financial instrument.
+          `You are the ${analyst.display_name}. ${analyst.scoring_focus}
+Score the relevance of this news article to a specific financial instrument from YOUR perspective.
 Respond with valid JSON only:
 {
-  "relevance": <number 0.0-1.0, where 0=irrelevant, 1=highly relevant>,
-  "rationale": "<brief one-sentence explanation>",
-  "dismiss": <boolean, true if article is clearly irrelevant to this instrument>
+  "relevance": <number 0.0-1.0, where 0=irrelevant to your analysis, 1=highly relevant to your specialty>,
+  "rationale": "<brief one-sentence explanation from your perspective>",
+  "dismiss": <boolean, true if article is clearly irrelevant to your type of analysis>
 }`,
-          `Score this article's relevance to ${instrument.symbol} (${instrument.name}, ${instrument.asset_type}):\n\n${articleText}`,
+          `Score this article's relevance to ${instrument.symbol} (${instrument.name}, ${instrument.asset_type}) from your perspective as ${analyst.display_name}:\n\n${articleText}`,
         );
 
         const match = llmResult.text.match(/\{[\s\S]*\}/);
@@ -257,7 +302,7 @@ Respond with valid JSON only:
         }
       } catch (err) {
         this.logger.debug(
-          `LLM scoring failed for article ${article.id}, using keyword score: ${err instanceof Error ? err.message : String(err)}`,
+          `LLM scoring failed for ${analyst.slug} on article ${article.id}, using keyword score: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
@@ -273,6 +318,7 @@ Respond with valid JSON only:
       dismissed ? 'dismissed' : 'active',
       rationale,
       'system',
+      analyst.id,
     );
 
     return { relevanceScore, rationale, dismissed };
@@ -306,7 +352,7 @@ Respond with valid JSON only:
   }
 
   /**
-   * Upsert a predictor row.
+   * Upsert a predictor row with per-analyst scoring.
    */
   private async upsertPredictor(
     organizationSlug: string,
@@ -316,21 +362,22 @@ Respond with valid JSON only:
     status: string,
     rationale: string,
     createdBy: string,
+    scoredByAnalystId: string,
   ): Promise<void> {
     const result = await this.db.rawQuery(
       `
       insert into prediction.market_predictors
         (id, organization_slug, instrument_id, article_id, relevance_score,
-         status, rationale, created_by, created_at, updated_at)
-      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, now(), now())
-      on conflict (organization_slug, instrument_id, article_id)
+         status, rationale, created_by, scored_by_analyst_id, created_at, updated_at)
+      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, now(), now())
+      on conflict (organization_slug, instrument_id, article_id, scored_by_analyst_id)
       do update set
         relevance_score = excluded.relevance_score,
         status = excluded.status,
         rationale = excluded.rationale,
         updated_at = now()
       `,
-      [organizationSlug, instrumentId, articleId, relevanceScore, status, rationale, createdBy],
+      [organizationSlug, instrumentId, articleId, relevanceScore, status, rationale, createdBy, scoredByAnalystId],
     );
     if (result.error) {
       throw new Error(result.error.message);

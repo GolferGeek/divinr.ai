@@ -114,6 +114,21 @@ export class NightlyEvaluationService {
             confidenceAtPrediction: pred.confidence,
           });
 
+          // Write to analyst memory
+          if (pred.analyst_id) {
+            await this.writeAnalystMemory({
+              analystId: pred.analyst_id,
+              organizationSlug: pred.organization_slug,
+              instrumentId: pred.instrument_id,
+              symbol: await this.getInstrumentSymbol(pred.instrument_id),
+              predictedDirection: pred.predicted_direction,
+              actualDirection: actual.direction,
+              wasCorrect: score.wasCorrect,
+              confidence: pred.confidence,
+              runId: pred.run_id,
+            });
+          }
+
           totalEvaluated++;
           if (score.wasCorrect) totalCorrect++;
           else totalIncorrect++;
@@ -360,6 +375,143 @@ export class NightlyEvaluationService {
       );
     } catch (err) {
       this.logger.warn(`Failed to persist report: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ─── Analyst Memory Writing ─────────────────────────────────
+
+  private async getInstrumentSymbol(instrumentId: string): Promise<string> {
+    const result = await this.db.rawQuery(
+      `select symbol from prediction.instruments where id = $1`,
+      [instrumentId],
+    );
+    const rows = (result.data as Array<{ symbol: string }> | null) ?? [];
+    return rows[0]?.symbol ?? instrumentId;
+  }
+
+  private async writeAnalystMemory(input: {
+    analystId: string;
+    organizationSlug: string;
+    instrumentId: string;
+    symbol: string;
+    predictedDirection: string;
+    actualDirection: string;
+    wasCorrect: boolean;
+    confidence: number;
+    runId: string;
+  }): Promise<void> {
+    const now = new Date().toISOString();
+
+    try {
+      // 1. Update memory_calibration — increment predictions_made, update correct count and confidence bands
+      const band = input.confidence < 25 ? '0-25'
+        : input.confidence < 50 ? '25-50'
+        : input.confidence < 75 ? '50-75'
+        : '75-100';
+
+      await this.db.rawQuery(`
+        update prediction.market_analysts
+        set memory_calibration = jsonb_set(
+          jsonb_set(
+            jsonb_set(
+              memory_calibration,
+              '{predictions_made}',
+              to_jsonb(coalesce((memory_calibration->>'predictions_made')::int, 0) + 1)
+            ),
+            '{correct}',
+            to_jsonb(coalesce((memory_calibration->>'correct')::int, 0) + $1::int)
+          ),
+          $2::text[],
+          to_jsonb(coalesce((memory_calibration #>> $2::text[])::int, 0) + 1)
+        ),
+        updated_at = now()
+        where id = $3
+      `, [input.wasCorrect ? 1 : 0, `{by_confidence_band,${band}}`, input.analystId]);
+
+      // 2. memory_corrections — when prediction is wrong
+      if (!input.wasCorrect) {
+        const correction = JSON.stringify({
+          correction: `Predicted ${input.predictedDirection} for ${input.symbol} at ${input.confidence}% but actual was ${input.actualDirection}`,
+          source_run_id: input.runId,
+          created_at: now,
+        });
+
+        // Append to array, cap at 10
+        await this.db.rawQuery(`
+          update prediction.market_analysts
+          set memory_corrections = (
+            select jsonb_agg(elem)
+            from (
+              select elem from jsonb_array_elements(
+                memory_corrections || $1::jsonb
+              ) as elem
+              order by elem->>'created_at' desc
+              limit 10
+            ) sub
+          ),
+          updated_at = now()
+          where id = $2
+        `, [`[${correction}]`, input.analystId]);
+      }
+
+      // 3. memory_patterns — when prediction is correct on a non-obvious call (confidence < 70)
+      if (input.wasCorrect && input.confidence < 70) {
+        const pattern = JSON.stringify({
+          pattern: `Correctly predicted ${input.predictedDirection} for ${input.symbol} at ${input.confidence}% confidence`,
+          instruments: [input.symbol],
+          confidence: input.confidence / 100,
+          source_run_id: input.runId,
+          created_at: now,
+        });
+
+        // Append to array, cap at 20
+        await this.db.rawQuery(`
+          update prediction.market_analysts
+          set memory_patterns = (
+            select jsonb_agg(elem)
+            from (
+              select elem from jsonb_array_elements(
+                memory_patterns || $1::jsonb
+              ) as elem
+              order by elem->>'created_at' desc
+              limit 20
+            ) sub
+          ),
+          updated_at = now()
+          where id = $2
+        `, [`[${pattern}]`, input.analystId]);
+      }
+
+      // 4. memory_instrument_notes — add note for this instrument
+      const note = JSON.stringify({
+        note: `${input.wasCorrect ? 'Correct' : 'Incorrect'}: predicted ${input.predictedDirection} (${input.confidence}%), actual ${input.actualDirection}`,
+        created_at: now,
+      });
+
+      // Get existing notes for this symbol, append, cap at 10
+      await this.db.rawQuery(`
+        update prediction.market_analysts
+        set memory_instrument_notes = jsonb_set(
+          memory_instrument_notes,
+          $1::text[],
+          (
+            select coalesce(jsonb_agg(elem), '[]'::jsonb)
+            from (
+              select elem from jsonb_array_elements(
+                coalesce(memory_instrument_notes->$2, '[]'::jsonb) || $3::jsonb
+              ) as elem
+              order by elem->>'created_at' desc
+              limit 10
+            ) sub
+          )
+        ),
+        updated_at = now()
+        where id = $4
+      `, [`{${input.symbol}}`, input.symbol, `[${note}]`, input.analystId]);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to write memory for analyst ${input.analystId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 }

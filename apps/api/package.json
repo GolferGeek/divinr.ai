@@ -7,7 +7,7 @@
     "dev": "node dist/main.js",
     "lint": "eslint src --ext .ts",
     "test": "pnpm run test:unit && pnpm run test:compliance && pnpm run test:markets:smoke",
-    "test:unit": "tsx tests/unit/auth-middleware.test.ts && tsx tests/unit/risk-score-aggregation.test.ts && tsx tests/unit/stocks-prediction-plane.test.ts && tsx tests/unit/prediction-runner-parsing.test.ts && tsx tests/unit/learning-engine.test.ts && tsx tests/unit/nightly-evaluation.test.ts && tsx tests/unit/sprint7-views.test.ts && tsx tests/unit/portfolio-system.test.ts",
+    "test:unit": "tsx tests/unit/auth-middleware.test.ts && tsx tests/unit/risk-score-aggregation.test.ts && tsx tests/unit/stocks-prediction-plane.test.ts && tsx tests/unit/prediction-runner-parsing.test.ts && tsx tests/unit/learning-engine.test.ts && tsx tests/unit/nightly-evaluation.test.ts && tsx tests/unit/sprint7-views.test.ts && tsx tests/unit/portfolio-system.test.ts && tsx tests/unit/memory-writing.test.ts",
     "test:compliance": "pnpm run test:compliance:core && pnpm run test:compliance:boundary && pnpm run test:compliance:mutation",
     "test:compliance:core": "tsx tests/compliance/run-compliance-tests.ts",
     "test:compliance:boundary": "tsx tests/compliance/run-boundary-tests.ts",
