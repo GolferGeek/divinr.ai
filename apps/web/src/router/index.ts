@@ -22,7 +22,6 @@ export const router = createRouter({
         { path: 'runs', name: 'runs', component: () => import('../views/RunsView.vue') },
         { path: 'runs/:id', name: 'run-detail', component: () => import('../views/RunDetailView.vue') },
         { path: 'risk', name: 'risk', component: () => import('../views/RiskDashboardView.vue') },
-        { path: 'predictions', name: 'predictions', component: () => import('../views/PredictionsView.vue') },
         { path: 'sources', name: 'sources', component: () => import('../views/SourcesView.vue') },
         { path: 'portfolio', name: 'portfolio', component: () => import('../views/PortfolioDashboardView.vue') },
         { path: 'evaluations', name: 'evaluations', component: () => import('../views/EvaluationsView.vue') },

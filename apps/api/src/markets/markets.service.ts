@@ -631,6 +631,50 @@ export class MarketsService {
     }));
   }
 
+  async listSourceArticles(
+    organizationSlug: string,
+    userId: string,
+    sourceId: string,
+    limit: number,
+  ) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    const result = await this.db.rawQuery(
+      `select id, title, url, summary, author, published_at, created_at
+       from prediction.market_articles
+       where source_id = $1
+       order by coalesce(published_at, created_at) desc
+       limit $2`,
+      [sourceId, Math.min(limit, 50)],
+    );
+    if (result.error) throw new Error(result.error.message);
+    return (result.data as Record<string, unknown>[] | null) ?? [];
+  }
+
+  async listDataAdapters(organizationSlug: string, userId: string) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    const result = await this.db.rawQuery(`
+      select dsr.id, dsr.name, dsr.provider_type, dsr.base_url, dsr.tier,
+        dsr.rate_limit_per_minute, dsr.cache_ttl_seconds, dsr.is_active,
+        json_agg(json_build_object(
+          'analyst_name', ma.display_name,
+          'analyst_slug', ma.slug,
+          'data_types', asa.data_types
+        )) filter (where ma.id is not null) as analyst_assignments
+      from prediction.data_source_registry dsr
+      left join prediction.analyst_source_assignments asa on asa.source_id = dsr.id and asa.is_active = true
+      left join prediction.market_analysts ma on ma.id = asa.analyst_id
+      group by dsr.id, dsr.name, dsr.provider_type, dsr.base_url, dsr.tier,
+        dsr.rate_limit_per_minute, dsr.cache_ttl_seconds, dsr.is_active
+      order by dsr.name
+    `);
+    if (result.error) throw new Error(result.error.message);
+    return (result.data as Record<string, unknown>[] | null) ?? [];
+  }
+
   async upsertSourceEntitlement(
     input: UpsertSourceEntitlementInput,
   ): Promise<SourceEntitlement> {

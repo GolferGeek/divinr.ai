@@ -281,9 +281,8 @@ export class MarketsSchemaService {
       alter table prediction.market_predictors add column if not exists scored_by_analyst_id text;
 
       -- Replace original unique constraint with per-analyst version
-      -- (original: organization_slug, instrument_id, article_id)
-      -- (new: organization_slug, instrument_id, article_id, scored_by_analyst_id)
-      drop index if exists prediction.market_predictors_organization_slug_instrument_id_article_key;
+      alter table prediction.market_predictors
+        drop constraint if exists market_predictors_organization_slug_instrument_id_article_i_key;
       create unique index if not exists market_predictors_org_instrument_article_analyst_key
         on prediction.market_predictors (organization_slug, instrument_id, article_id, scored_by_analyst_id);
     `;

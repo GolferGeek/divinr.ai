@@ -7,7 +7,7 @@ import {
 } from '@ionic/vue';
 import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
-  analyticsOutline, shieldOutline, briefcaseOutline, newspaperOutline,
+  shieldOutline, briefcaseOutline, newspaperOutline,
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
 } from 'ionicons/icons';
 import { useTenantStore } from '../stores/tenant.store';
@@ -25,7 +25,6 @@ const navItems = [
   { title: 'Instruments', icon: statsChartOutline, to: '/instruments' },
   { title: 'Analysts', icon: peopleOutline, to: '/analysts' },
   { title: 'Runs', icon: playOutline, to: '/runs' },
-  { title: 'Predictions', icon: analyticsOutline, to: '/predictions' },
   { title: 'Risk', icon: shieldOutline, to: '/risk' },
   { title: 'Portfolio', icon: briefcaseOutline, to: '/portfolio' },
   { title: 'Sources', icon: newspaperOutline, to: '/sources' },

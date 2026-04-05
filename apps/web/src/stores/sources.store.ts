@@ -4,6 +4,9 @@ import { useApi } from '../composables/useApi';
 
 export const useSourcesStore = defineStore('sources', () => {
   const items = ref<Record<string, unknown>[]>([]);
+  const dataAdapters = ref<Record<string, unknown>[]>([]);
+  const articles = ref<Record<string, unknown>[]>([]);
+  const selectedSourceId = ref<string | null>(null);
   const loading = ref(false);
 
   async function fetch() {
@@ -16,10 +19,29 @@ export const useSourcesStore = defineStore('sources', () => {
     }
   }
 
+  async function fetchDataAdapters() {
+    const api = useApi();
+    try {
+      dataAdapters.value = await api.get<Record<string, unknown>[]>('/sources/data-adapters');
+    } catch {
+      dataAdapters.value = [];
+    }
+  }
+
+  async function fetchArticles(sourceId: string) {
+    const api = useApi();
+    selectedSourceId.value = sourceId;
+    try {
+      articles.value = await api.get<Record<string, unknown>[]>(`/sources/${sourceId}/articles?limit=20`);
+    } catch {
+      articles.value = [];
+    }
+  }
+
   async function toggleEntitlement(sourceId: string, isEnabled: boolean) {
     const api = useApi();
     return api.post('/sources/entitlements', { sourceId, isEnabled });
   }
 
-  return { items, loading, fetch, toggleEntitlement };
+  return { items, dataAdapters, articles, selectedSourceId, loading, fetch, fetchDataAdapters, fetchArticles, toggleEntitlement };
 });

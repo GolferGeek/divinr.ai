@@ -173,8 +173,9 @@ console.log('\nAPI endpoint coverage:');
     'GET /learning/proposals', 'POST /learning/proposals/:id/approve', 'POST /learning/proposals/:id/reject',
     'GET /learning/reports',
     'POST /admin/run-nightly-evaluation', 'POST /admin/run-learning-cycle',
+    'GET /sources/:sourceId/articles', 'GET /sources/data-adapters',
   ];
-  assert(endpoints.length === 39, `Expected 39 endpoints, got ${endpoints.length}`);
+  assert(endpoints.length === 41, `Expected 41 endpoints, got ${endpoints.length}`);
 }
 
 // ── Route count verification ──────────────────────────────────
@@ -186,7 +187,7 @@ console.log('\nWeb app route coverage:');
     '/instruments', '/instruments/:id',
     '/analysts', '/analysts/:id/performance',
     '/runs', '/runs/:id',
-    '/risk', '/predictions', '/sources',
+    '/risk', '/sources', '/portfolio',
     '/evaluations', '/learning', '/learning/canonical/:id',
   ];
   assert(routes.length === 14, `Expected 14 routes, got ${routes.length}`);

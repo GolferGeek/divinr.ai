@@ -263,6 +263,28 @@ export class MarketsController {
     });
   }
 
+  @Get('sources/:sourceId/articles')
+  async listSourceArticles(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('sourceId') sourceId: string,
+    @Query('organizationSlug') orgSlug: string,
+    @Query('limit') limit?: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.listSourceArticles(identity.organizationSlug, identity.userId, sourceId, parseInt(limit || '20', 10));
+  }
+
+  @Get('sources/data-adapters')
+  async listDataAdapters(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.listDataAdapters(identity.organizationSlug, identity.userId);
+  }
+
   @Post('data/sync/external-crawler')
   async syncExternalCrawlerData(
     @Req() req: { user?: AuthenticatedUser },
