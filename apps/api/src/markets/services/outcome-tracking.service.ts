@@ -213,14 +213,18 @@ export class OutcomeTrackingService {
     priceData: { price: number; change: number; changePercent: number },
   ): Promise<void> {
     // Get latest prediction direction/confidence for this instrument
+    // Try arbitrator first, fall back to analyst consensus
     let predDirection = '';
     let predConfidence = 0;
     try {
       const predResult = await this.db.rawQuery(
-        `select predicted_direction, confidence from prediction.market_predictions
-         where instrument_id = (select id from prediction.instruments where id = $1 limit 1)
-           and role = 'arbitrator' and created_at::date = current_date
-         order by created_at desc limit 1`,
+        `select mp.predicted_direction, mp.confidence
+         from prediction.market_predictions mp
+         join prediction.instruments i ON i.id = mp.instrument_id
+         where i.symbol = (select symbol from prediction.instruments where id = $1 limit 1)
+           and mp.created_at::date = current_date
+         order by case when mp.role = 'arbitrator' then 0 else 1 end, mp.created_at desc
+         limit 1`,
         [instrumentId],
       );
       const pRows = (predResult.data as Array<{ predicted_direction: string; confidence: number }> | null) ?? [];
