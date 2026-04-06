@@ -487,7 +487,7 @@ Respond ONLY with valid JSON.`;
     return outcomes.map((o, i) => {
       const info = analystNames[o.analyst_id ?? ''];
       const name = info?.name ?? `Analyst ${i + 1}`;
-      const weight = info?.weight ?? 1.0;
+      const weight = Number(info?.weight ?? 1.0);
       return `### ${name} (weight: ${weight.toFixed(1)})
 - Direction: ${o.predicted_direction}
 - Confidence: ${o.confidence}%
