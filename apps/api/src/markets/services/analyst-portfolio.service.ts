@@ -168,7 +168,7 @@ export class AnalystPortfolioService {
       `select ap.*, ma.display_name as analyst_name
        from prediction.analyst_portfolios ap
        join prediction.market_analysts ma on ma.id = ap.analyst_id
-       where ap.organization_slug = $1
+       where (ap.organization_slug = $1 or ap.organization_slug = '__base__' or ap.organization_slug = '*')
        order by ap.current_balance desc`,
       [organizationSlug],
     );
@@ -196,7 +196,7 @@ export class AnalystPortfolioService {
               round((ap.current_balance - ap.initial_balance) / ap.initial_balance * 100, 2) as pnl_percent
        from prediction.analyst_portfolios ap
        join prediction.market_analysts ma on ma.id = ap.analyst_id
-       where ap.organization_slug = $1
+       where (ap.organization_slug = $1 or ap.organization_slug = '__base__' or ap.organization_slug = '*')
        order by ap.current_balance desc`,
       [organizationSlug],
     );
