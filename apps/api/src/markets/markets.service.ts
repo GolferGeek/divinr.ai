@@ -2396,6 +2396,7 @@ Respond ONLY with valid JSON.`,
       where (r.organization_slug = $1 or r.organization_slug = '__base__')
         and r.run_type = 'prediction'
         and r.status = 'completed'
+        and r.completed_at::date = current_date
       order by r.instrument_id, r.completed_at desc
       `,
       [organizationSlug],
