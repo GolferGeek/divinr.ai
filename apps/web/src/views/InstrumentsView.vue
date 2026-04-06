@@ -28,10 +28,11 @@ async function handleCreate() {
 }
 
 function getFieldValue(inst: Record<string, unknown>, key: string): unknown {
-  if (key === 'price') return (inst['current_state'] as Record<string, unknown>)?.['price'] ?? '-';
-  if (key === 'change_pct') return (inst['current_state'] as Record<string, unknown>)?.['change_pct'] ?? '-';
-  if (key === 'prediction_direction') return '-';
-  if (key === 'confidence') return '-';
+  const state = (inst['current_state'] as Record<string, unknown>) ?? {};
+  if (key === 'price') return state['price'] ?? '-';
+  if (key === 'change_pct') return state['changePercent'] ?? '-';
+  if (key === 'prediction_direction') return state['prediction_direction'] || '-';
+  if (key === 'confidence') return state['prediction_confidence'] || '-';
   return inst[key] ?? '-';
 }
 
