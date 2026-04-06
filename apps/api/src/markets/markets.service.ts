@@ -917,8 +917,10 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
 
     const context = this.marketsLlm.buildExecutionContext(organizationSlug, userId, 'challenge');
 
-    // Yield each challenge as it completes
-    for (const challenger of challengers) {
+    // Yield each challenge as it completes, with progress updates
+    for (let i = 0; i < challengers.length; i++) {
+      const challenger = challengers[i];
+      yield { thinking: true, analyst: challenger.display_name, index: i, total: challengers.length };
       try {
         const systemPrompt = `You are ${challenger.display_name}. ${challenger.persona_prompt}
 Another analyst (${pred.analyst_name}) has predicted ${pred.predicted_direction} for ${pred.symbol} at ${pred.confidence}% confidence.
@@ -1025,7 +1027,8 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     await this.schema.ensureSchema();
     await this.requireRead(userId, organizationSlug);
 
-    // Check disclaimer
+    // Check disclaimer — ensure portfolio exists first
+    await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
     const disclaimerResult = await this.db.rawQuery(
       `select disclaimer_acknowledged_at from prediction.user_portfolios
        where user_id = $1 and organization_slug = $2`,

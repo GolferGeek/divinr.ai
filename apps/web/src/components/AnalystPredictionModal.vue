@@ -82,6 +82,7 @@ const provenance = useProvenanceStore();
 const activeTab = ref<'analysis' | 'evidence' | 'risk' | 'memory' | 'challenge'>('analysis');
 const challenges = ref<Array<Record<string, unknown>>>([]);
 const challengeLoading = ref(false);
+const challengeThinking = ref<string | null>(null);
 
 watch(() => [props.isOpen, currentIndex.value], ([open]) => {
   if (open && analyst.value?.prediction_id) {
@@ -149,8 +150,11 @@ async function acknowledgeDisclaimer() {
     });
     disclaimerAcknowledged.value = true;
     showDisclaimer.value = false;
+    // Retry the trade now that disclaimer is acknowledged
     await takeTrade();
-  } catch { /* silent */ }
+  } catch {
+    showDisclaimer.value = false;
+  }
 }
 
 async function loadChallenges() {
@@ -190,7 +194,9 @@ async function loadChallenges() {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              if (data.done || data.error) continue;
+              if (data.done || data.error) { challengeThinking.value = null; continue; }
+              if (data.thinking) { challengeThinking.value = `${data.analyst} is analyzing... (${data.index + 1}/${data.total})`; continue; }
+              challengeThinking.value = null;
               challenges.value = [...challenges.value, data];
             } catch { /* skip malformed */ }
           }
@@ -198,6 +204,7 @@ async function loadChallenges() {
       }
     }
   } catch { /* silent */ }
+  challengeThinking.value = null;
   challengeLoading.value = false;
 }
 </script>
@@ -289,11 +296,14 @@ async function loadChallenges() {
             <div v-else-if="provenance.data" class="section">
               <h3>Articles Scored by This Analyst</h3>
               <div v-if="provenance.data.articles.length === 0"><ion-note>No articles scored yet</ion-note></div>
-              <div v-for="article in provenance.data.articles" :key="article.id" style="margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee">
-                <a v-if="article.url" :href="article.url" target="_blank" rel="noopener" style="font-size:0.9rem;font-weight:500;color:var(--ion-color-primary)">
-                  {{ article.title || '(untitled)' }}
-                </a>
-                <span v-else style="font-size:0.9rem;font-weight:500">{{ article.title || '(untitled)' }}</span>
+              <div v-for="article in [...provenance.data.articles].sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime())" :key="article.id" style="margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee">
+                <div style="display:flex;align-items:baseline;gap:8px">
+                  <a v-if="article.url" :href="article.url" target="_blank" rel="noopener" style="font-size:0.9rem;font-weight:500;color:var(--ion-color-primary);flex:1">
+                    {{ article.title || '(untitled)' }}
+                  </a>
+                  <span v-else style="font-size:0.9rem;font-weight:500;flex:1">{{ article.title || '(untitled)' }}</span>
+                  <span v-if="article.published_at" style="font-size:0.7rem;opacity:0.5;white-space:nowrap">{{ new Date(article.published_at).toLocaleDateString() }} {{ new Date(article.published_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</span>
+                </div>
                 <div style="font-size:0.75rem;opacity:0.6">
                   Relevance: {{ (Number(article.relevance_score) * 100).toFixed(0) }}%
                   <span v-if="article.rationale"> — {{ article.rationale }}</span>
@@ -373,10 +383,13 @@ async function loadChallenges() {
 
           <!-- Challenge Tab -->
           <div v-if="activeTab === 'challenge'">
-            <div v-if="challengeLoading" class="section" style="text-align:center;padding:24px">
-              <ion-note>Other analysts are preparing their counter-arguments... (this takes 20-30 seconds)</ion-note>
+            <div v-if="challengeLoading && challenges.length === 0 && !challengeThinking" class="section" style="text-align:center;padding:24px">
+              <ion-note>Starting challenge analysis...</ion-note>
             </div>
-            <div v-else-if="challenges.length > 0" class="section">
+            <div v-if="challengeThinking" style="text-align:center;padding:12px;opacity:0.7;font-size:0.85rem">
+              {{ challengeThinking }}
+            </div>
+            <div v-if="challenges.length > 0" class="section">
               <h3>Counter-Arguments</h3>
               <div v-for="(c, i) in challenges" :key="i" style="margin-bottom:16px;padding:12px;background:#f8f8f8;border-radius:8px">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
