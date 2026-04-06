@@ -34,14 +34,10 @@ export const router = createRouter({
 });
 
 // Auth guard: redirect to login if no tenant configured
-router.beforeEach((to, _from, next) => {
-  if (to.meta.public) {
-    return next();
-  }
+router.beforeEach((to) => {
+  if (to.meta.public) return true;
   const orgSlug = localStorage.getItem('divinr_org');
   const userId = localStorage.getItem('divinr_user');
-  if (!orgSlug || !userId) {
-    return next('/login');
-  }
-  next();
+  if (!orgSlug || !userId) return '/login';
+  return true;
 });
