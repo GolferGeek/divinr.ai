@@ -9,6 +9,7 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '@orchestratorai/planes/auth';
@@ -924,10 +925,25 @@ export class MarketsController {
     @Req() req: { user?: AuthenticatedUser },
     @Param('predictionId') predictionId: string,
     @Body() body: { organizationSlug: string },
+    @Res() res: any,
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    return this.markets.challengePrediction(identity.organizationSlug, identity.userId, predictionId);
+
+    // Stream results as each analyst completes
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    try {
+      for await (const challenge of this.markets.challengePredictionStream(identity.organizationSlug, identity.userId, predictionId)) {
+        res.write(`data: ${JSON.stringify(challenge)}\n\n`);
+      }
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    } catch (err) {
+      res.write(`data: ${JSON.stringify({ error: err instanceof Error ? err.message : String(err) })}\n\n`);
+    }
+    res.end();
   }
 
   @Get('predictions/:predictionId/challenges')

@@ -873,6 +873,105 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     return { challenges };
   }
 
+  async *challengePredictionStream(organizationSlug: string, userId: string, predictionId: string) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    // Check for existing challenges
+    const existingResult = await this.db.rawQuery(
+      `select count(*) as cnt from prediction.prediction_challenges where prediction_id = $1`,
+      [predictionId],
+    );
+    const existingCount = Number(((existingResult.data as Array<{ cnt: number }>) ?? [])[0]?.cnt ?? 0);
+    if (existingCount > 0) {
+      const existing = await this.getChallenges(organizationSlug, userId, predictionId);
+      for (const c of existing) yield c;
+      return;
+    }
+
+    // Load prediction
+    const predResult = await this.db.rawQuery(
+      `select mp.*, i.symbol, ma.display_name as analyst_name
+       from prediction.market_predictions mp
+       join prediction.instruments i on i.id = mp.instrument_id
+       join prediction.market_analysts ma on ma.id = mp.analyst_id
+       where mp.id = $1`,
+      [predictionId],
+    );
+    const preds = (predResult.data as Array<Record<string, unknown>> | null) ?? [];
+    if (preds.length === 0) throw new Error('Prediction not found');
+    const pred = preds[0];
+
+    // Load other analysts
+    const challResult = await this.db.rawQuery(
+      `select id, slug, display_name, persona_prompt
+       from prediction.market_analysts
+       where organization_slug = '__base__' and analyst_type = 'personality'
+         and is_enabled = true and is_active = true and id != $1
+       order by slug`,
+      [pred.analyst_id],
+    );
+    const challengers = (challResult.data as Array<{
+      id: string; slug: string; display_name: string; persona_prompt: string;
+    }> | null) ?? [];
+
+    const context = this.marketsLlm.buildExecutionContext(organizationSlug, userId, 'challenge');
+
+    // Yield each challenge as it completes
+    for (const challenger of challengers) {
+      try {
+        const systemPrompt = `You are ${challenger.display_name}. ${challenger.persona_prompt}
+Another analyst (${pred.analyst_name}) has predicted ${pred.predicted_direction} for ${pred.symbol} at ${pred.confidence}% confidence.
+Their reasoning: ${String(pred.rationale).slice(0, 500)}
+
+Using your expertise, provide a counter-argument. Respond with valid JSON only:
+{
+  "counterArgument": "<your counter-argument from your perspective>",
+  "counterDirection": "up" | "down" | "flat",
+  "counterConfidence": <0-100>,
+  "evidence": ["<evidence point 1>", "<evidence point 2>"]
+}`;
+
+        let counterArgument = `As ${challenger.display_name}, I would approach this differently.`;
+        let counterDirection = 'flat';
+        let counterConfidence = 50;
+        let evidence: string[] = [];
+
+        if (this.marketsLlm.isLlmEnabled()) {
+          const result = await this.marketsLlm.generateText(context, systemPrompt, `Challenge the ${pred.predicted_direction} analysis for ${pred.symbol}.`);
+          const match = result.text.match(/\{[\s\S]*\}/);
+          if (match) {
+            const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+            counterArgument = String(parsed.counterArgument || counterArgument);
+            counterDirection = String(parsed.counterDirection || 'flat');
+            counterConfidence = Math.min(100, Math.max(0, Number(parsed.counterConfidence) || 50));
+            evidence = Array.isArray(parsed.evidence) ? (parsed.evidence as string[]).map(String) : [];
+          }
+        }
+
+        // Persist
+        await this.db.rawQuery(
+          `insert into prediction.prediction_challenges
+            (prediction_id, challenged_analyst_id, challenger_analyst_id, organization_slug, instrument_id,
+             counter_argument, counter_direction, counter_confidence, evidence)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [predictionId, pred.analyst_id, challenger.id, organizationSlug, pred.instrument_id,
+           counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence)],
+        );
+
+        yield {
+          challenger: { id: challenger.id, slug: challenger.slug, display_name: challenger.display_name },
+          counterArgument,
+          counterDirection,
+          counterConfidence,
+          evidence,
+        };
+      } catch {
+        // Skip failed challengers
+      }
+    }
+  }
+
   async getChallenges(organizationSlug: string, userId: string, predictionId: string) {
     await this.schema.ensureSchema();
     await this.requireRead(userId, organizationSlug);

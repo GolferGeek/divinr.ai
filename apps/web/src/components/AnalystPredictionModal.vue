@@ -165,13 +165,38 @@ async function loadChallenges() {
     }
   } catch { /* no existing */ }
 
-  // Trigger new challenges
+  // Stream challenges via SSE — each analyst result appears as it completes
   challengeLoading.value = true;
+  challenges.value = [];
   try {
-    const result = await api.post<{ challenges: Array<Record<string, unknown>> }>(`/predictions/${a.prediction_id}/challenge`, {
-      organizationSlug: localStorage.getItem('divinr_org') || '',
+    const orgSlug = localStorage.getItem('divinr_org') || '';
+    const tenant = { userId: localStorage.getItem('divinr_user') || '' };
+    const res = await fetch(`/api/markets/predictions/${a.prediction_id}/challenge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-user-id': tenant.userId },
+      body: JSON.stringify({ organizationSlug: orgSlug }),
     });
-    challenges.value = result.challenges ?? [];
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+    if (reader) {
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.done || data.error) continue;
+              challenges.value = [...challenges.value, data];
+            } catch { /* skip malformed */ }
+          }
+        }
+      }
+    }
   } catch { /* silent */ }
   challengeLoading.value = false;
 }
