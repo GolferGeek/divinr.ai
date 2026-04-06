@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { usePortfolioStore } from '../stores/portfolio.store';
+import { useApi } from '../composables/useApi';
 import {
   IonCard, IonCardContent, IonGrid, IonRow, IonCol,
   IonChip, IonList, IonItem, IonLabel, IonButton, IonNote,
 } from '@ionic/vue';
 
 const portfolio = usePortfolioStore();
+const api = useApi();
+const decisions = ref<Array<Record<string, unknown>>>([]);
 
 onMounted(async () => {
   await Promise.all([
@@ -14,6 +17,7 @@ onMounted(async () => {
     portfolio.fetchMyPositions('open'),
     portfolio.fetchMyQueue(),
     portfolio.fetchLeaderboard(),
+    api.get<Array<Record<string, unknown>>>('/trades/decisions').then(d => decisions.value = d).catch(() => {}),
   ]).catch(() => {});
 });
 
@@ -131,5 +135,42 @@ function formatCurrency(val: unknown): string {
       </ion-item>
     </ion-list>
     <ion-note v-else color="primary" style="display:block;padding:12px">No analyst portfolios yet. Portfolios are created when analysts make predictions.</ion-note>
+
+    <!-- Your Decisions (Teaching Mode) -->
+    <h2 v-if="decisions.length > 0" style="margin-top:32px">Your Decisions</h2>
+    <div v-if="decisions.length > 0">
+      <ion-list>
+        <ion-item v-for="d in decisions" :key="String(d['id'])">
+          <ion-label>
+            <h3>
+              <ion-chip
+                :color="d['decision'] === 'skip' ? 'medium' : d['decision'] === 'buy' ? 'success' : 'danger'"
+                style="font-size:0.7rem;height:20px"
+              >{{ d['decision'] === 'skip' ? 'Skipped' : d['decision'] === 'buy' ? 'Bought' : 'Sold' }}</ion-chip>
+              {{ d['symbol'] }}
+              <span v-if="d['analyst_name']" style="font-size:0.8rem;opacity:0.6"> — {{ d['analyst_name'] }}</span>
+            </h3>
+            <p v-if="d['confidence_at_decision']" style="font-size:0.8rem">
+              Confidence: {{ Number(d['confidence_at_decision']).toFixed(0) }}%
+            </p>
+            <div v-if="((d['outcomes'] as any[]) || []).length > 0" style="margin-top:4px">
+              <span
+                v-for="o in ((d['outcomes'] as any[]) || [])"
+                :key="o.horizon_days"
+                style="display:inline-block;margin-right:12px;font-size:0.8rem"
+              >
+                <strong>{{ o.horizon_days }}d:</strong>
+                <span :style="{ color: (o.pnl_if_taken || 0) >= 0 ? '#2e7d32' : '#d32f2f' }">
+                  {{ o.actual_direction === 'up' ? '+' : o.actual_direction === 'down' ? '-' : '' }}
+                  {{ o.pnl_if_taken != null ? `$${Math.abs(Number(o.pnl_if_taken)).toLocaleString()}` : 'pending' }}
+                </span>
+                <span v-if="d['decision'] === 'skip' && o.pnl_if_taken" style="opacity:0.5"> (missed)</span>
+              </span>
+            </div>
+            <p style="font-size:0.7rem;opacity:0.4">{{ new Date(String(d['decided_at'])).toLocaleDateString() }}</p>
+          </ion-label>
+        </ion-item>
+      </ion-list>
+    </div>
   </div>
 </template>

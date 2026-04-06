@@ -54,7 +54,7 @@ predictors.fetch(props.instrumentId);
     <h3 style="margin-bottom:8px">AI Predictor Scoring</h3>
     <p style="opacity:0.5;margin-bottom:12px">
       Select articles to score for relevance to this instrument. The AI will rate each article 0-1
-      and recommend whether to dismiss irrelevant ones.
+      and flag irrelevant ones for dismissal.
     </p>
 
     <!-- Article Selection -->

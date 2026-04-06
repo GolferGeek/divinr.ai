@@ -57,6 +57,29 @@ export class PositionSizingService {
     return 'suspended';
   }
 
+  /**
+   * Adjust confidence by analyst calibration accuracy.
+   * Well-calibrated analysts get full credit; overconfident analysts get reduced position sizes.
+   */
+  async getEffectiveConfidence(confidence: number, analystId: string, organizationSlug: string): Promise<number> {
+    try {
+      const result = await this.db.rawQuery(
+        `select calibration_score from prediction.analyst_performance_profiles
+         where analyst_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+         order by computed_at desc limit 1`,
+        [analystId, organizationSlug],
+      );
+      const rows = (result.data as Array<{ calibration_score: number | null }> | null) ?? [];
+      const calibration = rows[0]?.calibration_score;
+      if (calibration != null && calibration > 0) {
+        return Math.min(100, Math.max(0, confidence * calibration));
+      }
+    } catch {
+      // No calibration data — use raw confidence
+    }
+    return confidence;
+  }
+
   getWeightMultiplier(status: string): number {
     if (status === 'probation') return 0.5;
     if (status === 'suspended') return 0;

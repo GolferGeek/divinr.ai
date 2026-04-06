@@ -906,6 +906,89 @@ export class MarketsController {
     return { cancelled: true };
   }
 
+  // ─── Prediction Provenance & Challenges ──────────────────────────
+
+  @Get('predictions/:predictionId/provenance')
+  async getPredictionProvenance(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('predictionId') predictionId: string,
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.getPredictionProvenance(identity.organizationSlug, identity.userId, predictionId);
+  }
+
+  @Post('predictions/:predictionId/challenge')
+  async challengePrediction(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('predictionId') predictionId: string,
+    @Body() body: { organizationSlug: string },
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    return this.markets.challengePrediction(identity.organizationSlug, identity.userId, predictionId);
+  }
+
+  @Get('predictions/:predictionId/challenges')
+  async getChallenges(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('predictionId') predictionId: string,
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.getChallenges(identity.organizationSlug, identity.userId, predictionId);
+  }
+
+  // ─── Trade Decisions ─────────────────────────────────────────────
+
+  @Post('trades/acknowledge-disclaimer')
+  async acknowledgeDisclaimer(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { organizationSlug: string },
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    return this.markets.acknowledgeDisclaimer(identity.organizationSlug, identity.userId);
+  }
+
+  @Post('trades/confirm')
+  async confirmTrade(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { predictionId: string; analystId: string; direction: string; organizationSlug: string },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.predictionId || !body?.direction) {
+      throw new BadRequestException('predictionId and direction are required');
+    }
+    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    return this.markets.confirmTrade(identity.organizationSlug, identity.userId, body);
+  }
+
+  @Post('trades/skip')
+  async skipTrade(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { predictionId: string; organizationSlug: string },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.predictionId) {
+      throw new BadRequestException('predictionId is required');
+    }
+    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    return this.markets.skipTrade(identity.organizationSlug, identity.userId, body.predictionId);
+  }
+
+  @Get('trades/decisions')
+  async getTradeDecisions(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.getTradeDecisions(identity.organizationSlug, identity.userId);
+  }
+
   // ─── Base Data (from orchestrator-ai) ───────────────────────────
 
   @Get('base/summary')

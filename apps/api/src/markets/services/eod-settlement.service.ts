@@ -182,6 +182,9 @@ export class EodSettlementService {
         const entryPrice = closingPrices.get(pred.instrument_id);
         if (!entryPrice) continue;
 
+        // Paper trading gate: analyst portfolios start in paper mode for 3 days
+        const isPaperOnly = await this.isInPaperTradingPeriod(pred.analyst_id, pred.organization_slug);
+
         const position = await this.analystPortfolio.createPositionFromPrediction({
           analystId: pred.analyst_id,
           organizationSlug: pred.organization_slug,
@@ -191,6 +194,7 @@ export class EodSettlementService {
           direction: pred.predicted_direction as 'up' | 'down',
           confidence: pred.confidence,
           entryPrice,
+          isPaperOnly,
         });
         if (position) created++;
       } catch (err) {
@@ -280,5 +284,32 @@ export class EodSettlementService {
        values ($1, 'daily_settlement', $2, $3, now())`,
       [randomUUID(), log.settlement_date, JSON.stringify(log)],
     );
+  }
+
+  /**
+   * Paper trading gate: analyst portfolios start in paper mode for 3 days.
+   * After 3 days, if portfolio drawdown < 20%, positions transition to live.
+   */
+  private async isInPaperTradingPeriod(analystId: string, organizationSlug: string): Promise<boolean> {
+    const result = await this.db.rawQuery(
+      `select created_at, current_balance, initial_balance
+       from prediction.analyst_portfolios
+       where analyst_id = $1 and organization_slug = $2`,
+      [analystId, organizationSlug],
+    );
+    const rows = (result.data as Array<{ created_at: string; current_balance: number; initial_balance: number }> | null) ?? [];
+    if (rows.length === 0) return true; // New portfolio → paper mode
+
+    const portfolio = rows[0];
+    const createdAt = new Date(portfolio.created_at);
+    const daysSinceCreation = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (daysSinceCreation < 3) return true; // Within 3-day paper period
+
+    // After 3 days: check drawdown
+    const drawdown = 1 - (portfolio.current_balance / portfolio.initial_balance);
+    if (drawdown >= 0.2) return true; // Drawdown too high — stay in paper mode
+
+    return false; // Promoted to live
   }
 }

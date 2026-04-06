@@ -42,6 +42,7 @@ export class MarketsSchemaService {
       ${this.learningSystemDdl()}
       ${this.portfolioSystemDdl()}
       ${this.dataSourceDdl()}
+      ${this.tradeDecisionsDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -994,5 +995,64 @@ export class MarketsSchemaService {
     if (aResult.error) {
       this.logger.warn(`Failed to seed analyst-source assignments: ${aResult.error.message}`);
     }
+  }
+
+  // ─── Trade Decisions & Challenges ──────────────────────────────
+
+  private tradeDecisionsDdl(): string {
+    return `
+      create table if not exists prediction.user_trade_decisions (
+        id text primary key default gen_random_uuid()::text,
+        user_id text not null,
+        organization_slug text not null,
+        prediction_id text not null,
+        instrument_id text not null,
+        symbol text not null,
+        decision text not null check (decision in ('buy', 'sell', 'skip')),
+        based_on_analyst_id text,
+        trade_queue_id text,
+        confidence_at_decision numeric,
+        decided_at timestamptz not null default now(),
+        unique(user_id, prediction_id)
+      );
+      create index if not exists prediction_user_decisions_user_idx
+        on prediction.user_trade_decisions (user_id, organization_slug);
+
+      create table if not exists prediction.user_decision_outcomes (
+        id text primary key default gen_random_uuid()::text,
+        decision_id text not null,
+        horizon_days integer not null,
+        price_at_decision numeric not null,
+        price_at_horizon numeric,
+        actual_direction text check (actual_direction in ('up', 'down', 'flat')),
+        pnl_if_taken numeric,
+        pnl_actual numeric,
+        evaluated_at timestamptz,
+        created_at timestamptz not null default now()
+      );
+      create index if not exists prediction_decision_outcomes_decision_idx
+        on prediction.user_decision_outcomes (decision_id);
+
+      create table if not exists prediction.prediction_challenges (
+        id text primary key default gen_random_uuid()::text,
+        prediction_id text not null,
+        challenged_analyst_id text not null,
+        challenger_analyst_id text not null,
+        organization_slug text not null,
+        instrument_id text not null,
+        counter_argument text not null,
+        counter_direction text check (counter_direction in ('up', 'down', 'flat')),
+        counter_confidence numeric,
+        evidence jsonb default '[]',
+        model_provider text,
+        model_name text,
+        created_at timestamptz not null default now()
+      );
+      create index if not exists prediction_challenges_prediction_idx
+        on prediction.prediction_challenges (prediction_id);
+
+      alter table prediction.user_portfolios
+        add column if not exists disclaimer_acknowledged_at timestamptz;
+    `;
   }
 }

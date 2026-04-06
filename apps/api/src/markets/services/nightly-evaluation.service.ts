@@ -144,6 +144,9 @@ export class NightlyEvaluationService {
     const profilesUpdated = await this.updatePerformanceProfiles();
     canonicalCandidates = await this.flagCanonicalCandidates();
 
+    // Phase 3: Evaluate user trade decisions at each horizon
+    await this.evaluateDecisionOutcomes(horizons);
+
     const summary: EvaluationSummary = {
       evaluated: totalEvaluated,
       correct: totalCorrect,
@@ -375,6 +378,85 @@ export class NightlyEvaluationService {
       );
     } catch (err) {
       this.logger.warn(`Failed to persist report: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ─── Decision Outcome Evaluation ─────────────────────────────
+
+  private async evaluateDecisionOutcomes(
+    horizons: Array<{ value: number; unit: string; label: string }>,
+  ): Promise<void> {
+    for (const horizon of horizons) {
+      try {
+        // Find decisions that are old enough for this horizon and don't have outcomes yet
+        const result = await this.db.rawQuery(
+          `select utd.id as decision_id, utd.prediction_id, utd.instrument_id, utd.symbol,
+                  utd.decision, utd.confidence_at_decision, utd.decided_at,
+                  mp.predicted_direction
+           from prediction.user_trade_decisions utd
+           join prediction.market_predictions mp on mp.id = utd.prediction_id
+           where utd.decided_at <= now() - ($1 || ' days')::interval
+             and not exists (
+               select 1 from prediction.user_decision_outcomes udo
+               where udo.decision_id = utd.id and udo.horizon_days = $1
+             )
+           limit 100`,
+          [horizon.value],
+        );
+        const decisions = (result.data as Array<{
+          decision_id: string; prediction_id: string; instrument_id: string; symbol: string;
+          decision: string; confidence_at_decision: number; decided_at: string;
+          predicted_direction: string;
+        }> | null) ?? [];
+
+        for (const d of decisions) {
+          try {
+            // Get price at decision time and current price
+            const priceResult = await this.db.rawQuery(
+              `select current_state->>'price' as price from prediction.instruments where id = $1`,
+              [d.instrument_id],
+            );
+            const currentPrice = parseFloat(((priceResult.data as Array<{ price: string }>) ?? [])[0]?.price || '0');
+            if (currentPrice <= 0) continue;
+
+            // Estimate price at decision time from prediction outcome data
+            const evalResult = await this.db.rawQuery(
+              `select actual_outcome_data from prediction.prediction_horizon_evaluations
+               where prediction_id = $1 and horizon_window = $2 limit 1`,
+              [d.prediction_id, horizon.value],
+            );
+            const evalRows = (evalResult.data as Array<{ actual_outcome_data: Record<string, unknown> }> | null) ?? [];
+            const priceAtDecision = evalRows[0]?.actual_outcome_data?.priceAtPrediction as number || currentPrice;
+            const priceAtHorizon = currentPrice;
+
+            // Determine actual direction
+            const change = priceAtHorizon - priceAtDecision;
+            const actualDirection = change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
+
+            // Calculate PnL
+            const positionPercent = d.confidence_at_decision >= 80 ? 0.15
+              : d.confidence_at_decision >= 70 ? 0.10
+              : d.confidence_at_decision >= 60 ? 0.05 : 0;
+            const hypotheticalShares = positionPercent > 0 ? Math.floor((1000000 * positionPercent) / priceAtDecision) : 0;
+            const direction = d.predicted_direction === 'down' ? 'short' : 'long';
+            const pnlPerShare = direction === 'long' ? change : -change;
+            const pnlIfTaken = hypotheticalShares * pnlPerShare;
+            const pnlActual = d.decision !== 'skip' ? pnlIfTaken : null;
+
+            await this.db.rawQuery(
+              `insert into prediction.user_decision_outcomes
+                (decision_id, horizon_days, price_at_decision, price_at_horizon, actual_direction, pnl_if_taken, pnl_actual, evaluated_at)
+               values ($1, $2, $3, $4, $5, $6, $7, now())
+               on conflict do nothing`,
+              [d.decision_id, horizon.value, priceAtDecision, priceAtHorizon, actualDirection, pnlIfTaken, pnlActual],
+            );
+          } catch {
+            // Skip individual decision errors
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`Decision outcome eval failed at ${horizon.label}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   }
 

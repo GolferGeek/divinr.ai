@@ -5,7 +5,7 @@ import {
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonGrid, IonRow, IonCol,
   IonChip, IonNote, IonButton, IonIcon,
 } from '@ionic/vue';
-import { arrowUpOutline, arrowDownOutline, removeOutline, cartOutline, trendingDownOutline } from 'ionicons/icons';
+import { arrowUpOutline, arrowDownOutline, removeOutline, trendingDownOutline } from 'ionicons/icons';
 import { useApi } from '../composables/useApi';
 import { useInstrumentsStore } from '../stores/instruments.store';
 import { useDomainStore } from '../stores/domain.store';
@@ -207,13 +207,8 @@ function timeAgo(dateStr: string): string {
               <div class="card-footer">
                 <ion-note>{{ timeAgo(pred.created_at) }}</ion-note>
                 <div class="action-buttons">
-                  <ion-button size="small" color="success" fill="outline">
-                    <ion-icon slot="start" :icon="cartOutline" />
-                    Buy
-                  </ion-button>
-                  <ion-button size="small" color="danger" fill="outline">
-                    <ion-icon slot="start" :icon="trendingDownOutline" />
-                    Sell
+                  <ion-button size="small" color="success" fill="outline" @click.stop="openAnalystModal(pred, 0)">
+                    View Analysis
                   </ion-button>
                 </div>
               </div>

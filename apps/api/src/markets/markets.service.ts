@@ -18,6 +18,8 @@ import { MarketsSchemaService } from './schema/markets-schema.service';
 import { RiskRunnerService } from './services/risk-runner.service';
 import { PredictionRunnerService } from './services/prediction-runner.service';
 import { MarketsLlmService } from './services/markets-llm.service';
+import { PositionSizingService } from './services/position-sizing.service';
+import { UserPortfolioService } from './services/user-portfolio.service';
 import type {
   AssignAnalystInput,
   CreateAnalystInput,
@@ -79,6 +81,8 @@ export class MarketsService {
     private readonly riskRunner: RiskRunnerService,
     private readonly predictionRunner: PredictionRunnerService,
     private readonly marketsLlm: MarketsLlmService,
+    private readonly positionSizing: PositionSizingService,
+    private readonly userPortfolio: UserPortfolioService,
   ) {}
 
   private isExternalCrawlerSyncEnabled(force = false): boolean {
@@ -671,6 +675,388 @@ export class MarketsService {
         dsr.rate_limit_per_minute, dsr.cache_ttl_seconds, dsr.is_active
       order by dsr.name
     `);
+    if (result.error) throw new Error(result.error.message);
+    return (result.data as Record<string, unknown>[] | null) ?? [];
+  }
+
+  // ─── Prediction Provenance ─────────────────────────────────────
+
+  async getPredictionProvenance(organizationSlug: string, userId: string, predictionId: string) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    // Load prediction
+    const predResult = await this.db.rawQuery(
+      `select mp.*, i.symbol, i.name as instrument_name
+       from prediction.market_predictions mp
+       join prediction.instruments i on i.id = mp.instrument_id
+       where mp.id = $1`,
+      [predictionId],
+    );
+    const preds = (predResult.data as Array<Record<string, unknown>> | null) ?? [];
+    if (preds.length === 0) throw new Error('Prediction not found');
+    const pred = preds[0];
+
+    // Load analyst
+    const analystResult = await this.db.rawQuery(
+      `select id, slug, display_name, persona_prompt,
+              memory_patterns, memory_corrections, memory_instrument_notes, memory_calibration
+       from prediction.market_analysts where id = $1`,
+      [pred.analyst_id],
+    );
+    const analysts = (analystResult.data as Array<Record<string, unknown>> | null) ?? [];
+    const analyst = analysts[0] ?? { id: pred.analyst_id, slug: '', display_name: 'Unknown', persona_prompt: '' };
+
+    // Load articles scored by this analyst for this instrument
+    const articlesResult = await this.db.rawQuery(
+      `select mp.relevance_score, mp.rationale, ma.id, ma.title, ma.url, ma.published_at
+       from prediction.market_predictors mp
+       join prediction.market_articles ma on ma.id = mp.article_id
+       where mp.scored_by_analyst_id = $1 and mp.instrument_id = $2 and mp.status = 'active'
+       order by mp.relevance_score desc limit 10`,
+      [pred.analyst_id, pred.instrument_id],
+    );
+    const articles = (articlesResult.data as Array<Record<string, unknown>> | null) ?? [];
+
+    // Load analyst's risk assessment for this instrument
+    const riskResult = await this.db.rawQuery(
+      `select score, confidence, reasoning, evidence
+       from prediction.analyst_risk_assessments
+       where analyst_id = $1 and instrument_id = $2
+       order by created_at desc limit 1`,
+      [pred.analyst_id, pred.instrument_id],
+    );
+    const riskRows = (riskResult.data as Array<Record<string, unknown>> | null) ?? [];
+
+    // Parse source_context from prediction
+    const sourceData = pred.source_context as Record<string, unknown> ?? {};
+
+    // Memory from analyst
+    const symbol = String(pred.symbol || '');
+    const instrumentNotes = (analyst.memory_instrument_notes as Record<string, unknown[]>)?.[symbol] ?? [];
+
+    return {
+      prediction: {
+        id: pred.id,
+        direction: pred.predicted_direction,
+        confidence: pred.confidence,
+        rationale: pred.rationale,
+        key_factors: pred.key_factors,
+        risks: pred.risks,
+        created_at: pred.created_at,
+      },
+      analyst: {
+        id: analyst.id,
+        slug: analyst.slug,
+        display_name: analyst.display_name,
+        persona_prompt: analyst.persona_prompt,
+      },
+      articles: articles.map(a => ({
+        id: a.id,
+        title: a.title,
+        url: a.url,
+        relevance_score: a.relevance_score,
+        rationale: a.rationale,
+        published_at: a.published_at,
+      })),
+      riskAssessment: riskRows[0] ?? null,
+      sourceData,
+      memory: {
+        patterns: (analyst.memory_patterns as unknown[]) ?? [],
+        corrections: (analyst.memory_corrections as unknown[]) ?? [],
+        instrumentNotes,
+        calibration: (analyst.memory_calibration as Record<string, unknown>) ?? {},
+      },
+    };
+  }
+
+  // ─── Prediction Challenges ─────────────────────────────────────
+
+  async challengePrediction(organizationSlug: string, userId: string, predictionId: string) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    // Check for existing challenges
+    const existingResult = await this.db.rawQuery(
+      `select count(*) as cnt from prediction.prediction_challenges where prediction_id = $1`,
+      [predictionId],
+    );
+    const existingCount = Number(((existingResult.data as Array<{ cnt: number }>) ?? [])[0]?.cnt ?? 0);
+    if (existingCount > 0) {
+      return this.getChallenges(organizationSlug, userId, predictionId);
+    }
+
+    // Load the challenged prediction
+    const predResult = await this.db.rawQuery(
+      `select mp.*, i.symbol, ma.display_name as analyst_name, ma.slug as analyst_slug
+       from prediction.market_predictions mp
+       join prediction.instruments i on i.id = mp.instrument_id
+       join prediction.market_analysts ma on ma.id = mp.analyst_id
+       where mp.id = $1`,
+      [predictionId],
+    );
+    const preds = (predResult.data as Array<Record<string, unknown>> | null) ?? [];
+    if (preds.length === 0) throw new Error('Prediction not found');
+    const pred = preds[0];
+
+    // Load ALL OTHER enabled personality analysts
+    const challResult = await this.db.rawQuery(
+      `select id, slug, display_name, persona_prompt
+       from prediction.market_analysts
+       where organization_slug = '__base__' and analyst_type = 'personality'
+         and is_enabled = true and is_active = true and id != $1
+       order by slug`,
+      [pred.analyst_id],
+    );
+    const challengers = (challResult.data as Array<{
+      id: string; slug: string; display_name: string; persona_prompt: string;
+    }> | null) ?? [];
+
+    const context = this.marketsLlm.buildExecutionContext(organizationSlug, userId, 'challenge');
+    const challenges: Array<Record<string, unknown>> = [];
+
+    // Run challenges in parallel
+    const promises = challengers.map(async (challenger) => {
+      try {
+        const systemPrompt = `You are ${challenger.display_name}. ${challenger.persona_prompt}
+Another analyst (${pred.analyst_name}) has predicted ${pred.predicted_direction} for ${pred.symbol} at ${pred.confidence}% confidence.
+Their reasoning: ${String(pred.rationale).slice(0, 500)}
+
+Using your expertise, provide a counter-argument. Respond with valid JSON only:
+{
+  "counterArgument": "<your counter-argument from your perspective>",
+  "counterDirection": "up" | "down" | "flat",
+  "counterConfidence": <0-100>,
+  "evidence": ["<evidence point 1>", "<evidence point 2>"]
+}`;
+
+        let counterArgument = `As ${challenger.display_name}, I would approach this differently.`;
+        let counterDirection = 'flat';
+        let counterConfidence = 50;
+        let evidence: string[] = [];
+
+        if (this.marketsLlm.isLlmEnabled()) {
+          const result = await this.marketsLlm.generateText(context, systemPrompt, `Challenge the ${pred.predicted_direction} analysis for ${pred.symbol}.`);
+          const match = result.text.match(/\{[\s\S]*\}/);
+          if (match) {
+            const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+            counterArgument = String(parsed.counterArgument || counterArgument);
+            counterDirection = String(parsed.counterDirection || 'flat');
+            counterConfidence = Math.min(100, Math.max(0, Number(parsed.counterConfidence) || 50));
+            evidence = Array.isArray(parsed.evidence) ? (parsed.evidence as string[]).map(String) : [];
+          }
+        }
+
+        // Persist
+        await this.db.rawQuery(
+          `insert into prediction.prediction_challenges
+            (prediction_id, challenged_analyst_id, challenger_analyst_id, organization_slug, instrument_id,
+             counter_argument, counter_direction, counter_confidence, evidence)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [predictionId, pred.analyst_id, challenger.id, organizationSlug, pred.instrument_id,
+           counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence)],
+        );
+
+        challenges.push({
+          challenger: { id: challenger.id, slug: challenger.slug, display_name: challenger.display_name },
+          counterArgument,
+          counterDirection,
+          counterConfidence,
+          evidence,
+        });
+      } catch (err) {
+        // Graceful degradation — skip this challenger
+      }
+    });
+
+    await Promise.all(promises);
+    return { challenges };
+  }
+
+  async getChallenges(organizationSlug: string, userId: string, predictionId: string) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    const result = await this.db.rawQuery(
+      `select pc.*, ma.display_name as challenger_name, ma.slug as challenger_slug
+       from prediction.prediction_challenges pc
+       join prediction.market_analysts ma on ma.id = pc.challenger_analyst_id
+       where pc.prediction_id = $1
+       order by pc.created_at`,
+      [predictionId],
+    );
+    const rows = (result.data as Array<Record<string, unknown>> | null) ?? [];
+    return rows.map(r => ({
+      challenger: { id: r.challenger_analyst_id, slug: r.challenger_slug, display_name: r.challenger_name },
+      counterArgument: r.counter_argument,
+      counterDirection: r.counter_direction,
+      counterConfidence: r.counter_confidence,
+      evidence: r.evidence,
+    }));
+  }
+
+  // ─── Trade Decisions ──────────────────────────────────────────
+
+  async acknowledgeDisclaimer(organizationSlug: string, userId: string) {
+    await this.schema.ensureSchema();
+    // Ensure portfolio exists, then set disclaimer timestamp
+    const result = await this.db.rawQuery(
+      `update prediction.user_portfolios set disclaimer_acknowledged_at = now(), updated_at = now()
+       where user_id = $1 and organization_slug = $2
+       returning disclaimer_acknowledged_at`,
+      [userId, organizationSlug],
+    );
+    if ((result.data as unknown[] | null)?.length === 0) {
+      // Portfolio doesn't exist yet — create it with disclaimer
+      await this.db.rawQuery(
+        `insert into prediction.user_portfolios (id, user_id, organization_slug, disclaimer_acknowledged_at, created_at, updated_at)
+         values (gen_random_uuid()::text, $1, $2, now(), now(), now())
+         on conflict (user_id, organization_slug) do update set disclaimer_acknowledged_at = now(), updated_at = now()`,
+        [userId, organizationSlug],
+      );
+    }
+    return { acknowledged: true };
+  }
+
+  async confirmTrade(
+    organizationSlug: string,
+    userId: string,
+    input: { predictionId: string; analystId: string; direction: string },
+  ) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    // Check disclaimer
+    const disclaimerResult = await this.db.rawQuery(
+      `select disclaimer_acknowledged_at from prediction.user_portfolios
+       where user_id = $1 and organization_slug = $2`,
+      [userId, organizationSlug],
+    );
+    const disclaimerRows = (disclaimerResult.data as Array<{ disclaimer_acknowledged_at: string | null }> | null) ?? [];
+    if (disclaimerRows.length === 0 || !disclaimerRows[0].disclaimer_acknowledged_at) {
+      return { requiresDisclaimer: true };
+    }
+
+    // Load prediction
+    const predResult = await this.db.rawQuery(
+      `select mp.*, i.symbol, i.name as instrument_name
+       from prediction.market_predictions mp
+       join prediction.instruments i on i.id = mp.instrument_id
+       where mp.id = $1`,
+      [input.predictionId],
+    );
+    const preds = (predResult.data as Array<Record<string, unknown>> | null) ?? [];
+    if (preds.length === 0) throw new Error('Prediction not found');
+    const pred = preds[0];
+
+    // Get effective confidence (calibration-adjusted)
+    const rawConfidence = Number(pred.confidence);
+    const effectiveConfidence = await this.positionSizing.getEffectiveConfidence(
+      rawConfidence,
+      input.analystId || String(pred.analyst_id),
+      organizationSlug,
+    );
+
+    // Calculate position size
+    const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
+    const positionPercent = await this.positionSizing.getPositionPercent(effectiveConfidence, organizationSlug);
+    const currentPrice = (pred.current_state as Record<string, unknown>)?.price as number || 0;
+    // Use instrument current_state price
+    const priceResult = await this.db.rawQuery(
+      `select current_state->>'price' as price from prediction.instruments where id = $1`,
+      [pred.instrument_id],
+    );
+    const priceRows = (priceResult.data as Array<{ price: string }> | null) ?? [];
+    const entryPrice = parseFloat(priceRows[0]?.price || '0') || 100;
+    const quantity = this.positionSizing.calculatePositionSize(portfolio.current_balance, entryPrice, positionPercent);
+
+    const direction = input.direction === 'short' ? 'short' : 'long';
+
+    if (quantity <= 0) {
+      return { error: 'Confidence too low for a position', effectiveConfidence, positionPercent: 0 };
+    }
+
+    // Queue trade
+    const trade = await this.userPortfolio.queueTrade({
+      userId,
+      organizationSlug,
+      predictionId: input.predictionId,
+      instrumentId: String(pred.instrument_id),
+      symbol: String(pred.symbol),
+      direction,
+      quantity,
+    });
+
+    // Record decision
+    await this.db.rawQuery(
+      `insert into prediction.user_trade_decisions
+        (user_id, organization_slug, prediction_id, instrument_id, symbol, decision, based_on_analyst_id, trade_queue_id, confidence_at_decision)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       on conflict (user_id, prediction_id) do nothing`,
+      [userId, organizationSlug, input.predictionId, pred.instrument_id, pred.symbol,
+       direction === 'long' ? 'buy' : 'sell', input.analystId, trade.id, effectiveConfidence],
+    );
+
+    return {
+      tradeId: trade.id,
+      symbol: pred.symbol,
+      direction,
+      quantity,
+      positionPercent,
+      effectiveConfidence,
+    };
+  }
+
+  async skipTrade(organizationSlug: string, userId: string, predictionId: string) {
+    await this.schema.ensureSchema();
+
+    // Load prediction for instrument info
+    const predResult = await this.db.rawQuery(
+      `select instrument_id, i.symbol from prediction.market_predictions mp
+       join prediction.instruments i on i.id = mp.instrument_id
+       where mp.id = $1`,
+      [predictionId],
+    );
+    const preds = (predResult.data as Array<{ instrument_id: string; symbol: string }> | null) ?? [];
+
+    const instrumentId = preds[0]?.instrument_id ?? '';
+    const symbol = preds[0]?.symbol ?? '';
+
+    const result = await this.db.rawQuery(
+      `insert into prediction.user_trade_decisions
+        (user_id, organization_slug, prediction_id, instrument_id, symbol, decision)
+       values ($1, $2, $3, $4, $5, 'skip')
+       on conflict (user_id, prediction_id) do nothing
+       returning id`,
+      [userId, organizationSlug, predictionId, instrumentId, symbol],
+    );
+    const rows = (result.data as Array<{ id: string }> | null) ?? [];
+    return { decisionId: rows[0]?.id ?? null, decision: 'skip' };
+  }
+
+  async getTradeDecisions(organizationSlug: string, userId: string) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    const result = await this.db.rawQuery(
+      `select utd.*, ma.display_name as analyst_name,
+        coalesce(
+          (select json_agg(json_build_object(
+            'horizon_days', udo.horizon_days,
+            'actual_direction', udo.actual_direction,
+            'pnl_if_taken', udo.pnl_if_taken,
+            'pnl_actual', udo.pnl_actual
+          ) order by udo.horizon_days)
+          from prediction.user_decision_outcomes udo
+          where udo.decision_id = utd.id
+        ), '[]'::json) as outcomes
+       from prediction.user_trade_decisions utd
+       left join prediction.market_analysts ma on ma.id = utd.based_on_analyst_id
+       where utd.user_id = $1 and utd.organization_slug = $2
+       order by utd.decided_at desc
+       limit 50`,
+      [userId, organizationSlug],
+    );
     if (result.error) throw new Error(result.error.message);
     return (result.data as Record<string, unknown>[] | null) ?? [];
   }
@@ -2023,7 +2409,7 @@ Respond ONLY with valid JSON.`,
       // Get all predictions for this run
       const predsResult = await this.db.rawQuery(
         `
-        select mp.predicted_direction, mp.confidence, mp.rationale, mp.role,
+        select mp.id as prediction_id, mp.predicted_direction, mp.confidence, mp.rationale, mp.role,
                mp.analyst_id, mp.key_factors, mp.risks,
                ma.display_name as analyst_name, ma.slug as analyst_slug
         from prediction.market_predictions mp
@@ -2052,6 +2438,7 @@ Respond ONLY with valid JSON.`,
           rationale: String(arbitratorPred.rationale || ''),
         } : null,
         analysts: analystPreds.map(p => ({
+          prediction_id: String(p.prediction_id || ''),
           analyst_id: String(p.analyst_id || ''),
           analyst_name: String(p.analyst_name || 'Unknown'),
           analyst_slug: String(p.analyst_slug || ''),

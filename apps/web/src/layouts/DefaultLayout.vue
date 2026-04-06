@@ -99,6 +99,10 @@ function orgLabel(): string {
         </ion-header>
         <ion-content class="ion-padding">
           <router-view />
+          <div class="legal-footer">
+            Divinr provides AI-generated analysis and signals for educational purposes. Not investment advice.
+            <router-link to="/terms" style="margin-left:8px;color:inherit;opacity:0.8">Terms of Service</router-link>
+          </div>
         </ion-content>
       </div>
     </div>
@@ -223,5 +227,13 @@ function orgLabel(): string {
   .sidebar {
     display: none;
   }
+}
+
+.legal-footer {
+  text-align: center;
+  font-size: 0.7rem;
+  opacity: 0.4;
+  padding: 24px 16px 16px;
+  margin-top: 40px;
 }
 </style>
