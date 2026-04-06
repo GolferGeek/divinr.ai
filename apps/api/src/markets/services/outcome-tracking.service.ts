@@ -150,12 +150,12 @@ export class OutcomeTrackingService {
     for (let i = 0; i < instruments.length; i++) {
       const inst = instruments[i];
       try {
-        const price = await this.fetchPrice(inst.symbol, polygonKey);
-        if (price !== null) {
-          await this.updateInstrumentPrice(inst.id, inst.organization_slug, price);
+        const priceData = await this.fetchPrice(inst.symbol, polygonKey);
+        if (priceData !== null) {
+          await this.updateInstrumentPrice(inst.id, inst.organization_slug, priceData);
           captured++;
-          this.logger.log(`${inst.symbol}: $${price}`);
-          this.emit('price.captured', `${inst.symbol}: $${price}`, { symbol: inst.symbol, price });
+          this.logger.log(`${inst.symbol}: $${priceData.price} (${priceData.change >= 0 ? '+' : ''}${priceData.changePercent.toFixed(2)}%)`);
+          this.emit('price.captured', `${inst.symbol}: $${priceData.price}`, { symbol: inst.symbol, ...priceData });
         }
 
         // Rate limit: 5 requests/minute on free Polygon tier
@@ -175,7 +175,7 @@ export class OutcomeTrackingService {
   /**
    * Fetch the latest price for a symbol from Polygon.
    */
-  private async fetchPrice(symbol: string, apiKey: string): Promise<number | null> {
+  private async fetchPrice(symbol: string, apiKey: string): Promise<{ price: number; change: number; changePercent: number } | null> {
     try {
       const response = await fetch(
         `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${apiKey}`,
@@ -194,7 +194,10 @@ export class OutcomeTrackingService {
       };
 
       if (!data.results || data.results.length === 0) return null;
-      return data.results[0].c; // closing price
+      const bar = data.results[0];
+      const change = bar.c - bar.o;
+      const changePercent = bar.o > 0 ? (change / bar.o) * 100 : 0;
+      return { price: bar.c, change, changePercent };
     } catch (err) {
       this.logger.debug(`Price fetch failed for ${symbol}: ${err instanceof Error ? err.message : String(err)}`);
       return null;
@@ -207,18 +210,39 @@ export class OutcomeTrackingService {
   private async updateInstrumentPrice(
     instrumentId: string,
     _organizationSlug: string,
-    price: number,
+    priceData: { price: number; change: number; changePercent: number },
   ): Promise<void> {
+    // Get latest prediction direction/confidence for this instrument
+    let predDirection = '';
+    let predConfidence = 0;
+    try {
+      const predResult = await this.db.rawQuery(
+        `select predicted_direction, confidence from prediction.market_predictions
+         where instrument_id = (select id from prediction.instruments where id = $1 limit 1)
+           and role = 'arbitrator' and created_at::date = current_date
+         order by created_at desc limit 1`,
+        [instrumentId],
+      );
+      const pRows = (predResult.data as Array<{ predicted_direction: string; confidence: number }> | null) ?? [];
+      if (pRows.length > 0) {
+        predDirection = pRows[0].predicted_direction;
+        predConfidence = pRows[0].confidence;
+      }
+    } catch { /* no prediction data */ }
+
     // Update ALL instruments with the same symbol (across all orgs including __base__)
-    // so every tenant sees the latest price
     const result = await this.db.rawQuery(
       `update prediction.instruments
        set current_state = coalesce(current_state, '{}'::jsonb) || jsonb_build_object(
          'price', $2::float,
+         'change', $3::float,
+         'changePercent', $4::float,
+         'prediction_direction', $5::text,
+         'prediction_confidence', $6::float,
          'price_updated_at', now()::text
        )
        where symbol = (select symbol from prediction.instruments where id = $1)`,
-      [instrumentId, price],
+      [instrumentId, priceData.price, priceData.change, priceData.changePercent, predDirection, predConfidence],
     );
     if (result.error) {
       this.logger.error(`Failed to update price for instrument ${instrumentId}: ${result.error.message}`);
