@@ -33,13 +33,13 @@ export class AnalystPipelineService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly schema: MarketsSchemaService,
-    private readonly predictionRunner: PredictionRunnerService,
-    private readonly riskRunner: RiskRunnerService,
-    private readonly crawlerService: CrawlerService,
-    private readonly predictorGenerator: PredictorGeneratorService,
-    private readonly predictionGenerator: PredictionGeneratorService,
-    private readonly outcomeTracking: OutcomeTrackingService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(PredictionRunnerService) private readonly predictionRunner: PredictionRunnerService,
+    @Inject(RiskRunnerService) private readonly riskRunner: RiskRunnerService,
+    @Inject(CrawlerService) private readonly crawlerService: CrawlerService,
+    @Inject(PredictorGeneratorService) private readonly predictorGenerator: PredictorGeneratorService,
+    @Inject(PredictionGeneratorService) private readonly predictionGenerator: PredictionGeneratorService,
+    @Inject(OutcomeTrackingService) private readonly outcomeTracking: OutcomeTrackingService,
   ) {
     this.enabled = process.env.MARKETS_ENABLE_PIPELINE === 'true';
     if (this.enabled) {

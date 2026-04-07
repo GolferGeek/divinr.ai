@@ -48,12 +48,12 @@ export class PredictionRunnerService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ObservabilityEventsService) private readonly observability: ObservabilityEventsService,
-    private readonly schema: MarketsSchemaService,
-    private readonly llmService: MarketsLlmService,
-    private readonly contextProviders: ContextProviderService,
-    private readonly dataSources: DataSourceService,
-    private readonly tradeRecommendation: TradeRecommendationService,
-    private readonly convictionTrader: ConvictionTraderService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(MarketsLlmService) private readonly llmService: MarketsLlmService,
+    @Inject(ContextProviderService) private readonly contextProviders: ContextProviderService,
+    @Inject(DataSourceService) private readonly dataSources: DataSourceService,
+    @Inject(TradeRecommendationService) private readonly tradeRecommendation: TradeRecommendationService,
+    @Inject(ConvictionTraderService) private readonly convictionTrader: ConvictionTraderService,
   ) {
     this.planeState = new StocksPredictionPlane().state;
   }
@@ -705,6 +705,7 @@ Respond ONLY with valid JSON.`;
         progress: Math.round((current / total) * 100),
         step: `analyst_${current + 1}_of_${total}`,
         payload: { runId, current, total },
+        timestamp: Date.now(),
       } as never);
     } catch {
       // Non-critical

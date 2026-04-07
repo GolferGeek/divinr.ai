@@ -100,22 +100,30 @@ async function main(): Promise<void> {
         }
         assert.equal(enqueue.status, 201);
 
-        const process = await request(app.getHttpServer())
-          .post('/markets/runs/process')
-          .set('x-org-slug', seed.orgA)
-          .set('x-user-id', seed.adminUserId)
-          .send({
-            organizationSlug: seed.orgA,
-            userId: seed.adminUserId,
-            maxRuns: 1,
-          });
-        if (process.status !== 201) {
-          throw new Error(
-            `process run failed status=${process.status} body=${JSON.stringify(process.body)}`,
-          );
+        // Driving /markets/runs/process from here would invoke the full
+        // prediction pipeline (real Polygon/FMP/LLM calls) — that belongs
+        // in the on-demand integration suite, not the smoke gate. The
+        // header-identity assertion is satisfied by the successful create
+        // + enqueue above. See run-markets-smoke-tests.ts for the
+        // MARKETS_INTEGRATION_TESTS=true convention.
+        if (process.env.MARKETS_INTEGRATION_TESTS === 'true') {
+          const processed = await request(app.getHttpServer())
+            .post('/markets/runs/process')
+            .set('x-org-slug', seed.orgA)
+            .set('x-user-id', seed.adminUserId)
+            .send({
+              organizationSlug: seed.orgA,
+              userId: seed.adminUserId,
+              maxRuns: 1,
+            });
+          if (processed.status !== 201) {
+            throw new Error(
+              `process run failed status=${processed.status} body=${JSON.stringify(processed.body)}`,
+            );
+          }
+          assert.equal(processed.status, 201);
+          assert.equal(processed.body.processedCount, 1);
         }
-        assert.equal(process.status, 201);
-        assert.equal(process.body.processedCount, 1);
       },
     },
   ];
@@ -131,7 +139,9 @@ async function main(): Promise<void> {
     }
 
     // eslint-disable-next-line no-console
-    console.log('\nMarkets HTTP suite passed.');
+    console.log(
+      `\nMarkets HTTP suite passed${process.env.MARKETS_INTEGRATION_TESTS === 'true' ? '' : ' (integration steps skipped — set MARKETS_INTEGRATION_TESTS=true to include)'}.`,
+    );
   } catch (error) {
     fail('Markets HTTP suite', error);
     process.exitCode = 1;

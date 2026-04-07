@@ -49,13 +49,13 @@ export class RiskRunnerService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ObservabilityEventsService) private readonly observability: ObservabilityEventsService,
-    private readonly schema: MarketsSchemaService,
-    private readonly llmService: MarketsLlmService,
-    private readonly contextProviders: ContextProviderService,
-    private readonly dimensionAnalyzer: RiskDimensionAnalyzerService,
-    private readonly scoreAggregation: RiskScoreAggregationService,
-    private readonly debateService: RiskDebateService,
-    private readonly dataSources: DataSourceService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(MarketsLlmService) private readonly llmService: MarketsLlmService,
+    @Inject(ContextProviderService) private readonly contextProviders: ContextProviderService,
+    @Inject(RiskDimensionAnalyzerService) private readonly dimensionAnalyzer: RiskDimensionAnalyzerService,
+    @Inject(RiskScoreAggregationService) private readonly scoreAggregation: RiskScoreAggregationService,
+    @Inject(RiskDebateService) private readonly debateService: RiskDebateService,
+    @Inject(DataSourceService) private readonly dataSources: DataSourceService,
   ) {
     this.plane = new StocksPredictionPlane();
     this.planeState = this.plane.state;
@@ -391,10 +391,13 @@ Respond with valid JSON only:
   }
 
   private async loadDimensions(organizationSlug: string): Promise<RiskDimension[]> {
-    // First try org-specific dimensions, then fall back to templates
+    // First try org-specific dimensions, then fall back to base templates.
+    // Convention across the rest of the markets services is '__base__';
+    // this loader was the lone outlier using '__template__', which matched
+    // no rows in any environment seeded the standard way.
     const result = await this.db.rawQuery(
       `select * from prediction.risk_dimensions
-       where (organization_slug = $1 or organization_slug = '__template__')
+       where (organization_slug = $1 or organization_slug = '__base__')
          and is_active = true
        order by
          case when organization_slug = $1 then 0 else 1 end,
@@ -566,6 +569,7 @@ Respond with valid JSON only:
         progress: Math.round((current / total) * 100),
         step: `dimension_${current + 1}_of_${total}`,
         payload: { runId, current, total },
+        timestamp: Date.now(),
       } as never);
     } catch {
       // Non-critical

@@ -58,8 +58,8 @@ export class CanonicalTestRunnerService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly schema: MarketsSchemaService,
-    private readonly llmService: MarketsLlmService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(MarketsLlmService) private readonly llmService: MarketsLlmService,
   ) {}
 
   async runCanonicalTests(input: CanonicalTestInput): Promise<CanonicalTestResult> {

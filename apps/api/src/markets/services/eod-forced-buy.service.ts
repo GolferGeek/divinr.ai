@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { PositionSizingService } from './position-sizing.service';
+import { AutotradeOpenHelper } from './autotrade-open-helper.service';
 
 /**
  * Agent Autotrading — Phase 3.
@@ -36,7 +36,8 @@ export class EodForcedBuyService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly sizing: PositionSizingService,
+    @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
+    private readonly helper: AutotradeOpenHelper,
   ) {}
 
   private threshold(): number {
@@ -110,20 +111,6 @@ export class EodForcedBuyService {
           continue;
         }
 
-        // Idempotency check
-        const existing = await this.db.rawQuery(
-          `select id from prediction.analyst_positions
-            where portfolio_id = $1
-              and instrument_id = $2
-              and prediction_id = $3
-            limit 1`,
-          [portfolio.id, pred.instrument_id, pred.prediction_id],
-        );
-        if (((existing.data as Array<{ id: string }> | null) ?? []).length > 0) {
-          skipped++;
-          continue;
-        }
-
         // Resolve entry price from current_state
         const cs = pred.current_state ?? {};
         const entryPrice = Number((cs as Record<string, unknown>).price ?? (cs as Record<string, unknown>).last_price ?? 0);
@@ -145,33 +132,29 @@ export class EodForcedBuyService {
         }
 
         const direction = pred.predicted_direction === 'down' ? 'short' : 'long';
-        const id = randomUUID();
-        const insertResult = await this.db.rawQuery(
-          `insert into prediction.analyst_positions
-             (id, portfolio_id, analyst_id, organization_slug, prediction_id,
-              instrument_id, symbol, direction, quantity,
-              entry_price, current_price, is_paper_only, status, opened_at,
-              trigger_reason, trigger_prediction_id, trigger_conviction)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, 'open', now(),
-                   'eod_sweep', $12, $13)`,
-          [
-            id,
-            portfolio.id,
-            portfolio.analyst_id,
-            portfolio.organization_slug,
-            pred.prediction_id,
-            pred.instrument_id,
-            pred.symbol,
-            direction,
-            quantity,
-            entryPrice,
-            entryPrice,
-            pred.prediction_id,
-            pred.confidence,
-          ],
-        );
-        if (insertResult.error) {
-          errors.push(`Insert failed for ${pred.prediction_id}: ${insertResult.error.message}`);
+        const result = await this.helper.openPosition({
+          portfolio: {
+            id: portfolio.id,
+            analyst_id: portfolio.analyst_id,
+            organization_slug: portfolio.organization_slug,
+            current_balance: portfolio.current_balance,
+          },
+          instrumentId: pred.instrument_id,
+          symbol: pred.symbol,
+          direction,
+          quantity,
+          entryPrice,
+          predictionId: pred.prediction_id,
+          conviction: pred.confidence,
+          triggerReason: 'eod_sweep',
+          organizationSlug: portfolio.organization_slug,
+        });
+        if (result.reason === 'idempotent') {
+          skipped++;
+          continue;
+        }
+        if (result.reason !== 'inserted') {
+          errors.push(`Insert failed for ${pred.prediction_id}: reason=${result.reason}`);
           continue;
         }
 

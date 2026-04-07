@@ -185,28 +185,34 @@ Each screen below has its own subsection with element checks and interaction che
 - Click a source → expands or navigates to source detail
 - Click a recent article → opens article drill-down
 
-### 2.11 PortfolioDashboardView (`/portfolio`)
+### 2.11 PortfolioDashboardView (`/portfolios`)
 
-**Most-changed screen** — agent-autotrading just shipped positions into many portfolios.
+**Master-detail leaderboard** — single screen across all portfolio kinds (user / analyst / arbitrator / day_trader). `/portfolio` (singular) redirects to `/portfolios`. Replaces the prior single-portfolio view shipped before portfolio-foundation.
 
-**Elements**:
-- Current balance
-- Total realized P&L
-- Total unrealized P&L
-- Open positions table (should now include positions with `trigger_reason='signal_cross'` and `'eod_sweep'` from this effort)
-- Recent closed positions (should now include positions closed by `StopLossWatcherService` with `trigger_reason` of `stop_loss` / `take_profit` / `trailing_stop`)
-- Queued trades (existing Phase 6 path)
-- Leaderboard panel
+**Elements** (master table — 10 columns per row):
+- Name (analyst/day-trader display name, or user email, or "Arbitrator (Mini-Me)")
+- Kind badge (`user` / `analyst` / `arbitrator` / `day_trader`)
+- Balance (`current_balance`)
+- Realized P&L
+- Unrealized P&L
+- Win Rate (% — empty for portfolios with zero closed positions)
+- Return (`(realized + unrealized) / starting_balance`)
+- Bailouts (count from `bailout_ledger`)
+- Open (open-position count)
+- Trend (inline `EquitySparkline` from `daily_pnl_snapshot`; renders `—` when fewer than 2 snapshots exist)
 
 **Interactions**:
-- Click an open position → expands or navigates to detail
-- Click "queue trade" on a recommendation → queues a trade (paper)
-- Confirm disclaimer flow still gates trade actions
-- Sort the leaderboard by win rate / P&L %
+- Click any row → expanded inline panel with positions list (provenance tooltip on every row) + recent trades; the user row also exposes Account / Queue / Decisions widgets and reference 5/10/trailing exit levels per open position
+- Trade entry point lives on Dashboard prediction cards (Phase 6 — opens `AnalystPredictionModal` in trade mode); disclaimer ack still gates submit
+- Sell button on every open user position row → calls `/markets/portfolios/me/positions/:id/close`
 
-**Specific agent-autotrading verifications** (this is the screen that's most affected by recent backend changes):
-- If positions exist with `trigger_reason` in `('signal_cross','eod_sweep','stop_loss','take_profit','trailing_stop')`, verify they render. The tooltip / provenance display is **deferred** to a later effort, so for now just verifying they appear in the table is enough.
-- The arbitrator portfolio (`pf-portfolio-arbitrator`) should be visible in the leaderboard with non-zero positions.
+**Specific verifications**:
+- Master table returns 53 portfolios in dev (1 user + 48 analyst + 1 arbitrator + 3 day_trader); all kinds visible
+- Arbitrator row uses id `pf-portfolio-arbitrator` (sacred — never renamed)
+- Provenance tooltip surfaces `signal_cross` / `eod_sweep` / `eod_backfill` / `stop_loss` / `take_profit` / `trailing_stop` / `manual` / `strategy` consistently
+- `/portfolio` (singular) → `/portfolios` redirect works
+
+**Known follow-up** (not a regression of this effort): ~25 analyst rows in the master table render their raw analyst id instead of a display name; the rest render correctly. Likely a join/fallback gap in `LeaderboardService.fetchAllPortfolios` for analysts whose persona name didn't resolve. Filed for a future cleanup.
 
 ### 2.12 EvaluationsView (`/evaluations`)
 
@@ -408,6 +414,8 @@ GROUP BY trigger_reason;
 
 **Verified 2026-04-07**: SHOP entry $118.80 → bumped to $110.00 → 4 longs closed `stop_loss` with realized P&L −$6,644 to −$7,128.
 
+> **Note (portfolio-foundation-resume Phase 1.2 / 8.3)** — historical SHOP runs in this section produced one cohort that closed instantly at $0 P&L. Root cause: the prior open path inherited a stale `high_water_mark = 118.80` onto a fresh row whose `current_price` was `entry_price = 110`. `decide()` then correctly emitted `trailing_stop` (118.80 → 110 is an 8% giveback ≥ TRAILING_STOP_PCT). The math was right; the *write* path was wrong. Phase 1.2 of the resume effort centralized opens through `AutotradeOpenHelper`, which always writes `high_water_mark = NULL` on insert. Phase 8.3a adds a regression test (`stop-loss-watcher-shop-anomaly.test.ts`) pinning `decide()` against the pathological inputs so the math itself can never silently regress.
+
 #### 4.2.B take_profit fire (long side, plus short-side stop_loss bonus)
 
 Same recipe with price bumped UP > 10% from entry. **Verified 2026-04-07**: MSFT entry $372.88 → bumped to $420.00 → 55 longs closed `take_profit` (+$5,796 to +$17,057). The 1 open MSFT short closed `stop_loss` for −$6,361, simultaneously proving short-side rules work.
@@ -507,6 +515,176 @@ npx tsx tests/unit/stop-loss-watcher.test.ts
 # expect: 21 passed, 29 passed, 36 passed (= 86 assertions total for agent-autotrading)
 ```
 
+### 4.6 Day-trader runner (portfolio-foundation Phase 7)
+
+**What it does**: opens positions for the 3 seeded day-trader portfolios using strategy logic distinct from analyst-driven trades. Wired to a separate runner so day-trader activity stays cleanly separated from `signal_cross` / `eod_sweep` / `eod_backfill`. Surfaced on the leaderboard.
+
+**Static invariants**:
+```sql
+-- 3 day-trader portfolios exist
+SELECT id, strategy_name, kind, current_balance FROM prediction.analyst_portfolios
+WHERE kind='day_trader' ORDER BY strategy_name;
+-- expect 3 rows (gap_and_go, mean_reversion, momentum_breakout)
+
+-- After a runner pass, each has positions (>0)
+SELECT ap.strategy_name, count(p.id) AS positions
+FROM prediction.analyst_portfolios ap
+LEFT JOIN prediction.analyst_positions p ON p.portfolio_id=ap.id
+WHERE ap.kind='day_trader' GROUP BY ap.id, ap.strategy_name;
+
+-- Cross-portfolio purity: no day-trader position carries an analyst-attributed prediction
+SELECT count(*) FROM prediction.analyst_positions p
+  JOIN prediction.analyst_portfolios ap ON ap.id=p.portfolio_id
+  WHERE ap.kind='day_trader' AND p.trigger_reason IN ('signal_cross','eod_sweep','eod_backfill');
+-- expect 0
+```
+
+**Live trigger**:
+```bash
+curl -X POST http://localhost:7100/markets/admin/run-day-trader-strategies \
+  -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
+```
+After the call, query `analyst_positions WHERE trigger_reason='strategy' AND opened_at > now() - interval '5 minutes'` — expect ≥1 row per active day-trader portfolio.
+
+**Unit tests**: `apps/api/tests/unit/day-trader-runner.test.ts`.
+
+### 4.7 Background jobs — monthly reset, benchmark ingest, daily P&L (portfolio-foundation Phase 4)
+
+**What it does**: three cron-driven jobs that never fire from a button click. Each has an admin trigger endpoint for manual verification.
+
+**Monthly reset**:
+```bash
+curl -X POST http://localhost:7100/markets/portfolios/admin/monthly-reset \
+  -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
+# response: {"ledgerRowsWritten":N,"alreadyResetCount":M,"portfoliosProcessed":53,"errors":[]}
+```
+```sql
+-- A bailout row was written today (or alreadyResetCount == 53 if already run today — idempotent)
+SELECT count(*) FROM prediction.bailout_ledger WHERE reset_date = current_date;
+
+-- Cash balances bounced back to baseline
+SELECT strategy_name, current_balance FROM prediction.analyst_portfolios
+ORDER BY strategy_name LIMIT 10;
+```
+
+**Benchmark ingest**:
+```bash
+curl -X POST http://localhost:7100/markets/admin/run-benchmark-ingest \
+  -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
+# response: {"rowsWritten":1,"symbol":"SPY","tradingDate":"YYYY-MM-DD"}
+```
+```sql
+SELECT symbol, trading_date, close_price FROM prediction.benchmark_series
+ORDER BY trading_date DESC LIMIT 5;
+-- expect today's date (or most recent trading day) on top
+```
+
+**Daily P&L snapshots**:
+```bash
+curl -X POST http://localhost:7100/markets/admin/run-daily-snapshots \
+  -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
+# response: {"written":53}
+```
+```sql
+SELECT count(*) FROM prediction.daily_pnl_snapshot
+WHERE snapshot_date = current_date;
+-- expect 53 (one per active portfolio)
+```
+
+### 4.8 EOD backfill provenance + env-driven thresholds (portfolio-foundation Phase 8)
+
+**What it does**: Phase 8 added `'eod_backfill'` to the `trigger_reason` CHECK constraint for positions that EOD settlement creates from settled-day predictions (distinct from `eod_sweep`'s in-pipeline backstop). Also moved 4 stop-loss thresholds (`STOP_LOSS_PCT`, `TAKE_PROFIT_PCT`, `TRAILING_STOP_PCT`, `TRAILING_ARM_PCT`) from hard-coded constants to env-readable getters.
+
+**Schema sanity**:
+```bash
+psql ... -c "\d prediction.analyst_positions" | grep -E "trigger_reason|notes"
+```
+Expect: `trigger_reason` CHECK includes `'eod_backfill'`; `notes text` column present.
+
+**Env-knob unit tests** (canonical pin):
+```bash
+cd apps/api
+npx tsx tests/unit/stop-loss-watcher-env.test.ts
+# expect 11 assertions: defaults, env overrides for all 4 knobs, decide() with widened
+# stop, garbage-env fallback, post-clear restore.
+
+npx tsx tests/unit/stop-loss-watcher-shop-anomaly.test.ts
+# expect 4 assertions: SHOP HWM=118.80 vs current=110 → trailing_stop;
+# HWM=NULL → no close (Phase 1.2 invariant).
+```
+
+**eod_backfill provenance trail** — trigger an EOD pass, then:
+```sql
+SELECT id, symbol, trigger_reason, trigger_prediction_id, trigger_conviction, notes
+FROM prediction.analyst_positions
+WHERE trigger_reason='eod_backfill'
+ORDER BY opened_at DESC LIMIT 5;
+-- expect ≥1 row with non-null trigger_prediction_id, non-null trigger_conviction,
+-- and non-null notes
+```
+
+### 4.9 Markets gate + observability + RBAC (portfolio-foundation Phase 9)
+
+**What it does**: Phase 9 unblocked `pnpm ci:markets` (the workspace-level markets readiness gate), fixed RBAC enforcement in the compliance harness, fixed a confused-deputy hole in `MarketsController.createInstrument`, and made every observability event actually persist.
+
+**Markets gate green**:
+```bash
+cd /home/golfergeek/projects/divinr.ai
+pnpm ci:markets
+# expect: 7 smoke + 2 HTTP cases PASS, verify:markets PASS, 4/4 turbo tasks successful
+```
+
+**Unit tests green** (regression check):
+```bash
+cd apps/api && pnpm test:unit
+# expect all suites pass
+```
+
+**Observability landing** — after triggering any admin endpoint above, query:
+```sql
+SELECT hook_event_type, count(*) FROM public.observability_events
+WHERE created_at > now() - interval '10 minutes'
+GROUP BY 1 ORDER BY 1;
+-- expect rows for markets.orchestration.queued, .status_changed, .processed,
+-- and progress events from prediction-runner / risk-runner.
+-- pre-Phase-9 this would have been EMPTY for the progress event types
+-- because those callers omitted the NOT NULL `timestamp` column.
+```
+
+**Confused-deputy / header-body slug parity** — must return HTTP 400:
+```bash
+curl -i -X POST http://localhost:7100/markets/instruments \
+  -H "x-user-id: admin@alpha-capital.demo" \
+  -H "x-org-slug: alpha-capital" \
+  -H "Content-Type: application/json" \
+  -d '{"organizationSlug": "steadfast-advisors", "symbol": "TEST"}'
+# expect HTTP/1.1 400 Bad Request
+# body: organizationSlug mismatch between header, body, and query — they must agree
+```
+
+### 4.10 Master-detail portfolio API contract (portfolio-foundation Phase 3)
+
+**What it does**: Phase 3 added the read API that Phase 5's master-detail UI consumes. Provenance fields (`trigger_reason`, `trigger_prediction_id`, `trigger_conviction`) are returned per position so the Phase 5 tooltip has data to show.
+
+**Master list**:
+```bash
+curl -s 'http://localhost:7100/markets/portfolios?organizationSlug=alpha-capital' \
+  -H "x-user-id: admin@alpha-capital.demo" | jq '.[0:3]'
+# expect array of analyst portfolios with summary fields
+```
+
+**Detail with provenance**:
+```bash
+PORTFOLIO_ID=$(curl -s 'http://localhost:7100/markets/portfolios?organizationSlug=alpha-capital' \
+  -H "x-user-id: admin@alpha-capital.demo" | jq -r '.[0].id')
+
+curl -s "http://localhost:7100/markets/portfolios/$PORTFOLIO_ID?organizationSlug=alpha-capital" \
+  -H "x-user-id: admin@alpha-capital.demo" \
+  | jq '.positions[] | select(.trigger_reason != null) | {symbol, trigger_reason, trigger_prediction_id, trigger_conviction}' \
+  | head -20
+# expect at least one position carrying populated provenance fields
+```
+
 ---
 
 ## Maintenance
@@ -517,6 +695,4 @@ When a new **backend-only effort** ships (no UI), add a Tier 4 subsection: brief
 
 ## Known deferred items
 
-- **Master-detail portfolio view** is **not built yet** — when portfolio-foundation Phases 5–6 ship, replace section 2.11 with the new layout (`/portfolios` route, expandable rows per actor, equity sparklines).
-- **Provenance tooltip** on trade rows is **deferred** along with master-detail. Until then, tier 2 only verifies the trade rows appear; the tooltip content lands later.
-- **Day-trader portfolios** exist (seeded by portfolio-foundation Phase 1) but have **no positions** (the day-traders effort hasn't shipped). Tier 2 should confirm they appear in the leaderboard at $1M with zero positions.
+- **Markets integration test suite** (`pnpm test:markets:integration`): the on-demand integration cases that drive the prediction pipeline end-to-end exist but require real Polygon, FMP, TwelveData, Finnhub, FRED, SecEdgar, Reddit, and LLM credentials. Each case takes ~6 minutes hitting real third-party APIs. Tracked as a separate effort to add hermetic stubs / fixtures before they can run in any gate.

@@ -7,6 +7,7 @@
  * provenance writes (trigger_reason='eod_sweep').
  */
 import { EodForcedBuyService } from '../../src/markets/services/eod-forced-buy.service';
+import { AutotradeOpenHelper } from '../../src/markets/services/autotrade-open-helper.service';
 
 let passed = 0;
 let failed = 0;
@@ -129,29 +130,31 @@ console.log('Threshold gating (default 70):');
 delete process.env.CONVICTION_TRADE_THRESHOLD;
 {
   const db = new MockDb(buildScript({ predictions: [makePrediction({ confidence: 69 })] }));
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   const result = await service.runSweep({ manual: true });
   assert(result.rowsWritten === 0, 'confidence 69 → 0 rows written');
 }
 {
   const db = new MockDb(buildScript({ predictions: [makePrediction({ confidence: 70 })] }));
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   const result = await service.runSweep({ manual: true });
   assert(result.rowsWritten === 1, 'confidence 70 → 1 row written (>= inclusive)');
 }
 {
   const db = new MockDb(buildScript({ predictions: [makePrediction({ confidence: 85 })] }));
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   const result = await service.runSweep({ manual: true });
   assert(result.rowsWritten === 1, 'confidence 85 → 1 row written');
   const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(insert !== undefined, 'INSERT issued');
-  // Param positions: id=0, portfolio_id=1, ..., trigger_prediction_id=11, trigger_conviction=12
-  assert(insert!.sql.includes("'eod_sweep'"), 'INSERT writes trigger_reason=eod_sweep');
+  // Param positions (helper INSERT): id=0, portfolio_id=1, analyst_id=2, org=3,
+  // prediction_id=4, instrument_id=5, symbol=6, direction=7, qty=8, entry=9, current=10,
+  // trigger_reason=11, trigger_prediction_id=12, trigger_conviction=13
+  assert(insert!.params[11] === 'eod_sweep', 'INSERT writes trigger_reason=eod_sweep');
   assert(insert!.params[1] === 'pf-portfolio-analyst-1', 'routed to analyst portfolio');
   assert(insert!.params[7] === 'long', 'direction up → long');
-  assert(insert!.params[12] === 85, 'trigger_conviction = 85');
-  assert(insert!.params[11] === 'pred-1', 'trigger_prediction_id = pred-1');
+  assert(insert!.params[13] === 85, 'trigger_conviction = 85');
+  assert(insert!.params[12] === 'pred-1', 'trigger_prediction_id = pred-1');
 }
 
 // ─── Idempotency ────────────────────────────────────────────────
@@ -159,7 +162,7 @@ console.log('\nIdempotency:');
 {
   const existing = new Set<string>(['pf-portfolio-analyst-1|inst-1|pred-1']);
   const db = new MockDb(buildScript({ existingPositionFor: existing }));
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   const result = await service.runSweep({ manual: true });
   assert(result.rowsWritten === 0, 'existing position → 0 rows');
   assert(result.skipped === 1, 'existing position → skipped count = 1');
@@ -177,7 +180,7 @@ console.log('\nArbitrator routing:');
     predicted_direction: 'down',
   });
   const db = new MockDb(buildScript({ predictions: [arbPrediction] }));
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   const result = await service.runSweep({ manual: true });
   assert(result.rowsWritten === 1, 'arbitrator role → 1 row');
   const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'));
@@ -199,7 +202,7 @@ console.log('\nMixed batch:');
     makePrediction({ prediction_id: 'p-arb', role: 'arbitrator', analyst_id: null, confidence: 90 }),
   ];
   const db = new MockDb(buildScript({ predictions }));
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   const result = await service.runSweep({ manual: true });
   assert(result.rowsWritten === 2, 'mixed batch → 2 rows (low filtered out by threshold)');
 }
@@ -208,7 +211,7 @@ console.log('\nMixed batch:');
 console.log('\nNo eligible predictions:');
 {
   const db = new MockDb(buildScript({ predictions: [] }));
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   const result = await service.runSweep({ manual: false });
   assert(result.rowsWritten === 0 && result.skipped === 0 && result.errors.length === 0, 'empty result → all zeros');
 }
@@ -217,7 +220,7 @@ console.log('\nNo eligible predictions:');
 console.log('\nMissing portfolio:');
 {
   const db = new MockDb(buildScript({ analystPortfolio: null }));
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   const result = await service.runSweep({ manual: true });
   assert(result.rowsWritten === 0, 'missing analyst portfolio → 0 rows');
   assert(result.errors.length === 1, 'missing analyst portfolio → 1 error logged');
@@ -231,7 +234,7 @@ console.log('\nDay-trader exclusion:');
   // day-trader portfolio for it. Verify by setting an analyst lookup
   // that returns null and asserting no insert.
   const db = new MockDb(buildScript({ analystPortfolio: null }));
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   const result = await service.runSweep({ manual: true });
   assert(result.rowsWritten === 0, 'no analyst portfolio matched → no insert (proxy for day-trader exclusion)');
 }
@@ -240,7 +243,7 @@ console.log('\nDay-trader exclusion:');
 console.log('\nSELECT filter shape:');
 {
   const db = new MockDb(buildScript());
-  const service = new EodForcedBuyService(db as any, stubSizing);
+  const service = new EodForcedBuyService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   await service.runSweep({ manual: true });
   const select = db.calls.find(c => c.sql.includes('from prediction.market_predictions'));
   assert(select !== undefined, 'SELECT issued against market_predictions');

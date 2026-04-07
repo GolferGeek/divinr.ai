@@ -18,6 +18,9 @@ import { NightlyEvaluationService } from './services/nightly-evaluation.service'
 import { LearningEngineService } from './services/learning-engine.service';
 import { AnalystPortfolioService } from './services/analyst-portfolio.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
+import { LeaderboardService } from './services/leaderboard.service';
+import { MonthlyResetService } from './services/monthly-reset.service';
+import { BenchmarkIngestService } from './services/benchmark-ingest.service';
 import { EodSettlementService } from './services/eod-settlement.service';
 import { OrchestratorBaseDataService } from './services/orchestrator-base-data.service';
 import { AnalystPipelineService } from './services/analyst-pipeline.service';
@@ -27,6 +30,7 @@ import { PredictionGeneratorService } from './services/prediction-generator.serv
 import { OutcomeTrackingService } from './services/outcome-tracking.service';
 import { StopLossWatcherService } from './services/stop-loss-watcher.service';
 import { EodForcedBuyService } from './services/eod-forced-buy.service';
+import { DayTraderRunnerService } from './services/day-trader-runner.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -53,19 +57,23 @@ export class MarketsController {
 
   constructor(
     @Inject(MarketsService) markets: MarketsService,
-    private readonly nightlyEvaluation: NightlyEvaluationService,
-    private readonly learningEngine: LearningEngineService,
-    private readonly analystPortfolio: AnalystPortfolioService,
-    private readonly userPortfolio: UserPortfolioService,
-    private readonly eodSettlement: EodSettlementService,
-    private readonly baseData: OrchestratorBaseDataService,
-    private readonly analystPipeline: AnalystPipelineService,
-    private readonly crawler: CrawlerService,
-    private readonly predictorGenerator: PredictorGeneratorService,
-    private readonly predictionGenerator: PredictionGeneratorService,
-    private readonly outcomeTracking: OutcomeTrackingService,
-    private readonly stopLossWatcher: StopLossWatcherService,
-    private readonly eodForcedBuy: EodForcedBuyService,
+    @Inject(NightlyEvaluationService) private readonly nightlyEvaluation: NightlyEvaluationService,
+    @Inject(LearningEngineService) private readonly learningEngine: LearningEngineService,
+    @Inject(AnalystPortfolioService) private readonly analystPortfolio: AnalystPortfolioService,
+    @Inject(UserPortfolioService) private readonly userPortfolio: UserPortfolioService,
+    @Inject(LeaderboardService) private readonly leaderboard: LeaderboardService,
+    @Inject(MonthlyResetService) private readonly monthlyReset: MonthlyResetService,
+    @Inject(BenchmarkIngestService) private readonly benchmarkIngest: BenchmarkIngestService,
+    @Inject(EodSettlementService) private readonly eodSettlement: EodSettlementService,
+    @Inject(OrchestratorBaseDataService) private readonly baseData: OrchestratorBaseDataService,
+    @Inject(AnalystPipelineService) private readonly analystPipeline: AnalystPipelineService,
+    @Inject(CrawlerService) private readonly crawler: CrawlerService,
+    @Inject(PredictorGeneratorService) private readonly predictorGenerator: PredictorGeneratorService,
+    @Inject(PredictionGeneratorService) private readonly predictionGenerator: PredictionGeneratorService,
+    @Inject(OutcomeTrackingService) private readonly outcomeTracking: OutcomeTrackingService,
+    @Inject(StopLossWatcherService) private readonly stopLossWatcher: StopLossWatcherService,
+    @Inject(EodForcedBuyService) private readonly eodForcedBuy: EodForcedBuyService,
+    @Inject(DayTraderRunnerService) private readonly dayTraderRunner: DayTraderRunnerService,
   ) {
     this.markets = markets;
   }
@@ -81,14 +89,27 @@ export class MarketsController {
     user: AuthenticatedUser,
     orgSlugSources: { query?: string; body?: string; header?: string },
   ): { organizationSlug: string; userId: string } {
-    const organizationSlug =
-      orgSlugSources.header || orgSlugSources.body || orgSlugSources.query;
-    if (!organizationSlug) {
+    // If multiple sources are provided, they must agree. This blocks
+    // confused-deputy attacks where a caller passes one slug in the
+    // header and a different one in the body, hoping different layers
+    // validate against different sources.
+    const provided = [
+      orgSlugSources.header,
+      orgSlugSources.body,
+      orgSlugSources.query,
+    ].filter((v): v is string => typeof v === 'string' && v.length > 0);
+    if (provided.length === 0) {
       throw new BadRequestException(
         'organizationSlug is required (via query param, body, or x-org-slug header)',
       );
     }
-    return { organizationSlug, userId: user.id };
+    const distinct = new Set(provided);
+    if (distinct.size > 1) {
+      throw new BadRequestException(
+        'organizationSlug mismatch between header, body, and query — they must agree',
+      );
+    }
+    return { organizationSlug: provided[0], userId: user.id };
   }
 
   private getUser(req: { user?: AuthenticatedUser }): AuthenticatedUser {
@@ -113,14 +134,18 @@ export class MarketsController {
 
   @Post('instruments')
   async createInstrument(
-    @Req() req: { user?: AuthenticatedUser },
+    @Req() req: { user?: AuthenticatedUser; headers?: Record<string, string | string[] | undefined> },
     @Body() body: CreateInstrumentInput,
   ) {
     const user = this.getUser(req);
     if (!body?.symbol) {
       throw new BadRequestException('symbol is required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    const headerOrgSlug = req.headers?.['x-org-slug'];
+    const identity = this.resolveIdentity(user, {
+      body: body.organizationSlug,
+      header: typeof headerOrgSlug === 'string' ? headerOrgSlug : undefined,
+    });
     return this.markets.createInstrument({
       ...body,
       organizationSlug: identity.organizationSlug,
@@ -910,6 +935,65 @@ export class MarketsController {
     });
   }
 
+  @Post('portfolios/me/execute-trade')
+  async executeTrade(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: {
+      organizationSlug: string;
+      predictionId: string;
+      instrumentId: string;
+      direction: 'long' | 'short';
+      quantity: number;
+    },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.predictionId || !body?.instrumentId || !body?.direction || !body?.quantity) {
+      throw new BadRequestException('predictionId, instrumentId, direction, and quantity are required');
+    }
+    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+
+    // Disclaimer-ack guard — same shape as confirmTrade in markets.service.ts.
+    await this.userPortfolio.ensurePortfolio(identity.userId, identity.organizationSlug);
+    const ack = await this.userPortfolio.isDisclaimerAcknowledged(identity.userId, identity.organizationSlug);
+    if (!ack) return { requiresDisclaimer: true };
+
+    return this.userPortfolio.executeImmediate({
+      userId: identity.userId,
+      organizationSlug: identity.organizationSlug,
+      predictionId: body.predictionId,
+      instrumentId: body.instrumentId,
+      direction: body.direction,
+      quantity: body.quantity,
+    });
+  }
+
+  @Post('portfolios/me/positions/:positionId/close')
+  async closeMyPosition(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('positionId') positionId: string,
+    @Body() body: { organizationSlug: string },
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
+    return this.userPortfolio.closePosition({ userId: identity.userId, positionId });
+  }
+
+  @Get('portfolios')
+  async getAllPortfolios(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.leaderboard.getAllPortfoliosSummary();
+  }
+
+  @Get('portfolios/:kind/:id')
+  async getPortfolioDetail(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('kind') kind: string,
+    @Param('id') id: string,
+  ) {
+    this.getUser(req);
+    return this.leaderboard.getPortfolioDetail({ kind, id });
+  }
+
   @Post('portfolios/me/queue-trade/:tradeId/cancel')
   async cancelTrade(
     @Req() req: { user?: AuthenticatedUser },
@@ -1179,6 +1263,31 @@ export class MarketsController {
   async triggerStopLossSweep(@Req() req: { user?: AuthenticatedUser }) {
     this.getUser(req);
     return this.stopLossWatcher.sweep();
+  }
+
+  @Post('portfolios/admin/monthly-reset')
+  async triggerMonthlyReset(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.monthlyReset.runReset({ manual: true });
+  }
+
+  @Post('admin/run-daily-snapshots')
+  async triggerDailySnapshots(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    const prices = await this.eodSettlement.captureClosingPrices();
+    return this.eodSettlement.writeDailySnapshots(prices);
+  }
+
+  @Post('admin/run-benchmark-ingest')
+  async triggerBenchmarkIngest(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.benchmarkIngest.ingestSpy();
+  }
+
+  @Post('admin/run-day-trader-strategies')
+  async triggerDayTraderStrategies(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.dayTraderRunner.runStrategies();
   }
 
   @Post('admin/run-eod-forced-buy')

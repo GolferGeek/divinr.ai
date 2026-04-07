@@ -10,6 +10,7 @@ import {
 } from 'ionicons/icons';
 import { useApi } from '../composables/useApi';
 import { useProvenanceStore } from '../stores/provenance.store';
+import { usePortfolioStore } from '../stores/portfolio.store';
 
 interface AnalystStance {
   prediction_id: string;
@@ -23,13 +24,16 @@ interface AnalystStance {
   risks: unknown;
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   isOpen: boolean;
   symbol: string;
   name: string;
   analysts: AnalystStance[];
   initialIndex: number;
-}>();
+  mode?: 'view' | 'trade';
+  instrumentId?: string;
+  currentPrice?: number | null;
+}>(), { mode: 'view', instrumentId: '', currentPrice: null });
 
 const emit = defineEmits<{
   close: [];
@@ -95,10 +99,64 @@ watch(() => [props.isOpen, currentIndex.value], ([open]) => {
 
 // ─── Trade Actions ───────────────────────────────────────────
 const api = useApi();
+const portfolioStore = usePortfolioStore();
 const showDisclaimer = ref(false);
 const tradeResult = ref<Record<string, unknown> | null>(null);
 const tradeError = ref('');
 const disclaimerAcknowledged = ref(false);
+
+// Trade-mode form state
+const tradeQty = ref(10);
+const tradeDirection = ref<'long' | 'short'>('long');
+const tradeSubmitting = ref(false);
+
+watch(() => [props.isOpen, currentIndex.value], () => {
+  // Default direction from current analyst stance when opening trade form
+  const a = analyst.value;
+  if (a) tradeDirection.value = a.direction === 'down' ? 'short' : 'long';
+});
+
+const tradeTotalCost = computed(() => {
+  const p = Number(props.currentPrice ?? 0);
+  return p * Math.max(0, Number(tradeQty.value || 0));
+});
+
+async function submitImmediateTrade() {
+  tradeError.value = '';
+  tradeResult.value = null;
+  const a = analyst.value;
+  if (!a) return;
+  if (!props.instrumentId) {
+    tradeError.value = 'Missing instrument context';
+    return;
+  }
+  if (!tradeQty.value || tradeQty.value <= 0) {
+    tradeError.value = 'Quantity must be > 0';
+    return;
+  }
+  tradeSubmitting.value = true;
+  try {
+    const result = await portfolioStore.executeTrade({
+      predictionId: a.prediction_id,
+      instrumentId: props.instrumentId,
+      direction: tradeDirection.value,
+      quantity: Number(tradeQty.value),
+    });
+    if ((result as { requiresDisclaimer?: boolean }).requiresDisclaimer) {
+      showDisclaimer.value = true;
+      return;
+    }
+    if ((result as { error?: string }).error) {
+      tradeError.value = String((result as { error: string }).error);
+      return;
+    }
+    tradeResult.value = result;
+  } catch (err) {
+    tradeError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    tradeSubmitting.value = false;
+  }
+}
 
 async function takeTrade() {
   tradeError.value = '';
@@ -150,8 +208,12 @@ async function acknowledgeDisclaimer() {
     });
     disclaimerAcknowledged.value = true;
     showDisclaimer.value = false;
-    // Retry the trade now that disclaimer is acknowledged
-    await takeTrade();
+    // Retry the appropriate trade flow now that disclaimer is acknowledged
+    if (props.mode === 'trade') {
+      await submitImmediateTrade();
+    } else {
+      await takeTrade();
+    }
   } catch {
     showDisclaimer.value = false;
   }
@@ -413,8 +475,58 @@ async function loadChallenges() {
             </div>
           </div>
 
-          <!-- Trade Actions -->
-          <div class="section trade-actions">
+          <!-- Trade Mode Form (Phase 6) -->
+          <div v-if="mode === 'trade'" class="section trade-actions">
+            <div v-if="tradeResult" class="trade-confirmation">
+              <ion-chip color="success">Trade Filled</ion-chip>
+              <p style="font-size:0.85rem">
+                {{ symbol }} — {{ tradeDirection }} {{ tradeQty }} shares
+                <span v-if="currentPrice"> @ ${{ Number(currentPrice).toFixed(2) }}</span>
+              </p>
+              <p style="font-size:0.7rem;opacity:0.6">Position opened immediately. View it under your portfolio.</p>
+            </div>
+            <div v-else>
+              <h3 style="margin-bottom:8px">Trade {{ symbol }}</h3>
+              <div style="display:flex;gap:8px;margin-bottom:12px">
+                <ion-button
+                  size="small"
+                  :fill="tradeDirection === 'long' ? 'solid' : 'outline'"
+                  color="success"
+                  @click="tradeDirection = 'long'"
+                >Buy (Long)</ion-button>
+                <ion-button
+                  size="small"
+                  :fill="tradeDirection === 'short' ? 'solid' : 'outline'"
+                  color="danger"
+                  @click="tradeDirection = 'short'"
+                >Sell (Short)</ion-button>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                <label style="font-size:0.85rem">Shares:</label>
+                <input
+                  v-model.number="tradeQty"
+                  type="number"
+                  min="1"
+                  style="width:80px;padding:4px 8px;border:1px solid #ccc;border-radius:4px"
+                />
+                <span v-if="currentPrice != null" style="font-size:0.8rem;opacity:0.7">
+                  @ ${{ Number(currentPrice).toFixed(2) }}
+                </span>
+              </div>
+              <div v-if="currentPrice != null" style="font-size:0.85rem;margin-bottom:12px">
+                Total cost: <strong>${{ tradeTotalCost.toFixed(2) }}</strong>
+              </div>
+              <div v-if="tradeError" style="color:var(--ion-color-danger);font-size:0.8rem;margin-bottom:8px">{{ tradeError }}</div>
+              <ion-button
+                color="primary"
+                :disabled="tradeSubmitting || !tradeQty || tradeQty <= 0"
+                @click="submitImmediateTrade"
+              >{{ tradeSubmitting ? 'Submitting…' : 'Submit Trade' }}</ion-button>
+            </div>
+          </div>
+
+          <!-- Trade Actions (legacy view-mode queue flow) -->
+          <div v-else class="section trade-actions">
             <div v-if="tradeResult && !tradeResult.skipped" class="trade-confirmation">
               <ion-chip color="success">Trade Queued</ion-chip>
               <p>{{ tradeResult.symbol }} — {{ tradeResult.direction }} {{ tradeResult.quantity }} shares ({{ ((Number(tradeResult.positionPercent) || 0) * 100).toFixed(0) }}% position)</p>

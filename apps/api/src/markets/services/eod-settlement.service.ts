@@ -32,13 +32,13 @@ export class EodSettlementService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly schema: MarketsSchemaService,
-    private readonly analystPortfolio: AnalystPortfolioService,
-    private readonly userPortfolio: UserPortfolioService,
-    private readonly sizing: PositionSizingService,
-    private readonly nightlyEval: NightlyEvaluationService,
-    private readonly learningEngine: LearningEngineService,
-    private readonly eodForcedBuy: EodForcedBuyService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(AnalystPortfolioService) private readonly analystPortfolio: AnalystPortfolioService,
+    @Inject(UserPortfolioService) private readonly userPortfolio: UserPortfolioService,
+    @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
+    @Inject(NightlyEvaluationService) private readonly nightlyEval: NightlyEvaluationService,
+    @Inject(LearningEngineService) private readonly learningEngine: LearningEngineService,
+    @Inject(EodForcedBuyService) private readonly eodForcedBuy: EodForcedBuyService,
   ) {}
 
   /** Cron: 5 PM ET Mon-Fri (22:00 UTC). Disable with MARKETS_DISABLE_EOD_SETTLEMENT=true */
@@ -142,6 +142,15 @@ export class EodSettlementService {
       } catch (err) {
         log.errors.push(`Learning: ${err instanceof Error ? err.message : String(err)}`);
       }
+
+      // Step 6.5: Daily P&L snapshots — feeds /portfolios sparkline.
+      // Failure-isolated: errors are logged but never roll back settlement.
+      try {
+        const snapResult = await this.writeDailySnapshots(closingPrices);
+        this.logger.log(`Daily P&L snapshots written: ${snapResult.written}`);
+      } catch (err) {
+        log.errors.push(`Daily snapshots: ${err instanceof Error ? err.message : String(err)}`);
+      }
     } catch (err) {
       log.errors.push(`Settlement: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -163,7 +172,7 @@ export class EodSettlementService {
 
   // ─── Step 0: Closing prices ──────────────────────────────────
 
-  private async captureClosingPrices(): Promise<Map<string, number>> {
+  async captureClosingPrices(): Promise<Map<string, number>> {
     // TODO: Integrate with market data API via prediction plane
     // For now, use current_state from instruments table
     const result = await this.db.rawQuery(
@@ -301,6 +310,150 @@ export class EodSettlementService {
       total += await this.analystPortfolio.updateUnrealizedPnl(instrumentId, price);
     }
     return total;
+  }
+
+  // ─── Step 6.5: Daily P&L snapshots ───────────────────────────
+
+  /**
+   * For every analyst + user portfolio, INSERT one row into
+   * prediction.daily_pnl_snapshot keyed on (kind, id, snapshot_date).
+   * UNIQUE constraint makes the writer idempotent on retry.
+   */
+  async writeDailySnapshots(closingPrices: Map<string, number>): Promise<{ written: number }> {
+    const today = new Date().toISOString().slice(0, 10);
+    let written = 0;
+
+    // Analyst portfolios (analyst | arbitrator | day_trader).
+    const apRes = await this.db.rawQuery(
+      `select id, current_balance, initial_balance from prediction.analyst_portfolios`,
+    );
+    const analystPortfolios = (apRes.data as Array<{ id: string; current_balance: number; initial_balance: number }> | null) ?? [];
+    for (const ap of analystPortfolios) {
+      const snap = await this.computeAnalystSnapshot(ap.id, closingPrices);
+      const ins = await this.db.rawQuery(
+        `insert into prediction.daily_pnl_snapshot
+          (portfolio_kind, portfolio_id, snapshot_date, starting_balance, ending_balance,
+           realized_pnl, unrealized_pnl, open_position_count, trades_today)
+         values ('analyst', $1, $2, $3, $4, $5, $6, $7, $8)
+         on conflict (portfolio_kind, portfolio_id, snapshot_date) do update set
+           ending_balance = excluded.ending_balance,
+           realized_pnl = excluded.realized_pnl,
+           unrealized_pnl = excluded.unrealized_pnl,
+           open_position_count = excluded.open_position_count,
+           trades_today = excluded.trades_today
+         returning id`,
+        [ap.id, today, snap.starting, snap.ending, snap.realized, snap.unrealized, snap.openCount, snap.tradesToday],
+      );
+      written += ((ins.data as Array<unknown> | null) ?? []).length;
+    }
+
+    // User portfolios.
+    const upRes = await this.db.rawQuery(
+      `select id, current_balance, initial_balance from prediction.user_portfolios`,
+    );
+    const userPortfolios = (upRes.data as Array<{ id: string; current_balance: number; initial_balance: number }> | null) ?? [];
+    for (const up of userPortfolios) {
+      const snap = await this.computeUserSnapshot(up.id, closingPrices);
+      const ins = await this.db.rawQuery(
+        `insert into prediction.daily_pnl_snapshot
+          (portfolio_kind, portfolio_id, snapshot_date, starting_balance, ending_balance,
+           realized_pnl, unrealized_pnl, open_position_count, trades_today)
+         values ('user', $1, $2, $3, $4, $5, $6, $7, $8)
+         on conflict (portfolio_kind, portfolio_id, snapshot_date) do update set
+           ending_balance = excluded.ending_balance,
+           realized_pnl = excluded.realized_pnl,
+           unrealized_pnl = excluded.unrealized_pnl,
+           open_position_count = excluded.open_position_count,
+           trades_today = excluded.trades_today
+         returning id`,
+        [up.id, today, snap.starting, snap.ending, snap.realized, snap.unrealized, snap.openCount, snap.tradesToday],
+      );
+      written += ((ins.data as Array<unknown> | null) ?? []).length;
+    }
+
+    return { written };
+  }
+
+  private async computeAnalystSnapshot(portfolioId: string, closingPrices: Map<string, number>) {
+    const balRes = await this.db.rawQuery(
+      `select current_balance from prediction.analyst_portfolios where id = $1`,
+      [portfolioId],
+    );
+    const ending = Number(((balRes.data as Array<{ current_balance: number }> | null) ?? [{ current_balance: 0 }])[0].current_balance);
+
+    const realizedRes = await this.db.rawQuery(
+      `select coalesce(sum(realized_pnl), 0)::float8 as r
+       from prediction.analyst_positions
+       where portfolio_id = $1 and status = 'closed' and closed_at::date = current_date`,
+      [portfolioId],
+    );
+    const realized = Number(((realizedRes.data as Array<{ r: number }> | null) ?? [{ r: 0 }])[0].r);
+
+    const openRes = await this.db.rawQuery(
+      `select id, instrument_id, direction, entry_price, quantity
+       from prediction.analyst_positions where portfolio_id = $1 and status = 'open'`,
+      [portfolioId],
+    );
+    const openRows = (openRes.data as Array<{ instrument_id: string; direction: string; entry_price: number; quantity: number }> | null) ?? [];
+    let unrealized = 0;
+    for (const p of openRows) {
+      const px = closingPrices.get(p.instrument_id);
+      if (!px) continue;
+      const entry = Number(p.entry_price);
+      const qty = Number(p.quantity);
+      unrealized += p.direction === 'short' ? (entry - px) * qty : (px - entry) * qty;
+    }
+
+    const tradesRes = await this.db.rawQuery(
+      `select count(*)::int as c from prediction.analyst_positions
+       where portfolio_id = $1 and (opened_at::date = current_date or closed_at::date = current_date)`,
+      [portfolioId],
+    );
+    const tradesToday = Number(((tradesRes.data as Array<{ c: number }> | null) ?? [{ c: 0 }])[0].c);
+
+    const starting = ending - realized;
+    return { starting, ending, realized, unrealized, openCount: openRows.length, tradesToday };
+  }
+
+  private async computeUserSnapshot(portfolioId: string, closingPrices: Map<string, number>) {
+    const balRes = await this.db.rawQuery(
+      `select current_balance from prediction.user_portfolios where id = $1`,
+      [portfolioId],
+    );
+    const ending = Number(((balRes.data as Array<{ current_balance: number }> | null) ?? [{ current_balance: 0 }])[0].current_balance);
+
+    const realizedRes = await this.db.rawQuery(
+      `select coalesce(sum(realized_pnl), 0)::float8 as r
+       from prediction.user_positions
+       where portfolio_id = $1 and status = 'closed' and closed_at::date = current_date`,
+      [portfolioId],
+    );
+    const realized = Number(((realizedRes.data as Array<{ r: number }> | null) ?? [{ r: 0 }])[0].r);
+
+    const openRes = await this.db.rawQuery(
+      `select instrument_id, direction, entry_price, quantity
+       from prediction.user_positions where portfolio_id = $1 and status = 'open'`,
+      [portfolioId],
+    );
+    const openRows = (openRes.data as Array<{ instrument_id: string; direction: string; entry_price: number; quantity: number }> | null) ?? [];
+    let unrealized = 0;
+    for (const p of openRows) {
+      const px = closingPrices.get(p.instrument_id);
+      if (!px) continue;
+      const entry = Number(p.entry_price);
+      const qty = Number(p.quantity);
+      unrealized += p.direction === 'short' ? (entry - px) * qty : (px - entry) * qty;
+    }
+
+    const tradesRes = await this.db.rawQuery(
+      `select count(*)::int as c from prediction.user_positions
+       where portfolio_id = $1 and (opened_at::date = current_date or closed_at::date = current_date)`,
+      [portfolioId],
+    );
+    const tradesToday = Number(((tradesRes.data as Array<{ c: number }> | null) ?? [{ c: 0 }])[0].c);
+
+    const starting = ending - realized;
+    return { starting, ending, realized, unrealized, openCount: openRows.length, tradesToday };
   }
 
   // ─── Helpers ─────────────────────────────────────────────────

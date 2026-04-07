@@ -49,6 +49,16 @@ const DEFAULT_ENV: EnvMap = {
   OPENSOURCE_LLM_PROVIDER: 'none',
   OBSERVABILITY_PROVIDER: 'supabase',
   CONFIG_PROVIDER: 'local',
+  // The compliance harness seeds real RBAC roles/permissions/user_org_roles
+  // for orgA and orgB and explicitly tests cross-tenant denial. The
+  // repo-root .env enables MARKETS_DEV_AUTH_BYPASS=true for dev convenience,
+  // which would short-circuit requireRead/requireWrite in markets.service
+  // and let every cross-tenant call through. Force it off for the scope of
+  // this harness so the seeded RBAC is actually enforced.
+  // Set explicitly to 'false' (not undefined) — deleting it would let
+  // dotenv re-inject the .env value during NestFactory boot, since
+  // dotenv only fills missing vars by default.
+  MARKETS_DEV_AUTH_BYPASS: 'false',
 };
 
 function applyEnv(overrides: EnvMap): () => void {
@@ -439,6 +449,33 @@ export async function seedComplianceData(
     createdWritePermission = true;
   }
 
+  // Markets RBAC permissions — seeded with deterministic ids so re-runs are
+  // idempotent. The compliance smoke tests exercise MarketsService directly,
+  // which requires markets.instruments.{read,write} via requireRead/requireWrite.
+  // Without these, every markets call from a non-bypassed test path 403s.
+  const marketsReadPermissionId = 'markets-instruments-read';
+  const marketsWritePermissionId = 'markets-instruments-write';
+  await expectOk(
+    db.from('authz', 'rbac_permissions').upsert(
+      [
+        {
+          id: marketsReadPermissionId,
+          name: 'markets.instruments.read',
+          display_name: 'Read Market Instruments',
+          category: 'markets',
+        },
+        {
+          id: marketsWritePermissionId,
+          name: 'markets.instruments.write',
+          display_name: 'Write Market Instruments',
+          category: 'markets',
+        },
+      ],
+      { onConflict: 'id' },
+    ),
+    'seed markets permissions',
+  );
+
   await expectOk(
     db.from('authz', 'rbac_role_permissions').insert(
       [
@@ -453,6 +490,21 @@ export async function seedComplianceData(
         {
           role_id: adminRoleId,
           permission_id: writeDocsPermissionId,
+        },
+        // Admin gets full markets access; analyst gets read-only so the
+        // cross-tenant denial test (analyst trying to write to orgB) hits
+        // the write check, not a missing read permission.
+        {
+          role_id: adminRoleId,
+          permission_id: marketsReadPermissionId,
+        },
+        {
+          role_id: adminRoleId,
+          permission_id: marketsWritePermissionId,
+        },
+        {
+          role_id: analystRoleId,
+          permission_id: marketsReadPermissionId,
         },
       ],
     ),

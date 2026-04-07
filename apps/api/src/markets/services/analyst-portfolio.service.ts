@@ -16,8 +16,8 @@ export class AnalystPortfolioService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly schema: MarketsSchemaService,
-    private readonly sizing: PositionSizingService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
   ) {}
 
   async ensurePortfolio(analystId: string, organizationSlug: string, initialBalance = 1000000): Promise<AnalystPortfolio> {
@@ -75,14 +75,16 @@ export class AnalystPortfolioService {
     const result = await this.db.rawQuery(
       `insert into prediction.analyst_positions
         (id, portfolio_id, analyst_id, organization_slug, prediction_id, instrument_id, symbol,
-         direction, quantity, entry_price, current_price, is_paper_only, status, opened_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'open', now())
+         direction, quantity, entry_price, current_price, is_paper_only, status, opened_at,
+         trigger_reason, trigger_prediction_id, trigger_conviction)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'open', now(),
+               'eod_backfill', $5, $13)
        returning *`,
       [
         id, portfolio.id, input.analystId, input.organizationSlug,
         input.predictionId, input.instrumentId, input.symbol,
         posDirection, quantity, input.entryPrice, input.entryPrice,
-        input.isPaperOnly ?? false,
+        input.isPaperOnly ?? false, input.confidence,
       ],
     );
     if (result.error) throw new Error(result.error.message);

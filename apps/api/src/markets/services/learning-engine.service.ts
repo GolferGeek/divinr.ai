@@ -42,8 +42,8 @@ export class LearningEngineService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly schema: MarketsSchemaService,
-    private readonly canonicalRunner: CanonicalTestRunnerService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(CanonicalTestRunnerService) private readonly canonicalRunner: CanonicalTestRunnerService,
   ) {}
 
   async runLearningCycle(): Promise<LearningCycleResult> {

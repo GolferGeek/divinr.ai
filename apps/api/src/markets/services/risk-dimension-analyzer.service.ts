@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { ExecutionContext } from '@orchestrator-ai/transport-types';
 import { MarketsLlmService } from './markets-llm.service';
@@ -39,7 +39,7 @@ interface ParsedDimensionOutput {
 export class RiskDimensionAnalyzerService {
   private readonly logger = new Logger(RiskDimensionAnalyzerService.name);
 
-  constructor(private readonly llmService: MarketsLlmService) {}
+  constructor(@Inject(MarketsLlmService) private readonly llmService: MarketsLlmService) {}
 
   async analyzeDimension(input: AnalyzeInput): Promise<RiskDimensionAssessment> {
     if (!this.llmService.isLlmEnabled()) {
