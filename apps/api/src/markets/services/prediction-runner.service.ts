@@ -10,6 +10,7 @@ import { MarketsSchemaService } from '../schema/markets-schema.service';
 import { ContextProviderService } from './context-provider.service';
 import { DataSourceService } from './data-source.service';
 import { TradeRecommendationService } from './trade-recommendation.service';
+import { ConvictionTraderService } from './conviction-trader.service';
 import type {
   MarketRun,
   MarketInstrument,
@@ -52,6 +53,7 @@ export class PredictionRunnerService {
     private readonly contextProviders: ContextProviderService,
     private readonly dataSources: DataSourceService,
     private readonly tradeRecommendation: TradeRecommendationService,
+    private readonly convictionTrader: ConvictionTraderService,
   ) {
     this.planeState = new StocksPredictionPlane().state;
   }
@@ -107,6 +109,11 @@ export class PredictionRunnerService {
         );
         analystOutcomes.push(outcome);
         artifactIds.push(artifactId);
+        try {
+          await this.convictionTrader.evaluateAnalyst(outcome, run.organization_slug);
+        } catch (err) {
+          this.logger.warn(`Conviction autotrade (analyst ${analyst.slug}) failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.warn(`Analyst ${analyst.slug} failed: ${msg}`);
@@ -145,6 +152,11 @@ export class PredictionRunnerService {
       const arbResult = await this.runArbitrator(context, run, instrument, analystOutcomes, sharedContext);
       arbitratorOutcome = arbResult.outcome;
       artifactIds.push(arbResult.artifactId);
+      try {
+        await this.convictionTrader.evaluateArbitrator(arbitratorOutcome, run.organization_slug);
+      } catch (err) {
+        this.logger.warn(`Conviction autotrade (arbitrator) failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     } catch (err) {
       this.logger.warn(`Arbitrator failed: ${err instanceof Error ? err.message : String(err)}`);
     }

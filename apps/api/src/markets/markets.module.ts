@@ -24,6 +24,9 @@ import { PredictionGeneratorService } from './services/prediction-generator.serv
 import { OutcomeTrackingService } from './services/outcome-tracking.service';
 import { DataSourceService } from './services/data-source.service';
 import { TradeRecommendationService } from './services/trade-recommendation.service';
+import { ConvictionTraderService } from './services/conviction-trader.service';
+import { StopLossWatcherService } from './services/stop-loss-watcher.service';
+import { EodForcedBuyService } from './services/eod-forced-buy.service';
 
 @Module({
   controllers: [MarketsController],
@@ -51,6 +54,9 @@ import { TradeRecommendationService } from './services/trade-recommendation.serv
     OutcomeTrackingService,
     DataSourceService,
     TradeRecommendationService,
+    ConvictionTraderService,
+    StopLossWatcherService,
+    EodForcedBuyService,
     MarketsService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],
