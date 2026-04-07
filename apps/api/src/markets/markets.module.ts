@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { MarketsController } from './markets.controller';
 import { MarketsService } from './markets.service';
 import { MarketsSchemaService } from './schema/markets-schema.service';
@@ -27,7 +26,6 @@ import { DataSourceService } from './services/data-source.service';
 import { TradeRecommendationService } from './services/trade-recommendation.service';
 
 @Module({
-  imports: [ConfigModule],
   controllers: [MarketsController],
   providers: [
     MarketsSchemaService,

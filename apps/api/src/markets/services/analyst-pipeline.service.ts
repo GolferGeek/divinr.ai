@@ -1,6 +1,5 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { ConfigService } from '@nestjs/config';
 import {
   DATABASE_SERVICE,
   type DatabaseService,
@@ -41,10 +40,8 @@ export class AnalystPipelineService {
     private readonly predictorGenerator: PredictorGeneratorService,
     private readonly predictionGenerator: PredictionGeneratorService,
     private readonly outcomeTracking: OutcomeTrackingService,
-    private readonly configService: ConfigService,
   ) {
-    this.enabled =
-      this.configService.get<string>('MARKETS_ENABLE_PIPELINE') === 'true';
+    this.enabled = process.env.MARKETS_ENABLE_PIPELINE === 'true';
     if (this.enabled) {
       this.logger.log(
         'Analyst pipeline ENABLED — will run every 30 minutes',
