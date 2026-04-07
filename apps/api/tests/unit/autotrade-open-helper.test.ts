@@ -133,6 +133,33 @@ async function main(): Promise<void> {
     assert(insert.params[11] === 'eod_sweep', 'trigger_reason eod_sweep passes through');
   }
 
+  // 7. trigger_strategy write-through
+  console.log('\ntrigger_strategy write-through:');
+  {
+    const db = new MockDb((sql) => {
+      if (sql.includes('select id from prediction.analyst_positions')) return { data: [], error: null };
+      return { data: [], error: null };
+    });
+    const helper = new AutotradeOpenHelper(db as any);
+    await helper.openPosition(baseInput({ triggerStrategy: 'momentum_breakout' }));
+    const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'))!;
+    assert(insert.sql.includes('trigger_strategy'), 'INSERT references trigger_strategy column');
+    assert(insert.params[12] === 'momentum_breakout', 'trigger_strategy passed through at param 12');
+  }
+
+  // 8. trigger_strategy defaults to null when not provided
+  console.log('\ntrigger_strategy defaults to null:');
+  {
+    const db = new MockDb((sql) => {
+      if (sql.includes('select id from prediction.analyst_positions')) return { data: [], error: null };
+      return { data: [], error: null };
+    });
+    const helper = new AutotradeOpenHelper(db as any);
+    await helper.openPosition(baseInput());
+    const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'))!;
+    assert(insert.params[12] === null, 'trigger_strategy is null when omitted (backward compatible)');
+  }
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
   if (failed > 0) process.exit(1);
 }

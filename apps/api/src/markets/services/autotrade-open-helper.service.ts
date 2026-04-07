@@ -35,6 +35,7 @@ export interface AutotradeOpenInput {
   predictionId: string | null;
   conviction: number;
   triggerReason: string;
+  triggerStrategy?: string;
   organizationSlug: string;
 }
 
@@ -92,10 +93,10 @@ export class AutotradeOpenHelper {
          (id, portfolio_id, analyst_id, organization_slug, prediction_id,
           instrument_id, symbol, direction, quantity,
           entry_price, current_price, is_paper_only, status, opened_at,
-          trigger_reason, trigger_prediction_id, trigger_conviction,
+          trigger_reason, trigger_strategy, trigger_prediction_id, trigger_conviction,
           high_water_mark)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, 'open', now(),
-               $12, $13, $14, NULL)`,
+               $12, $13, $14, $15, NULL)`,
       [
         id,
         input.portfolio.id,
@@ -109,6 +110,7 @@ export class AutotradeOpenHelper {
         input.entryPrice,
         input.entryPrice,
         input.triggerReason,
+        input.triggerStrategy ?? null,
         input.predictionId,
         input.conviction,
       ],

@@ -31,6 +31,17 @@ interface OutcomeTrackingResult {
   errors: string[];
 }
 
+export interface RecentBar {
+  t: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+
+export const RECENT_BARS_CAP = 32;
+
 /**
  * OutcomeTrackingService — Captures price snapshots, resolves predictions
  * at their horizon, and expires stale predictors.
@@ -252,6 +263,26 @@ export class OutcomeTrackingService {
       }
     } catch { /* no prediction data */ }
 
+    // Build new ring-buffer entry. Until OHLC is available from /prev, use
+    // the latest price for o/h/l/c and v=0 (documented limitation).
+    const newBar: RecentBar = {
+      t: new Date().toISOString(),
+      o: priceData.price,
+      h: priceData.price,
+      l: priceData.price,
+      c: priceData.price,
+      v: 0,
+    };
+
+    // Read the existing recent_bars to compute the trimmed buffer.
+    const existing = await this.db.rawQuery(
+      `select current_state from prediction.instruments where id = $1 limit 1`,
+      [instrumentId],
+    );
+    const existingState = ((existing.data as Array<{ current_state: Record<string, unknown> | null }> | null) ?? [])[0]?.current_state;
+    const priorBars = Array.isArray(existingState?.recent_bars) ? (existingState!.recent_bars as RecentBar[]) : [];
+    const nextBars = [...priorBars, newBar].slice(-RECENT_BARS_CAP);
+
     // Update ALL instruments with the same symbol (across all orgs including __base__)
     const result = await this.db.rawQuery(
       `update prediction.instruments
@@ -261,14 +292,30 @@ export class OutcomeTrackingService {
          'changePercent', $4::float,
          'prediction_direction', $5::text,
          'prediction_confidence', $6::float,
-         'price_updated_at', now()::text
+         'price_updated_at', now()::text,
+         'recent_bars', $7::jsonb
        )
        where symbol = (select symbol from prediction.instruments where id = $1)`,
-      [instrumentId, priceData.price, priceData.change, priceData.changePercent, predDirection, predConfidence],
+      [instrumentId, priceData.price, priceData.change, priceData.changePercent, predDirection, predConfidence, JSON.stringify(nextBars)],
     );
     if (result.error) {
       this.logger.error(`Failed to update price for instrument ${instrumentId}: ${result.error.message}`);
     }
+  }
+
+  /**
+   * Return the last `count` 15-min bars persisted for this instrument id.
+   * Reads from `prediction.instruments.current_state.recent_bars`.
+   * Returns at most `count` bars (oldest first).
+   */
+  async getRecentBars(instrumentId: string, count: number): Promise<RecentBar[]> {
+    const result = await this.db.rawQuery(
+      `select current_state from prediction.instruments where id = $1 limit 1`,
+      [instrumentId],
+    );
+    const state = ((result.data as Array<{ current_state: Record<string, unknown> | null }> | null) ?? [])[0]?.current_state;
+    const bars = Array.isArray(state?.recent_bars) ? (state!.recent_bars as RecentBar[]) : [];
+    return bars.slice(-count);
   }
 
   /**

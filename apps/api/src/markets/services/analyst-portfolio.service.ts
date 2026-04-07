@@ -95,6 +95,7 @@ export class AnalystPortfolioService {
     positionId: string,
     exitPrice: number,
     triggerReason?: string,
+    triggerStrategy?: string,
   ): Promise<{ realizedPnl: number; isWin: boolean }> {
     // Load position
     const posResult = await this.db.rawQuery(
@@ -118,17 +119,20 @@ export class AnalystPortfolioService {
          set status = 'closed', exit_price = $1, realized_pnl = $2,
              current_price = $3, unrealized_pnl = 0,
              trigger_reason = $5,
+             trigger_strategy = coalesce($6, trigger_strategy),
              closed_at = now(), updated_at = now()
          where id = $4`,
-        [exitPrice, realizedPnl, exitPrice, positionId, triggerReason],
+        [exitPrice, realizedPnl, exitPrice, positionId, triggerReason, triggerStrategy ?? null],
       );
     } else {
       await this.db.rawQuery(
         `update prediction.analyst_positions
          set status = 'closed', exit_price = $1, realized_pnl = $2,
-             current_price = $3, unrealized_pnl = 0, closed_at = now(), updated_at = now()
+             current_price = $3, unrealized_pnl = 0,
+             trigger_strategy = coalesce($5, trigger_strategy),
+             closed_at = now(), updated_at = now()
          where id = $4`,
-        [exitPrice, realizedPnl, exitPrice, positionId],
+        [exitPrice, realizedPnl, exitPrice, positionId, triggerStrategy ?? null],
       );
     }
 

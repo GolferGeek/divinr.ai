@@ -5,7 +5,7 @@
 **Status**: Not Started
 
 ## Progress Tracker
-- [ ] Phase 1: Open/close signature extension + recent-bars helper
+- [x] Phase 1: Open/close signature extension + recent-bars helper
 - [ ] Phase 2: Strategy interface refactor + EOD-flat scaffolding
 - [ ] Phase 3: Wire runner into OutcomeTracking + remove hourly cron
 - [ ] Phase 4: Three real strategies
@@ -17,18 +17,18 @@
 ---
 
 ## Phase 1: Open/close signature extension + recent-bars helper
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Make `triggerStrategy` writable on opens/closes and persist a 32-bar
 ring buffer inside `instruments.current_state` jsonb.
 
 ### Steps
-- [ ] 1.1 Extend `AutotradeOpenHelper.openPosition` (`apps/api/src/markets/services/autotrade-open-helper.service.ts`) with optional `triggerStrategy?: string`; write into `analyst_positions.trigger_strategy` on insert; default NULL preserved for existing callers.
-- [ ] 1.2 Extend `AnalystPortfolioService.closePosition` (`apps/api/src/markets/services/analyst-portfolio.service.ts`) with optional `triggerStrategy?: string`; write into `analyst_positions.trigger_strategy` on update.
-- [ ] 1.3 In `OutcomeTrackingService.updateInstrumentPrice` (`apps/api/src/markets/services/outcome-tracking.service.ts`), append a `{t, o, h, l, c, v}` bar to `current_state.recent_bars` (cap 32, oldest dropped) only on a real Polygon hit. Use the values already in `priceData` for `c`; until OHLC is available from `/prev`, set `o=h=l=c=price` and `v=0` (documented limitation).
-- [ ] 1.4 Add `getRecentBars(instrumentId: string, count: number): Promise<Bar[]>` helper on `OutcomeTrackingService` reading from `current_state.recent_bars`.
-- [ ] 1.5 Extend `apps/api/tests/unit/autotrade-open-helper.test.ts` with a `triggerStrategy` write-through case.
-- [ ] 1.6 Add a new `apps/api/tests/unit/analyst-portfolio-close-trigger.test.ts` covering the closePosition signature extension.
-- [ ] 1.7 Add a new `apps/api/tests/unit/recent-bars-ring-buffer.test.ts` covering append, cap-32 trim, and getter shape.
+- [x] 1.1 Extend `AutotradeOpenHelper.openPosition` (`apps/api/src/markets/services/autotrade-open-helper.service.ts`) with optional `triggerStrategy?: string`; write into `analyst_positions.trigger_strategy` on insert; default NULL preserved for existing callers.
+- [x] 1.2 Extend `AnalystPortfolioService.closePosition` (`apps/api/src/markets/services/analyst-portfolio.service.ts`) with optional `triggerStrategy?: string`; write into `analyst_positions.trigger_strategy` on update.
+- [x] 1.3 In `OutcomeTrackingService.updateInstrumentPrice` (`apps/api/src/markets/services/outcome-tracking.service.ts`), append a `{t, o, h, l, c, v}` bar to `current_state.recent_bars` (cap 32, oldest dropped) only on a real Polygon hit. Use the values already in `priceData` for `c`; until OHLC is available from `/prev`, set `o=h=l=c=price` and `v=0` (documented limitation).
+- [x] 1.4 Add `getRecentBars(instrumentId: string, count: number): Promise<Bar[]>` helper on `OutcomeTrackingService` reading from `current_state.recent_bars`.
+- [x] 1.5 Extend `apps/api/tests/unit/autotrade-open-helper.test.ts` with a `triggerStrategy` write-through case.
+- [x] 1.6 Add a new `apps/api/tests/unit/analyst-portfolio-close-trigger.test.ts` covering the closePosition signature extension.
+- [x] 1.7 Add a new `apps/api/tests/unit/recent-bars-ring-buffer.test.ts` covering append, cap-32 trim, and getter shape.
 
 ### Quality Gate
 - [ ] **Lint**: `pnpm --filter @divinr/api lint`
