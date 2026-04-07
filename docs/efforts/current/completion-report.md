@@ -67,15 +67,25 @@ None new in Phase 10. Pre-existing deviations (Phase 5 vitest infra, Phase 6 mis
 | §§3.1/3.2/3.3/3.6/3.7 | Proxied | Auth/empty/error/console/network sweeps — no changes in this effort; Tier 1 zero-error pass is the proxy. |
 | Test plan §2.11 rewrite | DONE | New master-detail layout documented (10 columns, 4 kinds, expand-row interaction, follow-up finding). |
 
-**New finding (filed, does not block merge)**:
-- ~25 analyst rows in the master leaderboard render their raw analyst id instead of a display name (e.g. `f79df8f8-3fff-...`). Named ones (Macro Strategist, Fundamentals, Momentum, Technical, Sentiment, Arbitrator, all 3 Day Traders) resolve correctly. Likely a join/fallback gap in `LeaderboardService.fetchAllPortfolios` for analysts whose persona name didn't resolve. Scope: cosmetic; doesn't affect P&L data or any computed column.
+**Finding fixed in this session**:
+- ~25 analyst rows in the master leaderboard rendered raw analyst id instead of a display name. Root cause: `prediction.analyst_portfolios` had 43 orphan rows for 19 test analyst_ids with no matching `market_analysts` entry, no `strategy_name`, and 2-3 fork_type duplicates each. Cleaned up via `apps/api/db/cleanup/2026-04-07-orphan-test-analyst-portfolios.sql` (43 portfolios + 235 cascade positions + 43 snapshots + 43 bailouts removed). Leaderboard now shows 10 clean rows: 1 user + 5 named analysts + 1 arbitrator + 3 day_traders. No code change needed — `LeaderboardService` query was correct, the data was polluted.
+
+**Other in-session fixes**:
+- `apps/web/index.html`: added `html, body, #app { height: 100% }` so the Vue mount div fills the viewport. Without it `#app` collapsed to content height (~514px) and `ion-content` collapsed with it.
+- `scripts/check-api-dist-fresh.mjs`: build-freshness preflight that compares newest src `.ts` mtime vs newest dist `.js` mtime and exits non-zero if src is newer. Catches the class of failure that bit §4.9 (stale dist serving an older confused-deputy code path).
+- §4.2.A SHOP recipe re-run after orphan cleanup: `{closed:0, updated:16, skipped:0}` against 16 real `signal_cross` positions. Phase 1 HWM-NULL invariant verified on the freshest insert. The recipe now actually exercises the stop-loss path against live data — the prior "SKIPPED, no qualifying fixtures" entry above is closed.
 
 ## Next steps
-- Run `/pr-eval` on PR #5, address any review feedback, merge to main.
-- Out-of-scope follow-ups (filed for future efforts):
-  - Backfill `instrument_id` on the 63 stale `manual` open positions (or seed fresh autotrade-helper-written positions) so §4.2.A SHOP recipe can be re-run end-to-end.
-  - Ensure dist is rebuilt before verification sessions (or run via tsx dev mode) — see Finding #2.
-  - Fix `LeaderboardService.fetchAllPortfolios` analyst-name fallback so all 48 analyst rows render display names (Track A finding).
+- Merge PR #5 to main and archive this effort.
+- Follow-ups filed as new effort intentions:
+  - `docs/efforts/future/day-traders-and-leaderboard/intention.md` — updated with a Status section noting all wiring is now in main; the effort's narrowed scope is replacing the 3 `StubStrategy` placeholders with real signal logic.
+  - `docs/efforts/future/markets-integration-test-infra/intention.md` — new effort. Make `pnpm test:markets:integration` deterministic and fast by stubbing Polygon/FMP/TwelveData/Finnhub/FRED/SecEdgar/Reddit/LLM at the adapter boundary.
+- All 5 follow-ups from PR review are now closed or filed:
+  1. §4.2.A live fixtures — closed (orphan cleanup did it)
+  2. Day-trader 0 opens — filed in `future/day-traders-and-leaderboard`
+  3. Markets integration tests — filed in `future/markets-integration-test-infra`
+  4. Build freshness preflight — closed (`scripts/check-api-dist-fresh.mjs`)
+  5. CI green — closed (`markets-gates` SUCCESS)
 
 **Out-of-scope follow-up identified during this session**:
 - Backfill `instrument_id` on the 63 stale `manual` open positions, or seed fresh autotrade-helper-written positions, so §4.2.A SHOP recipe can be re-run end-to-end against real fixture data.

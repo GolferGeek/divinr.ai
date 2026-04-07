@@ -12,6 +12,16 @@ This is the third and final effort in the multi-actor paper-trading game arc, si
 
 After the first two efforts ship, the game has the user, every analyst, and the arbitrator playing — but it's missing the third class of player (day traders) and a way to actually compare everyone. The leaderboard is the centerpiece of the whole game: it's where bragging rights, shame, and signal calibration become visible at a glance.
 
+## Status (2026-04-07)
+
+**Prerequisites are all in main as of `effort/portfolio-foundation-resume` PR #5.** Specifically:
+- `DayTraderRunnerService` exists (`apps/api/src/markets/services/day-trader-runner.service.ts`) with cron, admin endpoint `POST /markets/admin/run-day-trader-strategies`, strategy registry, and routing through `AutotradeOpenHelper` (opens) + `AnalystPortfolioService.closePosition` (closes). Cross-portfolio purity verified.
+- The 3 day-trader portfolios exist with `strategy_name` set (`momentum_breakout` / `mean_reversion` / `gap_and_go`).
+- Master-detail leaderboard renders day-trader rows with display names.
+- Strategies are intentional `StubStrategy` placeholders returning zero intents — **this effort exists to replace them with real signal logic**.
+
+**Scope, narrowed**: replace the 3 stubs in `day-trader-runner.service.ts:72-76` with real strategy classes implementing the rules below. No new wiring, no new tables — signal logic + tuning + tests + leaderboard polish.
+
 ## Prerequisites (must be in main before this effort starts)
 
 From the Portfolio Foundation effort:
