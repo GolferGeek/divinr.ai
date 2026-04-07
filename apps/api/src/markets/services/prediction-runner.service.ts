@@ -705,6 +705,7 @@ Respond ONLY with valid JSON.`;
         progress: Math.round((current / total) * 100),
         step: `analyst_${current + 1}_of_${total}`,
         payload: { runId, current, total },
+        timestamp: Date.now(),
       } as never);
     } catch {
       // Non-critical

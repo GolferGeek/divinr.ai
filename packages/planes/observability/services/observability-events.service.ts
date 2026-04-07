@@ -172,6 +172,13 @@ export class ObservabilityEventsService {
    */
   async push(event: ObservabilityEventRecord): Promise<void> {
     try {
+      // Defensive: timestamp is NOT NULL in the observability_events table.
+      // Some legacy callers omitted it (silently failing the DB insert
+      // with "null value in column 'timestamp'"). Fill it here so future
+      // omissions don't poison the historical event stream.
+      if (typeof event.timestamp !== 'number' || !Number.isFinite(event.timestamp)) {
+        event.timestamp = Date.now();
+      }
       const userId = this.toValidUuidOrNull(event.context?.userId);
       const payloadUsername = event.payload?.username as string | undefined;
 

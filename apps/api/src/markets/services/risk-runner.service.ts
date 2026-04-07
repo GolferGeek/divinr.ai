@@ -569,6 +569,7 @@ Respond with valid JSON only:
         progress: Math.round((current / total) * 100),
         step: `dimension_${current + 1}_of_${total}`,
         payload: { runId, current, total },
+        timestamp: Date.now(),
       } as never);
     } catch {
       // Non-critical
