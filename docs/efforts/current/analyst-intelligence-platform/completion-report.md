@@ -60,7 +60,20 @@
 2. **Spin up the validation effort.** See `future-validation.md` for the 3-day paper-trading shakedown plus calibration-window monitoring.
 
 3. **Optional follow-ups identified during implementation:**
-   - Wire `TradeRecommendationService.generateForRun()` directly into `prediction-runner.service.ts` at run completion, so recommendations exist before the user opens the dashboard (currently lazy-generated on first read).
    - Add a per-instrument concentration cap in addition to the per-position cap (currently 10% per position with no aggregate concentration check across positions).
    - Surface the trade recommendation rationale in the modal (currently only the action chip + numbers are shown on the card; the full rationale is persisted but not yet rendered).
-   - Lint script on the API package was not run as part of the Phase 6 gate. Add to the PR-eval pass.
+   - Web lint config currently only covers `.ts` files, not `.vue`. Pre-existing limitation worth fixing in a separate cleanup pass.
+   - Connect to a broker API (Alpaca, IBKR, etc.) for actual order execution. Phase 6 produces recommendations only — there is no execution layer. This is a separate effort.
+
+## Follow-up commit (same session)
+
+After the initial Phase 6 commit, two issues were noticed and fixed in a follow-up commit:
+
+1. **Multi-user sizing bug**. The original implementation persisted `quantity` in the recommendation row, baked in against whoever first triggered generation. With eager generation in the runner, this would have stamped every viewer with the trigger-user's portfolio sizing. Fixed by:
+   - `generateForRun()` no longer takes `portfolioBalance`. Persistence is portfolio-agnostic and stores `quantity = 0` as a placeholder.
+   - New static `TradeRecommendationService.sizeForUser(rec, balance)` computes per-user quantity at read time. Pure function, does not mutate input. Tested.
+   - `MarketsService.getDashboardPredictions()` and `getTradeRecommendation()` call `sizeForUser` per viewing user.
+
+2. **Prediction-runner integration**. Wired `tradeRecommendation.generateForRun()` into `prediction-runner.service.ts` as step 7 (right after the arbitrator step). Recommendations are now eagerly generated at run-completion time instead of lazily on first dashboard read. Failure is non-fatal — the dashboard still has lazy fallback. This works correctly with the multi-user fix above because eager generation is portfolio-agnostic.
+
+Tests added for `sizeForUser`: 67 trade-recommendation tests now (was 60). Full unit suite still green.

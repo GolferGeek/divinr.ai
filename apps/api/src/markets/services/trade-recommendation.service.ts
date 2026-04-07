@@ -36,14 +36,16 @@ export class TradeRecommendationService {
   // ─── Public API ─────────────────────────────────────────────────
 
   /**
-   * Generate (or fetch existing) trade recommendation for a completed
-   * prediction run. Idempotent: if a portfolio_manager prediction already
-   * exists for the run, returns it without regenerating.
+   * Generate (or fetch existing) the **portfolio-agnostic** trade recommendation
+   * for a completed prediction run. The persisted recommendation has
+   * `quantity = 0` because quantity is per-user (depends on the viewer's
+   * portfolio balance). Use {@link sizeForUser} to compute quantity at read
+   * time. Idempotent: if a portfolio_manager prediction already exists for
+   * the run, returns it without regenerating.
    */
   async generateForRun(input: {
     runId: string;
     organizationSlug: string;
-    portfolioBalance: number;
   }): Promise<TradeRecommendation | null> {
     await this.schema.ensureSchema();
 
@@ -59,6 +61,8 @@ export class TradeRecommendationService {
     const calibrationAccuracy = await this.loadArbitratorCalibrationAccuracy(input.organizationSlug);
     const isCalibrating = await this.checkCalibratingStatus(input.organizationSlug);
 
+    // Compute with portfolioBalance = 0; quantity will be 0 in the persisted
+    // row. Real per-user quantity is computed by sizeForUser() at read time.
     const recommendation = this.computeRecommendation({
       arbitratorDirection: context.direction,
       arbitratorConfidence: context.confidence,
@@ -66,7 +70,7 @@ export class TradeRecommendationService {
       consensusBullishCount: context.bullishCount,
       consensusBearishCount: context.bearishCount,
       consensusTotal: context.totalAnalysts,
-      portfolioBalance: input.portfolioBalance,
+      portfolioBalance: 0,
       entryPrice: context.entryPrice,
       calibrationAccuracy,
     });
@@ -86,6 +90,29 @@ export class TradeRecommendationService {
       isCalibrating,
       computed: recommendation,
     });
+  }
+
+  /**
+   * Take a portfolio-agnostic recommendation and compute the per-user
+   * quantity given that user's portfolio balance. Returns a new object;
+   * does not mutate the input. Pure function.
+   *
+   * This is the read-time per-user sizing step. It exists because the
+   * persisted recommendation row is shared across all users viewing the
+   * same run, so quantity cannot be baked into persistence.
+   */
+  static sizeForUser(
+    recommendation: TradeRecommendation,
+    portfolioBalance: number,
+  ): TradeRecommendation {
+    if (recommendation.action === 'hold' || recommendation.entry_price <= 0 || portfolioBalance <= 0) {
+      return { ...recommendation, quantity: 0 };
+    }
+    const quantity = Math.max(
+      0,
+      Math.floor((portfolioBalance * recommendation.position_percent) / recommendation.entry_price),
+    );
+    return { ...recommendation, quantity };
   }
 
   async fetchExisting(runId: string, organizationSlug: string): Promise<TradeRecommendation | null> {

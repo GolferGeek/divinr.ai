@@ -2541,16 +2541,19 @@ Respond ONLY with valid JSON.`,
       const analystPreds = preds.filter(p => p.role === 'analyst' || p.role === 'paper');
 
       // Phase 6: ensure a portfolio_manager trade recommendation exists for
-      // this run. Lazy generation — fast (no LLM calls), and idempotent at
-      // the persistence layer.
+      // this run, then size it for THIS viewing user.
+      // - Generation is portfolio-agnostic (idempotent across all viewers).
+      // - Sizing computes quantity per-user from the user's own balance.
       let tradeRec: TradeRecommendation | null = null;
       try {
-        const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
-        tradeRec = await this.tradeRecommendation.generateForRun({
+        const baseRec = await this.tradeRecommendation.generateForRun({
           runId: run.run_id,
           organizationSlug,
-          portfolioBalance: Number(portfolio.current_balance),
         });
+        if (baseRec) {
+          const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
+          tradeRec = TradeRecommendationService.sizeForUser(baseRec, Number(portfolio.current_balance));
+        }
       } catch (err) {
         // Don't fail the dashboard if recommendation generation fails
         // (e.g. missing arbitrator output for an old run)
@@ -2596,12 +2599,13 @@ Respond ONLY with valid JSON.`,
   ): Promise<TradeRecommendation | null> {
     await this.schema.ensureSchema();
     await this.requireRead(userId, organizationSlug);
-    const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
-    return this.tradeRecommendation.generateForRun({
+    const baseRec = await this.tradeRecommendation.generateForRun({
       runId,
       organizationSlug,
-      portfolioBalance: Number(portfolio.current_balance),
     });
+    if (!baseRec) return null;
+    const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
+    return TradeRecommendationService.sizeForUser(baseRec, Number(portfolio.current_balance));
   }
 
   /**

@@ -9,6 +9,7 @@ import { MarketsLlmService } from './markets-llm.service';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 import { ContextProviderService } from './context-provider.service';
 import { DataSourceService } from './data-source.service';
+import { TradeRecommendationService } from './trade-recommendation.service';
 import type {
   MarketRun,
   MarketInstrument,
@@ -50,6 +51,7 @@ export class PredictionRunnerService {
     private readonly llmService: MarketsLlmService,
     private readonly contextProviders: ContextProviderService,
     private readonly dataSources: DataSourceService,
+    private readonly tradeRecommendation: TradeRecommendationService,
   ) {
     this.planeState = new StocksPredictionPlane().state;
   }
@@ -145,6 +147,22 @@ export class PredictionRunnerService {
       artifactIds.push(arbResult.artifactId);
     } catch (err) {
       this.logger.warn(`Arbitrator failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // 7. Phase 6: Portfolio Manager — eagerly generate the portfolio-agnostic
+    // trade recommendation now that the arbitrator has produced its output.
+    // Persistence is idempotent and portfolio-agnostic; per-user quantity is
+    // computed at read time. Failure here is non-fatal — the dashboard will
+    // lazily generate on first read if this fails.
+    if (arbitratorOutcome) {
+      try {
+        await this.tradeRecommendation.generateForRun({
+          runId: run.id,
+          organizationSlug: run.organization_slug,
+        });
+      } catch (err) {
+        this.logger.warn(`Trade recommendation generation failed for run ${run.id}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     await this.emitProgress(context, run.id, 'Prediction pipeline complete', analysts.length, analysts.length);

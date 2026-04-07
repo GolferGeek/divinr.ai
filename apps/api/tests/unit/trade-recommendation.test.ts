@@ -357,6 +357,63 @@ console.log('\nLow calibration:');
   assert(recLow.kellyFractionRaw < recHigh.kellyFractionRaw, 'lower calibration → smaller raw Kelly');
 }
 
+// ─── sizeForUser (per-user quantity computation) ────────────────
+console.log('\nsizeForUser:');
+{
+  const baseRec = {
+    id: 'pm_run1',
+    run_id: 'run1',
+    organization_slug: '__base__',
+    instrument_id: 'inst1',
+    symbol: 'MSFT',
+    action: 'buy' as const,
+    position_percent: 0.10,
+    kelly_fraction_raw: 0.5,
+    kelly_fraction_applied: 0.10,
+    quantity: 0,                       // persisted as 0
+    entry_price: 100,
+    stop_loss: 99,
+    take_profit: 102,
+    arbitrator_direction: 'up' as const,
+    arbitrator_confidence: 80,
+    calibration_adjusted_confidence: 68,
+    composite_risk_score: 30,
+    consensus_bullish_count: 4,
+    consensus_bearish_count: 1,
+    consensus_total: 5,
+    is_calibrating: true,
+    rationale: 'test',
+    created_at: '',
+  };
+
+  // User A with $100k → 100 shares
+  const sizedA = TradeRecommendationService.sizeForUser(baseRec, 100000);
+  assert(sizedA.quantity === 100, '$100k portfolio → 100 shares');
+  assert(sizedA.position_percent === 0.10, 'position_percent unchanged');
+
+  // User B with $50k → 50 shares (same recommendation, smaller portfolio)
+  const sizedB = TradeRecommendationService.sizeForUser(baseRec, 50000);
+  assert(sizedB.quantity === 50, '$50k portfolio → 50 shares');
+
+  // Empty portfolio → 0 shares
+  const sizedEmpty = TradeRecommendationService.sizeForUser(baseRec, 0);
+  assert(sizedEmpty.quantity === 0, '$0 portfolio → 0 shares');
+
+  // Negative balance → 0 shares (defensive)
+  const sizedNeg = TradeRecommendationService.sizeForUser(baseRec, -1000);
+  assert(sizedNeg.quantity === 0, 'negative balance → 0 shares');
+
+  // HOLD action → quantity 0 regardless of balance
+  const holdRec = { ...baseRec, action: 'hold' as const, position_percent: 0 };
+  const sizedHold = TradeRecommendationService.sizeForUser(holdRec, 100000);
+  assert(sizedHold.quantity === 0, 'HOLD → 0 shares regardless of balance');
+
+  // Does not mutate the input
+  const before = baseRec.quantity;
+  TradeRecommendationService.sizeForUser(baseRec, 100000);
+  assert(baseRec.quantity === before, 'sizeForUser does not mutate input');
+}
+
 console.log(`\n=== Trade Recommendation Tests: ${passed} passed, ${failed} failed ===\n`);
 if (failed > 0) {
   process.exit(1);
