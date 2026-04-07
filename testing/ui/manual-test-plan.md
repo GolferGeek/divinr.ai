@@ -1,8 +1,10 @@
 # Divinr.ai — Manual UI Test Plan
 
-**Last updated**: 2026-04-07
+**Last updated**: 2026-04-07 (after agent-autotrading deep-test session)
 **Driven by**: Claude via the `mcp__claude-in-chrome__*` tools (no Playwright / Cypress / Puppeteer)
 **How to invoke**: ask Claude to "run the UI test plan" — Claude opens Chrome, walks the tiers top-down, captures screenshots/GIFs of anything broken, and reports findings.
+
+**Companion Tier 4** below (added 2026-04-07): **DB-level capability tests** for backend efforts that have no UI yet (agent-autotrading is the first). These run via direct SQL + admin endpoints, not the browser. Run them after a backend phase ships and before declaring the work done.
 
 ## Pre-flight
 
@@ -11,7 +13,7 @@ Before any tier runs, verify the stack is up:
 1. **API** healthy: `curl -s http://localhost:7100/health` returns `{"ok":true,...}`
 2. **Web** healthy: `curl -s -o /dev/null -w "%{http_code}" http://localhost:7101/` returns `200`
 3. **Browser tab context**: call `mcp__claude-in-chrome__tabs_context_mcp` and either reuse a current Divinr tab or create a new one with `tabs_create_mcp` pointed at `http://localhost:7101/`.
-4. **Auth**: dev mode uses the `MARKETS_DEV_AUTH_BYPASS` flag with an `x-user-id` header. The Vue app handles login via `LoginView.vue`. Confirm a logged-in session exists before running tier 2+.
+4. **Auth**: dev mode uses the `MARKETS_DEV_AUTH_BYPASS` flag with an `x-user-id` header. The Vue app handles login via `LoginView.vue`. Confirm a logged-in session exists before running tier 2+. Fast path for Claude: set `localStorage.divinr_org='alpha-capital'` and `localStorage.divinr_user='admin@alpha-capital.demo'` then navigate to `/`. The auth guard in `router/index.ts:37` checks only those two keys.
 
 ## Run order
 
@@ -33,7 +35,7 @@ For **each** route below: navigate, wait for the page to settle, call `read_cons
 
 | # | Route | Component | Smoke check |
 |---|---|---|---|
-| 1.1 | `/login` | `LoginView.vue` | Login form renders. Email + password inputs visible. |
+| 1.1 | `/login` | `LoginView.vue` | Login form renders. Three demo-org radios (Alpha Capital / Steadfast Advisors / Apex Quant) + a "User ID" text input + "Sign In" button. (NOT email/password — corrected 2026-04-07.) |
 | 1.2 | `/` (dashboard) | `DashboardView.vue` | Top nav visible. Page title contains "Dashboard" or similar. |
 | 1.3 | `/instruments` | `InstrumentsView.vue` | List of instruments renders (or empty-state). |
 | 1.4 | `/instruments/:id` | `InstrumentDetailView.vue` | Pick the first instrument from 1.3 and navigate to its detail. Symbol + name visible. |
@@ -312,9 +314,206 @@ When Claude executes this plan:
 
 Optional: capture a single GIF of the smoke walkthrough using `gif_creator` for sharing.
 
+---
+
+## Tier 4: Backend capability deep-tests (no UI)
+
+**Goal**: prove backend services do what their PRDs claim, against the live DB. Run after a backend phase ships and before declaring it done. Each subsection below has been **executed at least once** and the recipes are known to work end-to-end.
+
+**Tooling**: direct SQL via `psql` (DATABASE_URL from `.env`, default `postgresql://postgres:postgres@127.0.0.1:54322/postgres`) + `POST` admin endpoints under `/markets/admin/`.
+
+**Admin endpoints relevant to autotrade testing** (all require dev auth headers `x-user-id` + `x-org-slug`):
+- `POST /markets/admin/run-settlement` — full EOD settlement (slow, ~2 min)
+- `POST /markets/admin/run-outcome-tracking` — captureSnapshots → stop-loss sweep → resolve → expire (slow; **overwrites `instruments.current_state.price` from external feed**, so can't be used for price-injection tests)
+- `POST /markets/admin/run-stop-loss-sweep` — calls `StopLossWatcherService.sweep()` directly, no snapshot capture (added 2026-04-07 for testing — preserves injected prices)
+- `POST /markets/admin/run-eod-forced-buy` — calls `EodForcedBuyService.runSweep({manual:true})` directly (added 2026-04-07)
+
+### 4.1 agent-autotrading — ConvictionTraderService (signal_cross)
+
+**What it does**: when an analyst publishes a prediction with `confidence >= CONVICTION_TRADE_THRESHOLD` (default 70), opens a position in the analyst's portfolio with `trigger_reason='signal_cross'` and full provenance. Wired in `prediction-runner.service.ts` after each analyst publish + after the arbitrator synthesis.
+
+**Static invariants** (run anytime):
+```sql
+-- Provenance fields populated on every signal_cross row
+SELECT count(*) total, count(trigger_prediction_id) has_pred,
+       count(trigger_conviction) has_conv, count(NULLIF(organization_slug,'')) has_org
+FROM prediction.analyst_positions WHERE trigger_reason='signal_cross';
+-- expect total = has_pred = has_conv = has_org
+
+-- Threshold gate respected by current process
+SELECT min(trigger_conviction), max(trigger_conviction)
+FROM prediction.analyst_positions
+WHERE trigger_reason='signal_cross' AND opened_at > now() - interval '1 day';
+-- expect min >= 70 (or whatever CONVICTION_TRADE_THRESHOLD is set to)
+
+-- Idempotency — zero duplicates on (portfolio, instrument, prediction)
+SELECT count(*) FROM (
+  SELECT portfolio_id, instrument_id, trigger_prediction_id
+  FROM prediction.analyst_positions WHERE trigger_prediction_id IS NOT NULL
+  GROUP BY 1,2,3 HAVING count(*) > 1) d;
+-- expect 0
+
+-- Day-trader portfolios untouched
+SELECT count(*) FROM prediction.analyst_positions p
+  JOIN prediction.analyst_portfolios ap ON ap.id=p.portfolio_id
+  WHERE ap.kind='day_trader';
+-- expect 0
+
+-- Arbitrator routing — arbitrator-role predictions land in pf-portfolio-arbitrator
+SELECT count(*) FROM prediction.analyst_positions
+WHERE portfolio_id='pf-portfolio-arbitrator' AND trigger_reason='signal_cross';
+-- expect > 0 once any arbitrator prediction has crossed threshold
+```
+
+**Live trigger**: hit `POST /markets/admin/run-pipeline` (or `run-prediction-generation`) and watch new signal_cross rows appear. Cross-check via the API logs for `Autotrade open: portfolio=... reason=signal_cross`.
+
+**Unit tests**: `apps/api/tests/unit/conviction-trader.test.ts` — 21 assertions covering threshold gating (incl. inclusive `>=70` boundary), env override, idempotency, missing-portfolio guard, missing-price guard, arbitrator routing, direction mapping, organization_slug source. Run via `npx tsx apps/api/tests/unit/conviction-trader.test.ts`.
+
+### 4.2 agent-autotrading — StopLossWatcherService (stop / take / trailing)
+
+**What it does**: every outcome-tracking cycle, sweeps all open `analyst` + `arbitrator` positions and closes any that hit −5% (stop_loss), +10% (take_profit), or have given back 5% from their high-water mark after arming at +5% (trailing_stop). Constants live at `stop-loss-watcher.service.ts:33-36`.
+
+**Live price-injection recipes** (PROVEN 2026-04-07):
+
+These use `/admin/run-stop-loss-sweep` because `/admin/run-outcome-tracking` overwrites `instruments.current_state.price` from the external feed before the sweep gets to read it.
+
+#### 4.2.A stop_loss fire (long side)
+
+```sql
+-- pick an instrument with open longs
+SELECT i.symbol, i.id, (i.current_state->>'price')::numeric AS current_price,
+       count(p.*) FILTER (WHERE p.direction='long' AND p.status='open') AS open_longs
+FROM prediction.instruments i
+LEFT JOIN prediction.analyst_positions p ON p.instrument_id=i.id
+GROUP BY 1,2,3 HAVING count(p.*) FILTER (WHERE p.direction='long' AND p.status='open') > 0
+ORDER BY 4 DESC LIMIT 5;
+
+-- bump price down >5% from typical entry
+UPDATE prediction.instruments
+   SET current_state = jsonb_set(current_state, '{price}', '110.00'::jsonb)
+ WHERE id = '<instrument_id>';
+```
+```bash
+curl -s -X POST http://localhost:7100/markets/admin/run-stop-loss-sweep \
+  -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
+# expect {"closed":N,"updated":M,"skipped":S} with N matching the open-long count
+```
+```sql
+SELECT trigger_reason, count(*), round(avg(realized_pnl)::numeric,2) avg_pnl
+FROM prediction.analyst_positions
+WHERE symbol='<symbol>' AND closed_at > now()-interval '60 seconds'
+GROUP BY trigger_reason;
+-- expect stop_loss rows with negative avg_pnl
+```
+
+**Verified 2026-04-07**: SHOP entry $118.80 → bumped to $110.00 → 4 longs closed `stop_loss` with realized P&L −$6,644 to −$7,128.
+
+#### 4.2.B take_profit fire (long side, plus short-side stop_loss bonus)
+
+Same recipe with price bumped UP > 10% from entry. **Verified 2026-04-07**: MSFT entry $372.88 → bumped to $420.00 → 55 longs closed `take_profit` (+$5,796 to +$17,057). The 1 open MSFT short closed `stop_loss` for −$6,361, simultaneously proving short-side rules work.
+
+#### 4.2.C trailing_stop arm-then-fire
+
+Two-step. Pick a symbol with open longs, then:
+
+**Step 1 — arm**: clear HWM and set price at entry, then bump to +8% → sweep. After sweep, longs should have `high_water_mark = new_price`.
+```sql
+UPDATE prediction.analyst_positions SET high_water_mark = NULL
+  WHERE symbol='<symbol>' AND status='open';
+UPDATE prediction.instruments SET current_state = jsonb_set(current_state, '{price}', '<entry_x_1.08>'::jsonb)
+  WHERE id='<instrument_id>';
+```
+```bash
+curl -X POST http://localhost:7100/markets/admin/run-stop-loss-sweep -H "x-user-id: ..." -H "x-org-slug: ..."
+```
+
+**Step 2 — fire**: bump price down to ~5.4% below the new HWM (still above entry, so trailing not stop_loss).
+```sql
+UPDATE prediction.instruments SET current_state = jsonb_set(current_state, '{price}', '<hwm_x_0.946>'::jsonb)
+  WHERE id='<instrument_id>';
+```
+```bash
+curl -X POST http://localhost:7100/markets/admin/run-stop-loss-sweep -H "x-user-id: ..." -H "x-org-slug: ..."
+```
+Verify the longs closed as `trailing_stop` with **positive** realized P&L (they captured most of the favorable move).
+
+**Verified 2026-04-07**: AAPL entry $258.86 → +8% to $279.57 (25 longs armed with HWM=279.57) → −5.36% to $264.59 → 25 closed `trailing_stop` with avg P&L **+$1,276**, exactly matching theory ((264.59−258.86)*qty).
+
+#### 4.2.D Static HWM monotonicity
+
+```sql
+SELECT
+  sum(case when direction='long' and high_water_mark < entry_price then 1 else 0 end) AS long_violations,
+  sum(case when direction='short' and high_water_mark > entry_price then 1 else 0 end) AS short_violations
+FROM prediction.analyst_positions WHERE status='open' AND high_water_mark IS NOT NULL;
+-- expect 0,0
+```
+
+**Unit tests**: `apps/api/tests/unit/stop-loss-watcher.test.ts` — 36 assertions covering every branch of `decide()` for long+short, HWM monotonicity, trailing arm, stop/take precedence, sweep integration, SELECT-filter shape.
+
+### 4.3 agent-autotrading — EodForcedBuyService (backstop sweep)
+
+**What it does**: at EOD, finds today's high-conviction (`>= threshold`) analyst+arbitrator predictions whose opening was missed in-pipeline and inserts positions with `trigger_reason='eod_sweep'` + full provenance. Wired BEFORE `createAnalystPositions` in `eod-settlement.service.ts:92`.
+
+**Static invariants**:
+```sql
+-- Every eod_sweep row has full provenance
+SELECT count(*) total, count(trigger_prediction_id) has_pred,
+       count(trigger_conviction) has_conv, count(NULLIF(organization_slug,'')) has_org
+FROM prediction.analyst_positions WHERE trigger_reason='eod_sweep';
+
+-- Threshold gate respected
+SELECT min(trigger_conviction) FROM prediction.analyst_positions
+WHERE trigger_reason='eod_sweep' AND opened_at > now() - interval '1 day';
+-- expect >= CONVICTION_TRADE_THRESHOLD
+
+-- No day-trader pollution
+SELECT count(*) FROM prediction.analyst_positions p
+  JOIN prediction.analyst_portfolios ap ON ap.id=p.portfolio_id
+  WHERE ap.kind='day_trader' AND p.trigger_reason='eod_sweep';
+-- expect 0
+```
+
+**Live trigger**:
+```bash
+curl -X POST http://localhost:7100/markets/admin/run-eod-forced-buy \
+  -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
+# returns {"rowsWritten":N,"skipped":M,"errors":[]}
+```
+On a clean slate where today's high-conviction predictions have already been opened in-pipeline, expect `rowsWritten=0, skipped=N>0` (every candidate hits idempotency). To force a real write, delete a known signal_cross row first then re-run the sweep.
+
+**Unit tests**: `apps/api/tests/unit/eod-forced-buy.test.ts` — 29 assertions covering threshold gating, idempotency, arbitrator routing, mixed-batch handling, missing-portfolio guard, day-trader exclusion, SELECT-filter shape.
+
+### 4.4 Cross-cutting checks (run after any of the above)
+
+```sql
+-- Total recent close history by reason (sanity)
+SELECT trigger_reason, count(*) FROM prediction.analyst_positions
+WHERE closed_at > now() - interval '1 hour' GROUP BY trigger_reason ORDER BY 1;
+
+-- Portfolio kinds + position counts
+SELECT ap.kind, count(DISTINCT ap.id) AS portfolios,
+       sum((SELECT count(*) FROM prediction.analyst_positions p WHERE p.portfolio_id=ap.id)) AS positions
+FROM prediction.analyst_portfolios ap GROUP BY ap.kind;
+```
+
+### 4.5 Running the unit suites
+
+```bash
+cd /home/golfergeek/projects/divinr.ai/apps/api
+npx tsx tests/unit/conviction-trader.test.ts && \
+npx tsx tests/unit/eod-forced-buy.test.ts && \
+npx tsx tests/unit/stop-loss-watcher.test.ts
+# expect: 21 passed, 29 passed, 36 passed (= 86 assertions total for agent-autotrading)
+```
+
+---
+
 ## Maintenance
 
 This plan is meant to grow as the app does. Whenever a new route or major component lands, add a smoke entry (tier 1) and a screen subsection (tier 2). The legend at the top of each subsection should always answer: **what does a healthy version of this screen look like?**
+
+When a new **backend-only effort** ships (no UI), add a Tier 4 subsection: brief description, static SQL invariants, live trigger recipe with proven values, and the unit-test command. Keep the recipe concrete enough that the next session can paste-and-run.
 
 ## Known deferred items
 

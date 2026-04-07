@@ -26,6 +26,7 @@ export const router = createRouter({
         { path: 'portfolio', name: 'portfolio', component: () => import('../views/PortfolioDashboardView.vue') },
         { path: 'evaluations', name: 'evaluations', component: () => import('../views/EvaluationsView.vue') },
         { path: 'learning', name: 'learning', component: () => import('../views/LearningDashboardView.vue') },
+        { path: 'predictions', name: 'predictions', component: () => import('../views/PredictionsView.vue') },
         { path: 'terms', name: 'terms', component: () => import('../views/TermsOfServiceView.vue') },
         { path: 'learning/canonical/:id', name: 'canonical-day', component: () => import('../views/CanonicalDayDetailView.vue') },
       ],

@@ -25,6 +25,8 @@ import { CrawlerService } from './services/crawler.service';
 import { PredictorGeneratorService } from './services/predictor-generator.service';
 import { PredictionGeneratorService } from './services/prediction-generator.service';
 import { OutcomeTrackingService } from './services/outcome-tracking.service';
+import { StopLossWatcherService } from './services/stop-loss-watcher.service';
+import { EodForcedBuyService } from './services/eod-forced-buy.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -62,6 +64,8 @@ export class MarketsController {
     private readonly predictorGenerator: PredictorGeneratorService,
     private readonly predictionGenerator: PredictionGeneratorService,
     private readonly outcomeTracking: OutcomeTrackingService,
+    private readonly stopLossWatcher: StopLossWatcherService,
+    private readonly eodForcedBuy: EodForcedBuyService,
   ) {
     this.markets = markets;
   }
@@ -1169,6 +1173,18 @@ export class MarketsController {
   async triggerOutcomeTracking(@Req() req: { user?: AuthenticatedUser }) {
     this.getUser(req);
     return this.outcomeTracking.runTracking();
+  }
+
+  @Post('admin/run-stop-loss-sweep')
+  async triggerStopLossSweep(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.stopLossWatcher.sweep();
+  }
+
+  @Post('admin/run-eod-forced-buy')
+  async triggerEodForcedBuy(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.eodForcedBuy.runSweep({ manual: true });
   }
 
   @Post('admin/run-pipeline')

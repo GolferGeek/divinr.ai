@@ -2,7 +2,15 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue({
+      template: {
+        compilerOptions: {
+          isCustomElement: (tag) => tag.startsWith('ion-'),
+        },
+      },
+    }),
+  ],
   server: {
     port: Number(process.env.VITE_WEB_PORT) || 6101,
     allowedHosts: ['divinr.ai', 'www.divinr.ai', 'localhost'],
