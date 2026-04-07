@@ -68,7 +68,8 @@
       "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c \"select report_type, report_date, count\\(*\\) from prediction.learning_reports group by 1,2 order by 2 desc, 1;\")",
       "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c \"select date_trunc\\('day',created_at\\) as day, count\\(distinct run_id\\) as runs, count\\(*\\) as predictions from prediction.market_predictions group by 1 order by 1 desc;\")",
       "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c \"select count\\(*\\) as total_active, round\\(avg\\(relevance_score\\)::numeric,2\\) as avg_relevance, round\\(max\\(relevance_score\\)::numeric,2\\) as max_relevance, round\\(min\\(relevance_score\\)::numeric,2\\) as min_relevance from prediction.market_predictors where status='active';\" -c \"select count\\(distinct instrument_id\\) as instruments_with_signal_above_3 from prediction.market_predictors where status='active' group by instrument_id having sum\\(relevance_score\\) >= 3.0;\")",
-      "Bash(curl -s \"http://localhost:7100/markets/predictions/dashboard?organizationSlug=alpha-capital\" -H \"x-user-id: 00000000-0000-0000-0000-000000000001\")"
+      "Bash(curl -s \"http://localhost:7100/markets/predictions/dashboard?organizationSlug=alpha-capital\" -H \"x-user-id: 00000000-0000-0000-0000-000000000001\")",
+      "mcp__claude_ai_Gmail__gmail_get_profile"
     ],
     "additionalDirectories": [
       "/tmp"

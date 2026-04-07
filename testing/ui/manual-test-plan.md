@@ -185,28 +185,34 @@ Each screen below has its own subsection with element checks and interaction che
 - Click a source → expands or navigates to source detail
 - Click a recent article → opens article drill-down
 
-### 2.11 PortfolioDashboardView (`/portfolio`)
+### 2.11 PortfolioDashboardView (`/portfolios`)
 
-**Most-changed screen** — agent-autotrading just shipped positions into many portfolios.
+**Master-detail leaderboard** — single screen across all portfolio kinds (user / analyst / arbitrator / day_trader). `/portfolio` (singular) redirects to `/portfolios`. Replaces the prior single-portfolio view shipped before portfolio-foundation.
 
-**Elements**:
-- Current balance
-- Total realized P&L
-- Total unrealized P&L
-- Open positions table (should now include positions with `trigger_reason='signal_cross'` and `'eod_sweep'` from this effort)
-- Recent closed positions (should now include positions closed by `StopLossWatcherService` with `trigger_reason` of `stop_loss` / `take_profit` / `trailing_stop`)
-- Queued trades (existing Phase 6 path)
-- Leaderboard panel
+**Elements** (master table — 10 columns per row):
+- Name (analyst/day-trader display name, or user email, or "Arbitrator (Mini-Me)")
+- Kind badge (`user` / `analyst` / `arbitrator` / `day_trader`)
+- Balance (`current_balance`)
+- Realized P&L
+- Unrealized P&L
+- Win Rate (% — empty for portfolios with zero closed positions)
+- Return (`(realized + unrealized) / starting_balance`)
+- Bailouts (count from `bailout_ledger`)
+- Open (open-position count)
+- Trend (inline `EquitySparkline` from `daily_pnl_snapshot`; renders `—` when fewer than 2 snapshots exist)
 
 **Interactions**:
-- Click an open position → expands or navigates to detail
-- Click "queue trade" on a recommendation → queues a trade (paper)
-- Confirm disclaimer flow still gates trade actions
-- Sort the leaderboard by win rate / P&L %
+- Click any row → expanded inline panel with positions list (provenance tooltip on every row) + recent trades; the user row also exposes Account / Queue / Decisions widgets and reference 5/10/trailing exit levels per open position
+- Trade entry point lives on Dashboard prediction cards (Phase 6 — opens `AnalystPredictionModal` in trade mode); disclaimer ack still gates submit
+- Sell button on every open user position row → calls `/markets/portfolios/me/positions/:id/close`
 
-**Specific agent-autotrading verifications** (this is the screen that's most affected by recent backend changes):
-- If positions exist with `trigger_reason` in `('signal_cross','eod_sweep','stop_loss','take_profit','trailing_stop')`, verify they render. The tooltip / provenance display is **deferred** to a later effort, so for now just verifying they appear in the table is enough.
-- The arbitrator portfolio (`pf-portfolio-arbitrator`) should be visible in the leaderboard with non-zero positions.
+**Specific verifications**:
+- Master table returns 53 portfolios in dev (1 user + 48 analyst + 1 arbitrator + 3 day_trader); all kinds visible
+- Arbitrator row uses id `pf-portfolio-arbitrator` (sacred — never renamed)
+- Provenance tooltip surfaces `signal_cross` / `eod_sweep` / `eod_backfill` / `stop_loss` / `take_profit` / `trailing_stop` / `manual` / `strategy` consistently
+- `/portfolio` (singular) → `/portfolios` redirect works
+
+**Known follow-up** (not a regression of this effort): ~25 analyst rows in the master table render their raw analyst id instead of a display name; the rest render correctly. Likely a join/fallback gap in `LeaderboardService.fetchAllPortfolios` for analysts whose persona name didn't resolve. Filed for a future cleanup.
 
 ### 2.12 EvaluationsView (`/evaluations`)
 
