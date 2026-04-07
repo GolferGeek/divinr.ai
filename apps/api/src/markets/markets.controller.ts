@@ -89,14 +89,27 @@ export class MarketsController {
     user: AuthenticatedUser,
     orgSlugSources: { query?: string; body?: string; header?: string },
   ): { organizationSlug: string; userId: string } {
-    const organizationSlug =
-      orgSlugSources.header || orgSlugSources.body || orgSlugSources.query;
-    if (!organizationSlug) {
+    // If multiple sources are provided, they must agree. This blocks
+    // confused-deputy attacks where a caller passes one slug in the
+    // header and a different one in the body, hoping different layers
+    // validate against different sources.
+    const provided = [
+      orgSlugSources.header,
+      orgSlugSources.body,
+      orgSlugSources.query,
+    ].filter((v): v is string => typeof v === 'string' && v.length > 0);
+    if (provided.length === 0) {
       throw new BadRequestException(
         'organizationSlug is required (via query param, body, or x-org-slug header)',
       );
     }
-    return { organizationSlug, userId: user.id };
+    const distinct = new Set(provided);
+    if (distinct.size > 1) {
+      throw new BadRequestException(
+        'organizationSlug mismatch between header, body, and query — they must agree',
+      );
+    }
+    return { organizationSlug: provided[0], userId: user.id };
   }
 
   private getUser(req: { user?: AuthenticatedUser }): AuthenticatedUser {
@@ -121,14 +134,18 @@ export class MarketsController {
 
   @Post('instruments')
   async createInstrument(
-    @Req() req: { user?: AuthenticatedUser },
+    @Req() req: { user?: AuthenticatedUser; headers?: Record<string, string | string[] | undefined> },
     @Body() body: CreateInstrumentInput,
   ) {
     const user = this.getUser(req);
     if (!body?.symbol) {
       throw new BadRequestException('symbol is required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    const headerOrgSlug = req.headers?.['x-org-slug'];
+    const identity = this.resolveIdentity(user, {
+      body: body.organizationSlug,
+      header: typeof headerOrgSlug === 'string' ? headerOrgSlug : undefined,
+    });
     return this.markets.createInstrument({
       ...body,
       organizationSlug: identity.organizationSlug,

@@ -980,17 +980,33 @@ async function main(): Promise<void> {
     },
   ];
 
+  // The first 7 cases are true smoke tests: they verify wiring, state
+  // transitions, RBAC, persistence, and the external-crawler ingest. They
+  // complete in <1s each and never call third-party APIs or LLMs.
+  //
+  // Cases 8+ are full integration tests that exercise the prediction/risk
+  // pipeline end-to-end via processNextQueuedRun. They require real
+  // credentials for Polygon, FMP, TwelveData, etc., plus a working LLM
+  // provider, and each pipeline run takes minutes — not appropriate for
+  // the smoke gate. Run them on demand via `pnpm test:markets:integration`,
+  // which sets MARKETS_INTEGRATION_TESTS=true.
+  const SMOKE_TEST_COUNT = 7;
+  const includeIntegration = process.env.MARKETS_INTEGRATION_TESTS === 'true';
+  const selectedTests = includeIntegration ? tests : tests.slice(0, SMOKE_TEST_COUNT);
+
   try {
     await ensureComplianceSchema(app.db);
     seed = await seedComplianceData(app.db);
 
-    for (const test of tests) {
+    for (const test of selectedTests) {
       await test.run();
       pass(test.name);
     }
 
     // eslint-disable-next-line no-console
-    console.log('\nMarkets smoke suite passed.');
+    console.log(
+      `\nMarkets smoke suite passed (${selectedTests.length}/${tests.length} cases${includeIntegration ? '' : '; integration cases skipped — set MARKETS_INTEGRATION_TESTS=true to include'}).`,
+    );
   } catch (error) {
     fail('Markets smoke suite', error);
     process.exitCode = 1;
