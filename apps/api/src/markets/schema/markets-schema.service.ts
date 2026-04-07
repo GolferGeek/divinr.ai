@@ -56,6 +56,7 @@ export class MarketsSchemaService {
     await this.seedDefaultPositionSizing();
     await this.migrateAnalystNames();
     await this.seedDataSources();
+    await this.seedPortfolioManagerAnalyst();
     this.schemaReady = true;
     this.logger.log('Prediction schema ready');
   }
@@ -328,6 +329,7 @@ export class MarketsSchemaService {
       alter table prediction.market_predictions add column if not exists config_version_id text;
       alter table prediction.market_predictions add column if not exists is_paper boolean not null default false;
       alter table prediction.market_predictions add column if not exists settled_at timestamptz;
+      alter table prediction.market_predictions add column if not exists trade_metadata jsonb not null default '{}'::jsonb;
       create index if not exists prediction_market_predictions_unsettled_idx
         on prediction.market_predictions (instrument_id, created_at desc) where settled_at is null;
 
@@ -338,6 +340,10 @@ export class MarketsSchemaService {
       create unique index if not exists prediction_market_predictions_run_arbitrator_idx
       on prediction.market_predictions (run_id)
       where role = 'arbitrator';
+
+      create unique index if not exists prediction_market_predictions_run_portfolio_manager_idx
+      on prediction.market_predictions (run_id)
+      where role = 'portfolio_manager';
     `;
   }
 
@@ -949,6 +955,41 @@ export class MarketsSchemaService {
         ? [m.newSlug, m.newName, m.newPrompt, m.oldSlug]
         : [m.newSlug, m.newName, m.oldSlug];
       await this.db.rawQuery(sql, params);
+    }
+  }
+
+  private async seedPortfolioManagerAnalyst(): Promise<void> {
+    // Phase 6: Portfolio Manager analyst record. Not a personality analyst —
+    // does not make directional predictions. Synthesizes arbitrator output +
+    // composite risk + analyst consensus + portfolio state into a sized trade
+    // recommendation. Idempotent.
+    const sql = `
+      insert into prediction.market_analysts (
+        id, organization_slug, slug, display_name, persona_prompt,
+        analyst_type, default_weight, workflow_scope, is_system_default,
+        is_enabled, is_active, learning_enabled, created_by, created_at, updated_at
+      ) values (
+        'pm-base-portfolio-manager',
+        '__base__',
+        'portfolio-manager',
+        'Portfolio Manager',
+        'You are the Portfolio Manager. You do not make directional predictions. You take the arbitrator''s composite prediction, the composite risk score, the analyst consensus, and the current portfolio state, and convert them into a sized trade recommendation: BUY, SELL, or HOLD with position size, entry price, and stop-loss. You apply the Kelly criterion adjusted by calibration accuracy and respect sane bounds (max position percent, no negative sizes, no concentration above limits).',
+        'portfolio_manager',
+        1.0,
+        'trade',
+        true,
+        true,
+        true,
+        true,
+        'phase-6-migration',
+        now(),
+        now()
+      )
+      on conflict (organization_slug, slug) do nothing;
+    `;
+    const result = await this.db.rawQuery(sql);
+    if (result.error) {
+      this.logger.warn(`Failed to seed portfolio manager analyst: ${result.error.message}`);
     }
   }
 

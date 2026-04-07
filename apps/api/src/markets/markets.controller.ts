@@ -600,6 +600,17 @@ export class MarketsController {
     return this.markets.getDashboardPredictions(identity.organizationSlug, identity.userId);
   }
 
+  @Get('runs/:runId/trade-recommendation')
+  async getTradeRecommendation(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('runId') runId: string,
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.getTradeRecommendation(runId, identity.organizationSlug, identity.userId);
+  }
+
   @Get('predictions')
   async listPredictions(
     @Req() req: { user?: AuthenticatedUser },

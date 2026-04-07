@@ -12,6 +12,7 @@ import { useDomainStore } from '../stores/domain.store';
 import AnalystPredictionModal from '../components/AnalystPredictionModal.vue';
 
 interface AnalystStance {
+  prediction_id: string;
   analyst_id: string;
   analyst_name: string;
   analyst_slug: string;
@@ -22,6 +23,30 @@ interface AnalystStance {
   risks: unknown;
 }
 
+interface TradeRecommendation {
+  id: string;
+  run_id: string;
+  instrument_id: string;
+  symbol: string;
+  action: 'buy' | 'sell' | 'hold';
+  position_percent: number;
+  kelly_fraction_raw: number;
+  kelly_fraction_applied: number;
+  quantity: number;
+  entry_price: number;
+  stop_loss: number | null;
+  take_profit: number | null;
+  arbitrator_direction: string;
+  arbitrator_confidence: number;
+  calibration_adjusted_confidence: number;
+  composite_risk_score: number | null;
+  consensus_bullish_count: number;
+  consensus_bearish_count: number;
+  consensus_total: number;
+  is_calibrating: boolean;
+  rationale: string;
+}
+
 interface DashboardPrediction {
   instrument_id: string;
   symbol: string;
@@ -30,6 +55,7 @@ interface DashboardPrediction {
   created_at: string;
   arbitrator: { direction: string; confidence: number; rationale: string } | null;
   analysts: AnalystStance[];
+  trade_recommendation: TradeRecommendation | null;
 }
 
 const instruments = useInstrumentsStore();
@@ -86,6 +112,23 @@ function shortName(name: string): string {
   // "Technical Analyst" → "Technical Analyst" (new format)
   const dashIdx = name.indexOf('—');
   return dashIdx > 0 ? name.slice(0, dashIdx).trim() : name;
+}
+
+function actionColor(action: string): string {
+  if (action === 'buy') return 'success';
+  if (action === 'sell') return 'danger';
+  return 'medium';
+}
+
+function actionLabel(action: string): string {
+  if (action === 'buy') return 'BUY';
+  if (action === 'sell') return 'SELL';
+  return 'HOLD';
+}
+
+function formatPrice(n: number | null): string {
+  if (n == null || isNaN(n)) return '—';
+  return `$${n.toFixed(2)}`;
 }
 
 function timeAgo(dateStr: string): string {
@@ -201,6 +244,38 @@ function timeAgo(dateStr: string): string {
               <!-- Rationale preview -->
               <div v-if="pred.arbitrator?.rationale" class="rationale-preview">
                 {{ pred.arbitrator.rationale.slice(0, 120) }}{{ pred.arbitrator.rationale.length > 120 ? '...' : '' }}
+              </div>
+
+              <!-- Phase 6: Portfolio Manager trade recommendation -->
+              <div v-if="pred.trade_recommendation" class="trade-recommendation">
+                <div class="trade-rec-header">
+                  <ion-chip
+                    :color="actionColor(pred.trade_recommendation.action)"
+                    class="trade-action-chip"
+                  >
+                    {{ actionLabel(pred.trade_recommendation.action) }}
+                  </ion-chip>
+                  <span v-if="pred.trade_recommendation.is_calibrating" class="calibrating-badge" title="System is still building outcome history. Recommendations should be treated as provisional.">
+                    calibrating
+                  </span>
+                </div>
+                <div v-if="pred.trade_recommendation.action !== 'hold'" class="trade-rec-details">
+                  <div class="trade-rec-row">
+                    <span class="trade-rec-label">Size:</span>
+                    <span class="trade-rec-value">{{ pred.trade_recommendation.quantity }} sh ({{ (pred.trade_recommendation.position_percent * 100).toFixed(1) }}%)</span>
+                  </div>
+                  <div class="trade-rec-row">
+                    <span class="trade-rec-label">Entry / Stop / Target:</span>
+                    <span class="trade-rec-value">
+                      {{ formatPrice(pred.trade_recommendation.entry_price) }}
+                      / {{ formatPrice(pred.trade_recommendation.stop_loss) }}
+                      / {{ formatPrice(pred.trade_recommendation.take_profit) }}
+                    </span>
+                  </div>
+                </div>
+                <div v-else class="trade-rec-hold">
+                  Portfolio Manager recommends holding — Kelly fraction below threshold or arbitrator flat.
+                </div>
               </div>
 
               <!-- Time and Actions -->
@@ -330,5 +405,69 @@ function timeAgo(dateStr: string): string {
 .action-buttons {
   display: flex;
   gap: 4px;
+}
+
+/* Phase 6: Trade recommendation block */
+.trade-recommendation {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #fafbff;
+  border: 1px solid #e6eaff;
+}
+
+.trade-rec-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.trade-action-chip {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  height: 24px;
+  margin: 0;
+}
+
+.calibrating-badge {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: help;
+}
+
+.trade-rec-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trade-rec-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+}
+
+.trade-rec-label {
+  color: #666;
+}
+
+.trade-rec-value {
+  color: #222;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.trade-rec-hold {
+  font-size: 0.78rem;
+  color: #666;
+  font-style: italic;
 }
 </style>

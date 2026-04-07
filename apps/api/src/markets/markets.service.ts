@@ -20,6 +20,7 @@ import { PredictionRunnerService } from './services/prediction-runner.service';
 import { MarketsLlmService } from './services/markets-llm.service';
 import { PositionSizingService } from './services/position-sizing.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
+import { TradeRecommendationService } from './services/trade-recommendation.service';
 import type {
   AssignAnalystInput,
   CreateAnalystInput,
@@ -60,6 +61,7 @@ import type {
   ScorePredictorResult,
   ScorePredictorBatchInput,
   ScorePredictorBatchResult,
+  TradeRecommendation,
 } from './markets.types';
 
 @Injectable()
@@ -83,6 +85,7 @@ export class MarketsService {
     private readonly marketsLlm: MarketsLlmService,
     private readonly positionSizing: PositionSizingService,
     private readonly userPortfolio: UserPortfolioService,
+    private readonly tradeRecommendation: TradeRecommendationService,
   ) {}
 
   private isExternalCrawlerSyncEnabled(force = false): boolean {
@@ -2485,6 +2488,7 @@ Respond ONLY with valid JSON.`,
       key_factors: unknown;
       risks: unknown;
     }>;
+    trade_recommendation: TradeRecommendation | null;
   }>> {
     await this.schema.ensureSchema();
     await this.requireRead(userId, organizationSlug);
@@ -2536,6 +2540,22 @@ Respond ONLY with valid JSON.`,
       const arbitratorPred = preds.find(p => p.role === 'arbitrator');
       const analystPreds = preds.filter(p => p.role === 'analyst' || p.role === 'paper');
 
+      // Phase 6: ensure a portfolio_manager trade recommendation exists for
+      // this run. Lazy generation — fast (no LLM calls), and idempotent at
+      // the persistence layer.
+      let tradeRec: TradeRecommendation | null = null;
+      try {
+        const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
+        tradeRec = await this.tradeRecommendation.generateForRun({
+          runId: run.run_id,
+          organizationSlug,
+          portfolioBalance: Number(portfolio.current_balance),
+        });
+      } catch (err) {
+        // Don't fail the dashboard if recommendation generation fails
+        // (e.g. missing arbitrator output for an old run)
+      }
+
       dashboardPredictions.push({
         instrument_id: run.instrument_id,
         symbol: run.symbol,
@@ -2558,10 +2578,30 @@ Respond ONLY with valid JSON.`,
           key_factors: p.key_factors,
           risks: p.risks,
         })),
+        trade_recommendation: tradeRec,
       });
     }
 
     return dashboardPredictions;
+  }
+
+  /**
+   * Phase 6: get-or-generate the portfolio manager trade recommendation for
+   * a specific run. Used by the standalone endpoint and tests.
+   */
+  async getTradeRecommendation(
+    runId: string,
+    organizationSlug: string,
+    userId: string,
+  ): Promise<TradeRecommendation | null> {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+    const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
+    return this.tradeRecommendation.generateForRun({
+      runId,
+      organizationSlug,
+      portfolioBalance: Number(portfolio.current_balance),
+    });
   }
 
   /**

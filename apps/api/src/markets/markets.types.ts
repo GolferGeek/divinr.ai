@@ -1,8 +1,41 @@
 export type RunType = 'risk' | 'prediction';
 export type RunStatus = 'queued' | 'running' | 'completed' | 'failed';
 
-export type AnalystType = 'personality' | 'context_provider';
-export type WorkflowScope = 'prediction' | 'risk' | 'both';
+export type AnalystType = 'personality' | 'context_provider' | 'portfolio_manager';
+export type WorkflowScope = 'prediction' | 'risk' | 'both' | 'trade';
+
+export type TradeAction = 'buy' | 'sell' | 'hold';
+
+export interface TradeRecommendation {
+  id: string;
+  run_id: string;
+  organization_slug: string;
+  instrument_id: string;
+  symbol: string;
+  // The action the portfolio manager recommends.
+  action: TradeAction;
+  // Sizing
+  position_percent: number; // 0-1, fraction of portfolio
+  kelly_fraction_raw: number; // pre-clamp Kelly result
+  kelly_fraction_applied: number; // post-clamp, post-risk-adjustment
+  quantity: number; // shares
+  // Pricing
+  entry_price: number;
+  stop_loss: number | null;
+  take_profit: number | null;
+  // Inputs that drove the decision
+  arbitrator_direction: 'up' | 'down' | 'flat';
+  arbitrator_confidence: number; // 0-100
+  calibration_adjusted_confidence: number; // 0-100
+  composite_risk_score: number | null; // 0-100
+  consensus_bullish_count: number;
+  consensus_bearish_count: number;
+  consensus_total: number;
+  // Status
+  is_calibrating: boolean;
+  rationale: string;
+  created_at: string;
+}
 
 export interface MarketInstrument {
   id: string;

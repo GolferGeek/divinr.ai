@@ -12,7 +12,7 @@
 - [x] Phase 3: Per-Analyst Article Scoring
 - [x] Phase 4: Per-Analyst Risk Assessment
 - [x] Phase 5: Full Pipeline Integration
-- [ ] Phase 6: Trade Recommendations (Future)
+- [x] Phase 6: Trade Recommendations
 
 ---
 
@@ -524,38 +524,45 @@ Before moving to Phase 6, ALL of the following must pass:
 
 ---
 
-## Phase 6: Trade Recommendations (Future)
+## Phase 6: Trade Recommendations
 
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Add a portfolio manager role that converts predictions + risk into trade recommendations with position sizing.
 
 ### Steps
 
-- [ ] 6.1 **Create portfolio manager analyst role**
+- [x] 6.1 **Create portfolio manager analyst role**
   - New analyst record: `analyst_type: 'portfolio_manager'`, `workflow_scope: 'trade'`
   - Persona: weighs signal strength, risk, consensus, portfolio concentration
   - Not a personality analyst — does not make directional predictions
+  - Implemented: `seedPortfolioManagerAnalyst()` in `markets-schema.service.ts`, idempotent insert with slug `portfolio-manager`
 
-- [ ] 6.2 **Build trade recommendation service**
+- [x] 6.2 **Build trade recommendation service**
   - New service: `trade-recommendation.service.ts`
   - Inputs: arbitrator prediction, composite risk score, analyst consensus level, portfolio state
   - Outputs: BUY/SELL/HOLD recommendation with position size, entry criteria, stop-loss level
   - Position sizing based on Kelly criterion adjusted by calibration accuracy
+  - Sane bounds: max 10% per position, min Kelly threshold 1% (else HOLD), 1% stop / 2% target
+  - Calibration accuracy computed from `market_run_evaluations` (≥20 samples), defaults to 0.85 otherwise
+  - Persisted to `market_predictions` with `role='portfolio_manager'` and `trade_metadata jsonb` column
 
-- [ ] 6.3 **Replace manual BUY/SELL buttons**
+- [x] 6.3 **Replace manual BUY/SELL buttons**
   - Dashboard prediction cards show AI-recommended action instead of manual buttons
-  - User can still override (queue manual trades)
+  - User can still override (queue manual trades) — existing `user_trade_decisions` table preserved
   - Show "calibrating" badge on cards while system is still building outcome history
+  - Implemented in `DashboardView.vue`: action chip (BUY/SELL/HOLD), sized quantity, entry/stop/target prices, calibrating badge when arbitrator has <50 resolved evaluations
+  - Backend: `getDashboardPredictions` lazily generates portfolio_manager prediction per run (idempotent at the persistence layer); standalone endpoint `GET /markets/runs/:runId/trade-recommendation` for direct fetch
 
 > **Note:** Paper-trading shakedown and validation moved to a follow-up effort (`future-validation.md`). Phase 6 ships the *mechanism*; the *validation window* is its own tracked work.
 
 ### Quality Gate
 
-- [ ] **Build**: passes
-- [ ] **Unit Tests**: trade recommendation logic tested
-- [ ] **Phase Review**:
-  - [ ] Portfolio manager produces position-sized recommendations?
-  - [ ] Recommendations replace manual BUY/SELL buttons?
+- [x] **Build**: API + Web both build clean
+- [x] **Typecheck**: API typecheck clean; Web typecheck has 5 pre-existing DOM-lib errors unrelated to Phase 6 (verified on the checkpoint commit)
+- [x] **Unit Tests**: 60 new trade-recommendation tests, all passing; full unit-test suite still green (310 total tests pass across all suites)
+- [x] **Phase Review**:
+  - [x] Portfolio manager produces position-sized recommendations? — yes, with Kelly + risk + consensus + calibration adjustments and sane-bounds clamping
+  - [x] Recommendations replace manual BUY/SELL buttons? — dashboard cards now show the AI-recommended action prominently with sizing details and a "calibrating" badge while outcome history is thin
 
 ---
 
