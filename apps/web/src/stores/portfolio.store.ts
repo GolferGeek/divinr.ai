@@ -73,6 +73,48 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     return `${kind}:${id}`;
   }
 
+  async function executeTrade(input: {
+    predictionId: string;
+    instrumentId: string;
+    direction: 'long' | 'short';
+    quantity: number;
+  }) {
+    const result = await api.post<Record<string, unknown>>('/portfolios/me/execute-trade', {
+      ...input,
+      organizationSlug: localStorage.getItem('divinr_org') || '',
+    });
+    // Refresh user-side caches so the new position is visible immediately.
+    await Promise.all([
+      fetchMyPortfolio().catch(() => {}),
+      fetchMyPositions('open').catch(() => {}),
+    ]);
+    // Invalidate any cached user detail row so re-expand re-fetches.
+    const userKey = Object.keys(portfolioDetails.value).find(k => k.startsWith('user:'));
+    if (userKey) {
+      const next = { ...portfolioDetails.value };
+      delete next[userKey];
+      portfolioDetails.value = next;
+    }
+    return result;
+  }
+
+  async function closePositionAction(positionId: string) {
+    const result = await api.post<Record<string, unknown>>(`/portfolios/me/positions/${positionId}/close`, {
+      organizationSlug: localStorage.getItem('divinr_org') || '',
+    });
+    await Promise.all([
+      fetchMyPortfolio().catch(() => {}),
+      fetchMyPositions('open').catch(() => {}),
+    ]);
+    const userKey = Object.keys(portfolioDetails.value).find(k => k.startsWith('user:'));
+    if (userKey) {
+      const next = { ...portfolioDetails.value };
+      delete next[userKey];
+      portfolioDetails.value = next;
+    }
+    return result;
+  }
+
   async function fetchPortfolioDetail(kind: string, id: string) {
     // arbitrator + day_trader rows live in analyst_portfolios; the API only
     // accepts kind ∈ {user, analyst}.
@@ -90,5 +132,6 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     fetchLeaderboard, fetchAnalystPortfolios,
     fetchAllPortfolios, fetchPortfolioDetail,
     queueTrade, cancelTrade,
+    executeTrade, closePositionAction,
   };
 });

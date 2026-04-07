@@ -74,6 +74,14 @@ const sortedPortfolios = computed(() => {
   });
 });
 
+async function onSellPosition(p: PortfolioSummary, positionId: string) {
+  try {
+    await portfolio.closePositionAction(positionId);
+    // Re-fetch the user detail row so the closed status appears
+    await portfolio.fetchPortfolioDetail(p.kind, p.id);
+  } catch (_) { /* swallow */ }
+}
+
 // 5.6a — reference exit levels for the user's open positions (informational only)
 function refLevels(pos: Record<string, unknown>): { label: string; value: string }[] {
   const entry = Number(pos.entry_price ?? 0);
@@ -141,6 +149,14 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
                   <h3 style="margin:0 0 8px 0">Positions</h3>
                   <ion-list v-if="(portfolio.portfolioDetails[rowKey(p)]?.positions || []).length > 0">
                     <ion-item v-for="pos in portfolio.portfolioDetails[rowKey(p)].positions" :key="String(pos.id)">
+                      <ion-button
+                        v-if="p.kind === 'user' && pos.status === 'open'"
+                        slot="end"
+                        size="small"
+                        color="danger"
+                        fill="outline"
+                        @click.stop="onSellPosition(p, String(pos.id))"
+                      >Sell</ion-button>
                       <ion-label>
                         <h3>
                           {{ pos.symbol }}

@@ -72,12 +72,30 @@ const modalSymbol = ref('');
 const modalName = ref('');
 const modalAnalysts = ref<AnalystStance[]>([]);
 const modalInitialIndex = ref(0);
+const modalMode = ref<'view' | 'trade'>('view');
+const modalInstrumentId = ref('');
+const modalCurrentPrice = ref<number | null>(null);
 
 function openAnalystModal(pred: DashboardPrediction, analystIndex: number) {
   modalSymbol.value = pred.symbol;
   modalName.value = pred.name;
   modalAnalysts.value = pred.analysts;
   modalInitialIndex.value = analystIndex;
+  modalMode.value = 'view';
+  modalInstrumentId.value = pred.instrument_id;
+  modalCurrentPrice.value = pred.trade_recommendation?.entry_price ?? null;
+  modalOpen.value = true;
+}
+
+function openTradeModal(pred: DashboardPrediction) {
+  if (pred.analysts.length === 0) return;
+  modalSymbol.value = pred.symbol;
+  modalName.value = pred.name;
+  modalAnalysts.value = pred.analysts;
+  modalInitialIndex.value = 0;
+  modalMode.value = 'trade';
+  modalInstrumentId.value = pred.instrument_id;
+  modalCurrentPrice.value = pred.trade_recommendation?.entry_price ?? null;
   modalOpen.value = true;
 }
 
@@ -285,6 +303,9 @@ function timeAgo(dateStr: string): string {
                   <ion-button size="small" color="success" fill="outline" @click.stop="openAnalystModal(pred, 0)">
                     View Analysis
                   </ion-button>
+                  <ion-button size="small" color="primary" @click.stop="openTradeModal(pred)">
+                    Trade
+                  </ion-button>
                 </div>
               </div>
             </ion-card-content>
@@ -299,6 +320,9 @@ function timeAgo(dateStr: string): string {
       :name="modalName"
       :analysts="modalAnalysts"
       :initial-index="modalInitialIndex"
+      :mode="modalMode"
+      :instrument-id="modalInstrumentId"
+      :current-price="modalCurrentPrice"
       @close="modalOpen = false"
     />
   </div>
