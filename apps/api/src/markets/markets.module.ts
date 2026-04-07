@@ -28,6 +28,9 @@ import { ConvictionTraderService } from './services/conviction-trader.service';
 import { StopLossWatcherService } from './services/stop-loss-watcher.service';
 import { EodForcedBuyService } from './services/eod-forced-buy.service';
 import { AutotradeOpenHelper } from './services/autotrade-open-helper.service';
+import { LeaderboardService } from './services/leaderboard.service';
+import { MonthlyResetService } from './services/monthly-reset.service';
+import { BenchmarkIngestService } from './services/benchmark-ingest.service';
 
 @Module({
   controllers: [MarketsController],
@@ -59,6 +62,9 @@ import { AutotradeOpenHelper } from './services/autotrade-open-helper.service';
     ConvictionTraderService,
     StopLossWatcherService,
     EodForcedBuyService,
+    LeaderboardService,
+    MonthlyResetService,
+    BenchmarkIngestService,
     MarketsService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],

@@ -18,6 +18,9 @@ import { NightlyEvaluationService } from './services/nightly-evaluation.service'
 import { LearningEngineService } from './services/learning-engine.service';
 import { AnalystPortfolioService } from './services/analyst-portfolio.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
+import { LeaderboardService } from './services/leaderboard.service';
+import { MonthlyResetService } from './services/monthly-reset.service';
+import { BenchmarkIngestService } from './services/benchmark-ingest.service';
 import { EodSettlementService } from './services/eod-settlement.service';
 import { OrchestratorBaseDataService } from './services/orchestrator-base-data.service';
 import { AnalystPipelineService } from './services/analyst-pipeline.service';
@@ -57,6 +60,9 @@ export class MarketsController {
     private readonly learningEngine: LearningEngineService,
     private readonly analystPortfolio: AnalystPortfolioService,
     private readonly userPortfolio: UserPortfolioService,
+    private readonly leaderboard: LeaderboardService,
+    private readonly monthlyReset: MonthlyResetService,
+    private readonly benchmarkIngest: BenchmarkIngestService,
     private readonly eodSettlement: EodSettlementService,
     private readonly baseData: OrchestratorBaseDataService,
     private readonly analystPipeline: AnalystPipelineService,
@@ -953,6 +959,22 @@ export class MarketsController {
     return this.userPortfolio.closePosition({ userId: identity.userId, positionId });
   }
 
+  @Get('portfolios')
+  async getAllPortfolios(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.leaderboard.getAllPortfoliosSummary();
+  }
+
+  @Get('portfolios/:kind/:id')
+  async getPortfolioDetail(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('kind') kind: string,
+    @Param('id') id: string,
+  ) {
+    this.getUser(req);
+    return this.leaderboard.getPortfolioDetail({ kind, id });
+  }
+
   @Post('portfolios/me/queue-trade/:tradeId/cancel')
   async cancelTrade(
     @Req() req: { user?: AuthenticatedUser },
@@ -1222,6 +1244,25 @@ export class MarketsController {
   async triggerStopLossSweep(@Req() req: { user?: AuthenticatedUser }) {
     this.getUser(req);
     return this.stopLossWatcher.sweep();
+  }
+
+  @Post('portfolios/admin/monthly-reset')
+  async triggerMonthlyReset(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.monthlyReset.runReset({ manual: true });
+  }
+
+  @Post('admin/run-daily-snapshots')
+  async triggerDailySnapshots(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    const prices = await this.eodSettlement.captureClosingPrices();
+    return this.eodSettlement.writeDailySnapshots(prices);
+  }
+
+  @Post('admin/run-benchmark-ingest')
+  async triggerBenchmarkIngest(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.benchmarkIngest.ingestSpy();
   }
 
   @Post('admin/run-eod-forced-buy')
