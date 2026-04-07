@@ -88,6 +88,15 @@ export class EodSettlementService {
       log.analyst_positions_created = analystResult.created;
       log.errors.push(...analystResult.errors);
 
+      // Step 2b: Mark all of today's predictions as settled so they drop off
+      // the live dashboard. Tomorrow's pipeline will produce fresh signals.
+      try {
+        const settled = await this.markTodaysPredictionsSettled();
+        this.logger.log(`EOD: marked ${settled} predictions as settled`);
+      } catch (err) {
+        log.errors.push(`Settle predictions: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
       // Step 3: Resolve expired predictions and close positions
       const resolveResult = await this.resolveExpiredPositions(closingPrices);
       log.predictions_resolved = resolveResult.resolved;
@@ -203,6 +212,29 @@ export class EodSettlementService {
     }
 
     return { created, errors };
+  }
+
+  // ─── Step 2b: Settle today's predictions ─────────────────────
+
+  /**
+   * Mark every prediction created today (that isn't already settled) as
+   * settled. After this runs, the dashboard's "what should I do now?" view
+   * is empty until the next day's pipeline produces fresh signals. The
+   * predictions are NOT deleted — they remain in market_predictions for
+   * history, evaluation, and learning, just hidden from the live view.
+   */
+  private async markTodaysPredictionsSettled(): Promise<number> {
+    const result = await this.db.rawQuery(
+      `update prediction.market_predictions
+       set settled_at = now()
+       where settled_at is null
+         and created_at::date <= current_date
+       returning id`,
+    );
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+    return ((result.data as Array<{ id: string }> | null) ?? []).length;
   }
 
   // ─── Step 3: Resolve expired ─────────────────────────────────

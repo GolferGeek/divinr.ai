@@ -2,7 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'node:crypto';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
-import { StocksPredictionPlane } from '@divinr/prediction-planes';
+import { StocksPredictionPlane, OutcomeDataNotAvailableError } from '@divinr/prediction-planes';
 import type { PredictionPlaneEvaluation } from '@divinr/prediction-planes';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 
@@ -22,6 +22,8 @@ interface EvaluationSummary {
   evaluated: number;
   correct: number;
   incorrect: number;
+  skipped: number;
+  errors: number;
   canonicalCandidates: number;
   profilesUpdated: number;
 }
@@ -72,6 +74,8 @@ export class NightlyEvaluationService {
     let totalEvaluated = 0;
     let totalCorrect = 0;
     let totalIncorrect = 0;
+    let totalSkipped = 0;
+    let totalErrors = 0;
     let canonicalCandidates = 0;
 
     // Phase 1: Evaluate at each horizon window
@@ -79,16 +83,30 @@ export class NightlyEvaluationService {
       const pending = await this.findPendingEvaluations(horizon.value, horizon.unit);
       this.logger.log(`Horizon ${horizon.label}: ${pending.length} predictions to evaluate`);
 
+      const symbolsFetched = new Set<string>();
       for (const pred of pending) {
         try {
           const predDate = new Date(pred.created_at);
           const evalDate = this.addHorizon(predDate, horizon.value, horizon.unit);
 
           // Only evaluate if the horizon has passed
-          if (evalDate > new Date()) continue;
+          if (evalDate > new Date()) {
+            totalSkipped++;
+            continue;
+          }
 
+          const symbol = await this.getInstrumentSymbol(pred.instrument_id);
+
+          // Polygon free tier: 5 req/min. Sleep ~13s before each *new* symbol fetch.
+          // Repeat predictions for an already-fetched symbol use the in-memory cache.
+          if (!symbolsFetched.has(symbol)) {
+            if (symbolsFetched.size > 0) {
+              await new Promise((r) => setTimeout(r, 13000));
+            }
+            symbolsFetched.add(symbol);
+          }
           const actual = await this.planeEval.evaluateOutcome(
-            pred.instrument_id,
+            symbol,
             predDate,
             evalDate,
           );
@@ -133,9 +151,15 @@ export class NightlyEvaluationService {
           if (score.wasCorrect) totalCorrect++;
           else totalIncorrect++;
         } catch (err) {
-          this.logger.warn(
-            `Failed to evaluate prediction ${pred.prediction_id} at ${horizon.label}: ${err instanceof Error ? err.message : String(err)}`,
-          );
+          if (err instanceof OutcomeDataNotAvailableError) {
+            // Price data for this horizon isn't available yet — try again later.
+            totalSkipped++;
+          } else {
+            totalErrors++;
+            this.logger.warn(
+              `Failed to evaluate prediction ${pred.prediction_id} at ${horizon.label}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
         }
       }
     }
@@ -151,6 +175,8 @@ export class NightlyEvaluationService {
       evaluated: totalEvaluated,
       correct: totalCorrect,
       incorrect: totalIncorrect,
+      skipped: totalSkipped,
+      errors: totalErrors,
       canonicalCandidates,
       profilesUpdated,
     };
@@ -159,7 +185,7 @@ export class NightlyEvaluationService {
     await this.persistReport('nightly_evaluation', summary as unknown as Record<string, unknown>);
 
     this.logger.log(
-      `Nightly evaluation complete: ${totalEvaluated} evaluated, ${totalCorrect} correct, ${totalIncorrect} incorrect, ${canonicalCandidates} canonical candidates, ${profilesUpdated} profiles updated`,
+      `Nightly evaluation complete: ${totalEvaluated} evaluated (${totalCorrect} correct, ${totalIncorrect} incorrect), ${totalSkipped} skipped, ${totalErrors} errors, ${canonicalCandidates} canonical candidates, ${profilesUpdated} profiles updated`,
     );
 
     return summary;
@@ -183,12 +209,12 @@ export class NightlyEvaluationService {
          mp.confidence,
          mp.created_at
        from prediction.market_predictions mp
-       where mp.created_at <= now() - ($1 || ' days')::interval
-         and mp.created_at >= now() - ($1 + 1 || ' days')::interval
+       where mp.created_at <= now() - ($1::int || ' days')::interval
+         and mp.created_at >= now() - (($1::int + 1) || ' days')::interval
          and mp.role in ('analyst', 'arbitrator')
          and not exists (
            select 1 from prediction.prediction_horizon_evaluations phe
-           where phe.prediction_id = mp.id and phe.horizon_window = $1
+           where phe.prediction_id = mp.id and phe.horizon_window = $1::int
          )
        order by mp.organization_slug, mp.instrument_id`,
       [horizonDays],
@@ -373,7 +399,9 @@ export class NightlyEvaluationService {
     try {
       await this.db.rawQuery(
         `insert into prediction.learning_reports (id, report_type, report_date, summary, created_at)
-         values ($1, $2, current_date, $3, now())`,
+         values ($1, $2, current_date, $3, now())
+         on conflict (report_type, report_date)
+         do update set summary = excluded.summary, created_at = excluded.created_at`,
         [randomUUID(), reportType, JSON.stringify(summary)],
       );
     } catch (err) {

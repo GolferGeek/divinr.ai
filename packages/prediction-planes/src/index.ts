@@ -18,4 +18,4 @@ export type {
   DomainSource,
 } from './prediction-plane.interface';
 
-export { StocksPredictionPlane } from './stocks';
+export { StocksPredictionPlane, OutcomeDataNotAvailableError } from './stocks';

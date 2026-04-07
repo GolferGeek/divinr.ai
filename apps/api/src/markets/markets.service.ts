@@ -555,16 +555,18 @@ export class MarketsService {
     await this.schema.ensureSchema();
     await this.requireRead(userId, organizationSlug);
 
+    // Per design: all base analysts cover every instrument. The assignments
+    // table is not populated — base analysts apply universally.
+    void instrumentId;
     const result = await this.db.rawQuery(
       `
-      select a.*
-      from prediction.market_instrument_analyst_assignments ia
-      join prediction.market_analysts a on a.id = ia.analyst_id
-      where (ia.organization_slug = $1 or ia.organization_slug = '__base__')
-        and ia.instrument_id = $2
-      order by case when ia.organization_slug = $1 then 0 else 1 end, ia.created_at asc
+      select *
+      from prediction.market_analysts
+      where (organization_slug = $1 or organization_slug = '__base__')
+        and is_enabled = true
+      order by case when organization_slug = $1 then 0 else 1 end, created_at asc
       `,
-      [organizationSlug, instrumentId],
+      [organizationSlug],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -2434,7 +2436,7 @@ Respond ONLY with valid JSON.`,
       throw new BadRequestException('runId or instrumentId is required');
     }
 
-    const filters: string[] = ['organization_slug = $1'];
+    const filters: string[] = [`(organization_slug = $1 or organization_slug = '__base__')`];
     const values: unknown[] = [input.organizationSlug];
     if (input.runId) {
       filters.push(`run_id = $${values.length + 1}`);
@@ -2487,10 +2489,12 @@ Respond ONLY with valid JSON.`,
     await this.schema.ensureSchema();
     await this.requireRead(userId, organizationSlug);
 
-    // Get latest prediction run per instrument
+    // Get latest unsettled prediction run per instrument. Predictions are
+    // marked settled_at by the EOD settlement job — once settled they drop
+    // off this dashboard, so the user wakes up to a clean slate each morning.
     const runsResult = await this.db.rawQuery(
       `
-      select distinct on (instrument_id)
+      select distinct on (r.instrument_id)
         r.id as run_id, r.instrument_id, r.created_at,
         i.symbol, i.name
       from prediction.orchestration_runs r
@@ -2498,7 +2502,10 @@ Respond ONLY with valid JSON.`,
       where (r.organization_slug = $1 or r.organization_slug = '__base__')
         and r.run_type = 'prediction'
         and r.status = 'completed'
-        and r.completed_at::date = current_date
+        and exists (
+          select 1 from prediction.market_predictions mp
+          where mp.run_id = r.id and mp.settled_at is null
+        )
       order by r.instrument_id, r.completed_at desc
       `,
       [organizationSlug],
@@ -2599,7 +2606,7 @@ Respond ONLY with valid JSON.`,
       throw new BadRequestException('runId or instrumentId is required');
     }
 
-    const filters: string[] = ['organization_slug = $1'];
+    const filters: string[] = [`(organization_slug = $1 or organization_slug = '__base__')`];
     const values: unknown[] = [input.organizationSlug];
     if (input.runId) {
       filters.push(`run_id = $${values.length + 1}`);

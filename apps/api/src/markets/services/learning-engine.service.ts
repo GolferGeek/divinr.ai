@@ -413,7 +413,9 @@ export class LearningEngineService {
     try {
       await this.db.rawQuery(
         `insert into prediction.learning_reports (id, report_type, report_date, summary, created_at)
-         values ($1, 'learning_cycle', current_date, $2, now())`,
+         values ($1, 'learning_cycle', current_date, $2, now())
+         on conflict (report_type, report_date)
+         do update set summary = excluded.summary, created_at = excluded.created_at`,
         [randomUUID(), JSON.stringify(result)],
       );
     } catch (err) {

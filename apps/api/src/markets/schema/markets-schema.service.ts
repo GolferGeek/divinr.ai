@@ -327,6 +327,9 @@ export class MarketsSchemaService {
       alter table prediction.market_predictions add column if not exists risks jsonb not null default '[]'::jsonb;
       alter table prediction.market_predictions add column if not exists config_version_id text;
       alter table prediction.market_predictions add column if not exists is_paper boolean not null default false;
+      alter table prediction.market_predictions add column if not exists settled_at timestamptz;
+      create index if not exists prediction_market_predictions_unsettled_idx
+        on prediction.market_predictions (instrument_id, created_at desc) where settled_at is null;
 
       create unique index if not exists prediction_market_predictions_run_analyst_idx
       on prediction.market_predictions (run_id, analyst_id)
@@ -600,6 +603,10 @@ export class MarketsSchemaService {
         created_at timestamptz not null default now()
       );
       create index if not exists prediction_learning_reports_date_idx on prediction.learning_reports (report_date desc);
+      do $$ begin
+        alter table prediction.learning_reports
+          add constraint learning_reports_type_date_unique unique (report_type, report_date);
+      exception when others then null; end $$;
 
       create table if not exists prediction.org_learning_config (
         organization_slug text primary key,
