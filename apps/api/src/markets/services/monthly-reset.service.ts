@@ -22,8 +22,8 @@ export class MonthlyResetService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly analystPortfolio: AnalystPortfolioService,
-    private readonly userPortfolio: UserPortfolioService,
+    @Inject(AnalystPortfolioService) private readonly analystPortfolio: AnalystPortfolioService,
+    @Inject(UserPortfolioService) private readonly userPortfolio: UserPortfolioService,
   ) {}
 
   @Cron('0 0 1 * *')

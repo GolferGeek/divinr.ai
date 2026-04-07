@@ -15,8 +15,8 @@ export class UserPortfolioService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly schema: MarketsSchemaService,
-    private readonly sizing: PositionSizingService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
   ) {}
 
   async ensurePortfolio(userId: string, organizationSlug: string, initialBalance = 1000000): Promise<UserPortfolio> {

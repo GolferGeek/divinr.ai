@@ -30,7 +30,7 @@ export class TradeRecommendationService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly schema: MarketsSchemaService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
   ) {}
 
   // ─── Public API ─────────────────────────────────────────────────

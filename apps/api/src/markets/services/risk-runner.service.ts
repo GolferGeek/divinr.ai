@@ -49,13 +49,13 @@ export class RiskRunnerService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ObservabilityEventsService) private readonly observability: ObservabilityEventsService,
-    private readonly schema: MarketsSchemaService,
-    private readonly llmService: MarketsLlmService,
-    private readonly contextProviders: ContextProviderService,
-    private readonly dimensionAnalyzer: RiskDimensionAnalyzerService,
-    private readonly scoreAggregation: RiskScoreAggregationService,
-    private readonly debateService: RiskDebateService,
-    private readonly dataSources: DataSourceService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(MarketsLlmService) private readonly llmService: MarketsLlmService,
+    @Inject(ContextProviderService) private readonly contextProviders: ContextProviderService,
+    @Inject(RiskDimensionAnalyzerService) private readonly dimensionAnalyzer: RiskDimensionAnalyzerService,
+    @Inject(RiskScoreAggregationService) private readonly scoreAggregation: RiskScoreAggregationService,
+    @Inject(RiskDebateService) private readonly debateService: RiskDebateService,
+    @Inject(DataSourceService) private readonly dataSources: DataSourceService,
   ) {
     this.plane = new StocksPredictionPlane();
     this.planeState = this.plane.state;

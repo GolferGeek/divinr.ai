@@ -29,15 +29,31 @@ import { AnalystPortfolioService } from './analyst-portfolio.service';
 export class StopLossWatcherService {
   private readonly logger = new Logger(StopLossWatcherService.name);
 
-  // Pure constants for testability — these match PRD §4.1.
-  static readonly STOP_LOSS_PCT = -0.05;
-  static readonly TAKE_PROFIT_PCT = 0.10;
-  static readonly TRAILING_STOP_PCT = 0.05;
-  static readonly TRAILING_ARM_PCT = 0.05;
+  // Defaults match PRD §4.1. Each is overridable via env at call time so
+  // ops can dial risk without redeploying. Read-on-access (not cached) so
+  // tests can mutate process.env between cases.
+  private static envNum(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (raw === undefined || raw === '') return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : fallback;
+  }
+  static get STOP_LOSS_PCT(): number {
+    return StopLossWatcherService.envNum('STOP_LOSS_PCT', -0.05);
+  }
+  static get TAKE_PROFIT_PCT(): number {
+    return StopLossWatcherService.envNum('TAKE_PROFIT_PCT', 0.10);
+  }
+  static get TRAILING_STOP_PCT(): number {
+    return StopLossWatcherService.envNum('TRAILING_STOP_PCT', 0.05);
+  }
+  static get TRAILING_ARM_PCT(): number {
+    return StopLossWatcherService.envNum('TRAILING_ARM_PCT', 0.05);
+  }
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly portfolios: AnalystPortfolioService,
+    @Inject(AnalystPortfolioService) private readonly portfolios: AnalystPortfolioService,
   ) {}
 
   /**
