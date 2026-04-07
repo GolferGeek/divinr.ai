@@ -32,10 +32,10 @@ From `effort/portfolio-foundation-resume` PR #5:
 - `MonthlyResetService` + `BenchmarkIngestService` populate `bailout_ledger` and `benchmark_series` (SPY).
 - `EodSettlementService.writeDailySnapshots()` writes one `daily_pnl_snapshot` row per portfolio per trading day.
 
-**Schema (already added, no migration needed)**
-- `prediction.analyst_portfolios.strategy_state jsonb not null default '{}'::jsonb` — strategies can persist state here
-- `prediction.analyst_positions.trigger_strategy text` — populated by `AutotradeOpenHelper` when caller passes it
-- `prediction.bailout_ledger`, `prediction.benchmark_series`, `prediction.daily_pnl_snapshot`
+**Schema (columns already added, but unused today)**
+- `prediction.analyst_portfolios.strategy_state jsonb not null default '{}'::jsonb` — exists; no code currently reads or writes it. Strategies will start using it in this effort.
+- `prediction.analyst_positions.trigger_strategy text` — column exists but is **always NULL today**. Neither `AutotradeOpenHelper.openPosition` nor `AnalystPortfolioService.closePosition` accept a `triggerStrategy` parameter yet. Both signatures need to be extended in this effort (see "What's in scope → Backend").
+- `prediction.bailout_ledger`, `prediction.benchmark_series`, `prediction.daily_pnl_snapshot` — populated and queried by Phase 4 services.
 
 **Frontend**
 - `PortfolioDashboardView.vue` at `/portfolios` (and `/portfolio` redirect). 10-column master table, expandable rows, `EquitySparkline.vue` inline, `ProvenanceTooltip.vue` per position.
@@ -69,7 +69,9 @@ From `effort/portfolio-foundation-resume` PR #5:
 
 ### Backend
 
-- **Refactor `DayTraderStrategy` interface** in `day-trader-runner.service.ts` from `generateIntents(portfolio) → {opens, closes}` to `decide({portfolio, recentBars, latestSignals, state}) → {action: 'open'|'close'|'noop', instrumentId?, direction?, sizingMultiplier?, newState}`. Update the runner to assemble `recentBars` (from a new `getRecentBars(instrumentId, count)` helper on `OutcomeTrackingService` or wherever the price-refresh persists OHLC), `latestSignals` (one `prediction.market_predictions` row per candidate instrument), and `state` (the slice of `strategy_state` keyed by `strategy_name`) before each call.
+- **Extend `AutotradeOpenHelper.openPosition` signature** to accept an optional `triggerStrategy?: string` parameter and write it into `analyst_positions.trigger_strategy` on insert. Existing callers that don't pass it stay at NULL — backward compatible. Unit test the new path.
+- **Extend `AnalystPortfolioService.closePosition` signature** to accept an optional `triggerStrategy?: string` parameter (alongside the existing `triggerReason`) and write it into `analyst_positions.trigger_strategy` on update. Backward compatible. Unit test.
+- **Refactor `DayTraderStrategy` interface** in `day-trader-runner.service.ts` from `generateIntents(portfolio) → {opens, closes}` to `decide({portfolio, recentBars, latestSignals, state}) → {action: 'open'|'close'|'noop', instrumentId?, direction?, sizingMultiplier?, newState}`. Update the runner to assemble `recentBars` (from a new `getRecentBars(instrumentId, count)` helper on `OutcomeTrackingService` or wherever the price-refresh persists OHLC), `latestSignals` (one `prediction.market_predictions` row per candidate instrument), and `state` (the slice of `strategy_state` keyed by `strategy_name`) before each call. Update `routeOpen` to pass `triggerStrategy: portfolio.strategy_name` to the helper. Update `routeClose` to pass `triggerStrategy` to `closePosition` (`'eod_flat'` for the EOD-flat path, otherwise the strategy_name).
 - **Implement three real strategies**: `MomentumBreakoutStrategy`, `MeanReversionStrategy`, `GapAndGoStrategy` in `apps/api/src/markets/strategies/`. Each is a class implementing `DayTraderStrategy` with its own constants. Unit-tested directly with a fake `recentBars` series (no DB).
 - **Wire runner into OutcomeTracking**: in `outcome-tracking.service.ts`, after `stopLossWatcher.sweep()`, invoke `dayTraderRunner.runStrategies()` and log the result. Inject `DayTraderRunnerService`.
 - **Remove the hourly cron** annotation on `DayTraderRunnerService.cronTick`. Keep `runStrategies()` as the public method; keep the admin endpoint for manual triggering.
