@@ -516,15 +516,15 @@ npx tsx tests/unit/stop-loss-watcher.test.ts
 **Static invariants**:
 ```sql
 -- 3 day-trader portfolios exist
-SELECT id, name, kind, cash_balance FROM prediction.analyst_portfolios
-WHERE kind='day_trader' ORDER BY name;
--- expect 3 rows
+SELECT id, strategy_name, kind, current_balance FROM prediction.analyst_portfolios
+WHERE kind='day_trader' ORDER BY strategy_name;
+-- expect 3 rows (gap_and_go, mean_reversion, momentum_breakout)
 
 -- After a runner pass, each has positions (>0)
-SELECT ap.name, count(p.id) AS positions
+SELECT ap.strategy_name, count(p.id) AS positions
 FROM prediction.analyst_portfolios ap
 LEFT JOIN prediction.analyst_positions p ON p.portfolio_id=ap.id
-WHERE ap.kind='day_trader' GROUP BY ap.id, ap.name;
+WHERE ap.kind='day_trader' GROUP BY ap.id, ap.strategy_name;
 
 -- Cross-portfolio purity: no day-trader position carries an analyst-attributed prediction
 SELECT count(*) FROM prediction.analyst_positions p
@@ -548,41 +548,41 @@ After the call, query `analyst_positions WHERE trigger_reason='strategy' AND ope
 
 **Monthly reset**:
 ```bash
-curl -X POST http://localhost:7100/markets/admin/run-monthly-reset \
+curl -X POST http://localhost:7100/markets/portfolios/admin/monthly-reset \
   -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
+# response: {"ledgerRowsWritten":N,"alreadyResetCount":M,"portfoliosProcessed":53,"errors":[]}
 ```
 ```sql
--- A reset row was created in the last minute
-SELECT * FROM prediction.analyst_portfolio_monthly_resets
-WHERE reset_at > now() - interval '1 minute' ORDER BY reset_at DESC LIMIT 5;
+-- A bailout row was written today (or alreadyResetCount == 53 if already run today — idempotent)
+SELECT count(*) FROM prediction.bailout_ledger WHERE reset_date = current_date;
 
 -- Cash balances bounced back to baseline
-SELECT name, cash_balance FROM prediction.analyst_portfolios
-ORDER BY name LIMIT 10;
+SELECT strategy_name, current_balance FROM prediction.analyst_portfolios
+ORDER BY strategy_name LIMIT 10;
 ```
 
 **Benchmark ingest**:
 ```bash
 curl -X POST http://localhost:7100/markets/admin/run-benchmark-ingest \
   -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
+# response: {"rowsWritten":1,"symbol":"SPY","tradingDate":"YYYY-MM-DD"}
 ```
 ```sql
-SELECT symbol, as_of_date, close FROM prediction.benchmark_snapshots
-ORDER BY as_of_date DESC LIMIT 5;
+SELECT symbol, trading_date, close_price FROM prediction.benchmark_series
+ORDER BY trading_date DESC LIMIT 5;
 -- expect today's date (or most recent trading day) on top
 ```
 
-**Daily P&L**:
+**Daily P&L snapshots**:
 ```bash
-curl -X POST http://localhost:7100/markets/admin/run-daily-pnl \
+curl -X POST http://localhost:7100/markets/admin/run-daily-snapshots \
   -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
+# response: {"written":53}
 ```
 ```sql
-SELECT portfolio_id, as_of_date, total_value, cash_balance, holdings_value
-FROM prediction.analyst_portfolio_daily_pnl
-WHERE as_of_date = current_date
-ORDER BY portfolio_id LIMIT 10;
--- expect rows for every active portfolio with non-null totals
+SELECT count(*) FROM prediction.daily_pnl_snapshot
+WHERE snapshot_date = current_date;
+-- expect 53 (one per active portfolio)
 ```
 
 ### 4.8 EOD backfill provenance + env-driven thresholds (portfolio-foundation Phase 8)

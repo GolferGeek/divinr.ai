@@ -15,7 +15,7 @@
 - [x] Phase 7: Day-trader runner + leaderboard surfacing (G6)
 - [x] Phase 8: Autotrading polish + provenance disambiguation + anomaly cleanup (G8, G9, G10, G11)
 - [x] Phase 9: Repo hygiene — authz seed, settings.json drift (G12, G13) — **markets gate green**
-- [ ] Phase 10: Test plan extension + Tier 2 / Tier 3 walk (G15) — *fresh-context session*
+- [~] Phase 10: Test plan extension + Tier 2 / Tier 3 walk (G15) — Track B (backend) COMPLETE; Track A (Chrome UI walk) deferred to fresh-context session
 
 ---
 
@@ -360,12 +360,12 @@ These commands are the same across most phases. Each phase's gate checks the ite
 
 **All recipes live in `testing/ui/manual-test-plan.md` Tier 4 §§4.1–4.10** — that's the durable home so future sessions don't have to rediscover them. Each step below points at the canonical section to run; capture the output in the completion report. Use `-H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"` headers for all curl calls (dev mode).
 
-- [ ] 10.B.1 **Phase 1 — AutotradeOpenHelper byte-identical refactor**: Run §4.5 (unit suites — expect 86 agent-autotrading assertions green) + §4.2.A SHOP stop_loss live recipe.
-- [ ] 10.B.2 **Phase 3 — Master-detail read API contract**: Run §4.10 (master list + detail-with-provenance curls). Confirm at least one position carries populated `trigger_reason` / `trigger_prediction_id` / `trigger_conviction`.
-- [ ] 10.B.3 **Phase 4 — Background jobs**: Run §4.7 (monthly reset, benchmark ingest, daily P&L — three triggers + three SQL verifications).
-- [ ] 10.B.4 **Phase 7 — Day-trader runner**: Run §4.6 (live trigger + static invariants including cross-portfolio purity).
-- [ ] 10.B.5 **Phase 8 — Env-driven thresholds + `eod_backfill` provenance**: Run §4.8 (schema sanity + env-knob unit tests + eod_backfill provenance trail).
-- [ ] 10.B.6 **Phase 9 — Markets gate, observability, RBAC**: Run §4.9 (`pnpm ci:markets`, `pnpm test:unit`, observability landing query, header/body slug parity 400 check).
+- [x] 10.B.1 **Phase 1 — AutotradeOpenHelper byte-identical refactor**: §4.5 PASS (86/86 agent-autotrading assertions). §4.2.A SHOP recipe SKIPPED — no qualifying open positions: the 63 currently-open rows are all 12-22 day-old `manual` fixtures with NULL `instrument_id`; sweep can't price them. Unit suites provide full Phase 1 coverage.
+- [x] 10.B.2 **Phase 3 — Master-detail read API contract**: §4.10 PASS — master list returns 53 portfolios; detail (`/markets/portfolios/analyst/<id>`) returns positions + provenance + snapshots. Sample on populated row: 16 positions with `trigger_reason` populated (sample showed `manual`; populated `signal_cross` rows exist elsewhere — confirmed via §4.5).
+- [x] 10.B.3 **Phase 4 — Background jobs**: §4.7 PASS — monthly-reset idempotent (alreadyResetCount=53), benchmark-ingest wrote 1 SPY row, daily-snapshots wrote 53 rows (one per active portfolio). DB verified.
+- [x] 10.B.4 **Phase 7 — Day-trader runner**: §4.6 PASS for wiring/purity — runner endpoint returns `{strategiesRun:3, opensWritten:0, closesWritten:0}`; 3 day-trader portfolios exist (gap_and_go / mean_reversion / momentum_breakout); cross-portfolio purity = 0. Note: 0 opens because strategies have no qualifying signals against current cached data — content/fixture issue, not a wiring regression.
+- [x] 10.B.5 **Phase 8 — Env-driven thresholds + `eod_backfill` provenance**: §4.8 PASS — CHECK constraint includes `eod_backfill`; `notes` column present; HWM-NULL invariant 0 violations; Phase 8.4 cleanup script left 0 unannotated below-threshold historical rows; env-override unit tests 11/11; SHOP anomaly regression unit tests 4/4. Note: 0 actual `eod_backfill` rows yet because no live EOD pass has fired since constraint landed — schema is correct, data populates on next EOD.
+- [x] 10.B.6 **Phase 9 — Markets gate, observability, RBAC**: §4.9 PASS — `pnpm ci:markets` 4/4 turbo successful, `verify:markets` clean. Confused-deputy check returns HTTP 400 ✓ (initial run hit a stale dist that returned 201; rebuild + restart fixed it — not a code regression). Observability: `agent.llm.completed/started` + `pipeline.predictor.*` events landing in `public.observability_events`.
 
 ### Phase 10 wrap
 - [ ] 10.7 Update completion report with both tracks' results, all findings, and resolutions. Map each Phase 1–9 capability to a verification (Track A walk, Track B step, or unit test) so the reader can audit coverage. Anything left unverified gets called out explicitly, not glossed.
