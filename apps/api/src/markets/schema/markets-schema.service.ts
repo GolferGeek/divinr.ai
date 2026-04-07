@@ -1128,6 +1128,22 @@ export class MarketsSchemaService {
         add column if not exists trigger_reason text not null default 'manual'
           check (trigger_reason in
             ('signal_cross','eod_sweep','stop_loss','take_profit','trailing_stop','manual','strategy'));
+      -- Phase 8: extend trigger_reason to include 'eod_backfill' so the EOD
+      -- helper that creates positions from settled-day predictions can be
+      -- distinguished from human/manual opens. Drop the inline-named CHECK
+      -- (auto-named by add-column) and re-add with the wider set.
+      do $$
+      begin
+        alter table prediction.analyst_positions
+          drop constraint if exists analyst_positions_trigger_reason_check;
+      exception when others then null;
+      end$$;
+      alter table prediction.analyst_positions
+        add constraint analyst_positions_trigger_reason_check
+          check (trigger_reason in
+            ('signal_cross','eod_sweep','eod_backfill','stop_loss','take_profit','trailing_stop','manual','strategy'));
+      alter table prediction.analyst_positions
+        add column if not exists notes text;
       alter table prediction.analyst_positions
         add column if not exists trigger_prediction_id text;
       alter table prediction.analyst_positions

@@ -54,7 +54,7 @@ export class PredictionGeneratorService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ObservabilityEventsService) private readonly observability: ObservabilityEventsService,
-    private readonly predictionRunner: PredictionRunnerService,
+    @Inject(PredictionRunnerService) private readonly predictionRunner: PredictionRunnerService,
   ) {}
 
   private emit(type: string, message: string, data?: Record<string, unknown>): void {

@@ -30,6 +30,7 @@ import { PredictionGeneratorService } from './services/prediction-generator.serv
 import { OutcomeTrackingService } from './services/outcome-tracking.service';
 import { StopLossWatcherService } from './services/stop-loss-watcher.service';
 import { EodForcedBuyService } from './services/eod-forced-buy.service';
+import { DayTraderRunnerService } from './services/day-trader-runner.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -56,22 +57,23 @@ export class MarketsController {
 
   constructor(
     @Inject(MarketsService) markets: MarketsService,
-    private readonly nightlyEvaluation: NightlyEvaluationService,
-    private readonly learningEngine: LearningEngineService,
-    private readonly analystPortfolio: AnalystPortfolioService,
-    private readonly userPortfolio: UserPortfolioService,
-    private readonly leaderboard: LeaderboardService,
-    private readonly monthlyReset: MonthlyResetService,
-    private readonly benchmarkIngest: BenchmarkIngestService,
-    private readonly eodSettlement: EodSettlementService,
-    private readonly baseData: OrchestratorBaseDataService,
-    private readonly analystPipeline: AnalystPipelineService,
-    private readonly crawler: CrawlerService,
-    private readonly predictorGenerator: PredictorGeneratorService,
-    private readonly predictionGenerator: PredictionGeneratorService,
-    private readonly outcomeTracking: OutcomeTrackingService,
-    private readonly stopLossWatcher: StopLossWatcherService,
-    private readonly eodForcedBuy: EodForcedBuyService,
+    @Inject(NightlyEvaluationService) private readonly nightlyEvaluation: NightlyEvaluationService,
+    @Inject(LearningEngineService) private readonly learningEngine: LearningEngineService,
+    @Inject(AnalystPortfolioService) private readonly analystPortfolio: AnalystPortfolioService,
+    @Inject(UserPortfolioService) private readonly userPortfolio: UserPortfolioService,
+    @Inject(LeaderboardService) private readonly leaderboard: LeaderboardService,
+    @Inject(MonthlyResetService) private readonly monthlyReset: MonthlyResetService,
+    @Inject(BenchmarkIngestService) private readonly benchmarkIngest: BenchmarkIngestService,
+    @Inject(EodSettlementService) private readonly eodSettlement: EodSettlementService,
+    @Inject(OrchestratorBaseDataService) private readonly baseData: OrchestratorBaseDataService,
+    @Inject(AnalystPipelineService) private readonly analystPipeline: AnalystPipelineService,
+    @Inject(CrawlerService) private readonly crawler: CrawlerService,
+    @Inject(PredictorGeneratorService) private readonly predictorGenerator: PredictorGeneratorService,
+    @Inject(PredictionGeneratorService) private readonly predictionGenerator: PredictionGeneratorService,
+    @Inject(OutcomeTrackingService) private readonly outcomeTracking: OutcomeTrackingService,
+    @Inject(StopLossWatcherService) private readonly stopLossWatcher: StopLossWatcherService,
+    @Inject(EodForcedBuyService) private readonly eodForcedBuy: EodForcedBuyService,
+    @Inject(DayTraderRunnerService) private readonly dayTraderRunner: DayTraderRunnerService,
   ) {
     this.markets = markets;
   }
@@ -1263,6 +1265,12 @@ export class MarketsController {
   async triggerBenchmarkIngest(@Req() req: { user?: AuthenticatedUser }) {
     this.getUser(req);
     return this.benchmarkIngest.ingestSpy();
+  }
+
+  @Post('admin/run-day-trader-strategies')
+  async triggerDayTraderStrategies(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.dayTraderRunner.runStrategies();
   }
 
   @Post('admin/run-eod-forced-buy')

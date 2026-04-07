@@ -32,7 +32,7 @@ export interface AutotradeOpenInput {
   direction: 'long' | 'short';
   quantity: number;
   entryPrice: number;
-  predictionId: string;
+  predictionId: string | null;
   conviction: number;
   triggerReason: string;
   organizationSlug: string;
@@ -69,17 +69,21 @@ export class AutotradeOpenHelper {
 
     // Idempotency: (portfolio_id, instrument_id, prediction_id) is the
     // unique signal-cross key. If a row already exists, return it.
-    const existing = await db.rawQuery(
-      `select id from prediction.analyst_positions
-        where portfolio_id = $1 and instrument_id = $2 and prediction_id = $3
-        limit 1`,
-      [input.portfolio.id, input.instrumentId, input.predictionId],
-    );
-    const existingRow = Array.isArray((existing as any).data)
-      ? ((existing as any).data[0] as { id?: string } | undefined)
-      : undefined;
-    if (existingRow && existingRow.id) {
-      return { positionId: existingRow.id, reason: 'idempotent' };
+    // Strategy-driven opens have predictionId=null and skip the lookup —
+    // each strategy tick is a fresh decision, not an idempotent retry.
+    if (input.predictionId !== null) {
+      const existing = await db.rawQuery(
+        `select id from prediction.analyst_positions
+          where portfolio_id = $1 and instrument_id = $2 and prediction_id = $3
+          limit 1`,
+        [input.portfolio.id, input.instrumentId, input.predictionId],
+      );
+      const existingRow = Array.isArray((existing as any).data)
+        ? ((existing as any).data[0] as { id?: string } | undefined)
+        : undefined;
+      if (existingRow && existingRow.id) {
+        return { positionId: existingRow.id, reason: 'idempotent' };
+      }
     }
 
     const id = randomUUID();

@@ -32,13 +32,13 @@ export class EodSettlementService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly schema: MarketsSchemaService,
-    private readonly analystPortfolio: AnalystPortfolioService,
-    private readonly userPortfolio: UserPortfolioService,
-    private readonly sizing: PositionSizingService,
-    private readonly nightlyEval: NightlyEvaluationService,
-    private readonly learningEngine: LearningEngineService,
-    private readonly eodForcedBuy: EodForcedBuyService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(AnalystPortfolioService) private readonly analystPortfolio: AnalystPortfolioService,
+    @Inject(UserPortfolioService) private readonly userPortfolio: UserPortfolioService,
+    @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
+    @Inject(NightlyEvaluationService) private readonly nightlyEval: NightlyEvaluationService,
+    @Inject(LearningEngineService) private readonly learningEngine: LearningEngineService,
+    @Inject(EodForcedBuyService) private readonly eodForcedBuy: EodForcedBuyService,
   ) {}
 
   /** Cron: 5 PM ET Mon-Fri (22:00 UTC). Disable with MARKETS_DISABLE_EOD_SETTLEMENT=true */

@@ -31,6 +31,7 @@ import { AutotradeOpenHelper } from './services/autotrade-open-helper.service';
 import { LeaderboardService } from './services/leaderboard.service';
 import { MonthlyResetService } from './services/monthly-reset.service';
 import { BenchmarkIngestService } from './services/benchmark-ingest.service';
+import { DayTraderRunnerService } from './services/day-trader-runner.service';
 
 @Module({
   controllers: [MarketsController],
@@ -65,6 +66,7 @@ import { BenchmarkIngestService } from './services/benchmark-ingest.service';
     LeaderboardService,
     MonthlyResetService,
     BenchmarkIngestService,
+    DayTraderRunnerService,
     MarketsService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],

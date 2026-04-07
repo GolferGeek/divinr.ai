@@ -52,7 +52,7 @@ export class OutcomeTrackingService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ObservabilityEventsService) private readonly observability: ObservabilityEventsService,
-    private readonly stopLossWatcher: StopLossWatcherService,
+    @Inject(StopLossWatcherService) private readonly stopLossWatcher: StopLossWatcherService,
   ) {}
 
   private emit(type: string, message: string, data?: Record<string, unknown>): void {

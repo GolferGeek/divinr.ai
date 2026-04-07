@@ -5,6 +5,7 @@ import {
   Req,
   Logger,
   UseGuards,
+  Inject,
 } from '@nestjs/common';
 import { MarketsService } from '../markets/markets.service';
 import { AnalystPortfolioService } from '../markets/services/analyst-portfolio.service';
@@ -32,8 +33,8 @@ export class A2AInvokeController {
   private readonly logger = new Logger(A2AInvokeController.name);
 
   constructor(
-    private readonly marketsService: MarketsService,
-    private readonly analystPortfolio: AnalystPortfolioService,
+    @Inject(MarketsService) private readonly marketsService: MarketsService,
+    @Inject(AnalystPortfolioService) private readonly analystPortfolio: AnalystPortfolioService,
   ) {}
 
   @Post()

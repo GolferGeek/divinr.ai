@@ -391,10 +391,13 @@ Respond with valid JSON only:
   }
 
   private async loadDimensions(organizationSlug: string): Promise<RiskDimension[]> {
-    // First try org-specific dimensions, then fall back to templates
+    // First try org-specific dimensions, then fall back to base templates.
+    // Convention across the rest of the markets services is '__base__';
+    // this loader was the lone outlier using '__template__', which matched
+    // no rows in any environment seeded the standard way.
     const result = await this.db.rawQuery(
       `select * from prediction.risk_dimensions
-       where (organization_slug = $1 or organization_slug = '__template__')
+       where (organization_slug = $1 or organization_slug = '__base__')
          and is_active = true
        order by
          case when organization_slug = $1 then 0 else 1 end,

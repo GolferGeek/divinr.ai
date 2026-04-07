@@ -73,7 +73,7 @@ export class RiskDebateService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly llmService: MarketsLlmService,
+    @Inject(MarketsLlmService) private readonly llmService: MarketsLlmService,
   ) {}
 
   async runDebate(input: DebateInput): Promise<DebateResult> {

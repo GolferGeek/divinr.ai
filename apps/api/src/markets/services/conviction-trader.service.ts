@@ -33,7 +33,7 @@ export class ConvictionTraderService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly sizing: PositionSizingService,
+    @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
     private readonly helper: AutotradeOpenHelper,
   ) {}
 

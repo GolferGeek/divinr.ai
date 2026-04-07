@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ServiceApiKeyService } from './service-api-key.service';
@@ -25,8 +26,8 @@ export class ServiceApiKeyGuard implements CanActivate {
   private readonly logger = new Logger(ServiceApiKeyGuard.name);
 
   constructor(
-    private readonly apiKeyService: ServiceApiKeyService,
-    private readonly reflector: Reflector,
+    @Inject(ServiceApiKeyService) private readonly apiKeyService: ServiceApiKeyService,
+    @Inject(Reflector) private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

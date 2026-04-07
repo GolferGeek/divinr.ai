@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { ServiceApiKeyService } from '../auth/service-api-key.service';
 
@@ -17,7 +18,7 @@ import { ServiceApiKeyService } from '../auth/service-api-key.service';
 export class A2AAdminController {
   private readonly logger = new Logger(A2AAdminController.name);
 
-  constructor(private readonly apiKeyService: ServiceApiKeyService) {}
+  constructor(@Inject(ServiceApiKeyService) private readonly apiKeyService: ServiceApiKeyService) {}
 
   @Post()
   async generateKey(

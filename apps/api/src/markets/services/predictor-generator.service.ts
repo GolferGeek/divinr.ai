@@ -69,7 +69,7 @@ export class PredictorGeneratorService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ObservabilityEventsService) private readonly observability: ObservabilityEventsService,
-    private readonly marketsLlm: MarketsLlmService,
+    @Inject(MarketsLlmService) private readonly marketsLlm: MarketsLlmService,
   ) {}
 
   private emit(type: string, message: string, data?: Record<string, unknown>): void {
