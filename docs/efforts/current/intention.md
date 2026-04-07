@@ -1,98 +1,64 @@
-# Portfolio Foundation & Manual Trading — Intention
+# Agent Autotrading — Intention
 
 ## What this effort is
 
-Set up the multi-actor paper-trading game's foundation: every actor — the user, every analyst, the arbitrator "mini-me," and three day-trader actors — gets a $1M paper portfolio that lives in a single master-detail view. The user can buy and sell from any prediction view at the current cached price, immediately, with one disclaimer click. Monthly reset + bailout tracking work. Daily P&L snapshots and a SPY benchmark series ingest so later phases have data to graph.
+Make the analysts and the arbitrator "mini-me" actually trade their own convictions. When an analyst (or the arbitrator) crosses a conviction threshold on one of their predictions, they immediately open a position in their own paper portfolio. Their open positions are managed by standard rules: 5% stop-loss, 10% take-profit, trailing stop. At end of day, anything still above threshold without an existing position gets a forced buy.
 
-This effort does **not** include any auto-trading logic, stop-loss watchers, day-trader strategies, or the leaderboard. Those are tracked separately in two follow-up efforts (see "Follow-ups" below). This is just the table-stakes plumbing every later phase will sit on.
+This is the autotrading layer on top of the **Portfolio Foundation & Manual Trading** effort. It assumes that effort has already shipped: portfolios for analysts + arbitrator + day traders exist, the schema has trade-provenance columns and the `kind` column on `analyst_portfolios`, and `executeImmediate` exists.
 
-This is **for fun and education**, not investment advice. The disclaimer plumbing already exists and stays in front of every user trade action.
+This effort does **not** include day traders or the leaderboard — those live in the next follow-up.
 
 ## Why now
 
-Phase 6 (analyst-intelligence-platform) shipped the *mechanism*: Kelly-based position sizing, analyst/user portfolios, a trade queue, EOD settlement, the disclaimer flow, and a portfolio dashboard. What it doesn't have:
+The Portfolio Foundation effort gives every actor a portfolio but no agent actually trades itself. The arbitrator just synthesizes predictions. Analysts publish predictions but don't own their conclusions. Without autotrading, there's nothing to compare across the actors except whatever the user manually does, which defeats the point of the game.
 
-- The **arbitrator** has no portfolio.
-- There's no concept of **day traders** in the data model.
-- The user trade flow is queue-then-settle-at-5pm-ET. We want an **immediate-fill** path so manual trades happen at the current price right now.
-- **Monthly reset + bailout tracking** doesn't exist.
-- No daily P&L snapshots persisted as a source of truth for equity curves.
-- No SPY benchmark series.
+## Prerequisites (must be in main before this effort starts)
 
-Until those exist, the auto-trading and leaderboard work in the follow-up efforts has nothing to sit on.
+From the Portfolio Foundation effort:
+- `kind` / `strategy_name` / `strategy_state` columns on `prediction.analyst_portfolios`
+- `trigger_reason` / `trigger_prediction_id` / `trigger_conviction` / `trigger_strategy` columns on `prediction.analyst_positions`
+- Arbitrator `analyst_portfolios` row seeded at $1M
+- `daily_pnl_snapshot` table populated daily
+- `UserPortfolioService.executeImmediate()` and `closePosition()` (referenced as a pattern; the agent path uses `AnalystPortfolioService`)
 
-## What exists today (extend, don't duplicate)
+## Locked decisions (carried from the umbrella conversation)
 
-- **Position sizing**: `position-sizing.service.ts` + `trade-recommendation.service.ts`. Conviction tier → Kelly fraction → risk-adjusted → calibration-damped. Reused by later efforts; not touched here.
-- **Portfolios**: `analyst_portfolios`, `analyst_positions`, `user_portfolios`, `user_positions` tables and their services. **Extend** `analyst_portfolios` with a `kind` column so it can host arbitrator + day-trader rows alongside analysts.
-- **Trade queue + EOD settlement**: `user_trade_queue`, `eod-settlement.service.ts`. **Keep** as-is for the existing 5pm flow. We add an immediate-fill *alternative* for the user; we do not remove the queue.
-- **Disclaimer**: `AnalystPredictionModal.vue` + `trade_decision_disclaimers` table. **Reuse**.
-- **Current price**: `instruments.current_state` jsonb, refreshed every 15 minutes by `OutcomeTrackingService`. **Reuse**. Honest limitation: 15-min cadence is fine for manual trading and analyst signals; day traders in the follow-up effort accept the same limitation.
-- **Arbitrator**: `prediction-runner.service.ts` produces an arbitrator prediction with conviction. Doesn't trade. This effort just gives it a portfolio row; the actual trading wires up in the autotrading follow-up.
+- **Conviction threshold**: single env var `CONVICTION_TRADE_THRESHOLD`, default 70, applied uniformly to analysts and arbitrator. Per-actor override is a future enhancement.
+- **Position sizing**: reuse the existing Phase 6 Kelly calculator in `position-sizing.service.ts` unchanged.
+- **Exit rules** (apply to analyst + arbitrator positions only — never to user positions or day traders):
+  - 5% stop-loss
+  - 10% take-profit
+  - Trailing stop (high-water-mark based)
+- **Eval cadence**: stop/take/trailing watcher runs synchronously after each 15-minute price refresh in `OutcomeTrackingService` to avoid races.
+- **Arbitrator real-time**: arbitrator conviction is evaluated each time the arbitrator synthesis step runs in `prediction-runner.service.ts`. Pipeline runs frequently enough that this approximates real-time. Incremental arbitrator synthesis on every analyst publish is a future enhancement.
+- **Idempotency**: forced buys check for an existing position on `(portfolio_id, instrument_id, trigger_prediction_id)` before opening. EOD sweep can re-run safely.
+- **Long-only, whole shares, instant fill at cached price**, same as the Portfolio Foundation effort.
 
 ## What's in scope
 
-- **Schema groundwork** (so follow-up efforts don't need their own migrations):
-  - `kind` / `strategy_name` / `strategy_state` columns on `analyst_portfolios` (`kind` ∈ `analyst|arbitrator|day_trader`)
-  - Trade provenance columns on `analyst_positions` and `user_positions` (`trigger_reason`, `trigger_prediction_id`, `trigger_conviction`, `trigger_strategy`) — populated only with `manual` for user positions in this effort; later efforts populate the rest
-  - `bailout_ledger` table
-  - `benchmark_series` table
-  - `daily_pnl_snapshot` table
-- **Seeding**: arbitrator portfolio at $1M; three day-trader portfolios (`momentum_breakout`, `mean_reversion`, `gap_and_go`) at $1M with empty strategy state
-- **Backend**:
-  - `UserPortfolioService.executeImmediate()` — fills at current cached price, bypasses the queue, idempotent
-  - `UserPortfolioService.closePosition()` — manual close at current price
-  - `MonthlyResetService` — monthly cron + admin endpoint, writes bailout ledger rows, idempotent
-  - `BenchmarkIngestService` — daily SPY ingest via existing FMP/Twelve Data adapter
-  - `LeaderboardService` skeleton — only the methods needed for the master-detail summary (return, current balance, total bailouts). Full leaderboard is in the day-traders/leaderboard follow-up.
-  - Daily P&L snapshot writing inside the existing `eod-settlement.service.ts` cron
-- **API**:
-  - `POST /markets/portfolios/me/execute-trade` (immediate fill)
-  - `POST /markets/portfolios/me/positions/:id/close`
-  - `GET /markets/portfolios` (master-detail summary)
-  - `GET /markets/portfolios/:kind/:id` (detail with positions + last 30 snapshots)
-  - `POST /markets/portfolios/admin/monthly-reset` (manual trigger, admin-only)
-- **Frontend**:
-  - Refactor `PortfolioDashboardView.vue` into a master-detail table listing every actor (user + analysts + arbitrator + 3 day traders), expandable to show positions + recent trades
-  - Trade button + share-count input + Buy/Sell submit on prediction / analysis / challenges views, reusing the existing disclaimer modal
-  - Reference 5%/10% stop/take levels displayed on user open positions (informational only, no auto-sell)
-  - Router entry `/portfolios`
+- **Env var**: `CONVICTION_TRADE_THRESHOLD` (default 70), documented in `.env.example`.
+- **`ConvictionTraderService`** with two methods:
+  - `evaluateAnalyst(prediction)` — called from `prediction-runner.service.ts` after each analyst publish
+  - `evaluateArbitrator(prediction)` — called after the arbitrator synthesis step
+  - Both: if `conviction >= threshold` AND no existing open position for `(portfolio_id, instrument_id, prediction_id)` → open via `AnalystPortfolioService.openPosition()`, sized via existing Kelly calculator, with full provenance fields populated
+- **`StopLossWatcherService`** — invoked synchronously by `OutcomeTrackingService` after each price refresh. Iterates open positions where `analyst_portfolios.kind IN ('analyst','arbitrator')`. Closes any position whose unrealized P&L hits -5% / +10% / trailing-stop band. Sets `trigger_reason` on the close fill to `stop_loss` / `take_profit` / `trailing_stop`.
+- **High-water-mark column** on `analyst_positions` if not added in the foundation effort, to support trailing stop.
+- **`EodForcedBuyService`** (or extension to `eod-settlement.service.ts`): after the existing user-queue settlement runs at 22:00 UTC, scan open predictions where `conviction >= threshold` AND no existing analyst position for `(portfolio_id, instrument_id, prediction_id)` → forced buy at last cached price with `trigger_reason='eod_sweep'`.
+- **Frontend**: provenance tooltip on each trade row in the master-detail expanded panels, showing `trigger_reason`, `trigger_conviction`, and a clickable link to the source prediction.
 
-## Trading mechanics (locked decisions)
+## Out of scope
 
-- **Long-only, whole shares**, no shorting, no leverage, no margin. Cleanest model for cross-actor comparison.
-- **Instant fill at the cached current price**, zero slippage, zero commission. With ~15-min price cadence, modeling slippage would be theater.
-- **Monthly reset to $1M** for every actor on the 1st of each month at 00:00 UTC. The gap is recorded in the bailout ledger. Going broke is allowed; it shows up later on the leaderboard's "shame" column.
-- **Disclaimer**: every user-initiated trade goes through the existing "for fun and education, not advice" ack.
-
-## Out of scope (in scope for follow-ups)
-
-- Conviction-threshold auto-trading for analysts and arbitrator → **Agent Autotrading** effort
-- 5%/10%/trailing stop watcher → **Agent Autotrading** effort
-- EOD forced-buy sweep for still-strong predictions → **Agent Autotrading** effort
-- Day-trader strategy implementations and runner → **Day Traders & Leaderboard** effort
-- Full leaderboard (Sharpe, drawdown, win rate, holding period, streaks, calibration) → **Day Traders & Leaderboard** effort
-- Equity curve charts and calibration view → **Day Traders & Leaderboard** effort
-
-## Out of scope (permanently)
-
-- Real broker integration. Paper only.
-- Real-time / sub-15-minute price feeds.
-- Shorting, leverage, options, fractional shares.
-- Tax-lot accounting beyond simple FIFO realized P&L.
-- Reset cadences other than monthly.
+- Day-trader actors and strategies
+- Full leaderboard, equity curves, calibration view
+- Per-actor conviction threshold overrides
+- Incremental arbitrator synthesis on every analyst publish
+- User position auto-management (user positions remain manual exit only — they show reference levels but don't auto-close)
 
 ## Success criteria
 
-- Every actor (user, every analyst, arbitrator, three day traders) has a $1M portfolio visible in the master-detail view.
-- A human can click Buy on a prediction view, accept the disclaimer, fill at current price, and immediately see the position in their expanded portfolio row.
-- Books-balance invariant holds: `current_balance + Σ(open_position_value) = initial + Σ(realized_pnl) + Σ(bailouts)` for every actor on every snapshot.
-- Manual `/admin/monthly-reset` writes a bailout ledger row per portfolio and resets balances to $1M.
-- SPY benchmark series has daily rows from the day this effort ships forward.
-- Daily P&L snapshots populate at 22:00 UTC for every portfolio.
-- The schema additions are present and shaped correctly so the autotrading and day-traders/leaderboard efforts don't need their own migrations.
-
-## Follow-ups (separate efforts)
-
-- `docs/efforts/future/agent-autotrading/` — analysts + arbitrator auto-trade on conviction, stop/take/trailing watcher, EOD forced-buy sweep, full provenance.
-- `docs/efforts/future/day-traders-and-leaderboard/` — three day-trader strategies, the runner, full leaderboard with all metrics, equity curves, calibration view, UI polish.
+- After a real pipeline run, analyst + arbitrator portfolios show auto-opened positions with non-null `trigger_reason='signal_cross'` and `trigger_conviction` populated.
+- At least one stop or take-profit fires across a real session and the closing fill carries the right reason.
+- The EOD sweep produces forced buys for still-strong predictions and is idempotent on re-run.
+- Every agent fill in the master-detail UI exposes a tooltip with reason + conviction + prediction link.
+- Books-balance invariant from the foundation effort still holds after a full session of agent autotrading.
+- Day traders are demonstrably excluded from the 5/10/trailing rules (covered in test).
