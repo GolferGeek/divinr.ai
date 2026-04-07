@@ -339,32 +339,53 @@ These commands are the same across most phases. Each phase's gate checks the ite
 
 ---
 
-## Phase 10: Test plan extension + Tier 2 / Tier 3 walk
+## Phase 10: Test plan extension + full pre-merge verification
 
 **Status**: Not Started
-**Objective**: Walk Tier 2 (per-screen elements + interactions) and Tier 3 (edge cases / multi-step trade flow) against the new master-detail view; add Tier 4 §4.6 day-traders subsection.
+**Objective**: End-to-end verification of every Phase 1–9 capability before merging to main. Two parallel tracks: **Track A** (Chrome UI walk — covers Phases 2, 5, 6, parts of 7) and **Track B** (backend verification — covers Phases 1, 3, 4, 7 runner, 8 thresholds + provenance, 9 markets gate). Test plan also gets §§2.11/4.6/4.7 updates so what we walked is reflected for next time.
 
 **⚠ MUST run in a fresh Claude context.** Long backend session is not appropriate for Chrome MCP-heavy testing.
 
-### Steps
-- [ ] 10.1 In a fresh session, read `testing/ui/manual-test-plan.md` end-to-end. Walk Tier 1 first to confirm the current state of the app post-Phases 1–9.
-- [ ] 10.2 Walk Tier 2 §§2.1–2.15 top-to-bottom against the new master-detail `/portfolios` view (which replaces §2.11). Capture findings inline. Anything broken either gets fixed in this session or filed as a separate effort with a one-line description in the completion report.
-- [ ] 10.3 Walk Tier 3 §§3.1–3.7. Edge cases, error states, multi-step trade flow (3.4), multi-actor portfolio comparison (3.5).
-- [ ] 10.4 Update `testing/ui/manual-test-plan.md` §2.11 to reflect the new master-detail layout (replacing the old "deferred" notes).
-- [ ] 10.5 Add Tier 4 §4.6 "day-traders" subsection: static invariants (3 day-trader portfolios exist; non-zero positions; cross-portfolio purity), live trigger (`POST /markets/admin/run-day-trader-strategies`), and the unit-test command. Use the same template as §§4.1–4.3.
-- [ ] 10.6 Add Tier 4 §4.7 "monthly reset + benchmark + daily P&L" subsection covering Phase 4 capabilities.
-- [ ] 10.7 Update completion report with the walk results, all findings, and resolutions.
+**Why two tracks**: a Chrome-only walk would cover ~50% of Phases 1–9. Phases 1, 3, 4, 7 (runner), 8 (thresholds + schema), and all of 9 have **no UI surface** — they're pure backend (refactors, cron jobs, env-driven thresholds, schema migrations, repo hygiene). They need curl + psql + unit-test re-runs, not clicks. Without Track B we'd ship a false sense of coverage to main.
+
+### Track A — Chrome UI walk (Phases 2, 5, 6, leaderboard surfacing)
+- [ ] 10.A.1 Read `testing/ui/manual-test-plan.md` end-to-end. Walk Tier 1 first to confirm the app's current state post-Phases 1–9 (all 17 routes load with zero console errors).
+- [ ] 10.A.2 Walk Tier 2 §§2.1–2.15 top-to-bottom against the new master-detail `/portfolios` view (which replaces §2.11). Capture findings inline. Anything broken either gets fixed in-session or filed as a separate effort with a one-liner in the completion report.
+- [ ] 10.A.3 Walk Tier 3 §§3.1–3.7 — edge cases, error states, multi-step trade flow (3.4), multi-actor portfolio comparison (3.5).
+- [ ] 10.A.4 Update `testing/ui/manual-test-plan.md` §2.11 to reflect the new master-detail layout (replacing the old "deferred" notes).
+- [ ] 10.A.5 Add Tier 4 §4.6 "day-traders" subsection: static invariants (3 day-trader portfolios exist; non-zero positions; cross-portfolio purity), live trigger (`POST /markets/admin/run-day-trader-strategies`), and the unit-test command. Use the same template as §§4.1–4.3.
+- [ ] 10.A.6 Add Tier 4 §4.7 "monthly reset + benchmark + daily P&L" subsection covering Phase 4 capabilities.
+
+### Track B — Backend verification (Phases 1, 3, 4, 7 runner, 8 thresholds + schema, 9 gate)
+
+**All recipes live in `testing/ui/manual-test-plan.md` Tier 4 §§4.1–4.10** — that's the durable home so future sessions don't have to rediscover them. Each step below points at the canonical section to run; capture the output in the completion report. Use `-H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"` headers for all curl calls (dev mode).
+
+- [ ] 10.B.1 **Phase 1 — AutotradeOpenHelper byte-identical refactor**: Run §4.5 (unit suites — expect 86 agent-autotrading assertions green) + §4.2.A SHOP stop_loss live recipe.
+- [ ] 10.B.2 **Phase 3 — Master-detail read API contract**: Run §4.10 (master list + detail-with-provenance curls). Confirm at least one position carries populated `trigger_reason` / `trigger_prediction_id` / `trigger_conviction`.
+- [ ] 10.B.3 **Phase 4 — Background jobs**: Run §4.7 (monthly reset, benchmark ingest, daily P&L — three triggers + three SQL verifications).
+- [ ] 10.B.4 **Phase 7 — Day-trader runner**: Run §4.6 (live trigger + static invariants including cross-portfolio purity).
+- [ ] 10.B.5 **Phase 8 — Env-driven thresholds + `eod_backfill` provenance**: Run §4.8 (schema sanity + env-knob unit tests + eod_backfill provenance trail).
+- [ ] 10.B.6 **Phase 9 — Markets gate, observability, RBAC**: Run §4.9 (`pnpm ci:markets`, `pnpm test:unit`, observability landing query, header/body slug parity 400 check).
+
+### Phase 10 wrap
+- [ ] 10.7 Update completion report with both tracks' results, all findings, and resolutions. Map each Phase 1–9 capability to a verification (Track A walk, Track B step, or unit test) so the reader can audit coverage. Anything left unverified gets called out explicitly, not glossed.
 
 ### Quality Gate
-- [ ] **Tier 1**: all 17 routes load with zero console errors
-- [ ] **Tier 2**: every screen's elements + interactions verified or filed
-- [ ] **Tier 3**: every edge case verified or filed
-- [ ] **Test plan updated**: §2.11 reflects new layout, §§4.6 + 4.7 added
-- [ ] **No regressions in earlier phases**: re-run `pnpm test:unit` and `pnpm ci:markets` from this fresh context to confirm
+- [ ] **Track A**:
+  - [ ] Tier 1: all 17 routes load with zero console errors
+  - [ ] Tier 2: every screen's elements + interactions verified or filed
+  - [ ] Tier 3: every edge case verified or filed
+  - [ ] Test plan updated: §2.11 reflects new layout, §§4.6 + 4.7 added
+- [ ] **Track B**:
+  - [ ] 10.B.1–10.B.6 all checked off, each with the expected DB/HTTP evidence captured in the completion report
+  - [ ] No new entries in the open-issues list that aren't already filed
+- [ ] **Regressions**:
+  - [ ] `pnpm test:unit` green
+  - [ ] `pnpm ci:markets` exits 0
 - [ ] **Phase Review**:
-  - [ ] G15 satisfied — Tier 2/3 walked, day-traders subsection added
+  - [ ] G15 satisfied — Tier 2/3 walked, §§4.6+4.7 added
+  - [ ] Every Phase 1–9 capability is mapped to at least one verification in the completion report
   - [ ] All findings either fixed or filed
-  - [ ] Completion report covers every phase's outcome
 
 ---
 
