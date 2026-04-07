@@ -154,9 +154,9 @@ async function seedExternalCrawlerData(
         'External crawler content',
         'External crawler summary',
         'Divinr Bot',
-        now() - interval '2 hours',
+        now(),
         'external-content-hash-1',
-        now() - interval '2 hours',
+        now(),
         '{"origin":"orchestrator"}'::jsonb,
         false
       )

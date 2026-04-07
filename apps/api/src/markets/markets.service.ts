@@ -1386,6 +1386,8 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
         do update set
           external_source_id = excluded.external_source_id,
           source_id = excluded.source_id,
+          source_origin = excluded.source_origin,
+          external_organization_slug = excluded.external_organization_slug,
           title = excluded.title,
           url = excluded.url,
           summary = excluded.summary,
