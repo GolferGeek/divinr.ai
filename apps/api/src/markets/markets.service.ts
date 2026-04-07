@@ -79,12 +79,23 @@ export class MarketsService {
     @Inject(RbacService) private readonly rbac: RbacService,
     @Inject(ObservabilityEventsService)
     private readonly observability: ObservabilityEventsService,
+    // The remaining params need explicit @Inject() because the test runner
+    // (tsx → esbuild) does not emit design:paramtypes metadata, so Nest cannot
+    // resolve bare positional params via reflection. Production (tsc) is fine
+    // either way; this keeps both paths working.
+    @Inject(MarketsSchemaService)
     private readonly schema: MarketsSchemaService,
+    @Inject(RiskRunnerService)
     private readonly riskRunner: RiskRunnerService,
+    @Inject(PredictionRunnerService)
     private readonly predictionRunner: PredictionRunnerService,
+    @Inject(MarketsLlmService)
     private readonly marketsLlm: MarketsLlmService,
+    @Inject(PositionSizingService)
     private readonly positionSizing: PositionSizingService,
+    @Inject(UserPortfolioService)
     private readonly userPortfolio: UserPortfolioService,
+    @Inject(TradeRecommendationService)
     private readonly tradeRecommendation: TradeRecommendationService,
   ) {}
 
