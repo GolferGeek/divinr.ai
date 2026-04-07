@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { PositionSizingService } from './position-sizing.service';
+import { AutotradeOpenHelper } from './autotrade-open-helper.service';
 import type { PredictionOutcome } from '../markets.types';
 
 /**
@@ -34,6 +34,7 @@ export class ConvictionTraderService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     private readonly sizing: PositionSizingService,
+    private readonly helper: AutotradeOpenHelper,
   ) {}
 
   private threshold(): number {
@@ -144,19 +145,6 @@ export class ConvictionTraderService {
     confidence: number;
     triggerReason: 'signal_cross' | 'eod_sweep';
   }): Promise<void> {
-    // Idempotency: skip if an open position already exists for
-    // (portfolio_id, instrument_id, prediction_id).
-    const existing = await this.db.rawQuery(
-      `select id from prediction.analyst_positions
-        where portfolio_id = $1
-          and instrument_id = $2
-          and prediction_id = $3
-          and status = 'open'
-        limit 1`,
-      [input.portfolio.id, input.instrumentId, input.predictionId],
-    );
-    if (((existing.data as Array<{ id: string }> | null) ?? []).length > 0) return;
-
     // Resolve symbol + entry price from instruments.current_state.
     const instrumentResult = await this.db.rawQuery(
       `select symbol, current_state from prediction.instruments where id = $1 limit 1`,
@@ -194,38 +182,24 @@ export class ConvictionTraderService {
     );
     if (quantity <= 0) return;
 
-    const id = randomUUID();
-    const insertResult = await this.db.rawQuery(
-      `insert into prediction.analyst_positions
-         (id, portfolio_id, analyst_id, organization_slug, prediction_id,
-          instrument_id, symbol, direction, quantity,
-          entry_price, current_price, is_paper_only, status, opened_at,
-          trigger_reason, trigger_prediction_id, trigger_conviction)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, 'open', now(),
-               $12, $13, $14)`,
-      [
-        id,
-        input.portfolio.id,
-        input.analystId,
-        input.portfolio.organization_slug,
-        input.predictionId,
-        input.instrumentId,
-        symbol,
-        input.direction,
-        quantity,
-        entryPrice,
-        entryPrice,
-        input.triggerReason,
-        input.predictionId,
-        input.confidence,
-      ],
-    );
-    if (insertResult.error) {
-      this.logger.warn(
-        `openPositionWithProvenance: insert failed for portfolio=${input.portfolio.id} prediction=${input.predictionId}: ${insertResult.error.message}`,
-      );
-      return;
-    }
+    const result = await this.helper.openPosition({
+      portfolio: {
+        id: input.portfolio.id,
+        analyst_id: input.analystId,
+        organization_slug: input.portfolio.organization_slug,
+        current_balance: input.portfolio.current_balance,
+      },
+      instrumentId: input.instrumentId,
+      symbol,
+      direction: input.direction,
+      quantity,
+      entryPrice,
+      predictionId: input.predictionId,
+      conviction: input.confidence,
+      triggerReason: input.triggerReason,
+      organizationSlug: input.organizationSlug,
+    });
+    if (result.reason !== 'inserted') return;
 
     this.logger.log(
       `Autotrade open: portfolio=${input.portfolio.id} symbol=${symbol} qty=${quantity} entry=${entryPrice} conviction=${input.confidence} reason=${input.triggerReason}`,

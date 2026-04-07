@@ -27,6 +27,7 @@ import { TradeRecommendationService } from './services/trade-recommendation.serv
 import { ConvictionTraderService } from './services/conviction-trader.service';
 import { StopLossWatcherService } from './services/stop-loss-watcher.service';
 import { EodForcedBuyService } from './services/eod-forced-buy.service';
+import { AutotradeOpenHelper } from './services/autotrade-open-helper.service';
 
 @Module({
   controllers: [MarketsController],
@@ -44,6 +45,7 @@ import { EodForcedBuyService } from './services/eod-forced-buy.service';
     LearningEngineService,
     PositionSizingService,
     AnalystPortfolioService,
+    AutotradeOpenHelper,
     UserPortfolioService,
     EodSettlementService,
     OrchestratorBaseDataService,

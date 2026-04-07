@@ -6,6 +6,7 @@
  * can assert on the parameters that would have been written.
  */
 import { ConvictionTraderService } from '../../src/markets/services/conviction-trader.service';
+import { AutotradeOpenHelper } from '../../src/markets/services/autotrade-open-helper.service';
 
 let passed = 0;
 let failed = 0;
@@ -104,21 +105,21 @@ console.log('Threshold gating (default 70):');
 delete process.env.CONVICTION_TRADE_THRESHOLD;
 {
   const db = new MockDb(buildHappyPathScript());
-  const service = new ConvictionTraderService(db as any, stubSizing);
+  const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   await service.evaluateAnalyst(makeOutcome({ confidence: 69 }), 'acme');
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'confidence 69 → no insert');
 }
 {
   const db = new MockDb(buildHappyPathScript());
-  const service = new ConvictionTraderService(db as any, stubSizing);
+  const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   await service.evaluateAnalyst(makeOutcome({ confidence: 70 }), 'acme');
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 1, 'confidence 70 → insert (>= is inclusive)');
 }
 {
   const db = new MockDb(buildHappyPathScript());
-  const service = new ConvictionTraderService(db as any, stubSizing);
+  const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   await service.evaluateAnalyst(makeOutcome({ confidence: 75 }), 'acme');
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 1, 'confidence 75 → insert');
@@ -142,7 +143,7 @@ console.log('\nThreshold env var override:');
 {
   process.env.CONVICTION_TRADE_THRESHOLD = '90';
   const db = new MockDb(buildHappyPathScript());
-  const service = new ConvictionTraderService(db as any, stubSizing);
+  const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   await service.evaluateAnalyst(makeOutcome({ confidence: 85 }), 'acme');
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'override 90, conf 85 → no insert');
@@ -153,7 +154,7 @@ console.log('\nThreshold env var override:');
 console.log('\nIdempotency:');
 {
   const db = new MockDb(buildHappyPathScript({ existingOpenPosition: true }));
-  const service = new ConvictionTraderService(db as any, stubSizing);
+  const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   await service.evaluateAnalyst(makeOutcome({ confidence: 80 }), 'acme');
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'existing open position on (portfolio,instrument,prediction) → no insert');
@@ -163,7 +164,7 @@ console.log('\nIdempotency:');
 console.log('\nMissing portfolio:');
 {
   const db = new MockDb(buildHappyPathScript({ portfolio: null }));
-  const service = new ConvictionTraderService(db as any, stubSizing);
+  const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   await service.evaluateAnalyst(makeOutcome({ confidence: 80 }), 'acme');
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'no portfolio row → no insert (warn logged)');
@@ -194,7 +195,7 @@ console.log('\nArbitrator routing:');
     }
     return { data: [], error: null };
   });
-  const service = new ConvictionTraderService(db as any, stubSizing);
+  const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   await service.evaluateArbitrator(makeOutcome({ confidence: 80, predicted_direction: 'down' }), 'acme');
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 1, 'arbitrator >= threshold → insert');
@@ -228,7 +229,7 @@ console.log('\nMissing price guard:');
     }
     return { data: [], error: null };
   });
-  const service = new ConvictionTraderService(db as any, stubSizing);
+  const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
   await service.evaluateAnalyst(makeOutcome({ confidence: 80 }), 'acme');
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'no current price → skip with warn (no insert)');

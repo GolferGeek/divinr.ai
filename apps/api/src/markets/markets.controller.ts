@@ -910,6 +910,49 @@ export class MarketsController {
     });
   }
 
+  @Post('portfolios/me/execute-trade')
+  async executeTrade(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: {
+      organizationSlug: string;
+      predictionId: string;
+      instrumentId: string;
+      direction: 'long' | 'short';
+      quantity: number;
+    },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.predictionId || !body?.instrumentId || !body?.direction || !body?.quantity) {
+      throw new BadRequestException('predictionId, instrumentId, direction, and quantity are required');
+    }
+    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+
+    // Disclaimer-ack guard — same shape as confirmTrade in markets.service.ts.
+    await this.userPortfolio.ensurePortfolio(identity.userId, identity.organizationSlug);
+    const ack = await this.userPortfolio.isDisclaimerAcknowledged(identity.userId, identity.organizationSlug);
+    if (!ack) return { requiresDisclaimer: true };
+
+    return this.userPortfolio.executeImmediate({
+      userId: identity.userId,
+      organizationSlug: identity.organizationSlug,
+      predictionId: body.predictionId,
+      instrumentId: body.instrumentId,
+      direction: body.direction,
+      quantity: body.quantity,
+    });
+  }
+
+  @Post('portfolios/me/positions/:positionId/close')
+  async closeMyPosition(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('positionId') positionId: string,
+    @Body() body: { organizationSlug: string },
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
+    return this.userPortfolio.closePosition({ userId: identity.userId, positionId });
+  }
+
   @Post('portfolios/me/queue-trade/:tradeId/cancel')
   async cancelTrade(
     @Req() req: { user?: AuthenticatedUser },
