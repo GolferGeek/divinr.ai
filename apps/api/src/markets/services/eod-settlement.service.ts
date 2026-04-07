@@ -9,6 +9,7 @@ import { UserPortfolioService } from './user-portfolio.service';
 import { PositionSizingService } from './position-sizing.service';
 import { NightlyEvaluationService } from './nightly-evaluation.service';
 import { LearningEngineService } from './learning-engine.service';
+import { EodForcedBuyService } from './eod-forced-buy.service';
 import type { EodSettlementLog } from '../markets.types';
 
 /**
@@ -37,6 +38,7 @@ export class EodSettlementService {
     private readonly sizing: PositionSizingService,
     private readonly nightlyEval: NightlyEvaluationService,
     private readonly learningEngine: LearningEngineService,
+    private readonly eodForcedBuy: EodForcedBuyService,
   ) {}
 
   /** Cron: 5 PM ET Mon-Fri (22:00 UTC). Disable with MARKETS_DISABLE_EOD_SETTLEMENT=true */
@@ -81,6 +83,25 @@ export class EodSettlementService {
         const queueResult = await this.userPortfolio.executeQueuedTrades(org, closingPrices);
         log.queued_trades_executed += queueResult.executed;
         log.errors.push(...queueResult.errors);
+      }
+
+      // Step 1.5: EOD forced-buy backstop sweep — opens positions for any
+      // above-conviction-threshold analyst or arbitrator predictions that
+      // weren't already caught by ConvictionTraderService during the
+      // pipeline run. Tags them with trigger_reason='eod_sweep'. Runs
+      // before createAnalystPositions so high-conviction items get proper
+      // provenance instead of being captured by the default-provenance
+      // backfill below. Failure-isolated.
+      try {
+        const sweepResult = await this.eodForcedBuy.runSweep({ manual: false });
+        if (sweepResult.rowsWritten > 0 || sweepResult.errors.length > 0) {
+          this.logger.log(
+            `EOD forced-buy sweep wrote ${sweepResult.rowsWritten} positions (skipped ${sweepResult.skipped}, errors ${sweepResult.errors.length})`,
+          );
+          log.errors.push(...sweepResult.errors);
+        }
+      } catch (err) {
+        log.errors.push(`EOD forced-buy: ${err instanceof Error ? err.message : String(err)}`);
       }
 
       // Step 2: Create analyst positions from today's completed predictions

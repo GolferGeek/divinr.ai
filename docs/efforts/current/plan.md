@@ -8,7 +8,7 @@
 ## Progress Tracker
 - [x] Phase 1: ConvictionTraderService + Pipeline Wiring
 - [x] Phase 2: StopLossWatcherService
-- [ ] Phase 3: EodForcedBuyService
+- [x] Phase 3: EodForcedBuyService
 
 ---
 
@@ -137,17 +137,17 @@
 ---
 
 ## Phase 3: EodForcedBuyService
-**Status**: Not Started
+**Status**: Complete
 **Objective**: At 22:00 UTC settlement, any still-strong prediction without an existing position gets a forced buy at the close, with `trigger_reason='eod_sweep'`. Idempotent.
 
 ### Steps
 
 **Recon**
-- [ ] 3.1 Read `apps/api/src/markets/services/eod-settlement.service.ts` (347 lines) to find the cron handler entry point and identify the post-settlement insertion site.
-- [ ] 3.2 Read the relevant SQL/schema for `prediction.market_predictions` to confirm the `role` enum values (`personality`, `arbitrator`, `portfolio_manager`, etc.) and the `confidence` column type.
+- [x] 3.1 Read `apps/api/src/markets/services/eod-settlement.service.ts` (347 lines) to find the cron handler entry point and identify the post-settlement insertion site.
+- [x] 3.2 Read the relevant SQL/schema for `prediction.market_predictions` to confirm the `role` enum values (`personality`, `arbitrator`, `portfolio_manager`, etc.) and the `confidence` column type.
 
 **Implementation**
-- [ ] 3.3 Create `apps/api/src/markets/services/eod-forced-buy.service.ts` with:
+- [x] 3.3 Create `apps/api/src/markets/services/eod-forced-buy.service.ts` with:
   - Injected dependencies: `AnalystPortfolioService`, `PositionSizingService`, DB client, `ConfigService`, `Logger`.
   - `async runSweep({manual}: {manual: boolean}): Promise<{rowsWritten: number}>`:
     - Threshold from same env var as Phase 1 (consider extracting a shared `ConvictionThresholdProvider` if duplication bothers — optional refactor in this phase).
@@ -157,9 +157,9 @@
       - Idempotency: skip if an open position already exists for `(portfolio_id, instrument_id, prediction_id)`.
       - Open position via `AnalystPortfolioService.openPosition()` at the last cached price with `trigger_reason='eod_sweep'`, `trigger_conviction = confidence * 100`, `trigger_prediction_id = prediction.id`.
     - Return `{rowsWritten}`.
-- [ ] 3.4 Wire into `eod-settlement.service.ts`: at the end of the existing handler, after all current settlement steps complete, add `try { await this.eodForcedBuy.runSweep({manual: false}); } catch (err) { this.logger.warn(...); }`.
-- [ ] 3.5 Register `EodForcedBuyService` in `MarketsModule`. Inject into `EodSettlementService`.
-- [ ] 3.6 Add unit tests in `eod-forced-buy.service.spec.ts`:
+- [x] 3.4 Wire into `eod-settlement.service.ts`: at the end of the existing handler, after all current settlement steps complete, add `try { await this.eodForcedBuy.runSweep({manual: false}); } catch (err) { this.logger.warn(...); }`.
+- [x] 3.5 Register `EodForcedBuyService` in `MarketsModule`. Inject into `EodSettlementService`.
+- [x] 3.6 Add unit tests in `eod-forced-buy.service.spec.ts`:
   - Above-threshold prediction with no existing position → opens with `trigger_reason='eod_sweep'`
   - Above-threshold prediction WITH an existing open position → skipped
   - Below-threshold prediction → skipped
