@@ -24,6 +24,7 @@ import { PredictionGeneratorService } from './services/prediction-generator.serv
 import { OutcomeTrackingService } from './services/outcome-tracking.service';
 import { DataSourceService } from './services/data-source.service';
 import { TradeRecommendationService } from './services/trade-recommendation.service';
+import { ConvictionTraderService } from './services/conviction-trader.service';
 
 @Module({
   controllers: [MarketsController],
@@ -51,6 +52,7 @@ import { TradeRecommendationService } from './services/trade-recommendation.serv
     OutcomeTrackingService,
     DataSourceService,
     TradeRecommendationService,
+    ConvictionTraderService,
     MarketsService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],
