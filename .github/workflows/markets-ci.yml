@@ -30,5 +30,8 @@ jobs:
       - name: Planes contracts
         run: pnpm --filter @orchestratorai/planes run test
 
-      - name: Full Markets CI Gates
-        run: pnpm -w run ci:full-markets
+      - name: API unit tests
+        run: pnpm --filter @divinr/api run test:unit
+        # Note: test:compliance and test:markets are excluded from CI
+        # because they bootstrap the full Nest app and require a local
+        # Postgres on 127.0.0.1:54322. Run them locally with `pnpm test`.
