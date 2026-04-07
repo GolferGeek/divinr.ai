@@ -9,8 +9,8 @@
 Before any tier runs, verify the stack is up:
 
 1. **API** healthy: `curl -s http://localhost:7100/health` returns `{"ok":true,...}`
-2. **Web** healthy: `curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/` returns `200`
-3. **Browser tab context**: call `mcp__claude-in-chrome__tabs_context_mcp` and either reuse a current Divinr tab or create a new one with `tabs_create_mcp` pointed at `http://localhost:5173/`.
+2. **Web** healthy: `curl -s -o /dev/null -w "%{http_code}" http://localhost:7101/` returns `200`
+3. **Browser tab context**: call `mcp__claude-in-chrome__tabs_context_mcp` and either reuse a current Divinr tab or create a new one with `tabs_create_mcp` pointed at `http://localhost:7101/`.
 4. **Auth**: dev mode uses the `MARKETS_DEV_AUTH_BYPASS` flag with an `x-user-id` header. The Vue app handles login via `LoginView.vue`. Confirm a logged-in session exists before running tier 2+.
 
 ## Run order
