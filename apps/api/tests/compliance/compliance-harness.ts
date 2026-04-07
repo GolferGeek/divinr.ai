@@ -257,11 +257,11 @@ export async function ensureComplianceSchema(db: DatabaseService): Promise<void>
     `,
     `
     create or replace function authz.rbac_has_permission(
-      p_user_id uuid,
+      p_user_id text,
       p_organization_slug varchar,
       p_permission varchar,
       p_resource_type varchar default null,
-      p_resource_id uuid default null
+      p_resource_id text default null
     )
     returns boolean
     language sql
@@ -281,7 +281,7 @@ export async function ensureComplianceSchema(db: DatabaseService): Promise<void>
     `,
     `
     create or replace function authz.secure_upsert_document(
-      p_user_id uuid,
+      p_user_id text,
       p_organization_slug varchar,
       p_document_id text,
       p_title text,

@@ -43,6 +43,7 @@ export class MarketsSchemaService {
       ${this.portfolioSystemDdl()}
       ${this.dataSourceDdl()}
       ${this.tradeDecisionsDdl()}
+      ${this.portfolioFoundationDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -57,6 +58,7 @@ export class MarketsSchemaService {
     await this.migrateAnalystNames();
     await this.seedDataSources();
     await this.seedPortfolioManagerAnalyst();
+    await this.seedPortfolioFoundation();
     this.schemaReady = true;
     this.logger.log('Prediction schema ready');
   }
@@ -1102,5 +1104,250 @@ export class MarketsSchemaService {
       alter table prediction.user_portfolios
         add column if not exists disclaimer_acknowledged_at timestamptz;
     `;
+  }
+
+  // ─── Portfolio Foundation (multi-actor paper-trading game) ─────
+
+  private portfolioFoundationDdl(): string {
+    return `
+      -- Multi-actor support: kind column lets analyst_portfolios host
+      -- arbitrator + day_trader rows alongside analysts. strategy_state
+      -- is forward-prepared for the day-traders/leaderboard effort.
+      alter table prediction.analyst_portfolios
+        add column if not exists kind text not null default 'analyst'
+          check (kind in ('analyst','arbitrator','day_trader'));
+      alter table prediction.analyst_portfolios
+        add column if not exists strategy_name text;
+      alter table prediction.analyst_portfolios
+        add column if not exists strategy_state jsonb not null default '{}'::jsonb;
+
+      -- Trade provenance on analyst positions. Reasons cover the full set
+      -- so the autotrading follow-up can populate them without a migration.
+      -- high_water_mark is null until the autotrading effort writes to it.
+      alter table prediction.analyst_positions
+        add column if not exists trigger_reason text not null default 'manual'
+          check (trigger_reason in
+            ('signal_cross','eod_sweep','stop_loss','take_profit','trailing_stop','manual','strategy'));
+      alter table prediction.analyst_positions
+        add column if not exists trigger_prediction_id text;
+      alter table prediction.analyst_positions
+        add column if not exists trigger_conviction numeric;
+      alter table prediction.analyst_positions
+        add column if not exists trigger_strategy text;
+      alter table prediction.analyst_positions
+        add column if not exists high_water_mark numeric;
+
+      -- User positions only get manual / eod_sweep — user trades are not
+      -- auto-managed by stop/take rules.
+      alter table prediction.user_positions
+        add column if not exists trigger_reason text not null default 'manual'
+          check (trigger_reason in ('manual','eod_sweep'));
+      alter table prediction.user_positions
+        add column if not exists trigger_prediction_id text;
+
+      -- Bailout ledger: monthly top-ups recorded for the leaderboard
+      -- "shame" column. UNIQUE constraint enforces monthly idempotency.
+      create table if not exists prediction.bailout_ledger (
+        id text primary key default gen_random_uuid()::text,
+        portfolio_kind text not null check (portfolio_kind in ('user','analyst')),
+        portfolio_id text not null,
+        reset_date date not null,
+        balance_before numeric not null,
+        topup_amount numeric not null,
+        cumulative_bailouts numeric not null,
+        notes text,
+        created_at timestamptz not null default now(),
+        unique (portfolio_kind, portfolio_id, reset_date)
+      );
+      create index if not exists idx_bailout_portfolio
+        on prediction.bailout_ledger (portfolio_kind, portfolio_id, reset_date desc);
+
+      -- Benchmark series: SPY daily close used for leaderboard overlays.
+      create table if not exists prediction.benchmark_series (
+        symbol text not null,
+        trading_date date not null,
+        close_price numeric not null,
+        source text not null,
+        primary key (symbol, trading_date)
+      );
+
+      -- Daily P&L snapshot: source of truth for equity curves. UNIQUE
+      -- constraint allows safe retry on the next day.
+      create table if not exists prediction.daily_pnl_snapshot (
+        id text primary key default gen_random_uuid()::text,
+        portfolio_kind text not null check (portfolio_kind in ('user','analyst')),
+        portfolio_id text not null,
+        snapshot_date date not null,
+        starting_balance numeric not null,
+        ending_balance numeric not null,
+        realized_pnl numeric not null,
+        unrealized_pnl numeric not null,
+        open_position_count int not null,
+        trades_today int not null,
+        unique (portfolio_kind, portfolio_id, snapshot_date)
+      );
+      create index if not exists idx_pnl_snapshot_portfolio
+        on prediction.daily_pnl_snapshot (portfolio_kind, portfolio_id, snapshot_date desc);
+    `;
+  }
+
+  /**
+   * Seeds the multi-actor paper-trading game's foundational portfolios:
+   * the arbitrator (one row) and three day-trader strategies. Each gets
+   * a synthetic market_analysts row + an analyst_portfolios row at $1M.
+   *
+   * Idempotent via ON CONFLICT DO NOTHING.
+   */
+  private async seedPortfolioFoundation(): Promise<void> {
+    // 1. Synthetic analyst rows for the arbitrator + three day traders.
+    //    Arbitrator is normally a synthesis role, not a market_analysts row;
+    //    we add one so analyst_portfolios.analyst_id has something to point at.
+    const analystSeedSql = `
+      insert into prediction.market_analysts (
+        id, organization_slug, slug, display_name, persona_prompt,
+        analyst_type, default_weight, workflow_scope, is_system_default,
+        is_enabled, is_active, learning_enabled, created_by, created_at, updated_at
+      ) values
+        (
+          'pf-base-arbitrator',
+          '__base__',
+          'arbitrator',
+          'Arbitrator (Mini-Me)',
+          'You are the Arbitrator. You synthesize all analyst predictions into a single composite conviction and trade your own conviction when it crosses threshold. Implementation lives in the agent-autotrading effort; this row exists so the foundation effort can give you a $1M portfolio.',
+          'arbitrator',
+          1.0,
+          'trade',
+          true,
+          true,
+          true,
+          true,
+          'portfolio-foundation-seed',
+          now(),
+          now()
+        ),
+        (
+          'pf-base-day-trader-momentum',
+          '__base__',
+          'momentum-breakout',
+          'Day Trader — Momentum Breakout',
+          'Day trader strategy: buy on N-bar high breakout, sell on first lower-high. Implementation lives in the day-traders-and-leaderboard effort; this row exists so the foundation effort can give you a $1M portfolio.',
+          'day_trader',
+          1.0,
+          'trade',
+          true,
+          true,
+          true,
+          false,
+          'portfolio-foundation-seed',
+          now(),
+          now()
+        ),
+        (
+          'pf-base-day-trader-mean-reversion',
+          '__base__',
+          'mean-reversion',
+          'Day Trader — Mean Reversion',
+          'Day trader strategy: buy when price drops below SMA - k*stdev, sell on cross back to mean. Implementation lives in the day-traders-and-leaderboard effort; this row exists so the foundation effort can give you a $1M portfolio.',
+          'day_trader',
+          1.0,
+          'trade',
+          true,
+          true,
+          true,
+          false,
+          'portfolio-foundation-seed',
+          now(),
+          now()
+        ),
+        (
+          'pf-base-day-trader-gap-and-go',
+          '__base__',
+          'gap-and-go',
+          'Day Trader — Gap and Go',
+          'Day trader strategy: at first tick of session check gap vs prior close, buy on gap-up + continuation tick, sell on first reversal tick. Implementation lives in the day-traders-and-leaderboard effort; this row exists so the foundation effort can give you a $1M portfolio.',
+          'day_trader',
+          1.0,
+          'trade',
+          true,
+          true,
+          true,
+          false,
+          'portfolio-foundation-seed',
+          now(),
+          now()
+        )
+      on conflict (organization_slug, slug) do nothing;
+    `;
+    const analystResult = await this.db.rawQuery(analystSeedSql);
+    if (analystResult.error) {
+      this.logger.warn(`Failed to seed portfolio foundation analysts: ${analystResult.error.message}`);
+      return;
+    }
+
+    // 2. Portfolio rows for each — $1M each, kind set, strategy_name set
+    //    where applicable. Idempotent via ON CONFLICT on the primary key.
+    const portfolioSeedSql = `
+      insert into prediction.analyst_portfolios (
+        id, analyst_id, organization_slug, kind, strategy_name, strategy_state,
+        initial_balance, current_balance, status, created_at, updated_at
+      ) values
+        (
+          'pf-portfolio-arbitrator',
+          'pf-base-arbitrator',
+          '__base__',
+          'arbitrator',
+          null,
+          '{}'::jsonb,
+          1000000,
+          1000000,
+          'active',
+          now(),
+          now()
+        ),
+        (
+          'pf-portfolio-momentum-breakout',
+          'pf-base-day-trader-momentum',
+          '__base__',
+          'day_trader',
+          'momentum_breakout',
+          '{}'::jsonb,
+          1000000,
+          1000000,
+          'active',
+          now(),
+          now()
+        ),
+        (
+          'pf-portfolio-mean-reversion',
+          'pf-base-day-trader-mean-reversion',
+          '__base__',
+          'day_trader',
+          'mean_reversion',
+          '{}'::jsonb,
+          1000000,
+          1000000,
+          'active',
+          now(),
+          now()
+        ),
+        (
+          'pf-portfolio-gap-and-go',
+          'pf-base-day-trader-gap-and-go',
+          '__base__',
+          'day_trader',
+          'gap_and_go',
+          '{}'::jsonb,
+          1000000,
+          1000000,
+          'active',
+          now(),
+          now()
+        )
+      on conflict (id) do nothing;
+    `;
+    const portfolioResult = await this.db.rawQuery(portfolioSeedSql);
+    if (portfolioResult.error) {
+      this.logger.warn(`Failed to seed portfolio foundation portfolios: ${portfolioResult.error.message}`);
+    }
   }
 }
