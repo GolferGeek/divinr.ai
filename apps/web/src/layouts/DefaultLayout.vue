@@ -26,7 +26,7 @@ const navItems = [
   { title: 'Analysts', icon: peopleOutline, to: '/analysts' },
   { title: 'Runs', icon: playOutline, to: '/runs' },
   { title: 'Risk', icon: shieldOutline, to: '/risk' },
-  { title: 'Portfolio', icon: briefcaseOutline, to: '/portfolio' },
+  { title: 'Portfolios', icon: briefcaseOutline, to: '/portfolios' },
   { title: 'Sources', icon: newspaperOutline, to: '/sources' },
   { title: 'Evaluations', icon: ribbonOutline, to: '/evaluations' },
   { title: 'Learning', icon: bulbOutline, to: '/learning' },
