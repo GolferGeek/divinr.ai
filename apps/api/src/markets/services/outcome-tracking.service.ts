@@ -5,6 +5,7 @@ import {
   type DatabaseService,
 } from '@orchestratorai/planes/database';
 import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
+import { StopLossWatcherService } from './stop-loss-watcher.service';
 
 interface ActiveInstrumentPrice {
   id: string;
@@ -51,6 +52,7 @@ export class OutcomeTrackingService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ObservabilityEventsService) private readonly observability: ObservabilityEventsService,
+    private readonly stopLossWatcher: StopLossWatcherService,
   ) {}
 
   private emit(type: string, message: string, data?: Record<string, unknown>): void {
@@ -98,6 +100,22 @@ export class OutcomeTrackingService {
       this.emit('snapshots.started', 'Capturing price snapshots');
       const snapshotsResult = await this.captureSnapshots(errors);
       this.emit('snapshots.complete', `${snapshotsResult} price snapshots captured`, { count: snapshotsResult });
+
+      // Step 1.5: Stop-loss / take-profit / trailing sweep on agent positions.
+      // Synchronous so it always reads the snapshot we just wrote.
+      // Failures are isolated — never break the rest of outcome tracking.
+      try {
+        const sweepResult = await this.stopLossWatcher.sweep();
+        if (sweepResult.closed > 0 || sweepResult.updated > 0) {
+          this.logger.log(
+            `Stop-loss sweep: closed=${sweepResult.closed} updated=${sweepResult.updated} skipped=${sweepResult.skipped}`,
+          );
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Stop-loss sweep failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
 
       // Step 2: Resolve predictions at horizon
       const resolvedCount = await this.resolvePredictions(errors);

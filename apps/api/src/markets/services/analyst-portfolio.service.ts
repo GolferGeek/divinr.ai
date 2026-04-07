@@ -89,7 +89,11 @@ export class AnalystPortfolioService {
     return ((result.data as AnalystPosition[] | null) ?? [])[0] ?? null;
   }
 
-  async closePosition(positionId: string, exitPrice: number): Promise<{ realizedPnl: number; isWin: boolean }> {
+  async closePosition(
+    positionId: string,
+    exitPrice: number,
+    triggerReason?: string,
+  ): Promise<{ realizedPnl: number; isWin: boolean }> {
     // Load position
     const posResult = await this.db.rawQuery(
       `select * from prediction.analyst_positions where id = $1 and status = 'open'`,
@@ -102,14 +106,29 @@ export class AnalystPortfolioService {
     const realizedPnl = this.sizing.calculatePnl(pos.direction, pos.entry_price, exitPrice, pos.quantity);
     const isWin = realizedPnl > 0;
 
-    // Close position
-    await this.db.rawQuery(
-      `update prediction.analyst_positions
-       set status = 'closed', exit_price = $1, realized_pnl = $2,
-           current_price = $3, unrealized_pnl = 0, closed_at = now(), updated_at = now()
-       where id = $4`,
-      [exitPrice, realizedPnl, exitPrice, positionId],
-    );
+    // Close position. Optionally overwrite trigger_reason to record the
+    // lifecycle exit reason (stop_loss / take_profit / trailing_stop /
+    // eod_sweep). Existing callers that don't pass triggerReason leave the
+    // open-time reason intact.
+    if (triggerReason) {
+      await this.db.rawQuery(
+        `update prediction.analyst_positions
+         set status = 'closed', exit_price = $1, realized_pnl = $2,
+             current_price = $3, unrealized_pnl = 0,
+             trigger_reason = $5,
+             closed_at = now(), updated_at = now()
+         where id = $4`,
+        [exitPrice, realizedPnl, exitPrice, positionId, triggerReason],
+      );
+    } else {
+      await this.db.rawQuery(
+        `update prediction.analyst_positions
+         set status = 'closed', exit_price = $1, realized_pnl = $2,
+             current_price = $3, unrealized_pnl = 0, closed_at = now(), updated_at = now()
+         where id = $4`,
+        [exitPrice, realizedPnl, exitPrice, positionId],
+      );
+    }
 
     // Update portfolio balance
     if (!pos.is_paper_only) {

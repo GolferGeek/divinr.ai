@@ -7,7 +7,7 @@
 
 ## Progress Tracker
 - [x] Phase 1: ConvictionTraderService + Pipeline Wiring
-- [ ] Phase 2: StopLossWatcherService
+- [x] Phase 2: StopLossWatcherService
 - [ ] Phase 3: EodForcedBuyService
 
 ---
@@ -76,17 +76,17 @@
 ---
 
 ## Phase 2: StopLossWatcherService
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Open analyst + arbitrator positions exit on −5% stop / +10% take-profit / trailing-stop on every 15-minute price refresh. Day traders explicitly excluded.
 
 ### Steps
 
 **Recon**
-- [ ] 2.1 Read `apps/api/src/markets/services/outcome-tracking.service.ts` (386 lines) to find where the 15-min cron writes new prices and identify the right place to invoke the watcher synchronously.
-- [ ] 2.2 Read `analyst-portfolio.service.ts` again to find the existing `closePosition` (or equivalent) signature and confirm it handles realized-P&L bookkeeping.
+- [x] 2.1 Read `apps/api/src/markets/services/outcome-tracking.service.ts` (386 lines) to find where the 15-min cron writes new prices and identify the right place to invoke the watcher synchronously.
+- [x] 2.2 Read `analyst-portfolio.service.ts` again to find the existing `closePosition` (or equivalent) signature and confirm it handles realized-P&L bookkeeping.
 
 **Implementation**
-- [ ] 2.3 Create `apps/api/src/markets/services/stop-loss-watcher.service.ts` with:
+- [x] 2.3 Create `apps/api/src/markets/services/stop-loss-watcher.service.ts` with:
   - Injected dependencies: `AnalystPortfolioService`, DB client, `Logger`.
   - `async sweep(): Promise<{closed: number; updated: number}>`:
     - Single SQL query: `select p.*, port.kind from prediction.analyst_positions p join prediction.analyst_portfolios port on port.id = p.portfolio_id where p.status='open' and port.kind in ('analyst','arbitrator')`.
@@ -99,10 +99,10 @@
         - Update `high_water_mark = newHWM`
         - If `newHWM > entry_price * 1.05` AND `current_price <= newHWM * 0.95` → close with `trigger_reason='trailing_stop'`
     - Return `{closed, updated}` counts for logging/testing.
-- [ ] 2.4 Extend `AnalystPortfolioService.closePosition` (if needed) to accept and write a `trigger_reason` on the close path. Same additive pattern as 1.7.
-- [ ] 2.5 Wire into `OutcomeTrackingService`: after the existing 15-min price-write step completes successfully, add `try { await this.stopLossWatcher.sweep(); } catch (err) { this.logger.warn(...); }`.
-- [ ] 2.6 Register `StopLossWatcherService` in `MarketsModule`. Inject into `OutcomeTrackingService`.
-- [ ] 2.7 Add unit tests in `stop-loss-watcher.service.spec.ts`:
+- [x] 2.4 Extend `AnalystPortfolioService.closePosition` (if needed) to accept and write a `trigger_reason` on the close path. Same additive pattern as 1.7.
+- [x] 2.5 Wire into `OutcomeTrackingService`: after the existing 15-min price-write step completes successfully, add `try { await this.stopLossWatcher.sweep(); } catch (err) { this.logger.warn(...); }`.
+- [x] 2.6 Register `StopLossWatcherService` in `MarketsModule`. Inject into `OutcomeTrackingService`.
+- [x] 2.7 Add unit tests in `stop-loss-watcher.service.spec.ts`:
   - Position at entry × 0.95 → closed with `trigger_reason='stop_loss'`
   - Position at entry × 1.10 → closed with `trigger_reason='take_profit'`
   - Position at entry × 1.07, no prior HWM → HWM updated to current; no close

@@ -25,6 +25,7 @@ import { OutcomeTrackingService } from './services/outcome-tracking.service';
 import { DataSourceService } from './services/data-source.service';
 import { TradeRecommendationService } from './services/trade-recommendation.service';
 import { ConvictionTraderService } from './services/conviction-trader.service';
+import { StopLossWatcherService } from './services/stop-loss-watcher.service';
 
 @Module({
   controllers: [MarketsController],
@@ -53,6 +54,7 @@ import { ConvictionTraderService } from './services/conviction-trader.service';
     DataSourceService,
     TradeRecommendationService,
     ConvictionTraderService,
+    StopLossWatcherService,
     MarketsService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],
