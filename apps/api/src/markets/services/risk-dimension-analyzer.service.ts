@@ -71,6 +71,7 @@ export class RiskDimensionAnalyzerService {
         signals: [],
         model_provider: result.provider,
         model_name: result.model,
+        llm_usage_id: result.llmUsageId ?? null,
         created_at: new Date().toISOString(),
       };
     } catch (err) {
@@ -178,6 +179,7 @@ Respond ONLY with valid JSON. No markdown, no explanation outside the JSON.`;
       signals: [],
       model_provider: 'deterministic_local',
       model_name: 'rules-v1',
+      llm_usage_id: null,
       created_at: new Date().toISOString(),
     };
   }

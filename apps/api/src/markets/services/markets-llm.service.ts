@@ -16,6 +16,10 @@ export interface LlmTextResult {
   text: string;
   provider: string;
   model: string;
+  /** Captured thinking/reasoning content from reasoning-capable models. Undefined when the provider returned none. */
+  reasoning?: string;
+  /** Primary key (uuid) of the llm_usage row written for this call. Stamp this onto any analysis row produced from the call. */
+  llmUsageId?: string;
 }
 
 /**
@@ -77,28 +81,39 @@ export class MarketsLlmService {
       const response = await this.llm.generateResponse(systemPrompt, userPrompt, {
         provider: config.provider,
         executionContext: context,
+        includeMetadata: true,
       });
-      const text =
-        typeof response === 'string'
-          ? response
-          : response?.content || JSON.stringify(response);
-      return { text, provider: config.provider, model: config.model };
+      return this.unwrapResponse(response, config.provider, config.model);
     } catch (error) {
       if (!config.allowCommercialFallback) throw error;
 
       const response = await this.llm.generateResponse(systemPrompt, userPrompt, {
         provider: config.commercialFallbackProvider,
         executionContext: context,
+        includeMetadata: true,
       });
-      const text =
-        typeof response === 'string'
-          ? response
-          : response?.content || JSON.stringify(response);
-      return {
-        text,
-        provider: config.commercialFallbackProvider,
-        model: config.commercialFallbackModel,
-      };
+      return this.unwrapResponse(
+        response,
+        config.commercialFallbackProvider,
+        config.commercialFallbackModel,
+      );
     }
+  }
+
+  private unwrapResponse(
+    response: string | { content?: string; metadata?: { requestId?: string; thinking?: string } },
+    provider: string,
+    model: string,
+  ): LlmTextResult {
+    if (typeof response === 'string') {
+      return { text: response, provider, model };
+    }
+    return {
+      text: response?.content || JSON.stringify(response),
+      provider,
+      model,
+      reasoning: response?.metadata?.thinking,
+      llmUsageId: response?.metadata?.requestId,
+    };
   }
 }

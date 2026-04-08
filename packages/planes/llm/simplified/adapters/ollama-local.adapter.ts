@@ -89,6 +89,9 @@ export class OllamaLocalAdapter implements LLMClient {
           prompt_tokens?: number;
           completion_tokens?: number;
           total_tokens?: number;
+          completion_tokens_details?: {
+            reasoning_tokens?: number;
+          };
         };
       }>(
         `${baseUrl}/v1/chat/completions`,
@@ -111,14 +114,27 @@ export class OllamaLocalAdapter implements LLMClient {
     }
 
     const msg = data.choices[0]!.message;
-    const content = msg.content || msg.reasoning || '';
+    let content = msg.content || '';
+    let reasoning: string | undefined =
+      msg.reasoning && msg.reasoning !== content ? msg.reasoning : undefined;
+
+    // Inline <think>...</think> fallback for providers that embed reasoning in content
+    if (!reasoning && content) {
+      const m = content.match(/^\s*<think>([\s\S]*?)<\/think>\s*([\s\S]*)$/);
+      if (m) {
+        reasoning = m[1];
+        content = (m[2] ?? '').trim();
+      }
+    }
 
     return {
       content,
+      reasoning,
       model: data.model,
       usage: {
         promptTokens: data.usage?.prompt_tokens ?? 0,
         completionTokens: data.usage?.completion_tokens ?? 0,
+        reasoningTokens: data.usage?.completion_tokens_details?.reasoning_tokens,
         totalTokens: data.usage?.total_tokens ?? 0,
       },
       cost: null,

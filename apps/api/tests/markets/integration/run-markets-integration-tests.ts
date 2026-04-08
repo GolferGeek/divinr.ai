@@ -106,30 +106,46 @@ async function runScenario(
     // Per-analyst predictions: expect 3 for full scenarios, 2 for partial-failure.
     const expectedAnalystPreds = scenario.name === 'partial-failure' ? 2 : 3;
     const analystPredQ = await db.rawQuery(
-      `select predicted_direction, confidence, analyst_id
+      `select predicted_direction, confidence, analyst_id, llm_usage_id
        from prediction.market_predictions
        where run_id = $1 and role = 'analyst'`,
       [queued.runId],
     );
     if (analystPredQ.error) throw new Error(analystPredQ.error.message);
-    const analystPredictions = (analystPredQ.data as Array<{ predicted_direction: string; confidence: number; analyst_id: string }>) ?? [];
+    const analystPredictions = (analystPredQ.data as Array<{ predicted_direction: string; confidence: number; analyst_id: string; llm_usage_id: string | null }>) ?? [];
     assert.equal(
       analystPredictions.length,
       expectedAnalystPreds,
       `${scenario.name}: expected ${expectedAnalystPreds} analyst predictions, got ${analystPredictions.length}`,
     );
 
+    // Effort: llm-reasoning-capture — every analyst row produced from an LLM
+    // call must have a non-null llm_usage_id. The stub LLM service mints a
+    // synthetic uuid per call when includeMetadata=true (which
+    // MarketsLlmService.generateText now always passes), and the markets
+    // services capture that id and stamp it on the inserted row.
+    for (const row of analystPredictions) {
+      assert.ok(
+        row.llm_usage_id !== null && row.llm_usage_id !== undefined,
+        `${scenario.name}: analyst prediction for analyst_id=${row.analyst_id} has null llm_usage_id`,
+      );
+    }
+
     // Arbitrator prediction: exactly one row, role='arbitrator'.
     const arbQ = await db.rawQuery(
-      `select predicted_direction, confidence
+      `select predicted_direction, confidence, llm_usage_id
        from prediction.market_predictions
        where run_id = $1 and role = 'arbitrator'`,
       [queued.runId],
     );
     if (arbQ.error) throw new Error(arbQ.error.message);
-    const arbRows = (arbQ.data as Array<{ predicted_direction: string; confidence: number }>) ?? [];
+    const arbRows = (arbQ.data as Array<{ predicted_direction: string; confidence: number; llm_usage_id: string | null }>) ?? [];
     assert.equal(arbRows.length, 1, `${scenario.name}: expected exactly one arbitrator row`);
     const arbitratorDirection = arbRows[0].predicted_direction;
+    assert.ok(
+      arbRows[0].llm_usage_id !== null && arbRows[0].llm_usage_id !== undefined,
+      `${scenario.name}: arbitrator prediction has null llm_usage_id`,
+    );
 
     // Per-scenario direction assertion.
     const expectedDirection: Record<string, string> = {

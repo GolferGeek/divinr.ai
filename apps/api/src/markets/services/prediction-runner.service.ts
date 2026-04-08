@@ -243,12 +243,14 @@ export class PredictionRunnerService {
     let outputText: string;
     let modelProvider = 'deterministic_local';
     let modelName = 'rules-v1';
+    let llmUsageId: string | null = null;
 
     if (this.llmService.isLlmEnabled()) {
       const result = await this.llmService.generateText(context, systemPrompt, userPrompt);
       outputText = result.text;
       modelProvider = result.provider;
       modelName = result.model;
+      llmUsageId = result.llmUsageId ?? null;
     } else {
       outputText = JSON.stringify({
         direction: 'up',
@@ -280,13 +282,13 @@ export class PredictionRunnerService {
       `insert into prediction.market_predictions
         (id, run_id, organization_slug, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
-         key_factors, risks, config_version_id, is_paper, source_context, created_at)
-       values ($1, $2, $3, $4, $5, 'analyst', $6, $7, 240, $8, $9, $10, $11, $12, $13, $14)`,
+         key_factors, risks, config_version_id, is_paper, source_context, llm_usage_id, created_at)
+       values ($1, $2, $3, $4, $5, 'analyst', $6, $7, 240, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
         predictionId, run.id, run.organization_slug, run.instrument_id,
         analyst.id, parsed.direction, parsed.confidence, parsed.rationale,
         JSON.stringify(parsed.key_factors), JSON.stringify(parsed.risks),
-        configVersionId, isPaper, JSON.stringify(sourceContext), new Date().toISOString(),
+        configVersionId, isPaper, JSON.stringify(sourceContext), llmUsageId, new Date().toISOString(),
       ],
     );
 
@@ -337,12 +339,14 @@ Respond ONLY with valid JSON.`;
     let outputText: string;
     let modelProvider = 'deterministic_local';
     let modelName = 'rules-v1';
+    let llmUsageId: string | null = null;
 
     if (this.llmService.isLlmEnabled()) {
       const result = await this.llmService.generateText(context, systemPrompt, userPrompt);
       outputText = result.text;
       modelProvider = result.provider;
       modelName = result.model;
+      llmUsageId = result.llmUsageId ?? null;
     } else {
       // Deterministic: majority vote
       const ups = analystOutcomes.filter(o => o.predicted_direction === 'up').length;
@@ -385,13 +389,13 @@ Respond ONLY with valid JSON.`;
       `insert into prediction.market_predictions
         (id, run_id, organization_slug, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
-         key_factors, risks, lineage_json, created_at)
-       values ($1, $2, $3, $4, null, 'arbitrator', $5, $6, 240, $7, $8, $9, $10, $11)`,
+         key_factors, risks, lineage_json, llm_usage_id, created_at)
+       values ($1, $2, $3, $4, null, 'arbitrator', $5, $6, 240, $7, $8, $9, $10, $11, $12)`,
       [
         predictionId, run.id, run.organization_slug, run.instrument_id,
         parsed.direction, parsed.confidence, parsed.rationale,
         JSON.stringify(parsed.key_factors), JSON.stringify(parsed.risks),
-        JSON.stringify(lineage), new Date().toISOString(),
+        JSON.stringify(lineage), llmUsageId, new Date().toISOString(),
       ],
     );
 

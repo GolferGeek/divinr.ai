@@ -267,6 +267,7 @@ export class PredictorGeneratorService {
     let relevanceScore = quickScore;
     let rationale = quickScore > 0 ? 'Keyword match' : 'No keyword match';
     let dismissed = false;
+    let llmUsageId: string | null = null;
 
     if (this.marketsLlm.isLlmEnabled()) {
       const articleText = [article.title, article.summary, article.content?.slice(0, 1500)]
@@ -293,6 +294,7 @@ Respond with valid JSON only:
           `Score this article's relevance to ${instrument.symbol} (${instrument.name}, ${instrument.asset_type}) from your perspective as ${analyst.display_name}:\n\n${articleText}`,
         );
 
+        llmUsageId = llmResult.llmUsageId ?? null;
         const match = llmResult.text.match(/\{[\s\S]*\}/);
         if (match) {
           const parsed = JSON.parse(match[0]) as Record<string, unknown>;
@@ -319,6 +321,7 @@ Respond with valid JSON only:
       rationale,
       'system',
       analyst.id,
+      llmUsageId,
     );
 
     return { relevanceScore, rationale, dismissed };
@@ -363,21 +366,23 @@ Respond with valid JSON only:
     rationale: string,
     createdBy: string,
     scoredByAnalystId: string,
+    llmUsageId: string | null,
   ): Promise<void> {
     const result = await this.db.rawQuery(
       `
       insert into prediction.market_predictors
         (id, organization_slug, instrument_id, article_id, relevance_score,
-         status, rationale, created_by, scored_by_analyst_id, created_at, updated_at)
-      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, now(), now())
+         status, rationale, created_by, scored_by_analyst_id, llm_usage_id, created_at, updated_at)
+      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
       on conflict (organization_slug, instrument_id, article_id, scored_by_analyst_id)
       do update set
         relevance_score = excluded.relevance_score,
         status = excluded.status,
         rationale = excluded.rationale,
+        llm_usage_id = excluded.llm_usage_id,
         updated_at = now()
       `,
-      [organizationSlug, instrumentId, articleId, relevanceScore, status, rationale, createdBy, scoredByAnalystId],
+      [organizationSlug, instrumentId, articleId, relevanceScore, status, rationale, createdBy, scoredByAnalystId, llmUsageId],
     );
     if (result.error) {
       throw new Error(result.error.message);

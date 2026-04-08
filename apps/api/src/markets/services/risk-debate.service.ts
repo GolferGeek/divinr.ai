@@ -98,6 +98,7 @@ export class RiskDebateService {
     let blueAssessment: BlueAssessment;
     let redChallenges: RedChallenges;
     let arbiterSynthesis: ArbiterSynthesis;
+    let arbiterLlmUsageId: string | null = null;
     const transcript: unknown[] = [];
 
     try {
@@ -108,7 +109,7 @@ export class RiskDebateService {
         `Defend this risk assessment for ${input.instrumentSymbol}:\n\n${assessmentSummary}`,
       );
       blueAssessment = this.parseBlue(blueResult.text);
-      transcript.push({ role: 'blue', content: blueResult.text });
+      transcript.push({ role: 'blue', content: blueResult.text, llm_usage_id: blueResult.llmUsageId ?? null });
 
       // 2. Red Agent: Challenge
       const redResult = await this.llmService.generateText(
@@ -117,16 +118,20 @@ export class RiskDebateService {
         `Challenge this risk assessment for ${input.instrumentSymbol}:\n\nAssessment:\n${assessmentSummary}\n\nBlue Agent's defense:\n${JSON.stringify(blueAssessment)}`,
       );
       redChallenges = this.parseRed(redResult.text);
-      transcript.push({ role: 'red', content: redResult.text });
+      transcript.push({ role: 'red', content: redResult.text, llm_usage_id: redResult.llmUsageId ?? null });
 
-      // 3. Arbiter: Synthesize
+      // 3. Arbiter: Synthesize. The arbiter's llm_usage_id is what gets stamped
+      // on the risk_debates row because the arbiter call is most directly
+      // responsible for the row's conclusion (recommended_adjustment).
+      // Blue/red are still findable via the transcript and via run_id in llm_usage.
       const arbiterResult = await this.llmService.generateText(
         input.context,
         arbiterPrompt,
         `Synthesize the debate for ${input.instrumentSymbol}:\n\nOriginal score: ${input.overallScore}/100\n\nBlue defense:\n${JSON.stringify(blueAssessment)}\n\nRed challenges:\n${JSON.stringify(redChallenges)}`,
       );
       arbiterSynthesis = this.parseArbiter(arbiterResult.text);
-      transcript.push({ role: 'arbiter', content: arbiterResult.text });
+      arbiterLlmUsageId = arbiterResult.llmUsageId ?? null;
+      transcript.push({ role: 'arbiter', content: arbiterResult.text, llm_usage_id: arbiterLlmUsageId });
     } catch (err) {
       // Debate failed — mark and return no adjustment
       await this.db.rawQuery(
@@ -162,8 +167,9 @@ export class RiskDebateService {
       `update prediction.risk_debates
        set blue_assessment = $1, red_challenges = $2, arbiter_synthesis = $3,
            final_score = $4, score_adjustment = $5, transcript = $6,
-           status = 'completed', completed_at = $7
-       where id = $8`,
+           llm_usage_id = $7,
+           status = 'completed', completed_at = $8
+       where id = $9`,
       [
         JSON.stringify(blueAssessment),
         JSON.stringify(redChallenges),
@@ -171,6 +177,7 @@ export class RiskDebateService {
         finalScore,
         adjustment,
         JSON.stringify(transcript),
+        arbiterLlmUsageId,
         new Date().toISOString(),
         debateId,
       ],

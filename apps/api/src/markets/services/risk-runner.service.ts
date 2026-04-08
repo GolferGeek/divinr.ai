@@ -350,9 +350,11 @@ Respond with valid JSON only:
         let confidence = 0.5;
         let reasoning: string | null = null;
         let evidence: string[] = [];
+        let llmUsageId: string | null = null;
 
         if (this.llmService.isLlmEnabled()) {
           const llmResult = await this.llmService.generateText(context, systemPrompt, userPrompt);
+          llmUsageId = llmResult.llmUsageId ?? null;
           const match = llmResult.text.match(/\{[\s\S]*\}/);
           if (match) {
             const parsed = JSON.parse(match[0]) as Record<string, unknown>;
@@ -366,9 +368,9 @@ Respond with valid JSON only:
         // Persist to analyst_risk_assessments table
         await this.db.rawQuery(
           `insert into prediction.analyst_risk_assessments
-            (id, run_id, organization_slug, instrument_id, analyst_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, created_at)
-           values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, '{}', null, null, now())`,
-          [run.id, run.organization_slug, run.instrument_id, analyst.id, score, confidence, reasoning, JSON.stringify(evidence)],
+            (id, run_id, organization_slug, instrument_id, analyst_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, llm_usage_id, created_at)
+           values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, '{}', null, null, $9, now())`,
+          [run.id, run.organization_slug, run.instrument_id, analyst.id, score, confidence, reasoning, JSON.stringify(evidence), llmUsageId],
         );
 
         assessments.push({
@@ -468,14 +470,14 @@ Respond with valid JSON only:
   private async persistDimensionAssessment(assessment: RiskDimensionAssessment): Promise<void> {
     const result = await this.db.rawQuery(
       `insert into prediction.risk_dimension_assessments
-        (id, run_id, organization_slug, instrument_id, dimension_id, score, confidence, reasoning, evidence, signals, model_provider, model_name, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        (id, run_id, organization_slug, instrument_id, dimension_id, score, confidence, reasoning, evidence, signals, model_provider, model_name, llm_usage_id, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         assessment.id, assessment.run_id, assessment.organization_slug,
         assessment.instrument_id, assessment.dimension_id,
         assessment.score, assessment.confidence, assessment.reasoning,
         JSON.stringify(assessment.evidence), JSON.stringify(assessment.signals),
-        assessment.model_provider, assessment.model_name, assessment.created_at,
+        assessment.model_provider, assessment.model_name, assessment.llm_usage_id, assessment.created_at,
       ],
     );
     if (result.error) throw new Error(result.error.message);
