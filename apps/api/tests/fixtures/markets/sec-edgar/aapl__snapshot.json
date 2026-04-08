@@ -1,0 +1,9 @@
+{
+  "data": "PLACEHOLDER fixture for sec-edgar — overwritten by Phase 3 capture",
+  "metadata": {
+    "source": "sec-edgar",
+    "fetchedAt": "2026-01-01T00:00:00.000Z",
+    "cached": false,
+    "dataTypes": ["snapshot"]
+  }
+}

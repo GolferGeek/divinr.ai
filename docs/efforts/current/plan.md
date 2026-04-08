@@ -7,7 +7,7 @@
 
 ## Progress Tracker
 - [x] Phase 1: DataSourceService DI refactor (non-behavioral)
-- [ ] Phase 2: Stub adapter scaffolding with capture mode
+- [x] Phase 2: Stub adapter scaffolding with capture mode
 - [ ] Phase 3: Initial fixture capture (one-time real-API run)
 - [ ] Phase 4: Stub LLM service + hand-curated response set
 - [ ] Phase 5: Integration test runner (the actual end-to-end gate)

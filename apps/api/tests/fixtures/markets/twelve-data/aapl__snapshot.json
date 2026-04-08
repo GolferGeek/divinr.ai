@@ -1,0 +1,9 @@
+{
+  "data": "PLACEHOLDER fixture for twelve-data — overwritten by Phase 3 capture",
+  "metadata": {
+    "source": "twelve-data",
+    "fetchedAt": "2026-01-01T00:00:00.000Z",
+    "cached": false,
+    "dataTypes": ["snapshot"]
+  }
+}
