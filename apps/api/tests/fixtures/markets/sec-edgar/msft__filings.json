@@ -1,0 +1,11 @@
+{
+  "data": "[SEC EDGAR Financials — MSFT]\nRevenue: $36.1B\nNet Income: $66.2B\nEPS: N/A\nTotal Debt: $40.3B\nCash: $24.3B",
+  "metadata": {
+    "source": "SEC EDGAR",
+    "fetchedAt": "2026-04-08T14:07:31.002Z",
+    "cached": false,
+    "dataTypes": [
+      "filings"
+    ]
+  }
+}

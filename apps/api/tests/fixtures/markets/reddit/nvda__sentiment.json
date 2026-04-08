@@ -1,0 +1,11 @@
+{
+  "data": "[Social Sentiment — Reddit]\nr/wallstreetbets (2577↑): i spent my weekend reading 98 s&amp;p 500 10-Ks for tariff and war risks. the results are.. weird. banks are way more ex\nr/wallstreetbets (400↑): 260k Gain on NBIS - Finally up after 6 years\nr/wallstreetbets (183↑): 400k 1 dte calls\nr/stocks (119↑): Microsoft stepping up to build its own AI model instead of relying on OpenAI?\nr/stocks (41↑): AVGO vs. NVDA\nr/wallstreetbets (13↑): MRVL\nr/stocks (0↑): NVDA insiders are dumping hundreds of millions while retail buys the dip. something looks sketchy\nr/stocks (0↑): Thoughts on NVDA here",
+  "metadata": {
+    "source": "Reddit",
+    "fetchedAt": "2026-04-08T14:07:31.901Z",
+    "cached": false,
+    "dataTypes": [
+      "sentiment"
+    ]
+  }
+}

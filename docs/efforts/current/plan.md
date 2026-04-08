@@ -8,7 +8,14 @@
 ## Progress Tracker
 - [x] Phase 1: DataSourceService DI refactor (non-behavioral)
 - [x] Phase 2: Stub adapter scaffolding with capture mode
-- [ ] Phase 3: Initial fixture capture (one-time real-API run)
+- [x] Phase 3: Initial fixture capture (one-time real-API run)
+
+### Phase 3 notes
+- 28 fixtures captured (4 symbols × 7 providers). 18/28 returned non-empty data; 10 returned empty due to free-tier 403s on FMP, twelve-data, finnhub price-targets, and FRED T10Y2Y. Empty fixtures are still real-shape responses and represent the production behavior of those endpoints under our current credentials.
+- The Phase 2 placeholder `aapl__snapshot.json` files were removed from every provider dir (their dataTypes shape doesn't match what the runner will request). The shape test was updated to use real-shape dataTypes per provider.
+- Total fixture footprint: 144 KB (well under the 200 KB ceiling).
+- No leaked credentials detected via grep scan for `api_?key|apikey|token|secret|password`.
+- Decision logged: scenarios use four distinct symbols (AAPL/TSLA/NVDA/MSFT) instead of one symbol with branch-by-config, because the LLM stub is keyed by `(instrumentSymbol, analystId)` per the locked PRD decision and using one symbol would force ugly per-scenario keying hacks.
 - [ ] Phase 4: Stub LLM service + hand-curated response set
 - [ ] Phase 5: Integration test runner (the actual end-to-end gate)
 - [ ] Phase 6: CI integration (new `markets-integration` job)

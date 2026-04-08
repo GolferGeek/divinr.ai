@@ -1,0 +1,11 @@
+{
+  "data": "[SEC EDGAR Financials — AAPL]\nRevenue: $62.9B\nNet Income: $42.1B\nEPS: N/A\nTotal Debt: $88.5B\nCash: $45.3B",
+  "metadata": {
+    "source": "SEC EDGAR",
+    "fetchedAt": "2026-04-08T14:07:30.080Z",
+    "cached": false,
+    "dataTypes": [
+      "filings"
+    ]
+  }
+}
