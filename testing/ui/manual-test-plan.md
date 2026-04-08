@@ -189,7 +189,7 @@ Each screen below has its own subsection with element checks and interaction che
 
 **Master-detail leaderboard** — single screen across all portfolio kinds (user / analyst / arbitrator / day_trader). `/portfolio` (singular) redirects to `/portfolios`. Replaces the prior single-portfolio view shipped before portfolio-foundation.
 
-**Elements** (master table — 10 columns per row):
+**Elements** (master table — 14 columns per row):
 - Name (analyst/day-trader display name, or user email, or "Arbitrator (Mini-Me)")
 - Kind badge (`user` / `analyst` / `arbitrator` / `day_trader`)
 - Balance (`current_balance`)
@@ -200,9 +200,18 @@ Each screen below has its own subsection with element checks and interaction che
 - Bailouts (count from `bailout_ledger`)
 - Open (open-position count)
 - Trend (inline `EquitySparkline` from `daily_pnl_snapshot`; renders `—` when fewer than 2 snapshots exist)
+- Sharpe (30d, `—` if < 10 daily snapshots)
+- Max DD (30d peak-to-trough, `—` if < 10 daily snapshots)
+- Win Streak (longest consecutive winning closes)
+- Calibration (analyst-only score; `—` for non-analyst kinds or analysts with < 20 resolved analyses)
 
 **Interactions**:
 - Click any row → expanded inline panel with positions list (provenance tooltip on every row) + recent trades; the user row also exposes Account / Queue / Decisions widgets and reference 5/10/trailing exit levels per open position
+- Expanded panel renders `EquityCurveChart` for every kind, with a `data-testid="spy-overlay-toggle"` checkbox that visibly toggles a SPY overlay normalized to the actor's starting balance
+- Expanded panel for analyst rows additionally renders `CalibrationChart` (predicted vs realized rate by 50/60/70/80/90 buckets); non-analyst rows do NOT render it
+- Search input (`data-testid="portfolio-search"`) filters rows by display name (case-insensitive substring)
+- Kind chips (`data-testid="kind-chip-{user|analyst|arbitrator|day_trader}"`) toggle which kinds appear; multi-select
+- Click any column header to sort asc; click again for desc; null/non-finite values pin to bottom regardless of direction (so `—` Calibration rows always sink)
 - Trade entry point lives on Dashboard prediction cards (Phase 6 — opens `AnalystPredictionModal` in trade mode); disclaimer ack still gates submit
 - Sell button on every open user position row → calls `/markets/portfolios/me/positions/:id/close`
 
@@ -515,9 +524,9 @@ npx tsx tests/unit/stop-loss-watcher.test.ts
 # expect: 21 passed, 29 passed, 36 passed (= 86 assertions total for agent-autotrading)
 ```
 
-### 4.6 Day-trader runner (portfolio-foundation Phase 7)
+### 4.6 Day-trader runner (day-traders-and-leaderboard)
 
-**What it does**: opens positions for the 3 seeded day-trader portfolios using strategy logic distinct from analyst-driven trades. Wired to a separate runner so day-trader activity stays cleanly separated from `signal_cross` / `eod_sweep` / `eod_backfill`. Surfaced on the leaderboard.
+**What it does**: opens and closes positions for the 3 seeded day-trader portfolios via three real strategies — `momentum_breakout`, `mean_reversion`, `gap_and_go`. The runner is invoked from `OutcomeTrackingService.runTracking()` after every 15-minute `stopLossWatcher.sweep()` (no longer on its own hourly cron). On the last tick of the session (next 15-min boundary ≥ 22:00 UTC) the runner force-flat-closes every open day-trader position with `trigger_reason='strategy'`, `trigger_strategy='eod_flat'`. Each strategy persists state in `analyst_portfolios.strategy_state` keyed by strategy name; recent OHLCV bars (cap 32) live in `instruments.current_state.recent_bars`. Stop-loss / take-profit / trailing rules are explicitly skipped for day-trader positions (regression-locked in `stop-loss-watcher.test.ts`).
 
 **Static invariants**:
 ```sql
@@ -544,9 +553,16 @@ SELECT count(*) FROM prediction.analyst_positions p
 curl -X POST http://localhost:7100/markets/admin/run-day-trader-strategies \
   -H "x-user-id: admin@alpha-capital.demo" -H "x-org-slug: alpha-capital"
 ```
-After the call, query `analyst_positions WHERE trigger_reason='strategy' AND opened_at > now() - interval '5 minutes'` — expect ≥1 row per active day-trader portfolio.
+After the call, query `analyst_positions WHERE trigger_reason='strategy' AND opened_at > now() - interval '5 minutes'` — expect ≥1 row per active day-trader portfolio against a synthetic-fixture session (each of the 3 strategies should produce at least one open). Verify `trigger_strategy` is populated to the originating strategy name (or `eod_flat` for force-closes at 21:45 UTC).
 
-**Unit tests**: `apps/api/tests/unit/day-trader-runner.test.ts`.
+**EOD-flat verification**: at the 21:45 UTC tick (last 15-min boundary before 22:00), the runner ignores strategy intents and closes every open day-trader position. Confirm via:
+```sql
+SELECT trigger_strategy, count(*) FROM prediction.analyst_positions
+ WHERE trigger_reason='strategy' AND closed_at::date = current_date GROUP BY 1;
+-- expect at least one 'eod_flat' bucket on a session day
+```
+
+**Unit tests**: `apps/api/tests/unit/day-trader-runner.test.ts`, `momentum-breakout-strategy.test.ts`, `mean-reversion-strategy.test.ts`, `gap-and-go-strategy.test.ts`, `recent-bars-ring-buffer.test.ts`, `analyst-portfolio-close-trigger.test.ts`, `stop-loss-watcher.test.ts` (day-trader isolation case).
 
 ### 4.7 Background jobs — monthly reset, benchmark ingest, daily P&L (portfolio-foundation Phase 4)
 

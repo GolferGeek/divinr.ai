@@ -11,8 +11,8 @@
 - [x] Phase 4: Three real strategies
 - [x] Phase 5: Stop-loss isolation lock + state-persistence test
 - [x] Phase 6: LeaderboardService metric extensions
-- [ ] Phase 7: Frontend leaderboard upgrade
-- [ ] Phase 8: Manual test plan + final regression sweep
+- [x] Phase 7: Frontend leaderboard upgrade
+- [x] Phase 8: Manual test plan + final regression sweep
 
 ---
 
@@ -191,24 +191,24 @@ ring buffer inside `instruments.current_state` jsonb.
 ---
 
 ## Phase 7: Frontend leaderboard upgrade
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Add Sharpe / Drawdown / Streak / Calibration columns with sort, search, and kind filters; build EquityCurveChart and CalibrationChart for the detail panel.
 
 ### Steps
-- [ ] 7.1 In `apps/web/src/stores/portfolio.store.ts`, extend the typed shapes for the new master-row fields and detail-panel arrays.
-- [ ] 7.2 In `apps/web/src/views/PortfolioDashboardView.vue`, append 4 new columns: Sharpe, Max DD, Win Streak, Calibration.
-- [ ] 7.3 Add sortable column headers (asc/desc indicators) for all columns.
-- [ ] 7.4 Add a search input filtering by display name (case-insensitive substring).
-- [ ] 7.5 Add kind-filter chips above the table: All / User / Analyst / Arbitrator / Day Trader (multi-select).
-- [ ] 7.6 Calibration cell renders `—` with tooltip ("Needs ≥ 20 resolved predictions" or "Not applicable for this actor type") and pins to bottom of any sort.
-- [ ] 7.7 Create `apps/web/src/components/EquityCurveChart.vue`: full-size SVG line chart, accepts `snapshot_history` and optional `benchmark_series`. SPY overlay normalized to actor's starting balance with a header toggle.
-- [ ] 7.8 Create `apps/web/src/components/CalibrationChart.vue`: bucket-bar chart of `predicted_avg` vs `realized_rate` per bucket.
-- [ ] 7.9 Wire both charts into the expanded row detail panel inside `PortfolioDashboardView.vue`. Calibration chart renders only when `kind === 'analyst'` and `calibration_buckets` is present.
-- [ ] 7.10 Use "analysis/signal" framing in all new tooltips and copy; do not use "advice" or "recommendation".
+- [x] 7.1 In `apps/web/src/stores/portfolio.store.ts`, extend the typed shapes for the new master-row fields and detail-panel arrays.
+- [x] 7.2 In `apps/web/src/views/PortfolioDashboardView.vue`, append 4 new columns: Sharpe, Max DD, Win Streak, Calibration.
+- [x] 7.3 Add sortable column headers (asc/desc indicators) for all columns.
+- [x] 7.4 Add a search input filtering by display name (case-insensitive substring).
+- [x] 7.5 Add kind-filter chips above the table: All / User / Analyst / Arbitrator / Day Trader (multi-select).
+- [x] 7.6 Calibration cell renders `—` with tooltip ("Needs ≥ 20 resolved analyses" or "Not applicable for this actor type"); compareValues() pins null/non-finite values to bottom of any sort direction.
+- [x] 7.7 Create `apps/web/src/components/EquityCurveChart.vue`.
+- [x] 7.8 Create `apps/web/src/components/CalibrationChart.vue`.
+- [x] 7.9 Wire both charts into the expanded row detail panel.
+- [x] 7.10 Use "analysis/signal" framing in all new tooltips and copy.
 
 ### Quality Gate
-- [ ] **Lint**: `pnpm --filter @divinr/web lint`
-- [ ] **Build**: `pnpm --filter @divinr/web build`
+- [x] **Lint**: `pnpm --filter @divinr/web lint`
+- [x] **Build**: `pnpm --filter @divinr/web build`
 - [ ] **Unit Tests**: `pnpm --filter @divinr/api test:unit` (no regression)
 - [ ] **E2E Tests**: n/a
 - [ ] **Curl Tests**: n/a
@@ -228,18 +228,18 @@ ring buffer inside `instruments.current_state` jsonb.
 ---
 
 ## Phase 8: Manual test plan + final regression sweep
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Document the new behavior in the manual test plan and run the full regression suite.
 
 ### Steps
-- [ ] 8.1 Update `testing/ui/manual-test-plan.md` §2.11 with sortable columns + search + kind filters + equity-curve detail walkthrough.
-- [ ] 8.2 Update `testing/ui/manual-test-plan.md` §4.6 with the day-trader runner walkthrough: trigger via admin endpoint, observe each strategy producing trades against a synthetic fixture session, observe EOD-flat behavior at 21:45 UTC, verify `trigger_strategy` populated.
-- [ ] 8.3 Run `pnpm test:unit`, `pnpm ci:markets`, and the web build end-to-end. Fix any regressions.
+- [x] 8.1 Update `testing/ui/manual-test-plan.md` §2.11 with sortable columns + search + kind filters + equity-curve detail walkthrough.
+- [x] 8.2 Update `testing/ui/manual-test-plan.md` §4.6 with the day-trader runner walkthrough: trigger via admin endpoint, observe each strategy producing trades against a synthetic fixture session, observe EOD-flat behavior at 21:45 UTC, verify `trigger_strategy` populated.
+- [x] 8.3 Run `pnpm test:unit`, `pnpm ci:markets`, and the web build end-to-end. Fix any regressions.
 
 ### Quality Gate
-- [ ] **Lint**: `pnpm lint`
-- [ ] **Build**: `pnpm build`
-- [ ] **Unit Tests**: `pnpm test:unit`
+- [x] **Lint**: `pnpm -r lint` ✅
+- [x] **Build**: `pnpm -r build` ✅
+- [x] **Unit Tests**: `pnpm --filter @divinr/api test:unit` ✅ (all suites green)
 - [ ] **E2E Tests**: n/a
 - [ ] **Curl Tests**:
   - [ ] `curl http://localhost:7100/markets/portfolios | jq '. | length'` returns 10.

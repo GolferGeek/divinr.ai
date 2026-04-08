@@ -3,7 +3,10 @@ import { onMounted, ref, computed } from 'vue';
 import { usePortfolioStore, type PortfolioSummary } from '../stores/portfolio.store';
 import { useApi } from '../composables/useApi';
 import EquitySparkline from '../components/EquitySparkline.vue';
+import EquityCurveChart from '../components/EquityCurveChart.vue';
+import CalibrationChart from '../components/CalibrationChart.vue';
 import ProvenanceTooltip from '../components/ProvenanceTooltip.vue';
+import type { SnapshotHistoryPoint, BenchmarkPoint, CalibrationBucket } from '../stores/portfolio.store';
 import {
   IonCard, IonCardContent, IonGrid, IonRow, IonCol,
   IonChip, IonList, IonItem, IonLabel, IonButton, IonNote,
@@ -65,14 +68,92 @@ function kindBadgeColor(kind: string): string {
   }
 }
 
+type SortKey =
+  | 'name' | 'kind' | 'current_balance' | 'realized_pnl' | 'unrealized_pnl'
+  | 'win_rate' | 'total_return_pct' | 'total_bailouts' | 'open_position_count'
+  | 'sharpe_30d' | 'max_drawdown_30d' | 'longest_win_streak' | 'calibration_score';
+
+const sortKey = ref<SortKey | null>(null);
+const sortDir = ref<'asc' | 'desc'>('desc');
+const search = ref('');
+const ALL_KINDS: Array<PortfolioSummary['kind']> = ['user', 'analyst', 'arbitrator', 'day_trader'];
+const activeKinds = ref<Set<PortfolioSummary['kind']>>(new Set(ALL_KINDS));
+
+function toggleKind(k: PortfolioSummary['kind']) {
+  const next = new Set(activeKinds.value);
+  if (next.has(k)) next.delete(k); else next.add(k);
+  activeKinds.value = next;
+}
+
+function setSort(key: SortKey) {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey.value = key;
+    sortDir.value = 'desc';
+  }
+}
+
+function sortIndicator(key: SortKey): string {
+  if (sortKey.value !== key) return '';
+  return sortDir.value === 'asc' ? ' ▲' : ' ▼';
+}
+
+function compareValues(a: unknown, b: unknown, dir: 'asc' | 'desc'): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  if (typeof a === 'string' && typeof b === 'string') return a.localeCompare(b) * sign;
+  const an = Number(a);
+  const bn = Number(b);
+  if (!Number.isFinite(an) && !Number.isFinite(bn)) return 0;
+  if (!Number.isFinite(an)) return 1;  // nulls always to bottom
+  if (!Number.isFinite(bn)) return -1;
+  return (an - bn) * sign;
+}
+
 const sortedPortfolios = computed(() => {
-  // user first, then highest total_return_pct
-  return [...portfolio.allPortfolios].sort((a, b) => {
-    if (a.kind === 'user' && b.kind !== 'user') return -1;
-    if (b.kind === 'user' && a.kind !== 'user') return 1;
-    return Number(b.total_return_pct) - Number(a.total_return_pct);
+  const filtered = portfolio.allPortfolios.filter((p) => {
+    if (!activeKinds.value.has(p.kind)) return false;
+    if (search.value.trim()) {
+      return p.name.toLowerCase().includes(search.value.trim().toLowerCase());
+    }
+    return true;
   });
+
+  if (!sortKey.value) {
+    // default: user first, then highest total_return_pct
+    return [...filtered].sort((a, b) => {
+      if (a.kind === 'user' && b.kind !== 'user') return -1;
+      if (b.kind === 'user' && a.kind !== 'user') return 1;
+      return Number(b.total_return_pct) - Number(a.total_return_pct);
+    });
+  }
+
+  const key = sortKey.value;
+  return [...filtered].sort((a, b) => compareValues(a[key], b[key], sortDir.value));
 });
+
+function fmtSharpe(v: number | null): string {
+  return v == null ? '—' : v.toFixed(2);
+}
+function fmtDrawdown(v: number | null): string {
+  return v == null ? '—' : `${(v * 100).toFixed(1)}%`;
+}
+function fmtCalibration(v: number | null): string {
+  return v == null ? '—' : `${v.toFixed(0)}%`;
+}
+
+function detailHistory(p: PortfolioSummary): SnapshotHistoryPoint[] {
+  const d = portfolio.portfolioDetails[rowKey(p)];
+  return (d?.snapshot_history ?? []) as SnapshotHistoryPoint[];
+}
+function detailBenchmark(p: PortfolioSummary): BenchmarkPoint[] {
+  const d = portfolio.portfolioDetails[rowKey(p)];
+  return (d?.benchmark_series ?? []) as BenchmarkPoint[];
+}
+function detailCalibration(p: PortfolioSummary): CalibrationBucket[] | null {
+  const d = portfolio.portfolioDetails[rowKey(p)];
+  return (d?.calibration_buckets ?? null) as CalibrationBucket[] | null;
+}
 
 async function onSellPosition(p: PortfolioSummary, positionId: string) {
   try {
@@ -103,20 +184,45 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
   <div>
     <h1 style="margin-bottom:16px">Portfolios</h1>
 
+    <!-- Filters -->
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
+      <input
+        v-model="search"
+        type="text"
+        placeholder="Search by name…"
+        data-testid="portfolio-search"
+        style="padding:6px 10px;border:1px solid var(--ion-color-step-200);border-radius:4px;font-size:0.85rem;min-width:200px"
+      />
+      <span style="font-size:0.75rem;opacity:0.7;margin-left:8px">Kinds:</span>
+      <ion-chip
+        v-for="k in ALL_KINDS"
+        :key="k"
+        :color="activeKinds.has(k) ? kindBadgeColor(k) : 'medium'"
+        :outline="!activeKinds.has(k)"
+        :data-testid="`kind-chip-${k}`"
+        style="cursor:pointer;font-size:0.7rem;height:22px"
+        @click="toggleKind(k)"
+      >{{ k }}</ion-chip>
+    </div>
+
     <!-- Master table -->
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
         <thead>
           <tr style="text-align:left;border-bottom:1px solid var(--ion-color-step-150)">
-            <th style="padding:8px">Name</th>
-            <th style="padding:8px">Kind</th>
-            <th style="padding:8px;text-align:right">Balance</th>
-            <th style="padding:8px;text-align:right">Realized</th>
-            <th style="padding:8px;text-align:right">Unrealized</th>
-            <th style="padding:8px;text-align:right">Win Rate</th>
-            <th style="padding:8px;text-align:right">Return</th>
-            <th style="padding:8px;text-align:right">Bailouts</th>
-            <th style="padding:8px;text-align:right">Open</th>
+            <th style="padding:8px;cursor:pointer;user-select:none" @click="setSort('name')">Name{{ sortIndicator('name') }}</th>
+            <th style="padding:8px;cursor:pointer;user-select:none" @click="setSort('kind')">Kind{{ sortIndicator('kind') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('current_balance')">Balance{{ sortIndicator('current_balance') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('realized_pnl')">Realized{{ sortIndicator('realized_pnl') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('unrealized_pnl')">Unrealized{{ sortIndicator('unrealized_pnl') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('win_rate')">Win Rate{{ sortIndicator('win_rate') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('total_return_pct')">Return{{ sortIndicator('total_return_pct') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('total_bailouts')">Bailouts{{ sortIndicator('total_bailouts') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('open_position_count')">Open{{ sortIndicator('open_position_count') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('sharpe_30d')" title="Sharpe ratio over 30d">Sharpe{{ sortIndicator('sharpe_30d') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('max_drawdown_30d')" title="Max drawdown over 30d">Max DD{{ sortIndicator('max_drawdown_30d') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('longest_win_streak')">Win Streak{{ sortIndicator('longest_win_streak') }}</th>
+            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('calibration_score')" title="Analyst calibration: needs ≥ 20 resolved analyses">Calibration{{ sortIndicator('calibration_score') }}</th>
             <th style="padding:8px">Trend</th>
           </tr>
         </thead>
@@ -138,12 +244,34 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
               <td style="padding:8px;text-align:right" :style="pnlColor(p.total_return_pct)">{{ fmtPct(p.total_return_pct) }}</td>
               <td style="padding:8px;text-align:right">{{ formatCurrency(p.total_bailouts) }}</td>
               <td style="padding:8px;text-align:right">{{ p.open_position_count }}</td>
+              <td style="padding:8px;text-align:right">{{ fmtSharpe(p.sharpe_30d) }}</td>
+              <td style="padding:8px;text-align:right" :style="pnlColor(p.max_drawdown_30d)">{{ fmtDrawdown(p.max_drawdown_30d) }}</td>
+              <td style="padding:8px;text-align:right">{{ p.longest_win_streak ?? 0 }}</td>
+              <td
+                style="padding:8px;text-align:right"
+                :title="p.calibration_score == null ? (p.kind === 'analyst' ? 'Needs ≥ 20 resolved analyses' : 'Not applicable for this actor type') : ''"
+              >{{ fmtCalibration(p.calibration_score) }}</td>
               <td style="padding:8px">
                 <EquitySparkline :snapshots="(portfolio.portfolioDetails[rowKey(p)]?.snapshots || []) as []" />
               </td>
             </tr>
             <tr v-if="expandedKey === rowKey(p)">
-              <td colspan="10" style="padding:16px;background:var(--ion-color-step-50)">
+              <td colspan="14" style="padding:16px;background:var(--ion-color-step-50)">
+                <!-- Equity curve + calibration charts -->
+                <div v-if="portfolio.portfolioDetails[rowKey(p)]" style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:24px">
+                  <div style="flex:1 1 480px;min-width:320px">
+                    <EquityCurveChart
+                      :history="detailHistory(p)"
+                      :benchmark="detailBenchmark(p)"
+                    />
+                  </div>
+                  <div
+                    v-if="p.kind === 'analyst' && detailCalibration(p)"
+                    style="flex:1 1 360px;min-width:320px"
+                  >
+                    <CalibrationChart :buckets="detailCalibration(p)!" />
+                  </div>
+                </div>
                 <div v-if="!portfolio.portfolioDetails[rowKey(p)]" style="opacity:0.6">Loading…</div>
                 <div v-else>
                   <h3 style="margin:0 0 8px 0">Positions</h3>
