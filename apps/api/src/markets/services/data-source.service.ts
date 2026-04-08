@@ -25,16 +25,24 @@ export class DataSourceService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
+    @Inject(TwelveDataAdapter) twelveData: TwelveDataAdapter,
+    @Inject(FmpAdapter) fmp: FmpAdapter,
+    @Inject(SecEdgarAdapter) secEdgar: SecEdgarAdapter,
+    @Inject(FinnhubAdapter) finnhub: FinnhubAdapter,
+    @Inject(FredAdapter) fred: FredAdapter,
+    @Inject(PolygonAdapter) polygon: PolygonAdapter,
+    @Inject(RedditAdapter) reddit: RedditAdapter,
   ) {
-    // Register all adapters by their ID
+    // Register all adapters by their ID. Adapters are injected via NestJS DI
+    // (registered in MarketsModule) so tests can swap them via .overrideProvider().
     const adapterList: DataSourceAdapter[] = [
-      new TwelveDataAdapter(),
-      new FmpAdapter(),
-      new SecEdgarAdapter(),
-      new FinnhubAdapter(),
-      new FredAdapter(),
-      new PolygonAdapter(),
-      new RedditAdapter(),
+      twelveData,
+      fmp,
+      secEdgar,
+      finnhub,
+      fred,
+      polygon,
+      reddit,
     ];
     this.adapters = new Map(adapterList.map(a => [a.id, a]));
   }

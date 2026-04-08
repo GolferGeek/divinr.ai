@@ -1,0 +1,12 @@
+{
+  "data": "[Sentiment & Ratings — Finnhub]\nAnalyst Consensus (2026-04-01): 66 Buy, 4 Hold, 1 Sell",
+  "metadata": {
+    "source": "Finnhub",
+    "fetchedAt": "2026-04-08T14:07:28.611Z",
+    "cached": false,
+    "dataTypes": [
+      "recommendations",
+      "price-targets"
+    ]
+  }
+}

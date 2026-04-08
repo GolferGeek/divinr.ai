@@ -32,10 +32,24 @@ import { LeaderboardService } from './services/leaderboard.service';
 import { MonthlyResetService } from './services/monthly-reset.service';
 import { BenchmarkIngestService } from './services/benchmark-ingest.service';
 import { DayTraderRunnerService } from './services/day-trader-runner.service';
+import { PolygonAdapter } from './adapters/polygon.adapter';
+import { FmpAdapter } from './adapters/fmp.adapter';
+import { TwelveDataAdapter } from './adapters/twelve-data.adapter';
+import { FinnhubAdapter } from './adapters/finnhub.adapter';
+import { FredAdapter } from './adapters/fred.adapter';
+import { SecEdgarAdapter } from './adapters/sec-edgar.adapter';
+import { RedditAdapter } from './adapters/reddit.adapter';
 
 @Module({
   controllers: [MarketsController],
   providers: [
+    PolygonAdapter,
+    FmpAdapter,
+    TwelveDataAdapter,
+    FinnhubAdapter,
+    FredAdapter,
+    SecEdgarAdapter,
+    RedditAdapter,
     MarketsSchemaService,
     MarketsLlmService,
     ContextProviderService,

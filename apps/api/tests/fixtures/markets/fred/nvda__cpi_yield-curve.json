@@ -1,0 +1,12 @@
+{
+  "data": "[Macro Economics — FRED]\nCPI: 327.460 (YoY inflation proxy)\nYield Curve (10Y-2Y): 0.52%",
+  "metadata": {
+    "source": "FRED",
+    "fetchedAt": "2026-04-08T14:07:29.491Z",
+    "cached": false,
+    "dataTypes": [
+      "cpi",
+      "yield-curve"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "data": "",
+  "metadata": {
+    "source": "Twelve Data",
+    "fetchedAt": "2026-04-08T14:07:27.763Z",
+    "cached": false,
+    "dataTypes": [
+      "rsi",
+      "macd"
+    ]
+  }
+}

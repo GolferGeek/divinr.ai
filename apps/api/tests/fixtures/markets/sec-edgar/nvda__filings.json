@@ -1,0 +1,11 @@
+{
+  "data": "[SEC EDGAR Financials — NVDA]\nRevenue: $147.8B\nNet Income: $77.1B\nEPS: N/A\nTotal Debt: $8.5B\nCash: $11.5B",
+  "metadata": {
+    "source": "SEC EDGAR",
+    "fetchedAt": "2026-04-08T14:07:30.737Z",
+    "cached": false,
+    "dataTypes": [
+      "filings"
+    ]
+  }
+}

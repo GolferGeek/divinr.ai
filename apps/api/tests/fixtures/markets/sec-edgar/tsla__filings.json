@@ -1,0 +1,11 @@
+{
+  "data": "[SEC EDGAR Financials — TSLA]\nRevenue: $69.9B\nNet Income: $3.0B\nEPS: N/A\nTotal Debt: $5.6B\nCash: $18.3B",
+  "metadata": {
+    "source": "SEC EDGAR",
+    "fetchedAt": "2026-04-08T14:07:30.439Z",
+    "cached": false,
+    "dataTypes": [
+      "filings"
+    ]
+  }
+}

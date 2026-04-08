@@ -7,7 +7,7 @@
     "dev": "node dist/main.js",
     "lint": "eslint src --ext .ts",
     "test": "pnpm run test:unit && pnpm run test:compliance && pnpm run test:markets:smoke",
-    "test:unit": "tsx tests/unit/auth-middleware.test.ts && tsx tests/unit/risk-score-aggregation.test.ts && tsx tests/unit/stocks-prediction-plane.test.ts && tsx tests/unit/prediction-runner-parsing.test.ts && tsx tests/unit/learning-engine.test.ts && tsx tests/unit/nightly-evaluation.test.ts && tsx tests/unit/sprint7-views.test.ts && tsx tests/unit/portfolio-system.test.ts && tsx tests/unit/memory-writing.test.ts && tsx tests/unit/trade-confirmation.test.ts && tsx tests/unit/decision-outcomes.test.ts && tsx tests/unit/trade-recommendation.test.ts && tsx tests/unit/conviction-trader.test.ts && tsx tests/unit/stop-loss-watcher.test.ts && tsx tests/unit/eod-forced-buy.test.ts && tsx tests/unit/autotrade-open-helper.test.ts && tsx tests/unit/user-portfolio-immediate.test.ts && tsx tests/unit/leaderboard-service.test.ts && tsx tests/unit/monthly-reset.test.ts && tsx tests/unit/day-trader-runner.test.ts && tsx tests/unit/stop-loss-watcher-env.test.ts && tsx tests/unit/stop-loss-watcher-shop-anomaly.test.ts && tsx tests/unit/analyst-portfolio-close-trigger.test.ts && tsx tests/unit/recent-bars-ring-buffer.test.ts && tsx tests/unit/momentum-breakout-strategy.test.ts && tsx tests/unit/mean-reversion-strategy.test.ts && tsx tests/unit/gap-and-go-strategy.test.ts",
+    "test:unit": "tsx tests/unit/auth-middleware.test.ts && tsx tests/unit/risk-score-aggregation.test.ts && tsx tests/unit/stocks-prediction-plane.test.ts && tsx tests/unit/prediction-runner-parsing.test.ts && tsx tests/unit/learning-engine.test.ts && tsx tests/unit/nightly-evaluation.test.ts && tsx tests/unit/sprint7-views.test.ts && tsx tests/unit/portfolio-system.test.ts && tsx tests/unit/memory-writing.test.ts && tsx tests/unit/trade-confirmation.test.ts && tsx tests/unit/decision-outcomes.test.ts && tsx tests/unit/trade-recommendation.test.ts && tsx tests/unit/conviction-trader.test.ts && tsx tests/unit/stop-loss-watcher.test.ts && tsx tests/unit/eod-forced-buy.test.ts && tsx tests/unit/autotrade-open-helper.test.ts && tsx tests/unit/user-portfolio-immediate.test.ts && tsx tests/unit/leaderboard-service.test.ts && tsx tests/unit/monthly-reset.test.ts && tsx tests/unit/day-trader-runner.test.ts && tsx tests/unit/stop-loss-watcher-env.test.ts && tsx tests/unit/stop-loss-watcher-shop-anomaly.test.ts && tsx tests/unit/analyst-portfolio-close-trigger.test.ts && tsx tests/unit/recent-bars-ring-buffer.test.ts && tsx tests/unit/momentum-breakout-strategy.test.ts && tsx tests/unit/mean-reversion-strategy.test.ts && tsx tests/unit/gap-and-go-strategy.test.ts && tsx tests/unit/stub-adapter-shape.test.ts && tsx tests/unit/stub-llm-shape.test.ts",
     "test:compliance": "pnpm run test:compliance:core && pnpm run test:compliance:boundary && pnpm run test:compliance:mutation",
     "test:compliance:core": "tsx tests/compliance/run-compliance-tests.ts",
     "test:compliance:boundary": "tsx tests/compliance/run-boundary-tests.ts",
@@ -15,7 +15,8 @@
     "test:markets": "pnpm run test:markets:smoke && pnpm run test:markets:http",
     "test:markets:http": "tsx tests/markets/run-markets-http-tests.ts",
     "test:markets:smoke": "tsx tests/markets/run-markets-smoke-tests.ts",
-    "test:markets:integration": "MARKETS_INTEGRATION_TESTS=true tsx tests/markets/run-markets-smoke-tests.ts",
+    "test:markets:integration": "tsx tests/markets/integration/run-markets-integration-tests.ts",
+    "test:markets:live": "MARKETS_INTEGRATION_TESTS=true tsx tests/markets/run-markets-smoke-tests.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -1,10 +1,11 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { DataSourceAdapter, DataSourceFetchParams, DataSourceResult } from './data-source-adapter';
 import { RateLimiter } from './rate-limiter';
 import { DataCache } from './data-cache';
 
 const logger = new Logger('FinnhubAdapter');
 
+@Injectable()
 export class FinnhubAdapter implements DataSourceAdapter {
   id = 'ds-finnhub';
   name = 'Finnhub';
