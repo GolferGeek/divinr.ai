@@ -1,3 +1,9 @@
+// Smoke tests use the compliance harness's seed users (text ids in authz.users
+// with no real Supabase auth.users record and no markets-permission grants),
+// so they can't satisfy the RBAC checks. Force the dev bypass on for this
+// runner — runtime traffic still has bypass off in .env. See effort/auth-bootstrap notes.
+process.env.MARKETS_DEV_AUTH_BYPASS = 'true';
+
 import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';

@@ -28,9 +28,8 @@ export function useApi() {
     if (tenant.token) {
       headers['Authorization'] = `Bearer ${tenant.token}`;
     }
-    if (tenant.userId) {
-      headers['x-user-id'] = tenant.userId;
-    }
+    // x-user-id is no longer sent — it was a dev bypass header that only worked
+    // when MARKETS_DEV_AUTH_BYPASS=true. Real auth uses the bearer token above.
     if (tenant.orgSlug) {
       headers['x-org-slug'] = tenant.orgSlug;
     }
