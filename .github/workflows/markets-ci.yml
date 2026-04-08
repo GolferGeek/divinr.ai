@@ -80,8 +80,8 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Build planes (and its workspace deps)
-        run: pnpm --filter @orchestratorai/planes... run build
+      - name: Build workspace deps for the runner
+        run: pnpm --filter @orchestratorai/planes... --filter @divinr/prediction-planes... run build
 
       - name: Markets integration suite
         run: pnpm --filter @divinr/api run test:markets:integration
