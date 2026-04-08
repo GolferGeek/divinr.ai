@@ -780,12 +780,6 @@ export class MarketsSchemaService {
       create index if not exists prediction_analyst_positions_prediction_idx
       on prediction.analyst_positions (prediction_id);
 
-      alter table prediction.user_portfolios add column if not exists organization_slug text not null default '*';
-      alter table prediction.user_portfolios add column if not exists initial_balance numeric not null default 1000000;
-      alter table prediction.user_portfolios add column if not exists current_balance numeric not null default 1000000;
-      alter table prediction.user_portfolios add column if not exists total_realized_pnl numeric not null default 0;
-      alter table prediction.user_portfolios add column if not exists total_unrealized_pnl numeric not null default 0;
-
       create table if not exists prediction.user_portfolios (
         id text primary key,
         user_id text not null,
@@ -798,12 +792,11 @@ export class MarketsSchemaService {
         updated_at timestamptz not null default now(),
         unique (user_id, organization_slug)
       );
-
-      alter table prediction.user_positions add column if not exists organization_slug text not null default '*';
-      alter table prediction.user_positions add column if not exists direction text not null default 'long';
-      alter table prediction.user_positions add column if not exists quantity integer not null default 0;
-      alter table prediction.user_positions add column if not exists entry_price numeric not null default 0;
-      alter table prediction.user_positions add column if not exists current_price numeric not null default 0;
+      alter table prediction.user_portfolios add column if not exists organization_slug text not null default '*';
+      alter table prediction.user_portfolios add column if not exists initial_balance numeric not null default 1000000;
+      alter table prediction.user_portfolios add column if not exists current_balance numeric not null default 1000000;
+      alter table prediction.user_portfolios add column if not exists total_realized_pnl numeric not null default 0;
+      alter table prediction.user_portfolios add column if not exists total_unrealized_pnl numeric not null default 0;
 
       create table if not exists prediction.user_positions (
         id text primary key,
@@ -828,8 +821,11 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_user_positions_portfolio_idx
       on prediction.user_positions (portfolio_id, status);
-
-      alter table prediction.user_trade_queue add column if not exists organization_slug text not null default '*';
+      alter table prediction.user_positions add column if not exists organization_slug text not null default '*';
+      alter table prediction.user_positions add column if not exists direction text not null default 'long';
+      alter table prediction.user_positions add column if not exists quantity integer not null default 0;
+      alter table prediction.user_positions add column if not exists entry_price numeric not null default 0;
+      alter table prediction.user_positions add column if not exists current_price numeric not null default 0;
 
       create table if not exists prediction.user_trade_queue (
         id text primary key,
@@ -852,6 +848,7 @@ export class MarketsSchemaService {
       create index if not exists prediction_user_trade_queue_status_idx
       on prediction.user_trade_queue (user_id, organization_slug, status)
       where status = 'queued';
+      alter table prediction.user_trade_queue add column if not exists organization_slug text not null default '*';
 
       create table if not exists prediction.eod_settlement_log (
         id text primary key,
