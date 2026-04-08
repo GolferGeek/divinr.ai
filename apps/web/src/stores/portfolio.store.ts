@@ -13,12 +13,40 @@ export interface PortfolioSummary {
   total_return_pct: number;
   total_bailouts: number;
   open_position_count: number;
+  sharpe_30d: number | null;
+  max_drawdown_30d: number | null;
+  longest_win_streak: number;
+  calibration_score: number | null;
+}
+
+export interface SnapshotHistoryPoint {
+  date: string;
+  equity: number;
+  realized: number;
+  unrealized: number;
+  bailout_flag: boolean;
+}
+
+export interface BenchmarkPoint {
+  date: string;
+  spy_close: number;
+}
+
+export interface CalibrationBucket {
+  bucket_min: number;
+  bucket_max: number;
+  predicted_avg: number;
+  realized_rate: number;
+  count: number;
 }
 
 export interface PortfolioDetail {
   portfolio: Record<string, unknown>;
   positions: Array<Record<string, unknown>>;
   snapshots: Array<Record<string, unknown>>;
+  snapshot_history?: SnapshotHistoryPoint[];
+  benchmark_series?: BenchmarkPoint[];
+  calibration_buckets?: CalibrationBucket[] | null;
 }
 
 export const usePortfolioStore = defineStore('portfolio', () => {

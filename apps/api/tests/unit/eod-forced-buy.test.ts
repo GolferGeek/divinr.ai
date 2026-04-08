@@ -149,12 +149,12 @@ delete process.env.CONVICTION_TRADE_THRESHOLD;
   assert(insert !== undefined, 'INSERT issued');
   // Param positions (helper INSERT): id=0, portfolio_id=1, analyst_id=2, org=3,
   // prediction_id=4, instrument_id=5, symbol=6, direction=7, qty=8, entry=9, current=10,
-  // trigger_reason=11, trigger_prediction_id=12, trigger_conviction=13
+  // trigger_reason=11, trigger_strategy=12, trigger_prediction_id=13, trigger_conviction=14
   assert(insert!.params[11] === 'eod_sweep', 'INSERT writes trigger_reason=eod_sweep');
   assert(insert!.params[1] === 'pf-portfolio-analyst-1', 'routed to analyst portfolio');
   assert(insert!.params[7] === 'long', 'direction up → long');
-  assert(insert!.params[13] === 85, 'trigger_conviction = 85');
-  assert(insert!.params[12] === 'pred-1', 'trigger_prediction_id = pred-1');
+  assert(insert!.params[14] === 85, 'trigger_conviction = 85');
+  assert(insert!.params[13] === 'pred-1', 'trigger_prediction_id = pred-1');
 }
 
 // ─── Idempotency ────────────────────────────────────────────────

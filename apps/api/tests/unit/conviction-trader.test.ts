@@ -134,8 +134,8 @@ delete process.env.CONVICTION_TRADE_THRESHOLD;
   assert(params[7] === 'long', 'direction up → long');
   assert(Number(params[9]) === 100, 'entry price from current_state');
   assert(params[11] === 'signal_cross', 'trigger_reason=signal_cross');
-  assert(params[12] === 'pred-1', 'trigger_prediction_id matches prediction id');
-  assert(Number(params[13]) === 75, 'trigger_conviction=75');
+  assert(params[13] === 'pred-1', 'trigger_prediction_id matches prediction id');
+  assert(Number(params[14]) === 75, 'trigger_conviction=75');
 }
 
 // ─── Threshold env var override ─────────────────────────────────
