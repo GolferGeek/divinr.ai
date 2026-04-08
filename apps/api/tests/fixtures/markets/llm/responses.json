@@ -1,0 +1,21 @@
+{
+  "AAPL|Macro Strategist": "{\"direction\":\"up\",\"confidence\":82,\"rationale\":\"Macro tailwinds — easing rate environment, services GDP holding, AAPL benefits from premium spend.\",\"key_factors\":[\"Rate cuts\",\"Services strength\",\"Premium consumer\"],\"risks\":[\"China demand\",\"Currency drag\"]}",
+  "AAPL|Technical Analyst": "{\"direction\":\"up\",\"confidence\":78,\"rationale\":\"AAPL above 50d MA, RSI 62 healthy, consolidation breakout above resistance.\",\"key_factors\":[\"Moving average support\",\"Breakout pattern\"],\"risks\":[\"Distribution day risk\"]}",
+  "AAPL|Sentiment Analyst": "{\"direction\":\"up\",\"confidence\":74,\"rationale\":\"Reddit and analyst chatter trending positive, no fear triggers in news flow.\",\"key_factors\":[\"Bullish social sentiment\",\"Analyst upgrades\"],\"risks\":[\"Crowded trade\"]}",
+  "AAPL|_arbitrator": "{\"direction\":\"up\",\"confidence\":78,\"rationale\":\"Bullish consensus across all three lenses — macro, technical, sentiment all align. Composite verdict UP with high confidence.\",\"key_factors\":[\"Cross-method agreement\"],\"risks\":[\"Crowded long\"]}",
+
+  "TSLA|Macro Strategist": "{\"direction\":\"down\",\"confidence\":80,\"rationale\":\"EV demand cooling, China price war pressure, capex cycle weighing on margins.\",\"key_factors\":[\"EV demand softness\",\"China competition\"],\"risks\":[\"Energy storage upside\"]}",
+  "TSLA|Technical Analyst": "{\"direction\":\"down\",\"confidence\":76,\"rationale\":\"TSLA below 200d MA, RSI 38, lower-lows trend intact since the breakdown.\",\"key_factors\":[\"Trend break\",\"Weak momentum\"],\"risks\":[\"Oversold bounce\"]}",
+  "TSLA|Sentiment Analyst": "{\"direction\":\"down\",\"confidence\":72,\"rationale\":\"Negative narrative momentum, bearish Reddit sentiment, recall headlines feeding fear.\",\"key_factors\":[\"Bearish narrative\",\"Recall news\"],\"risks\":[\"Sentiment-extreme reversal\"]}",
+  "TSLA|_arbitrator": "{\"direction\":\"down\",\"confidence\":76,\"rationale\":\"Bearish consensus — three independent methods converge on DOWN. Composite verdict DOWN with high confidence.\",\"key_factors\":[\"Cross-method agreement\"],\"risks\":[\"Sentiment whipsaw\"]}",
+
+  "NVDA|Macro Strategist": "{\"direction\":\"up\",\"confidence\":68,\"rationale\":\"AI capex cycle still expanding, hyperscaler orders robust through next quarter.\",\"key_factors\":[\"Hyperscaler demand\",\"AI capex\"],\"risks\":[\"Cycle peak timing\"]}",
+  "NVDA|Technical Analyst": "{\"direction\":\"down\",\"confidence\":65,\"rationale\":\"Bearish RSI divergence at the highs, distribution pattern over the past two weeks.\",\"key_factors\":[\"RSI divergence\",\"Distribution\"],\"risks\":[\"Trend persistence\"]}",
+  "NVDA|Sentiment Analyst": "{\"direction\":\"flat\",\"confidence\":55,\"rationale\":\"Mixed signals — bullish on long-term AI but short-term froth concerns growing in retail chatter.\",\"key_factors\":[\"Mixed retail tone\"],\"risks\":[\"Sentiment regime change\"]}",
+  "NVDA|_arbitrator": "{\"direction\":\"flat\",\"confidence\":52,\"rationale\":\"Split arbitration — analysts disagree on direction, no high-confidence resolution. Composite verdict FLAT with low confidence and split flag.\",\"key_factors\":[\"Cross-method disagreement\"],\"risks\":[\"Direction unclear\"]}",
+
+  "MSFT|Macro Strategist": "__THROW__",
+  "MSFT|Technical Analyst": "{\"direction\":\"up\",\"confidence\":70,\"rationale\":\"MSFT trending up cleanly above key moving averages.\",\"key_factors\":[\"Trend\"],\"risks\":[\"Mean reversion\"]}",
+  "MSFT|Sentiment Analyst": "{\"direction\":\"up\",\"confidence\":68,\"rationale\":\"Positive narrative around Azure and Copilot adoption, no fear triggers.\",\"key_factors\":[\"Azure growth\"],\"risks\":[\"Earnings comparisons\"]}",
+  "MSFT|_arbitrator": "{\"direction\":\"up\",\"confidence\":65,\"rationale\":\"Two analysts (Technical, Sentiment) agree UP after the third (Macro) failed. Composite verdict UP with reduced confidence due to partial input.\",\"key_factors\":[\"Two-of-three agreement\"],\"risks\":[\"Missing macro view\"]}"
+}

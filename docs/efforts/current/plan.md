@@ -16,7 +16,13 @@
 - Total fixture footprint: 144 KB (well under the 200 KB ceiling).
 - No leaked credentials detected via grep scan for `api_?key|apikey|token|secret|password`.
 - Decision logged: scenarios use four distinct symbols (AAPL/TSLA/NVDA/MSFT) instead of one symbol with branch-by-config, because the LLM stub is keyed by `(instrumentSymbol, analystId)` per the locked PRD decision and using one symbol would force ugly per-scenario keying hacks.
-- [ ] Phase 4: Stub LLM service + hand-curated response set
+- [x] Phase 4: Stub LLM service + hand-curated response set
+
+### Phase 4 notes
+- StubLlmService implements LLMServiceProvider with only generateResponse functional; every other method throws so future drift is loud.
+- Keying: extracts symbol from `Assess SYMBOL (...)` in user prompt and analyst name from `You are NAME.` in system prompt. Arbitrator detected from `^You are the chief arbitrator .* for SYMBOL.`. Per the locked PRD decision the key is conceptually `(symbol, analyst)`; PRD said `analystId` but the prompts only contain `display_name`, which is functionally equivalent within the test scope.
+- 16 canned responses + 4 arbitrator responses (4 symbols × 4 entries each). MSFT|Macro Strategist = `__THROW__` to force the partial-failure code path.
+- Seed config in Phase 5 must use display names: `Macro Strategist`, `Technical Analyst`, `Sentiment Analyst`. Cross-referenced in this phase by writing the response keys to match.
 - [ ] Phase 5: Integration test runner (the actual end-to-end gate)
 - [ ] Phase 6: CI integration (new `markets-integration` job)
 - [ ] Phase 7: Documentation and manual test plan update
