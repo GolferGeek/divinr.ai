@@ -236,10 +236,12 @@ async function loadChallenges() {
   challenges.value = [];
   try {
     const orgSlug = localStorage.getItem('divinr_org') || '';
-    const tenant = { userId: localStorage.getItem('divinr_user') || '' };
+    const token = localStorage.getItem('divinr_token') || '';
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`/api/markets/predictions/${a.prediction_id}/challenge`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-user-id': tenant.userId },
+      headers,
       body: JSON.stringify({ organizationSlug: orgSlug }),
     });
     const reader = res.body?.getReader();

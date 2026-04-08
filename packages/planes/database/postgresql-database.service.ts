@@ -49,8 +49,20 @@ export class PostgresqlDatabaseService implements DatabaseService {
         `SELECT * FROM ${qualifiedName}(${argList})`,
         params,
       );
+      // Mimic PostgREST / supabase-js RPC behavior: unwrap a single-row,
+      // single-column result to its scalar value. SQL functions returning
+      // a scalar (e.g. boolean) should land as `data: <scalar>` so consumers
+      // can do `data === true` without driver-aware shape handling.
+      let data: unknown = result.rows;
+      if (result.rowCount === 1) {
+        const firstRow = result.rows[0] as Record<string, unknown>;
+        const cols = Object.keys(firstRow);
+        if (cols.length === 1) {
+          data = firstRow[cols[0]];
+        }
+      }
       return {
-        data: result.rows,
+        data,
         error: null,
         count: result.rowCount ?? null,
       };

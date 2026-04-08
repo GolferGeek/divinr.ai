@@ -28,6 +28,13 @@ function fail(name: string, error: unknown): void {
 }
 
 async function main(): Promise<void> {
+  // The HTTP smoke tests use the compliance harness's seed users (which are
+  // text-id rows in authz.users with no real Supabase auth.users record), so
+  // they cannot present a valid JWT. Force the dev bypass on for this runner
+  // — runtime traffic still has bypass off in .env. A follow-up effort should
+  // migrate the harness to create a real auth.users row + mint a JWT, at
+  // which point this override can be removed. See effort/auth-bootstrap notes.
+  process.env.MARKETS_DEV_AUTH_BYPASS = 'true';
   process.env.API_PORT = process.env.API_PORT || '3100';
   process.env.DATABASE_URL =
     process.env.DATABASE_URL ||

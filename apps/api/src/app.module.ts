@@ -11,13 +11,17 @@ import {
   RbacModule,
 } from '@orchestratorai/planes';
 import {
+  AUTH_SERVICE,
   IDENTITY_PROVIDER,
   SupabaseIdentityProvider,
 } from '@orchestratorai/planes/auth';
+import { SupabaseAuthService } from '@orchestratorai/planes/auth/services/supabase-auth.service';
+import { InternalIdentityLinkService } from '@orchestratorai/planes/auth/services/internal-identity-link.service';
 import { HealthController } from './health.controller';
 import { MarketsModule } from './markets/markets.module';
 import { A2AModule } from './a2a/a2a.module';
 import { AuthMiddleware } from './auth/auth.middleware';
+import { AuthController } from './auth/auth.controller';
 
 @Module({
   imports: [
@@ -35,9 +39,12 @@ import { AuthMiddleware } from './auth/auth.middleware';
     MarketsModule,
     A2AModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, AuthController],
   providers: [
     { provide: IDENTITY_PROVIDER, useClass: SupabaseIdentityProvider },
+    InternalIdentityLinkService,
+    SupabaseAuthService,
+    { provide: AUTH_SERVICE, useExisting: SupabaseAuthService },
     AuthMiddleware,
   ],
 })
