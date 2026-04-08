@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { DataSourceAdapter, DataSourceFetchParams, DataSourceResult } from './data-source-adapter';
 import { RateLimiter } from './rate-limiter';
 import { DataCache } from './data-cache';
@@ -13,6 +13,7 @@ const CIK_MAP: Record<string, string> = {
   JNJ: '0000200406', WMT: '0000104169', PG: '0000080424',
 };
 
+@Injectable()
 export class SecEdgarAdapter implements DataSourceAdapter {
   id = 'ds-sec-edgar';
   name = 'SEC EDGAR';

@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { DataSourceAdapter, DataSourceFetchParams, DataSourceResult } from './data-source-adapter';
 import { RateLimiter } from './rate-limiter';
 import { DataCache } from './data-cache';
@@ -16,6 +16,7 @@ const SERIES_MAP: Record<string, string> = {
   '2y': 'DGS2',
 };
 
+@Injectable()
 export class FredAdapter implements DataSourceAdapter {
   id = 'ds-fred';
   name = 'FRED';
