@@ -3,8 +3,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
-  IonCardContent, IonList, IonItem, IonLabel, IonRadioGroup, IonRadio,
-  IonInput, IonButton, IonIcon, IonNote, IonText,
+  IonCardContent, IonItem, IonInput, IonButton, IonIcon, IonText, IonSpinner,
 } from '@ionic/vue';
 import { analyticsOutline } from 'ionicons/icons';
 import { useTenantStore } from '../stores/tenant.store';
@@ -12,21 +11,69 @@ import { useTenantStore } from '../stores/tenant.store';
 const tenant = useTenantStore();
 const router = useRouter();
 
-const selectedOrg = ref(tenant.orgSlug || '');
-const userId = ref(tenant.userId || '');
+const email = ref('');
+const password = ref('');
 const error = ref('');
+const loading = ref(false);
 
-const demoOrgs = [
-  { slug: 'alpha-capital', label: 'Alpha Capital', desc: 'Aggressive growth — momentum-focused' },
-  { slug: 'steadfast-advisors', label: 'Steadfast Advisors', desc: 'Conservative value — risk-averse' },
-  { slug: 'apex-quant', label: 'Apex Quant', desc: 'Quantitative/technical — data-driven' },
-];
+interface LoginResponse {
+  accessToken: string;
+  refreshToken?: string;
+  tokenType: string;
+  expiresIn?: number;
+}
 
-function login() {
-  if (!selectedOrg.value) { error.value = 'Select an organization'; return; }
-  if (!userId.value.trim()) { error.value = 'Enter a user ID'; return; }
-  tenant.setTenant(selectedOrg.value, userId.value.trim());
-  router.push('/');
+interface MeResponse {
+  id: string;
+  email?: string;
+  role?: string;
+}
+
+async function login() {
+  error.value = '';
+  if (!email.value.trim() || !password.value) {
+    error.value = 'Email and password are required';
+    return;
+  }
+  loading.value = true;
+  try {
+    const loginRes = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.value.trim(), password: password.value }),
+    });
+    if (!loginRes.ok) {
+      const text = await loginRes.text();
+      try {
+        const parsed = JSON.parse(text) as { message?: string };
+        error.value = parsed.message ?? `Login failed (${loginRes.status})`;
+      } catch {
+        error.value = `Login failed (${loginRes.status})`;
+      }
+      return;
+    }
+    const auth = (await loginRes.json()) as LoginResponse;
+
+    const meRes = await fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    });
+    if (!meRes.ok) {
+      error.value = `Could not fetch profile (${meRes.status})`;
+      return;
+    }
+    const me = (await meRes.json()) as MeResponse;
+
+    // Pick a default org slug. Personal orgs follow the convention
+    // `personal-<email-handle>`. Once a real org switcher exists, this becomes
+    // a per-user preference.
+    const handle = (me.email ?? email.value.trim()).split('@')[0];
+    tenant.setTenant(`personal-${handle}`, me.id, auth.accessToken);
+    await router.push('/');
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
 
@@ -44,31 +91,37 @@ function login() {
           <ion-card-content>
             <ion-text v-if="error" color="danger"><p>{{ error }}</p></ion-text>
 
-            <h3>Select Organization</h3>
-            <ion-radio-group v-model="selectedOrg">
-              <ion-list lines="none">
-                <ion-item v-for="org in demoOrgs" :key="org.slug">
-                  <ion-radio slot="start" :value="org.slug" />
-                  <ion-label>
-                    <h2>{{ org.label }}</h2>
-                    <ion-note>{{ org.desc }}</ion-note>
-                  </ion-label>
-                </ion-item>
-              </ion-list>
-            </ion-radio-group>
-
             <ion-item class="ion-margin-top">
               <ion-input
-                v-model="userId"
-                label="User ID"
+                v-model="email"
+                type="email"
+                label="Email"
                 label-placement="floating"
-                placeholder="admin@alpha-capital.demo"
+                autocomplete="email"
+                placeholder="you@example.com"
                 @keyup.enter="login"
               />
             </ion-item>
 
-            <ion-button expand="block" class="ion-margin-top" :disabled="!selectedOrg || !userId.trim()" @click="login">
-              Sign In
+            <ion-item class="ion-margin-top">
+              <ion-input
+                v-model="password"
+                type="password"
+                label="Password"
+                label-placement="floating"
+                autocomplete="current-password"
+                @keyup.enter="login"
+              />
+            </ion-item>
+
+            <ion-button
+              expand="block"
+              class="ion-margin-top"
+              :disabled="loading || !email.trim() || !password"
+              @click="login"
+            >
+              <ion-spinner v-if="loading" name="crescent" />
+              <span v-else>Sign In</span>
             </ion-button>
           </ion-card-content>
         </ion-card>

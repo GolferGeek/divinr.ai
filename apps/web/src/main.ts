@@ -9,13 +9,25 @@ import App from './App.vue';
 import { router } from './router';
 import { bootstrapAuth } from './auth/bootstrap-auth';
 
-const app = createApp(App);
-app.use(createPinia());
-app.use(IonicVue, { mode: 'md' });
-app.use(router);
+async function start() {
+  const app = createApp(App);
+  app.use(createPinia());
+  app.use(IonicVue, { mode: 'md' });
 
-router.isReady().then(async () => {
-  // Pinia must be installed before useTenantStore() can be called.
+  // Auto-login MUST run before the router is installed. The router.beforeEach
+  // guard reads localStorage during the initial navigation triggered by
+  // router.isReady(); if the token isn't in place yet, the guard redirects
+  // to /login and the user lands on the manual login page even though
+  // bootstrapAuth would have logged them in a moment later.
+  // Pinia is installed above so useTenantStore() works inside bootstrapAuth.
   await bootstrapAuth();
+
+  app.use(router);
+  await router.isReady();
   app.mount('#app');
+}
+
+start().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error('[main] startup failed:', err);
 });
