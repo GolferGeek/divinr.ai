@@ -6,6 +6,7 @@ import {
 } from '@orchestratorai/planes/database';
 import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
 import { StopLossWatcherService } from './stop-loss-watcher.service';
+import { DayTraderRunnerService } from './day-trader-runner.service';
 
 interface ActiveInstrumentPrice {
   id: string;
@@ -64,6 +65,7 @@ export class OutcomeTrackingService {
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ObservabilityEventsService) private readonly observability: ObservabilityEventsService,
     @Inject(StopLossWatcherService) private readonly stopLossWatcher: StopLossWatcherService,
+    @Inject(DayTraderRunnerService) private readonly dayTraderRunner: DayTraderRunnerService,
   ) {}
 
   private emit(type: string, message: string, data?: Record<string, unknown>): void {
@@ -125,6 +127,23 @@ export class OutcomeTrackingService {
       } catch (err) {
         this.logger.warn(
           `Stop-loss sweep failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      // Step 1.6: Day-trader strategy runner. Fires once per 15-min tick,
+      // detects the EOD-flat boundary, and is isolated from the rest of
+      // outcome tracking the same way the stop-loss sweep is.
+      try {
+        const isLastTickOfSession = DayTraderRunnerService.isLastTickOfSession(new Date());
+        const dtResult = await this.dayTraderRunner.runStrategies({ isLastTickOfSession });
+        if (dtResult.opensWritten > 0 || dtResult.closesWritten > 0 || dtResult.eodFlat) {
+          this.logger.log(
+            `Day-trader runner: opens=${dtResult.opensWritten} closes=${dtResult.closesWritten} eodFlat=${dtResult.eodFlat}`,
+          );
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Day-trader runner failed: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
 

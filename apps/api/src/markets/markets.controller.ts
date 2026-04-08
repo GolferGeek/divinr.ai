@@ -989,9 +989,11 @@ export class MarketsController {
     @Req() req: { user?: AuthenticatedUser },
     @Param('kind') kind: string,
     @Param('id') id: string,
+    @Query('days') days?: string,
   ) {
     this.getUser(req);
-    return this.leaderboard.getPortfolioDetail({ kind, id });
+    const daysNum = days ? Number(days) : undefined;
+    return this.leaderboard.getPortfolioDetail({ kind, id, days: daysNum });
   }
 
   @Post('portfolios/me/queue-trade/:tradeId/cancel')

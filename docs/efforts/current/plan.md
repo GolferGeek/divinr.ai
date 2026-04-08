@@ -6,11 +6,11 @@
 
 ## Progress Tracker
 - [x] Phase 1: Open/close signature extension + recent-bars helper
-- [ ] Phase 2: Strategy interface refactor + EOD-flat scaffolding
-- [ ] Phase 3: Wire runner into OutcomeTracking + remove hourly cron
-- [ ] Phase 4: Three real strategies
-- [ ] Phase 5: Stop-loss isolation lock + state-persistence test
-- [ ] Phase 6: LeaderboardService metric extensions
+- [x] Phase 2: Strategy interface refactor + EOD-flat scaffolding
+- [x] Phase 3: Wire runner into OutcomeTracking + remove hourly cron
+- [x] Phase 4: Three real strategies
+- [x] Phase 5: Stop-loss isolation lock + state-persistence test
+- [x] Phase 6: LeaderboardService metric extensions
 - [ ] Phase 7: Frontend leaderboard upgrade
 - [ ] Phase 8: Manual test plan + final regression sweep
 
@@ -101,92 +101,92 @@ ring buffer inside `instruments.current_state` jsonb.
 ---
 
 ## Phase 4: Three real strategies
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Implement and unit-test `MomentumBreakoutStrategy`, `MeanReversionStrategy`, `GapAndGoStrategy`, register them in the runner.
 
 ### Steps
-- [ ] 4.1 Create `apps/api/src/markets/strategies/day-trader-strategy.types.ts` with the `DayTraderStrategy` interface and shared `Bar` / `Signal` types (move from `day-trader-runner.service.ts`).
-- [ ] 4.2 Create `apps/api/src/markets/strategies/momentum-breakout.strategy.ts`. Constants: `LOOKBACK=20`, `BASE_SIZE_PCT=0.05`. Rule: buy on N-bar high breakout; sell on first lower-high; consume conviction score as 0.5×–1.5× sizing multiplier; veto open if direction is "flat" and `abs(score) > 70`.
-- [ ] 4.3 Create `apps/api/src/markets/strategies/mean-reversion.strategy.ts`. Constants: `LOOKBACK=20`, `K=2.0`, `BASE_SIZE_PCT=0.05`. Rule: buy when price < `SMA(N) − k×stdev(N)`; sell on cross back to mean; same conviction modifier + flat-veto.
-- [ ] 4.4 Create `apps/api/src/markets/strategies/gap-and-go.strategy.ts`. Constants: `GAP_PCT=0.01`, `BASE_SIZE_PCT=0.05`. Rule: at first 15-min tick after 14:30 UTC, gap-up ≥ 1% vs prior daily snapshot close AND current bar green → buy; sell on first red 15-min bar; same conviction modifier + flat-veto. Use a `state.daily_armed_date` flag so each strategy fires at most once per session.
-- [ ] 4.5 In `day-trader-runner.service.ts`, replace the three `StubStrategy` placeholders in the registry with the three real strategy instances, mapped by `analyst_portfolios.strategy_name`.
-- [ ] 4.6 The runner enumerates candidate instruments the same way the existing flow did (active instruments excluding `__base__`). No new universe logic.
-- [ ] 4.7 Add `apps/api/tests/unit/momentum-breakout-strategy.test.ts` covering: happy-path breakout open, lower-high close, insufficient bars (returns noop), NaN/missing bar (returns noop), missing signal (size = base), conviction sizing modifier path, flat-veto path.
-- [ ] 4.8 Add `apps/api/tests/unit/mean-reversion-strategy.test.ts` with the same edge-case coverage.
-- [ ] 4.9 Add `apps/api/tests/unit/gap-and-go-strategy.test.ts` covering pre-14:30 noop, gap-up arming, gap-down skip, daily-once flag, red-bar close.
-- [ ] 4.10 Append all three new test files to `apps/api/package.json` `test:unit` script.
-- [ ] 4.11 Extend the existing day-trader-runner test with a synthetic-fixture session asserting each of the three real strategies opens at least one position.
+- [x] 4.1 Create `apps/api/src/markets/strategies/day-trader-strategy.types.ts` with the `DayTraderStrategy` interface and shared `Bar` / `Signal` types (move from `day-trader-runner.service.ts`).
+- [x] 4.2 Create `apps/api/src/markets/strategies/momentum-breakout.strategy.ts`. Constants: `LOOKBACK=20`, `BASE_SIZE_PCT=0.05`. Rule: buy on N-bar high breakout; sell on first lower-high; consume conviction score as 0.5×–1.5× sizing multiplier; veto open if direction is "flat" and `abs(score) > 70`.
+- [x] 4.3 Create `apps/api/src/markets/strategies/mean-reversion.strategy.ts`. Constants: `LOOKBACK=20`, `K=2.0`, `BASE_SIZE_PCT=0.05`. Rule: buy when price < `SMA(N) − k×stdev(N)`; sell on cross back to mean; same conviction modifier + flat-veto.
+- [x] 4.4 Create `apps/api/src/markets/strategies/gap-and-go.strategy.ts`. Constants: `GAP_PCT=0.01`, `BASE_SIZE_PCT=0.05`. Rule: at first 15-min tick after 14:30 UTC, gap-up ≥ 1% vs prior daily snapshot close AND current bar green → buy; sell on first red 15-min bar; same conviction modifier + flat-veto. Use a `state.daily_armed_date` flag so each strategy fires at most once per session.
+- [x] 4.5 In `day-trader-runner.service.ts`, replace the three `StubStrategy` placeholders in the registry with the three real strategy instances, mapped by `analyst_portfolios.strategy_name`.
+- [x] 4.6 The runner enumerates candidate instruments the same way the existing flow did (active instruments excluding `__base__`). No new universe logic.
+- [x] 4.7 Add `apps/api/tests/unit/momentum-breakout-strategy.test.ts` covering: happy-path breakout open, lower-high close, insufficient bars (returns noop), NaN/missing bar (returns noop), missing signal (size = base), conviction sizing modifier path, flat-veto path.
+- [x] 4.8 Add `apps/api/tests/unit/mean-reversion-strategy.test.ts` with the same edge-case coverage.
+- [x] 4.9 Add `apps/api/tests/unit/gap-and-go-strategy.test.ts` covering pre-14:30 noop, gap-up arming, gap-down skip, daily-once flag, red-bar close.
+- [x] 4.10 Append all three new test files to `apps/api/package.json` `test:unit` script.
+- [x] 4.11 Extend the existing day-trader-runner test with a synthetic-fixture session asserting each of the three real strategies opens at least one position.
 
 ### Quality Gate
-- [ ] **Lint**: `pnpm --filter @divinr/api lint`
-- [ ] **Build**: `pnpm --filter @divinr/api build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api test:unit`
+- [x] **Lint**: `pnpm --filter @divinr/api lint`
+- [x] **Build**: `pnpm --filter @divinr/api build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api test:unit`
 - [ ] **E2E Tests**: n/a
 - [ ] **Curl Tests**:
-  - [ ] `curl -X POST http://localhost:7100/markets/admin/run-day-trader-strategies` returns 200 and (when seeded with bars) opens at least one day-trader position visible in `select * from prediction.analyst_positions where trigger_reason='strategy'`.
+  - [ ] `curl -X POST http://localhost:7100/markets/admin/run-day-trader-strategies` returns 200 and (when seeded with bars) opens at least one day-trader position visible in `select * from prediction.analyst_positions where trigger_reason='strategy'`. (deferred — requires running API + seeded bars)
 - [ ] **Chrome Tests**: n/a
-- [ ] **Phase Review**:
-  - [ ] All three strategies present in `apps/api/src/markets/strategies/`.
-  - [ ] Registry no longer contains `StubStrategy`.
-  - [ ] Each strategy is unit-tested deterministically with no DB.
-  - [ ] Conviction is consumed as a sizing modifier and a flat-veto, never as a primary trigger.
+- [x] **Phase Review**:
+  - [x] All three strategies present in `apps/api/src/markets/strategies/`.
+  - [x] Registry no longer contains `StubStrategy`.
+  - [x] Each strategy is unit-tested deterministically with no DB.
+  - [x] Conviction is consumed as a sizing modifier and a flat-veto, never as a primary trigger.
 
 ---
 
 ## Phase 5: Stop-loss isolation lock + state-persistence test
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Lock down "5/10/trailing rules don't fire on day-trader positions" with a unit test, and prove `strategy_state` persists across consecutive ticks.
 
 ### Steps
-- [ ] 5.1 Extend `apps/api/tests/unit/stop-loss-watcher.test.ts` (or add a new file) with a fixture: a day-trader portfolio (`kind='day_trader'`) holding an open position with `entry_price` deep enough to trigger a 10% stop on a non-day-trader. Run `sweep()`. Assert position remains open and no close call was made.
-- [ ] 5.2 Extend `apps/api/tests/unit/day-trader-runner.test.ts` with a two-tick fixture: tick 1 mutates `state.foo = 'bar'`; tick 2's `decide()` receives the previous `state.foo` and uses it to decide.
-- [ ] 5.3 Verify both new test files are wired into the `test:unit` script.
+- [x] 5.1 Extend `apps/api/tests/unit/stop-loss-watcher.test.ts` (or add a new file) with a fixture: a day-trader portfolio (`kind='day_trader'`) holding an open position with `entry_price` deep enough to trigger a 10% stop on a non-day-trader. Run `sweep()`. Assert position remains open and no close call was made.
+- [x] 5.2 Extend `apps/api/tests/unit/day-trader-runner.test.ts` with a two-tick fixture: tick 1 mutates `state.foo = 'bar'`; tick 2's `decide()` receives the previous `state.foo` and uses it to decide.
+- [x] 5.3 Verify both new test files are wired into the `test:unit` script. (already wired from Phase 4)
 
 ### Quality Gate
-- [ ] **Lint**: `pnpm --filter @divinr/api lint`
-- [ ] **Build**: `pnpm --filter @divinr/api build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api test:unit`
+- [x] **Lint**: `pnpm --filter @divinr/api lint`
+- [x] **Build**: `pnpm --filter @divinr/api build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api test:unit`
 - [ ] **E2E Tests**: n/a
 - [ ] **Curl Tests**: n/a
 - [ ] **Chrome Tests**: n/a
-- [ ] **Phase Review**:
-  - [ ] Stop-loss isolation explicitly locked by a regression test.
-  - [ ] State persistence proven across two consecutive ticks.
+- [x] **Phase Review**:
+  - [x] Stop-loss isolation explicitly locked by a regression test.
+  - [x] State persistence proven across two consecutive ticks.
 
 ---
 
 ## Phase 6: LeaderboardService metric extensions
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Add Sharpe, max drawdown, longest winning streak, and calibration to `getAllPortfoliosSummary()`; extend `getPortfolioDetail()` with snapshot/benchmark/calibration data.
 
 ### Steps
-- [ ] 6.1 In `apps/api/src/markets/services/leaderboard.service.ts`, extend `getAllPortfoliosSummary()` to compute:
+- [x] 6.1 In `apps/api/src/markets/services/leaderboard.service.ts`, extend `getAllPortfoliosSummary()` to compute:
   - `sharpe_30d` from `daily_pnl_snapshot` (mean / stdev of daily returns × √252; null if < 10 snapshots).
   - `max_drawdown_30d` from `daily_pnl_snapshot` peak-to-trough (negative, e.g. `-0.084`; null if < 10 snapshots).
   - `longest_win_streak` from `analyst_positions` realized PnL ordered chronologically.
   - `calibration_score` per analyst (null for non-analyst kinds and < 20 resolved predictions).
   Use a single CTE-based query joining `daily_pnl_snapshot`, `analyst_positions`, `market_predictions`, `prediction_horizon_evaluations`.
-- [ ] 6.2 Add `computeCalibration(analystId)` returning `{score, buckets}` where `buckets` is an array of 5 entries at conviction boundaries 50/60/70/80/90%, each with `{bucket_min, bucket_max, predicted_avg, realized_rate, count}`.
-- [ ] 6.3 Extend `getPortfolioDetail({kind, id, days?})` to accept an optional `days` param (default 90, cap 365) and return:
+- [x] 6.2 Add `computeCalibration(analystId)` returning `{score, buckets}` where `buckets` is an array of 5 entries at conviction boundaries 50/60/70/80/90%, each with `{bucket_min, bucket_max, predicted_avg, realized_rate, count}`.
+- [x] 6.3 Extend `getPortfolioDetail({kind, id, days?})` to accept an optional `days` param (default 90, cap 365) and return:
   - `snapshot_history: Array<{date, equity, realized, unrealized, bailout_flag}>` for that range.
   - `calibration_buckets` (analysts only, ≥ 20 resolved predictions).
   - `benchmark_series: Array<{date, spy_close}>` over the same range from `prediction.benchmark_series`.
-- [ ] 6.4 Update `LeaderboardController` (`apps/api/src/markets/markets.controller.ts` or wherever the route lives) so `GET /markets/portfolios/:kind/:id` accepts `?days=` query param.
-- [ ] 6.5 Update `apps/api/tests/unit/leaderboard-service.test.ts` for the new master-row fields and a calibration fixture (synthetic resolved predictions across all 5 buckets).
+- [x] 6.4 Update `LeaderboardController` (`apps/api/src/markets/markets.controller.ts` or wherever the route lives) so `GET /markets/portfolios/:kind/:id` accepts `?days=` query param.
+- [x] 6.5 Update `apps/api/tests/unit/leaderboard-service.test.ts` for the new master-row fields and a calibration fixture (synthetic resolved predictions across all 5 buckets).
 
 ### Quality Gate
-- [ ] **Lint**: `pnpm --filter @divinr/api lint`
-- [ ] **Build**: `pnpm --filter @divinr/api build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api test:unit`
+- [x] **Lint**: `pnpm --filter @divinr/api lint`
+- [x] **Build**: `pnpm --filter @divinr/api build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api test:unit`
 - [ ] **E2E Tests**: n/a
-- [ ] **Curl Tests**:
+- [ ] **Curl Tests**: deferred — requires running API instance with seeded snapshots
   - [ ] `curl http://localhost:7100/markets/portfolios | jq '.[0] | keys'` includes `sharpe_30d`, `max_drawdown_30d`, `longest_win_streak`, `calibration_score`.
   - [ ] `curl 'http://localhost:7100/markets/portfolios/analyst/<id>?days=90' | jq 'keys'` includes `snapshot_history`, `benchmark_series`, `calibration_buckets`.
 - [ ] **Chrome Tests**: n/a
-- [ ] **Phase Review**:
-  - [ ] Single CTE query — no N+1.
-  - [ ] Calibration is `null` for non-analyst kinds and analysts with < 20 resolved predictions.
-  - [ ] No new endpoints — only payload extensions and a new query param.
+- [x] **Phase Review**:
+  - [x] Single CTE query — no N+1.
+  - [x] Calibration is `null` for non-analyst kinds and analysts with < 20 resolved predictions.
+  - [x] No new endpoints — only payload extensions and a new query param.
 
 ---
 

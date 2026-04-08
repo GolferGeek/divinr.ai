@@ -240,6 +240,46 @@ console.log('\nsweep() integration:');
   assert(db.calls.find(c => c.sql.includes('from prediction.instruments')) === undefined, 'skips price lookup when no positions');
 }
 {
+  // Phase 5 — explicit day-trader isolation lock.
+  // The production SQL filters `port.kind in ('analyst','arbitrator')`, so
+  // day-trader positions must never reach the watcher even if they would
+  // otherwise be deep enough to trigger a 10% stop. We script the mock to
+  // return a day-trader row ONLY when the kind filter is absent — with the
+  // real SQL, the row set is empty and closePosition is never called.
+  const dayTraderRow = {
+    id: 'pos-dt-deep',
+    direction: 'long' as const,
+    entry_price: 100,
+    quantity: 10,
+    high_water_mark: null,
+    instrument_id: 'inst-dt',
+    symbol: 'DTX',
+    kind: 'day_trader',
+  };
+  const db = new MockDb((sql, _params) => {
+    if (sql.includes('from prediction.analyst_positions p')) {
+      // If the kind filter were missing, this row would surface and trip a stop.
+      if (!sql.includes("kind in ('analyst','arbitrator')")) {
+        return { data: [dayTraderRow], error: null };
+      }
+      return { data: [], error: null };
+    }
+    if (sql.includes('from prediction.instruments')) {
+      // Price 80 → -20% favorable, would deep-trigger 10% stop.
+      return { data: [{ id: 'inst-dt', current_state: { price: 80 } }], error: null };
+    }
+    return { data: [], error: null };
+  });
+  const portfolios = new MockPortfolios();
+  const watcher = new StopLossWatcherService(db as any, portfolios as any);
+  const result = await watcher.sweep();
+  assert(result.closed === 0, 'day-trader position not closed by stop watcher');
+  assert(portfolios.closed.length === 0, 'closePosition never invoked for day-trader');
+  const select = db.calls.find(c => c.sql.includes('from prediction.analyst_positions p'));
+  assert(select !== undefined, 'sweep issued the SELECT');
+  assert(select!.sql.includes("kind in ('analyst','arbitrator')"), 'SELECT still carries kind filter');
+}
+{
   // Missing current price → skip without crash.
   const db = new MockDb((sql, _params) => {
     if (sql.includes('from prediction.analyst_positions p')) {

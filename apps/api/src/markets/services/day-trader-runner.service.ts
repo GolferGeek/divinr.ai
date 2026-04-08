@@ -1,42 +1,30 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { AutotradeOpenHelper } from './autotrade-open-helper.service';
 import { AnalystPortfolioService } from './analyst-portfolio.service';
+import type { RecentBar } from './outcome-tracking.service';
+import { MomentumBreakoutStrategy } from '../strategies/momentum-breakout.strategy';
+import { MeanReversionStrategy } from '../strategies/mean-reversion.strategy';
+import { GapAndGoStrategy } from '../strategies/gap-and-go.strategy';
 
 /**
- * DayTraderRunnerService — Phase 7 of portfolio-foundation-resume.
+ * DayTraderRunnerService — drives the three day-trader portfolios
+ * (momentum-breakout, mean-reversion, gap-and-go).
  *
- * Drives the three day-trader portfolios (momentum-breakout,
- * mean-reversion, gap-and-go). Each portfolio has a strategy hook
- * that returns zero or more open/close intents per tick. Opens route
- * through AutotradeOpenHelper with triggerReason='strategy' and
- * predictionId=null. Closes route through AnalystPortfolioService.
+ * Phase 2 of day-traders-and-leaderboard rewrote the strategy hook to a
+ * stateful `decide({portfolio, recentBars, latestSignals, openPositions,
+ * state})` interface. The runner is responsible for fetching ambient
+ * context (bars, signals, open positions), invoking the strategy, routing
+ * the resulting open/close action through the helper / portfolio service,
+ * and persisting the returned newState back into
+ * `analyst_portfolios.strategy_state` keyed by strategy_name.
  *
- * Strategy *content* is intentionally stub-only at this phase — the
- * runner is wiring, not signal logic. The day-traders-and-leaderboard
- * effort fills in the actual breakout / mean-reversion / gap rules.
+ * The runner no longer carries its own cron — Phase 3 invokes it from
+ * OutcomeTrackingService after every 15-min stop-loss sweep, which is
+ * also where the EOD-flat boundary is detected.
  */
 
-export interface StrategyOpenIntent {
-  instrumentId: string;
-  direction: 'long' | 'short';
-  quantity: number;
-  conviction: number;
-}
-
-export interface StrategyCloseIntent {
-  positionId: string;
-}
-
-export interface StrategyIntents {
-  opens: StrategyOpenIntent[];
-  closes: StrategyCloseIntent[];
-}
-
-export interface DayTraderStrategy {
-  generateIntents(portfolio: DayTraderPortfolioRow): Promise<StrategyIntents>;
-}
+const BASE_SIZE_PCT = 0.05;
 
 export interface DayTraderPortfolioRow {
   id: string;
@@ -44,6 +32,48 @@ export interface DayTraderPortfolioRow {
   organization_slug: string;
   current_balance: number | string;
   strategy_name: string | null;
+  strategy_state: Record<string, unknown> | null;
+}
+
+export interface OpenPositionRow {
+  id: string;
+  instrument_id: string;
+  direction: 'long' | 'short';
+  quantity: number;
+  entry_price: number;
+}
+
+export interface Signal {
+  direction: 'up' | 'down' | 'flat';
+  confidence: number;
+}
+
+export interface DecideContext {
+  portfolio: DayTraderPortfolioRow;
+  recentBars: Map<string, RecentBar[]>;
+  latestSignals: Map<string, Signal | null>;
+  openPositions: OpenPositionRow[];
+  state: Record<string, unknown>;
+  nowMs: number;
+}
+
+export type DecideAction =
+  | { action: 'noop'; newState: Record<string, unknown> }
+  | {
+      action: 'open';
+      instrumentId: string;
+      direction: 'long' | 'short';
+      sizingMultiplier: number;
+      newState: Record<string, unknown>;
+    }
+  | {
+      action: 'close';
+      positionId: string;
+      newState: Record<string, unknown>;
+    };
+
+export interface DayTraderStrategy {
+  decide(ctx: DecideContext): DecideAction | Promise<DecideAction>;
 }
 
 export interface RunStrategiesResult {
@@ -52,13 +82,7 @@ export interface RunStrategiesResult {
   opensWritten: number;
   closesRequested: number;
   closesWritten: number;
-}
-
-/** Stub strategy — returns no intents. Day-traders effort replaces this. */
-class StubStrategy implements DayTraderStrategy {
-  async generateIntents(_portfolio: DayTraderPortfolioRow): Promise<StrategyIntents> {
-    return { opens: [], closes: [] };
-  }
+  eodFlat: boolean;
 }
 
 @Injectable()
@@ -69,10 +93,10 @@ export class DayTraderRunnerService {
    * Strategy registry keyed by analyst_portfolios.strategy_name.
    * Public so unit tests can swap stubs in for routing assertions.
    */
-  public strategies: Map<string, DayTraderStrategy> = new Map([
-    ['momentum_breakout', new StubStrategy()],
-    ['mean_reversion', new StubStrategy()],
-    ['gap_and_go', new StubStrategy()],
+  public strategies: Map<string, DayTraderStrategy> = new Map<string, DayTraderStrategy>([
+    ['momentum_breakout', new MomentumBreakoutStrategy()],
+    ['mean_reversion', new MeanReversionStrategy()],
+    ['gap_and_go', new GapAndGoStrategy()],
   ]);
 
   constructor(
@@ -81,26 +105,39 @@ export class DayTraderRunnerService {
     @Inject(AnalystPortfolioService) private readonly portfolios: AnalystPortfolioService,
   ) {}
 
-  /** Cron — hourly during US market hours, weekdays. */
-  @Cron('0 14,15,16,17,18 * * 1-5')
-  async cronTick(): Promise<void> {
-    try {
-      const result = await this.runStrategies();
-      this.logger.log(
-        `cron day-trader tick: ${JSON.stringify(result)}`,
-      );
-    } catch (err) {
-      this.logger.error(`cron day-trader tick failed: ${(err as Error).message}`);
-    }
+  /**
+   * True when the next 15-min boundary lands at-or-after 22:00 UTC. Caller
+   * (OutcomeTrackingService) is responsible for invoking with the wall-clock
+   * `now` of the current tick. Used to trigger the EOD-flat force-close.
+   */
+  static isLastTickOfSession(now: Date): boolean {
+    const next = new Date(now.getTime() + 15 * 60 * 1000);
+    const cutoff = new Date(Date.UTC(
+      next.getUTCFullYear(),
+      next.getUTCMonth(),
+      next.getUTCDate(),
+      22, 0, 0, 0,
+    ));
+    return next.getTime() >= cutoff.getTime() && now.getUTCHours() < 22;
   }
 
-  async runStrategies(): Promise<RunStrategiesResult> {
+  async runStrategies(opts: { isLastTickOfSession?: boolean } = {}): Promise<RunStrategiesResult> {
     const portfolios = await this.loadDayTraderPortfolios();
+
+    if (opts.isLastTickOfSession) {
+      return this.runEodFlat(portfolios);
+    }
 
     let opensRequested = 0;
     let opensWritten = 0;
     let closesRequested = 0;
     let closesWritten = 0;
+
+    // Ambient context fetched once per tick.
+    const instruments = await this.loadCandidateInstruments();
+    const instrumentIds = instruments.map(i => i.id);
+    const recentBarsMap = await this.loadRecentBarsMap(instruments);
+    const latestSignals = await this.loadLatestSignals(instrumentIds);
 
     for (const portfolio of portfolios) {
       const strategyName = portfolio.strategy_name ?? '';
@@ -112,9 +149,20 @@ export class DayTraderRunnerService {
         continue;
       }
 
-      let intents: StrategyIntents;
+      const openPositions = await this.loadOpenPositions(portfolio.id);
+      const fullState = (portfolio.strategy_state ?? {}) as Record<string, unknown>;
+      const stateForStrategy = (fullState[strategyName] as Record<string, unknown> | undefined) ?? {};
+
+      let decision: DecideAction;
       try {
-        intents = await strategy.generateIntents(portfolio);
+        decision = await strategy.decide({
+          portfolio,
+          recentBars: recentBarsMap,
+          latestSignals,
+          openPositions,
+          state: stateForStrategy,
+          nowMs: Date.now(),
+        });
       } catch (err) {
         this.logger.error(
           `runStrategies: strategy ${strategyName} threw for portfolio=${portfolio.id}: ${(err as Error).message}`,
@@ -122,15 +170,23 @@ export class DayTraderRunnerService {
         continue;
       }
 
-      opensRequested += intents.opens.length;
-      closesRequested += intents.closes.length;
-
-      for (const open of intents.opens) {
-        const written = await this.routeOpen(portfolio, open);
-        if (written) opensWritten++;
+      // Persist newState regardless of action.
+      try {
+        const merged = { ...fullState, [strategyName]: decision.newState };
+        await this.persistStrategyState(portfolio.id, merged);
+      } catch (err) {
+        this.logger.error(
+          `runStrategies: failed to persist strategy_state for portfolio=${portfolio.id}: ${(err as Error).message}`,
+        );
       }
-      for (const close of intents.closes) {
-        const written = await this.routeClose(portfolio, close);
+
+      if (decision.action === 'open') {
+        opensRequested++;
+        const written = await this.routeOpen(portfolio, decision);
+        if (written) opensWritten++;
+      } else if (decision.action === 'close') {
+        closesRequested++;
+        const written = await this.routeClose(portfolio, decision.positionId, portfolio.strategy_name ?? 'unknown');
         if (written) closesWritten++;
       }
     }
@@ -141,12 +197,40 @@ export class DayTraderRunnerService {
       opensWritten,
       closesRequested,
       closesWritten,
+      eodFlat: false,
+    };
+  }
+
+  /**
+   * EOD-flat path: force-close every open day-trader position at the
+   * last cached price. Strategies are NOT consulted.
+   */
+  private async runEodFlat(portfolios: DayTraderPortfolioRow[]): Promise<RunStrategiesResult> {
+    let closesRequested = 0;
+    let closesWritten = 0;
+
+    for (const portfolio of portfolios) {
+      const open = await this.loadOpenPositions(portfolio.id);
+      for (const pos of open) {
+        closesRequested++;
+        const written = await this.routeClose(portfolio, pos.id, 'eod_flat');
+        if (written) closesWritten++;
+      }
+    }
+
+    return {
+      strategiesRun: portfolios.length,
+      opensRequested: 0,
+      opensWritten: 0,
+      closesRequested,
+      closesWritten,
+      eodFlat: true,
     };
   }
 
   private async loadDayTraderPortfolios(): Promise<DayTraderPortfolioRow[]> {
     const result = await this.db.rawQuery(
-      `select id, analyst_id, organization_slug, current_balance, strategy_name
+      `select id, analyst_id, organization_slug, current_balance, strategy_name, strategy_state
          from prediction.analyst_portfolios
         where kind = 'day_trader'
           and status = 'active'
@@ -154,6 +238,112 @@ export class DayTraderRunnerService {
       [],
     );
     return ((result.data as DayTraderPortfolioRow[] | null) ?? []);
+  }
+
+  private async loadOpenPositions(portfolioId: string): Promise<OpenPositionRow[]> {
+    const result = await this.db.rawQuery(
+      `select id, instrument_id, direction, quantity, entry_price
+         from prediction.analyst_positions
+        where portfolio_id = $1 and status = 'open'`,
+      [portfolioId],
+    );
+    return ((result.data as OpenPositionRow[] | null) ?? []).map(r => ({
+      id: r.id,
+      instrument_id: r.instrument_id,
+      direction: r.direction,
+      quantity: Number(r.quantity),
+      entry_price: Number(r.entry_price),
+    }));
+  }
+
+  private async loadCandidateInstruments(): Promise<Array<{ id: string; symbol: string; price: number }>> {
+    const result = await this.db.rawQuery(
+      `select distinct on (symbol) id, symbol, current_state
+         from prediction.instruments
+        where is_active = true and organization_slug != '__base__'
+        order by symbol, organization_slug`,
+      [],
+    );
+    const rows = (result.data as Array<{
+      id: string;
+      symbol: string;
+      current_state: Record<string, unknown> | null;
+    }> | null) ?? [];
+    const out: Array<{ id: string; symbol: string; price: number }> = [];
+    for (const r of rows) {
+      const state = r.current_state ?? {};
+      const price = Number(
+        (state as Record<string, unknown>).price ??
+          (state as Record<string, unknown>).last_price ??
+          0,
+      );
+      if (Number.isFinite(price) && price > 0) {
+        out.push({ id: r.id, symbol: r.symbol, price });
+      }
+    }
+    return out;
+  }
+
+  private async loadRecentBarsMap(
+    instruments: Array<{ id: string; current_state?: unknown }>,
+  ): Promise<Map<string, RecentBar[]>> {
+    // We re-query to get current_state with recent_bars; cheaper than N round-trips.
+    const ids = instruments.map(i => i.id);
+    if (ids.length === 0) return new Map();
+    const result = await this.db.rawQuery(
+      `select id, current_state from prediction.instruments where id = ANY($1)`,
+      [ids],
+    );
+    const rows = (result.data as Array<{
+      id: string;
+      current_state: Record<string, unknown> | null;
+    }> | null) ?? [];
+    const map = new Map<string, RecentBar[]>();
+    for (const r of rows) {
+      const bars = Array.isArray(r.current_state?.recent_bars)
+        ? (r.current_state!.recent_bars as RecentBar[])
+        : [];
+      map.set(r.id, bars);
+    }
+    return map;
+  }
+
+  private async loadLatestSignals(instrumentIds: string[]): Promise<Map<string, Signal | null>> {
+    const map = new Map<string, Signal | null>();
+    if (instrumentIds.length === 0) return map;
+    const result = await this.db.rawQuery(
+      `select distinct on (instrument_id)
+              instrument_id, predicted_direction, confidence
+         from prediction.market_predictions
+        where instrument_id = ANY($1)
+        order by instrument_id, created_at desc`,
+      [instrumentIds],
+    );
+    const rows = (result.data as Array<{
+      instrument_id: string;
+      predicted_direction: 'up' | 'down' | 'flat';
+      confidence: number | string;
+    }> | null) ?? [];
+    for (const r of rows) {
+      map.set(r.instrument_id, {
+        direction: r.predicted_direction,
+        confidence: Number(r.confidence),
+      });
+    }
+    return map;
+  }
+
+  private async persistStrategyState(
+    portfolioId: string,
+    state: Record<string, unknown>,
+  ): Promise<void> {
+    await this.db.rawQuery(
+      `update prediction.analyst_portfolios
+          set strategy_state = $1::jsonb,
+              updated_at = now()
+        where id = $2`,
+      [JSON.stringify(state), portfolioId],
+    );
   }
 
   private async resolveInstrument(
@@ -180,12 +370,23 @@ export class DayTraderRunnerService {
 
   private async routeOpen(
     portfolio: DayTraderPortfolioRow,
-    intent: StrategyOpenIntent,
+    decision: Extract<DecideAction, { action: 'open' }>,
   ): Promise<boolean> {
-    const instrument = await this.resolveInstrument(intent.instrumentId);
+    const instrument = await this.resolveInstrument(decision.instrumentId);
     if (!instrument) {
       this.logger.warn(
-        `routeOpen: no instrument/price for ${intent.instrumentId} (portfolio=${portfolio.id})`,
+        `routeOpen: no instrument/price for ${decision.instrumentId} (portfolio=${portfolio.id})`,
+      );
+      return false;
+    }
+
+    const balance = Number(portfolio.current_balance);
+    const multiplier = Number.isFinite(decision.sizingMultiplier) ? decision.sizingMultiplier : 1;
+    const dollarSize = balance * BASE_SIZE_PCT * multiplier;
+    const quantity = Math.floor(dollarSize / instrument.price);
+    if (quantity <= 0) {
+      this.logger.warn(
+        `routeOpen: computed quantity ${quantity} <= 0 for portfolio=${portfolio.id} instrument=${decision.instrumentId}`,
       );
       return false;
     }
@@ -197,34 +398,35 @@ export class DayTraderRunnerService {
         organization_slug: portfolio.organization_slug,
         current_balance: portfolio.current_balance,
       },
-      instrumentId: intent.instrumentId,
+      instrumentId: decision.instrumentId,
       symbol: instrument.symbol,
-      direction: intent.direction,
-      quantity: intent.quantity,
+      direction: decision.direction,
+      quantity,
       entryPrice: instrument.price,
       predictionId: null,
-      conviction: intent.conviction,
+      conviction: 0,
       triggerReason: 'strategy',
+      triggerStrategy: portfolio.strategy_name ?? undefined,
       organizationSlug: portfolio.organization_slug,
     });
 
     if (result.reason !== 'inserted') return false;
 
     this.logger.log(
-      `Day-trader open: portfolio=${portfolio.id} strategy=${portfolio.strategy_name} symbol=${instrument.symbol} qty=${intent.quantity} entry=${instrument.price}`,
+      `Day-trader open: portfolio=${portfolio.id} strategy=${portfolio.strategy_name} symbol=${instrument.symbol} qty=${quantity} entry=${instrument.price}`,
     );
     return true;
   }
 
   private async routeClose(
     portfolio: DayTraderPortfolioRow,
-    intent: StrategyCloseIntent,
+    positionId: string,
+    triggerStrategy: string,
   ): Promise<boolean> {
-    // Look up the position to get its instrument, then current price.
     const posResult = await this.db.rawQuery(
       `select instrument_id, portfolio_id from prediction.analyst_positions
         where id = $1 and status = 'open' limit 1`,
-      [intent.positionId],
+      [positionId],
     );
     const rows = (posResult.data as Array<{
       instrument_id: string;
@@ -232,13 +434,13 @@ export class DayTraderRunnerService {
     }> | null) ?? [];
     if (rows.length === 0) {
       this.logger.warn(
-        `routeClose: position ${intent.positionId} not found or already closed`,
+        `routeClose: position ${positionId} not found or already closed`,
       );
       return false;
     }
     if (rows[0].portfolio_id !== portfolio.id) {
       this.logger.warn(
-        `routeClose: position ${intent.positionId} belongs to ${rows[0].portfolio_id}, not strategy portfolio ${portfolio.id}; refusing cross-portfolio close`,
+        `routeClose: position ${positionId} belongs to ${rows[0].portfolio_id}, not strategy portfolio ${portfolio.id}; refusing cross-portfolio close`,
       );
       return false;
     }
@@ -247,11 +449,11 @@ export class DayTraderRunnerService {
     if (!instrument) return false;
 
     try {
-      await this.portfolios.closePosition(intent.positionId, instrument.price, 'strategy');
+      await this.portfolios.closePosition(positionId, instrument.price, 'strategy', triggerStrategy);
       return true;
     } catch (err) {
       this.logger.warn(
-        `routeClose: closePosition failed for ${intent.positionId}: ${(err as Error).message}`,
+        `routeClose: closePosition failed for ${positionId}: ${(err as Error).message}`,
       );
       return false;
     }
