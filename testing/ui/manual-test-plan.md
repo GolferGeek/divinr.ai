@@ -6,6 +6,21 @@
 
 **Companion Tier 4** below (added 2026-04-07): **DB-level capability tests** for backend efforts that have no UI yet (agent-autotrading is the first). These run via direct SQL + admin endpoints, not the browser. Run them after a backend phase ships and before declaring the work done.
 
+## Markets test paths
+
+Three distinct backend test commands cover the markets pipeline at different
+levels — pick the right one for the change you're verifying. Full details in
+`apps/api/tests/markets/integration/README.md`.
+
+| Command | Speed | Hits real APIs? | When to use |
+|---|---|---|---|
+| `pnpm --filter @divinr/api test:markets:smoke` | <5s | no | RBAC, status transitions, external-crawler ingest, tenant isolation. The default markets gate. |
+| `pnpm --filter @divinr/api test:markets:integration` | ~1s | no (stub adapters + stub LLM) | The full prediction pipeline end-to-end against four scenarios (bullish/bearish/split/partial-failure). Runs in CI as the `markets-integration` job. |
+| `pnpm --filter @divinr/api test:markets:live` | minutes | **yes** — Polygon, FMP, TwelveData, Finnhub, FRED, etc. plus real LLM | On-demand sanity check against actual upstreams. Requires real `.env` credentials. Never run in CI. |
+
+To refresh the captured fixtures used by the integration suite:
+`MARKETS_FIXTURE_CAPTURE=true pnpm --filter @divinr/api test:markets:integration`.
+
 ## Pre-flight
 
 Before any tier runs, verify the stack is up:
