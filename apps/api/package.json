@@ -15,8 +15,8 @@
     "test:markets": "pnpm run test:markets:smoke && pnpm run test:markets:http",
     "test:markets:http": "tsx tests/markets/run-markets-http-tests.ts",
     "test:markets:smoke": "tsx tests/markets/run-markets-smoke-tests.ts",
-    "test:markets:integration": "MARKETS_INTEGRATION_TESTS=true tsx tests/markets/run-markets-smoke-tests.ts",
-    "test:markets:capture": "MARKETS_FIXTURE_CAPTURE=true tsx tests/markets/integration/capture-fixtures.ts",
+    "test:markets:integration": "tsx tests/markets/integration/run-markets-integration-tests.ts",
+    "test:markets:live": "MARKETS_INTEGRATION_TESTS=true tsx tests/markets/run-markets-smoke-tests.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

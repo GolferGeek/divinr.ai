@@ -23,7 +23,15 @@
 - Keying: extracts symbol from `Assess SYMBOL (...)` in user prompt and analyst name from `You are NAME.` in system prompt. Arbitrator detected from `^You are the chief arbitrator .* for SYMBOL.`. Per the locked PRD decision the key is conceptually `(symbol, analyst)`; PRD said `analystId` but the prompts only contain `display_name`, which is functionally equivalent within the test scope.
 - 16 canned responses + 4 arbitrator responses (4 symbols × 4 entries each). MSFT|Macro Strategist = `__THROW__` to force the partial-failure code path.
 - Seed config in Phase 5 must use display names: `Macro Strategist`, `Technical Analyst`, `Sentiment Analyst`. Cross-referenced in this phase by writing the response keys to match.
-- [ ] Phase 5: Integration test runner (the actual end-to-end gate)
+- [x] Phase 5: Integration test runner (the actual end-to-end gate)
+
+### Phase 5 notes
+- Used post-bootstrap surgery instead of `@nestjs/testing` (not a workspace dep): grab `DataSourceService` and replace its private `adapters` Map with seven stub instances; grab `MarketsLlmService` and replace its private `llm` field with `StubLlmService`. Cleaner than adding a new test framework dep just for two replacements.
+- Per-scenario isolation: each scenario uses its own org_slug (`integration-test-bullish`, `integration-test-bearish`, `integration-test-split`, `integration-test-partial-failure`). Cleanup is a single `delete where organization_slug = $1` per markets table.
+- Source assignments: each scenario seeds three personality analysts (Macro Strategist → ds-fred [cpi,yield-curve]; Technical Analyst → ds-twelve-data [rsi,macd]; Sentiment Analyst → ds-reddit [sentiment]). Explicit `assignAnalystToInstrument` is called so the runner takes the assignment branch in `getAnalystsForRun` and never picks up `__base__` analysts.
+- `MARKETS_DEV_AUTH_BYPASS=true` and `MARKETS_ENABLE_LLM=true` are set before AppModule import so RBAC is skipped and the LLM path is exercised (otherwise the runner falls back to deterministic local mode and never calls the stub).
+- 10x determinism loop: all 10 runs passed 4/4 in 939ms–1080ms. Wall-clock variance is within Postgres connection pool jitter; output is byte-identical aside from timing numbers.
+- Capture mode (MARKETS_FIXTURE_CAPTURE=true) short-circuits before assertions and lets the stub adapters call the real upstream — this replaces the deleted `test:markets:capture` script. Capture also leaves the LLM stub un-installed so dataset re-capture doesn't depend on the canned responses being exhaustive.
 - [ ] Phase 6: CI integration (new `markets-integration` job)
 - [ ] Phase 7: Documentation and manual test plan update
 
@@ -156,7 +164,7 @@
 ---
 
 ## Phase 5: Integration test runner (the actual end-to-end gate)
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Drive `PredictionRunnerService.executePredictionRun()` end-to-end against the stub adapters and stub LLM via a NestJS `TestingModule`, asserting on persisted artifacts. Rename the existing live `:integration` script to `:live` in the same commit.
 
 ### Steps

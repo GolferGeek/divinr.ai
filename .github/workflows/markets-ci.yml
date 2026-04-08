@@ -32,6 +32,54 @@ jobs:
 
       - name: API unit tests
         run: pnpm --filter @divinr/api run test:unit
-        # Note: test:compliance and test:markets are excluded from CI
-        # because they bootstrap the full Nest app and require a local
-        # Postgres on 127.0.0.1:54322. Run them locally with `pnpm test`.
+        # Note: test:compliance and test:markets:smoke are excluded from this
+        # job because they bootstrap the full Nest app and require Postgres.
+        # Smoke runs locally; the stub-driven integration suite runs in the
+        # parallel `markets-integration` job below against a service container.
+
+  markets-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      DB_PROVIDER: supabase
+      LLM_PROVIDER: simplified
+      OBSERVABILITY_PROVIDER: supabase
+      CONFIG_PROVIDER: local
+      MARKETS_DEV_AUTH_BYPASS: 'true'
+      MARKETS_ENABLE_LLM: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm -w run build
+
+      - name: Markets integration suite
+        run: pnpm --filter @divinr/api run test:markets:integration
