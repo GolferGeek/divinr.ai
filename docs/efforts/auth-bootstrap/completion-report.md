@@ -116,11 +116,31 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 2. **The web app's localStorage holds a Supabase access token in cleartext.** That's fine for dev convenience, not great for prod security. When real auth UI lands, switch to `httpOnly` cookies or session storage at minimum.
 
-3. **golfergeek has no password set.** `auth.users.encrypted_password` is null for that account. golfergeek can't log in via password until you set one. Run `update auth.users set encrypted_password = crypt('YourPassword', gen_salt('bf')) where email = 'golfergeek@orchestratorai.io';` whenever you want.
+3. **golfergeek password set during smoke pass.** The smoke pass set golfergeek's password to `GolferGeek123!` via `update auth.users set encrypted_password = crypt('GolferGeek123!', gen_salt('bf')) where email = 'golfergeek@orchestratorai.io'`. The .env auto-login still uses the demo user; golfergeek would log in manually via a UI that doesn't exist yet.
 
 4. **`AUTH_SERVICE` resolves to `SupabaseAuthService` always.** No env-based selection like `LLM_SERVICE` has. If you ever want to swap to `ExternalOidcAuthService`, that's a small additional wire-up.
 
 5. **Test infra still uses bypass.** Documented above as a follow-up. The compliance + HTTP smoke + integration runners all opt back into the bypass for their own convenience. Production traffic does not.
+
+## Bug discovered + fixed during smoke pass
+
+**`PostgresqlDatabaseService.rpc()` was returning row arrays where consumers expected scalars.** Every call into `RbacService.hasPermission()` was returning `false` regardless of the underlying RPC result, because:
+- The RPC function `authz.rbac_has_permission(...)` returns `boolean`.
+- `pool.query('SELECT * FROM authz.rbac_has_permission($1, $2, $3, $4, $5)')` returns one row with one column: `[{rbac_has_permission: true}]`.
+- The driver was doing `data: result.rows`, so consumers got the array.
+- `RbacService.hasPermission` did `return data === true` — which is always false against an array.
+
+This is a planes-shared bug that would have broken **every** RBAC check across **every** consumer of the planes/database PostgreSQL driver, not just markets. It just hadn't surfaced because nothing in the codebase had ever actually exercised the RBAC path with bypass off until this effort.
+
+**Fix**: `PostgresqlDatabaseService.rpc()` now mimics PostgREST/supabase-js scalar-unwrap behavior. When the result has exactly one row and that row has exactly one column, the driver unwraps to the scalar value. Multi-row and multi-column results still return arrays/objects unchanged. This matches the contract that the planes/auth, planes/rbac, and planes/llm consumers were already coded against.
+
+## Wildcard sentinel limitation
+
+The `'*'` row I added to `authz.organizations` does **not** actually grant cross-org access via `authz.rbac_has_permission()`. The function joins strictly on `organization_slug = p_organization_slug`, so a row with slug `'*'` only matches when someone literally queries for org `'*'`. The wildcard semantics live in `isSuperAdmin()` (which scans the user's role grants across all orgs) but markets calls `hasPermission()` with the concrete org slug, not `isSuperAdmin()`.
+
+**Workaround in seed**: golfergeek now has explicit `super-admin` grants on `personal-golfergeek` and `personal-demo-user` (both concrete orgs), in addition to the `'*'` row. **New orgs need a manual grant** added to the seed file or applied directly. The `'*'` row is forward-prep for if/when the function is updated to honor wildcards.
+
+**Long-term fix** (out of scope): redefine `authz.rbac_has_permission` to check `where (uor.organization_slug = p_organization_slug or uor.organization_slug = '*')`. That's a 1-line SQL change, but it forks an upstream Orchestrator AI function from this repo, so it deserves its own decision.
 
 ## Out of scope (deliberately deferred)
 

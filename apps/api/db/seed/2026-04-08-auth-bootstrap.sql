@@ -54,11 +54,22 @@ where email in ('golfergeek@orchestratorai.io', 'demo-user@orchestratorai.io')
 on conflict (id) do nothing;
 
 -- 5. Role grants — golfergeek
+--
+-- Notes on super-admin:
+--   * The '*' grant is forward-prep. The current authz.rbac_has_permission()
+--     function joins strictly on organization_slug, so it does not honor the
+--     wildcard. isSuperAdmin() does, but markets does not call it.
+--   * To actually have super-admin access on a concrete org, you must grant
+--     the role on that org explicitly. New orgs need the grant added manually.
 with gg as (
   select id::text as user_id from auth.users where email = 'golfergeek@orchestratorai.io'
 )
 insert into authz.rbac_user_org_roles (user_id, organization_slug, role_id, assigned_by)
 select gg.user_id, 'personal-golfergeek', 'role-owner',       'bootstrap' from gg
+union all
+select gg.user_id, 'personal-golfergeek', 'role-super-admin', 'bootstrap' from gg
+union all
+select gg.user_id, 'personal-demo-user',  'role-super-admin', 'bootstrap' from gg
 union all
 select gg.user_id, '*',                   'role-super-admin', 'bootstrap' from gg
 on conflict (user_id, organization_slug, role_id) do nothing;
