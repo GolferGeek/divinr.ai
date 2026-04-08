@@ -62,6 +62,7 @@ jobs:
       CONFIG_PROVIDER: local
       MARKETS_DEV_AUTH_BYPASS: 'true'
       MARKETS_ENABLE_LLM: 'true'
+      API_PORT: '3100'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
