@@ -437,6 +437,7 @@ export interface RiskDimensionAssessment {
   signals: unknown[];
   model_provider: string | null;
   model_name: string | null;
+  llm_usage_id: string | null;
   created_at: string;
 }
 

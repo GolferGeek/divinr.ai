@@ -30,10 +30,12 @@ export interface LLMClientChatParams {
 
 export interface LLMClientChatResult {
   content: string;
+  reasoning?: string;
   model: string;
   usage: {
     promptTokens: number;
     completionTokens: number;
+    reasoningTokens?: number;
     totalTokens: number;
   };
   cost: number | null;

@@ -27,6 +27,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type {
   LLMServiceProvider,
   LLMModelInfo,
@@ -52,8 +53,8 @@ export class StubLlmService implements LLMServiceProvider {
   async generateResponse(
     systemPrompt: string,
     userMessage: string,
-    _options?: unknown,
-  ): Promise<string> {
+    options?: { includeMetadata?: boolean } | unknown,
+  ): Promise<string | { content: string; metadata: { provider: string; model: string; requestId: string; timestamp: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number }; timing: { startTime: number; endTime: number; duration: number }; status: 'completed'; thinking?: string } }> {
     const arbitratorMatch = systemPrompt.match(ARBITRATOR_PROMPT_RE);
     let key: string;
     if (arbitratorMatch) {
@@ -82,6 +83,34 @@ export class StubLlmService implements LLMServiceProvider {
     if (value === '__THROW__') {
       throw new Error(`StubLlmService intentional failure for key "${key}" (partial-failure scenario)`);
     }
+
+    // When the caller passes includeMetadata: true, return an LLMResponse-shaped
+    // object so MarketsLlmService.generateText can read metadata.requestId and
+    // surface it as LlmTextResult.llmUsageId. This lets the markets services
+    // exercise the full llm_usage_id capture-and-stamp path even with the stub.
+    // We do not insert into public.llm_usage here — the round-trip test only
+    // asserts that the analysis row's llm_usage_id is populated, not that the
+    // referenced llm_usage row exists. The real TwoTierLLMService path (which
+    // does the insert) is exercised by the manual test pass after this lands.
+    const opts = options as { includeMetadata?: boolean } | undefined;
+    if (opts?.includeMetadata) {
+      const requestId = randomUUID();
+      const now = Date.now();
+      return {
+        content: value,
+        metadata: {
+          provider: 'stub',
+          model: 'stub-model',
+          requestId,
+          timestamp: new Date(now).toISOString(),
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          timing: { startTime: now, endTime: now, duration: 0 },
+          status: 'completed',
+          thinking: `stub reasoning for ${key}`,
+        },
+      };
+    }
+
     return value;
   }
 

@@ -850,9 +850,11 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
         let counterDirection = 'flat';
         let counterConfidence = 50;
         let evidence: string[] = [];
+        let llmUsageId: string | null = null;
 
         if (this.marketsLlm.isLlmEnabled()) {
           const result = await this.marketsLlm.generateText(context, systemPrompt, `Challenge the ${pred.predicted_direction} analysis for ${pred.symbol}.`);
+          llmUsageId = result.llmUsageId ?? null;
           const match = result.text.match(/\{[\s\S]*\}/);
           if (match) {
             const parsed = JSON.parse(match[0]) as Record<string, unknown>;
@@ -867,10 +869,10 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
         await this.db.rawQuery(
           `insert into prediction.prediction_challenges
             (prediction_id, challenged_analyst_id, challenger_analyst_id, organization_slug, instrument_id,
-             counter_argument, counter_direction, counter_confidence, evidence)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+             counter_argument, counter_direction, counter_confidence, evidence, llm_usage_id)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [predictionId, pred.analyst_id, challenger.id, organizationSlug, pred.instrument_id,
-           counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence)],
+           counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence), llmUsageId],
         );
 
         challenges.push({
@@ -954,9 +956,11 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
         let counterDirection = 'flat';
         let counterConfidence = 50;
         let evidence: string[] = [];
+        let llmUsageId: string | null = null;
 
         if (this.marketsLlm.isLlmEnabled()) {
           const result = await this.marketsLlm.generateText(context, systemPrompt, `Challenge the ${pred.predicted_direction} analysis for ${pred.symbol}.`);
+          llmUsageId = result.llmUsageId ?? null;
           const match = result.text.match(/\{[\s\S]*\}/);
           if (match) {
             const parsed = JSON.parse(match[0]) as Record<string, unknown>;
@@ -971,10 +975,10 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
         await this.db.rawQuery(
           `insert into prediction.prediction_challenges
             (prediction_id, challenged_analyst_id, challenger_analyst_id, organization_slug, instrument_id,
-             counter_argument, counter_direction, counter_confidence, evidence)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+             counter_argument, counter_direction, counter_confidence, evidence, llm_usage_id)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [predictionId, pred.analyst_id, challenger.id, organizationSlug, pred.instrument_id,
-           counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence)],
+           counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence), llmUsageId],
         );
 
         yield {

@@ -289,6 +289,9 @@ export class MarketsSchemaService {
         drop constraint if exists market_predictors_organization_slug_instrument_id_article_i_key;
       create unique index if not exists market_predictors_org_instrument_article_analyst_key
         on prediction.market_predictors (organization_slug, instrument_id, article_id, scored_by_analyst_id);
+      alter table prediction.market_predictors add column if not exists llm_usage_id uuid;
+      create index if not exists prediction_market_predictors_llm_usage_idx
+        on prediction.market_predictors (llm_usage_id) where llm_usage_id is not null;
     `;
   }
 
@@ -332,6 +335,9 @@ export class MarketsSchemaService {
       alter table prediction.market_predictions add column if not exists is_paper boolean not null default false;
       alter table prediction.market_predictions add column if not exists settled_at timestamptz;
       alter table prediction.market_predictions add column if not exists trade_metadata jsonb not null default '{}'::jsonb;
+      alter table prediction.market_predictions add column if not exists llm_usage_id uuid;
+      create index if not exists prediction_market_predictions_llm_usage_idx
+        on prediction.market_predictions (llm_usage_id) where llm_usage_id is not null;
       create index if not exists prediction_market_predictions_unsettled_idx
         on prediction.market_predictions (instrument_id, created_at desc) where settled_at is null;
 
@@ -417,6 +423,9 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_analyst_config_versions_analyst_idx
       on prediction.analyst_config_versions (analyst_id, is_active);
+      alter table prediction.analyst_config_versions add column if not exists llm_usage_id uuid;
+      create index if not exists prediction_analyst_config_versions_llm_usage_idx
+        on prediction.analyst_config_versions (llm_usage_id) where llm_usage_id is not null;
     `;
   }
 
@@ -458,6 +467,9 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_risk_dim_assessments_run_idx on prediction.risk_dimension_assessments (run_id);
       create index if not exists prediction_risk_dim_assessments_instrument_idx on prediction.risk_dimension_assessments (organization_slug, instrument_id);
+      alter table prediction.risk_dimension_assessments add column if not exists llm_usage_id uuid;
+      create index if not exists prediction_risk_dim_assessments_llm_usage_idx
+        on prediction.risk_dimension_assessments (llm_usage_id) where llm_usage_id is not null;
 
       create table if not exists prediction.risk_composite_scores (
         id text primary key,
@@ -500,6 +512,9 @@ export class MarketsSchemaService {
         completed_at timestamptz
       );
       create index if not exists prediction_risk_debates_run_idx on prediction.risk_debates (run_id);
+      alter table prediction.risk_debates add column if not exists llm_usage_id uuid;
+      create index if not exists prediction_risk_debates_llm_usage_idx
+        on prediction.risk_debates (llm_usage_id) where llm_usage_id is not null;
 
       create table if not exists prediction.risk_debate_contexts (
         id text primary key,
@@ -602,6 +617,9 @@ export class MarketsSchemaService {
         applied_at timestamptz
       );
       create index if not exists prediction_learning_proposals_org_idx on prediction.learning_proposals (organization_slug, status);
+      alter table prediction.learning_proposals add column if not exists llm_usage_id uuid;
+      create index if not exists prediction_learning_proposals_llm_usage_idx
+        on prediction.learning_proposals (llm_usage_id) where llm_usage_id is not null;
 
       create table if not exists prediction.learning_reports (
         id text primary key,
@@ -615,6 +633,9 @@ export class MarketsSchemaService {
         alter table prediction.learning_reports
           add constraint learning_reports_type_date_unique unique (report_type, report_date);
       exception when others then null; end $$;
+      alter table prediction.learning_reports add column if not exists llm_usage_id uuid;
+      create index if not exists prediction_learning_reports_llm_usage_idx
+        on prediction.learning_reports (llm_usage_id) where llm_usage_id is not null;
 
       create table if not exists prediction.org_learning_config (
         organization_slug text primary key,
@@ -929,6 +950,9 @@ export class MarketsSchemaService {
         on prediction.analyst_risk_assessments (run_id);
       create index if not exists prediction_analyst_risk_assessments_instrument_idx
         on prediction.analyst_risk_assessments (organization_slug, instrument_id);
+      alter table prediction.analyst_risk_assessments add column if not exists llm_usage_id uuid;
+      create index if not exists prediction_analyst_risk_assessments_llm_usage_idx
+        on prediction.analyst_risk_assessments (llm_usage_id) where llm_usage_id is not null;
     `;
   }
 
@@ -1097,6 +1121,9 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_challenges_prediction_idx
         on prediction.prediction_challenges (prediction_id);
+      alter table prediction.prediction_challenges add column if not exists llm_usage_id uuid;
+      create index if not exists prediction_challenges_llm_usage_idx
+        on prediction.prediction_challenges (llm_usage_id) where llm_usage_id is not null;
 
       alter table prediction.user_portfolios
         add column if not exists disclaimer_acknowledged_at timestamptz;

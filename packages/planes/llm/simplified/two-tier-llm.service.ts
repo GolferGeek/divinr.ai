@@ -316,6 +316,19 @@ export class TwoTierLLMService implements LLMServiceProvider {
       const endTime = Date.now();
       const duration = endTime - startTime;
 
+      // Capture reasoning content if the adapter surfaced it.
+      // Truncate at 64KB so a runaway reasoning chain can't blow out a row.
+      let reasoningContent: string | undefined = result.reasoning;
+      let reasoningTruncated = false;
+      const REASONING_MAX_BYTES = 65536;
+      if (reasoningContent && reasoningContent.length > REASONING_MAX_BYTES) {
+        this.logger.warn(
+          `Reasoning content truncated for run_id=${requestId} (original length=${reasoningContent.length})`,
+        );
+        reasoningContent = reasoningContent.slice(0, REASONING_MAX_BYTES);
+        reasoningTruncated = true;
+      }
+
       // Track usage — record the original provider/model the user selected
       await this.recordUsage({
         requestId,
@@ -333,6 +346,9 @@ export class TwoTierLLMService implements LLMServiceProvider {
         status: 'completed',
         tier: client.tier,
         executionContext,
+        reasoningContent,
+        reasoningTokens: result.usage.reasoningTokens,
+        reasoningTruncated,
       });
 
       // Emit completed event
@@ -359,6 +375,7 @@ export class TwoTierLLMService implements LLMServiceProvider {
           timing: { startTime, endTime, duration },
           tier: client.tier === 'opensource' ? 'local' : 'external',
           status: 'completed',
+          thinking: reasoningContent,
         };
         return { content: result.content, metadata } as LLMResponse;
       }
@@ -580,6 +597,9 @@ export class TwoTierLLMService implements LLMServiceProvider {
     status: string;
     tier: 'commercial' | 'opensource';
     executionContext: ExecutionContext;
+    reasoningContent?: string;
+    reasoningTokens?: number;
+    reasoningTruncated?: boolean;
   }): Promise<void> {
     try {
       await this.db.from(null, 'llm_usage').insert({
@@ -591,6 +611,9 @@ export class TwoTierLLMService implements LLMServiceProvider {
         duration: params.duration,
         input_tokens: params.inputTokens,
         output_tokens: params.outputTokens,
+        reasoning_content: params.reasoningContent ?? null,
+        reasoning_tokens: params.reasoningTokens ?? null,
+        reasoning_truncated: params.reasoningTruncated ?? false,
         status: params.status,
         timestamp: new Date().toISOString(),
         created_at: new Date().toISOString(),
