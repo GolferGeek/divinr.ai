@@ -56,9 +56,10 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-      DB_PROVIDER: supabase
+      POSTGRESQL_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      DB_PROVIDER: postgresql
       LLM_PROVIDER: simplified
-      OBSERVABILITY_PROVIDER: supabase
+      OBSERVABILITY_PROVIDER: console
       CONFIG_PROVIDER: local
       MARKETS_DEV_AUTH_BYPASS: 'true'
       MARKETS_ENABLE_LLM: 'true'
