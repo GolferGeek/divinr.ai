@@ -81,6 +81,16 @@ interface LlmCallRow {
   createdAt: string;
 }
 
+// Effort: analyst-contracts. Structured contract document parsed from markdown.
+interface AnalystContract {
+  markdown: string;
+  sections: {
+    general: string;
+    roles: Record<string, string>;
+    adaptations: string;
+  };
+}
+
 // Effort: calibration-drilldown. Response shape for getAnalystCalibration.
 // Kept inline (same convention as LlmCallRow above).
 interface AnalystCalibrationPayload {
@@ -460,10 +470,14 @@ export class MarketsService {
     // Create initial config version for lineage tracking
     const versionId = randomUUID();
     await this.db.rawQuery(
+      // context_markdown is NULL for new analysts — contracts are generated
+      // separately. Effort: analyst-contracts.
       `insert into prediction.analyst_config_versions
         (id, analyst_id, organization_slug, version_number, persona_prompt,
-         tier_instructions, default_weight, source, change_reason, is_active, created_by, created_at)
-       values ($1, $2, $3, 1, $4, $5, $6, 'manual', 'Initial creation', true, $7, $8)
+         tier_instructions, default_weight, context_markdown,
+         source, change_reason, is_active, created_by, created_at)
+       values ($1, $2, $3, 1, $4, $5, $6, null,
+               'manual', 'Initial creation', true, $7, $8)
        on conflict do nothing`,
       [
         versionId, created.id, created.organization_slug,
@@ -512,13 +526,20 @@ export class MarketsService {
     // Create new config version
     const versionId = randomUUID();
     const versionResult = await this.db.rawQuery(
+      // context_markdown carry-forward: inherit from the most recent version
+      // that has a contract. Effort: analyst-contracts.
       `insert into prediction.analyst_config_versions
         (id, analyst_id, organization_slug, version_number, persona_prompt,
-         tier_instructions, default_weight, source, change_reason,
+         tier_instructions, default_weight, context_markdown,
+         source, change_reason,
          parent_version_id, is_active, created_by, created_at)
        values ($1, $2, $3,
          coalesce((select max(version_number) + 1 from prediction.analyst_config_versions where analyst_id = $2), 1),
-         $4, $5, $6, 'manual', $7, $8, true, $9, $10)
+         $4, $5, $6,
+         (select context_markdown from prediction.analyst_config_versions
+          where analyst_id = $2 and context_markdown is not null
+          order by version_number desc limit 1),
+         'manual', $7, $8, true, $9, $10)
        returning version_number`,
       [
         versionId, input.analystId, input.organizationSlug,
@@ -1147,6 +1168,104 @@ export class MarketsService {
       },
       resolvedPredictions,
     };
+  }
+
+  // ─── Analyst Contract Readers (effort: analyst-contracts) ──────
+  //
+  // Canonical reader methods for structured contract documents stored
+  // in analyst_config_versions.context_markdown. Every consumer of
+  // contracts goes through these two methods — no ad-hoc joins.
+
+  /**
+   * Parse a context_markdown string into structured sections.
+   * Splits on `## ` headings: General, Role: <name>, Adaptations.
+   * Unrecognized headings are ignored. Missing sections return empty strings.
+   */
+  private parseContractMarkdown(markdown: string): AnalystContract['sections'] {
+    const sections: AnalystContract['sections'] = {
+      general: '',
+      roles: {},
+      adaptations: '',
+    };
+
+    // Split on lines that start with "## " (keeping the heading text)
+    const parts = markdown.split(/^## /m);
+    for (const part of parts) {
+      const newlineIdx = part.indexOf('\n');
+      if (newlineIdx === -1) continue;
+      const heading = part.slice(0, newlineIdx).trim();
+      const body = part.slice(newlineIdx + 1).trim();
+
+      if (heading.toLowerCase() === 'general') {
+        sections.general = body;
+      } else if (heading.toLowerCase().startsWith('role:')) {
+        const roleName = heading.slice(5).trim(); // after "Role:"
+        sections.roles[roleName] = body;
+      } else if (heading.toLowerCase() === 'adaptations') {
+        sections.adaptations = body;
+      }
+      // Unrecognized headings are silently ignored
+    }
+
+    return sections;
+  }
+
+  /**
+   * Returns the structured contract for the currently-active config version
+   * of the given analyst. Returns null if no config version exists or if
+   * the version has no context_markdown.
+   */
+  async getActiveContextForAnalyst(
+    analystId: string,
+    organizationSlug: string,
+  ): Promise<AnalystContract | null> {
+    await this.schema.ensureSchema();
+
+    const result = await this.db.rawQuery(
+      `SELECT acv.context_markdown
+       FROM prediction.market_analysts ma
+       JOIN prediction.analyst_config_versions acv ON acv.id = ma.current_config_version_id
+       WHERE ma.id = $1 AND (ma.organization_slug = $2 OR ma.organization_slug = '__base__')
+       LIMIT 1`,
+      [analystId, organizationSlug],
+    );
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Array<{ context_markdown: string | null }> | null) ?? [];
+    if (rows.length === 0 || !rows[0].context_markdown) return null;
+
+    const markdown = rows[0].context_markdown;
+    return { markdown, sections: this.parseContractMarkdown(markdown) };
+  }
+
+  /**
+   * Returns the structured contract for a specific config version.
+   * Used for compliance reconstruction: given a prediction's config_version_id,
+   * retrieve the exact contract that was active when the prediction was made.
+   * Returns null if the version doesn't exist or has no context_markdown.
+   */
+  async getContextForConfigVersion(
+    organizationSlug: string,
+    userId: string,
+    configVersionId: string,
+  ): Promise<AnalystContract | null> {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    // IDOR defense: filter on organization_slug so a caller can't
+    // retrieve a contract from another tenant by guessing the version id.
+    const result = await this.db.rawQuery(
+      `SELECT context_markdown
+       FROM prediction.analyst_config_versions
+       WHERE id = $1
+         AND (organization_slug = $2 OR organization_slug = '__base__')`,
+      [configVersionId, organizationSlug],
+    );
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Array<{ context_markdown: string | null }> | null) ?? [];
+    if (rows.length === 0 || !rows[0].context_markdown) return null;
+
+    const markdown = rows[0].context_markdown;
+    return { markdown, sections: this.parseContractMarkdown(markdown) };
   }
 
   // ─── Prediction Challenges ─────────────────────────────────────
