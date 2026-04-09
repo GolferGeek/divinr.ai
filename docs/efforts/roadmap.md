@@ -43,7 +43,7 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 
 ## Current Effort
 
-None — ready for a new effort.
+**Tier 3 Strategic Overhauls** — The third tier of the learning system: significant analyst redesigns based on accumulated Tier 2 audit evidence and feedback history. Ready for intention writing.
 
 ---
 
@@ -55,8 +55,7 @@ These have enough definition to write intentions for. Order reflects dependencie
 
 ## Future Efforts
 
-### Tier 3 Strategic Overhauls
-The third tier of the learning system — significant analyst redesigns based on accumulated evidence. Requires substantial Tier 2 data history first.
+(none queued)
 
 ---
 
