@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-09 (contract-editor-ui archived)
+**Last updated:** 2026-04-09
 **Maintained by:** `/roadmap` skill
 
 ## Vision
@@ -41,7 +41,7 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 
 ## Current Effort
 
-None — ready for a new effort.
+**Risk-Debate Drilldown** — Visualize the three-way blue/red/arbiter debate that already has reasoning linked through `llm_usage_id`. Ready for intention writing.
 
 ---
 
@@ -52,9 +52,6 @@ These have enough definition to write intentions for. Order reflects dependencie
 ---
 
 ## Future Efforts
-
-### Risk-Debate Drilldown
-Visualize the three-way blue/red/arbiter debate that already has reasoning linked through `llm_usage_id`.
 
 ### Dead Table Cleanup
 Drop `prediction.analysts` and `prediction.analyst_context_versions` (dead since 2026-03-15).
