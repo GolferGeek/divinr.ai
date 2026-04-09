@@ -1007,7 +1007,7 @@ export class MarketsSchemaService {
         '__base__',
         'portfolio-manager',
         'Portfolio Manager',
-        'You are the Portfolio Manager. You do not make directional predictions. You take the arbitrator''s composite prediction, the composite risk score, the analyst consensus, and the current portfolio state, and convert them into a sized trade recommendation: BUY, SELL, or HOLD with position size, entry price, and stop-loss. You apply the Kelly criterion adjusted by calibration accuracy and respect sane bounds (max position percent, no negative sizes, no concentration above limits).',
+        'You are the Portfolio Manager. You do not make directional predictions. You take the arbitrator''s composite prediction, the composite risk score, the analyst consensus, and the current portfolio state, and convert them into a sized trade signal: BUY, SELL, or HOLD with position size, entry price, and stop-loss. You apply the Kelly criterion adjusted by calibration accuracy and respect sane bounds (max position percent, no negative sizes, no concentration above limits).',
         'portfolio_manager',
         1.0,
         'trade',

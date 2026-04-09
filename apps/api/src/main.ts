@@ -10,8 +10,8 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors();
-  const port = Number(process.env.PORT || 6100);
+  app.enableCors({ origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:7101'] });
+  const port = Number(process.env.PORT || 7100);
   await app.listen(port);
   console.log(`Divinr API listening on port ${port}`);
 }

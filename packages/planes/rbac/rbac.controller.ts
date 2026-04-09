@@ -9,6 +9,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -34,7 +35,7 @@ class AssignRoleDto {
 @Controller('api/rbac')
 @UseGuards(JwtAuthGuard)
 export class RbacController {
-  constructor(private readonly rbacService: RbacService) {}
+  constructor(@Inject(RbacService) private readonly rbacService: RbacService) {}
 
   // ==================== ROLES ====================
 
@@ -42,6 +43,7 @@ export class RbacController {
    * Get all available roles
    */
   @Get('roles')
+  @RequirePermission('admin:roles')
   async getAllRoles() {
     const roles = await this.rbacService.getAllRoles();
     return { roles };
@@ -51,6 +53,7 @@ export class RbacController {
    * Get all available permissions (grouped by category)
    */
   @Get('permissions')
+  @RequirePermission('admin:roles')
   async getAllPermissions() {
     const permissions = await this.rbacService.getAllPermissions();
 

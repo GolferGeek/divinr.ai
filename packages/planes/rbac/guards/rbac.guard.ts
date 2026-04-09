@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RbacService } from '../rbac.service';
@@ -57,8 +58,8 @@ export class RbacGuard implements CanActivate {
   private readonly logger = new Logger(RbacGuard.name);
 
   constructor(
-    private readonly reflector: Reflector,
-    private readonly rbacService: RbacService,
+    @Inject(Reflector) private readonly reflector: Reflector,
+    @Inject(RbacService) private readonly rbacService: RbacService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

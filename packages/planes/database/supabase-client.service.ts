@@ -4,6 +4,7 @@ import {
   Logger,
   HttpException,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -19,7 +20,7 @@ export class SupabaseService implements OnModuleInit {
   private companySchema!: string;
   private readonly logger = new Logger(SupabaseService.name);
 
-  constructor(private configService: ConfigService) {
+  constructor(@Inject(ConfigService) private configService: ConfigService) {
     // Initialize synchronously so clients exist before any consumer calls getServiceClient().
     // Constructor runs before onModuleInit; some modules (MemoryManager, LLMPricing) use DB
     // during their onModuleInit, so we must have the client ready by then.
@@ -53,6 +54,7 @@ export class SupabaseService implements OnModuleInit {
 
     // Get configuration - process.env first, then ConfigService, then local dev defaults
     const LOCAL_DEFAULT_URL = 'http://127.0.0.1:6010';
+    // Well-known Supabase local development key — NOT a production secret
     const LOCAL_DEFAULT_SERVICE_KEY =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
     const supabaseConfig = this.configService.get<{

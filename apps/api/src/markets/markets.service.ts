@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -143,6 +144,7 @@ interface AnalystCalibrationPayload {
 
 @Injectable()
 export class MarketsService {
+  private readonly logger = new Logger(MarketsService.name);
   private readonly allowedTransitions: Record<RunStatus, RunStatus[]> = {
     queued: ['running', 'failed'],
     running: ['completed', 'failed'],
@@ -1337,6 +1339,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
           evidence,
         });
       } catch (err) {
+        this.logger.warn(`Challenge failed for challenger ${challenger.id}: ${err instanceof Error ? err.message : String(err)}`);
         // Graceful degradation — skip this challenger
       }
     });

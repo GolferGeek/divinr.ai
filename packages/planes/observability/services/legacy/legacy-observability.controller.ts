@@ -41,9 +41,9 @@ export class LegacyObservabilityController {
   private readonly logger = new Logger(LegacyObservabilityController.name);
 
   constructor(
-    private readonly databaseService: ObservabilityDbService,
-    private readonly gateway: LegacyObservabilityGateway,
-    private readonly hitlRelayService: LegacyHitlRelayService,
+    @Inject(ObservabilityDbService) private readonly databaseService: ObservabilityDbService,
+    @Inject(LegacyObservabilityGateway) private readonly gateway: LegacyObservabilityGateway,
+    @Inject(LegacyHitlRelayService) private readonly hitlRelayService: LegacyHitlRelayService,
     @Inject(OBSERVABILITY_SINK)
     private readonly observabilitySink: ObservabilitySink,
   ) {}

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { SupabaseService } from './supabase-client.service';
@@ -15,14 +15,20 @@ import {
  * which is already chainable and PromiseLike.
  */
 @Injectable()
-export class SupabaseDatabaseService implements DatabaseService {
+export class SupabaseDatabaseService implements DatabaseService, OnModuleDestroy {
   private readonly logger = new Logger(SupabaseDatabaseService.name);
   private pool: Pool | null = null;
 
   constructor(
-    private readonly supabaseService: SupabaseService,
-    private readonly configService: ConfigService,
+    @Inject(SupabaseService) private readonly supabaseService: SupabaseService,
+    @Inject(ConfigService) private readonly configService: ConfigService,
   ) {}
+
+  async onModuleDestroy() {
+    if (this.pool) {
+      await this.pool.end();
+    }
+  }
 
   from(schema: string | null, table: string): QueryBuilder {
     const client = this.supabaseService.getServiceClient();

@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpStatus,
   HttpException,
+  Inject,
 } from '@nestjs/common';
 import { Public } from '@/auth/decorators/public.decorator';
 import {
@@ -30,7 +31,7 @@ import { CIDAFMCommandResponseDto } from '../dto/llm-evaluation.dto';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class CIDAFMController {
-  constructor(private readonly cidafmService: CIDAFMService) {}
+  constructor(@Inject(CIDAFMService) private readonly cidafmService: CIDAFMService) {}
 
   @Get('commands')
   @Public()

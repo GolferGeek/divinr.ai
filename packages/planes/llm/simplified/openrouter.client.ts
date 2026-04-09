@@ -5,7 +5,7 @@
  * Supports text generation and image generation (via modalities: ['image']).
  * Parses x-openrouter-cost response header for cost tracking.
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 
@@ -59,7 +59,7 @@ export class OpenRouterClient {
   private readonly logger = new Logger(OpenRouterClient.name);
   private readonly baseUrl = 'https://openrouter.ai/api/v1';
 
-  constructor(private readonly httpService: HttpService) {}
+  constructor(@Inject(HttpService) private readonly httpService: HttpService) {}
 
   private getApiKey(): string {
     const key = process.env.OPENROUTER_API_KEY;

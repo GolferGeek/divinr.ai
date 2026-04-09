@@ -15,9 +15,13 @@ const statusFilter = ref('');
 onMounted(() => loadData());
 
 async function loadData() {
-  const path = statusFilter.value ? `/learning/proposals?status=${statusFilter.value}` : '/learning/proposals';
-  proposals.value = await api.get<Record<string, unknown>[]>(path);
-  reports.value = await api.get<Record<string, unknown>[]>('/learning/reports?limit=5');
+  try {
+    const path = statusFilter.value ? `/learning/proposals?status=${statusFilter.value}` : '/learning/proposals';
+    proposals.value = await api.get<Record<string, unknown>[]>(path);
+    reports.value = await api.get<Record<string, unknown>[]>('/learning/reports?limit=5');
+  } catch (err) {
+    console.error('Failed to load learning data', err);
+  }
 }
 
 async function approve(id: string) {

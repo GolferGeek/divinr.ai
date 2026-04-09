@@ -93,14 +93,14 @@ export class CentralizedRoutingService {
   private readonly logger = new Logger(CentralizedRoutingService.name);
 
   constructor(
-    private readonly localModelStatusService: LocalModelStatusService,
+    @Inject(LocalModelStatusService) private readonly localModelStatusService: LocalModelStatusService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly sovereignPolicyService: SovereignPolicyService,
-    private readonly featureFlagService: FeatureFlagService,
-    private readonly piiService: PIIService,
-    private readonly dictionaryPseudonymizerService: DictionaryPseudonymizerService,
-    private readonly patternRedactionService: PatternRedactionService,
-    private readonly runMetadataService: RunMetadataService,
+    @Inject(SovereignPolicyService) private readonly sovereignPolicyService: SovereignPolicyService,
+    @Inject(FeatureFlagService) private readonly featureFlagService: FeatureFlagService,
+    @Inject(PIIService) private readonly piiService: PIIService,
+    @Inject(DictionaryPseudonymizerService) private readonly dictionaryPseudonymizerService: DictionaryPseudonymizerService,
+    @Inject(PatternRedactionService) private readonly patternRedactionService: PatternRedactionService,
+    @Inject(RunMetadataService) private readonly runMetadataService: RunMetadataService,
   ) {
     this.logger.log('CentralizedRoutingService initialized');
   }

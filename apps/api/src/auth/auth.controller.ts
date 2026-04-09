@@ -11,10 +11,6 @@ import {
   AUTH_SERVICE,
   type AuthServiceProvider,
 } from '@orchestratorai/planes/auth';
-import {
-  IDENTITY_PROVIDER,
-  type IdentityProvider,
-} from '@orchestratorai/planes/auth';
 
 interface LoginBody {
   email?: string;
@@ -29,7 +25,6 @@ interface LogoutBody {
 export class AuthController {
   constructor(
     @Inject(AUTH_SERVICE) private readonly authService: AuthServiceProvider,
-    @Inject(IDENTITY_PROVIDER) private readonly identityProvider: IdentityProvider,
   ) {}
 
   /**

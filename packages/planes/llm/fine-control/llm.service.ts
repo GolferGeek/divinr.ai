@@ -1,6 +1,5 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, OnModuleInit, Inject } from '@nestjs/common';
 import { ExecutionContext } from '@orchestrator-ai/transport-types';
-import OpenAI from 'openai';
 import {
   UnifiedGenerateResponseParams,
   LLMResponse,
@@ -8,7 +7,7 @@ import {
   ImageGenerationResponse,
   VideoGenerationResponse,
 } from './services/llm-interfaces';
-import { CIDAFMOptions, SystemLLMConfigs } from './types/llm-evaluation';
+import { CIDAFMOptions } from './types/llm-evaluation';
 import { ModelConfigurationService } from './config/model-configuration.service';
 import {
   ObservabilityWebhookService,
@@ -29,25 +28,6 @@ type GenerateResponseOptions = LLMRequestOptions & {
   images?: Array<{ base64: string; mimeType: string }>;
 };
 
-// Explicitly set LangSmith environment variables for automatic tracing
-const langsmithEnabled =
-  process.env.LANGSMITH_TRACING === 'true' ||
-  process.env.LANGSMITH_ENABLED === 'true';
-const langsmithApiKey = process.env.LANGSMITH_API_KEY;
-const langsmithProject =
-  process.env.LANGSMITH_PROJECT ||
-  process.env.LANGSMITH_PROJECT_NAME ||
-  'orchestrator-ai';
-
-if (langsmithEnabled && langsmithApiKey) {
-  process.env.LANGCHAIN_TRACING_V2 = 'true';
-  process.env.LANGCHAIN_API_KEY = langsmithApiKey;
-  process.env.LANGCHAIN_PROJECT = langsmithProject;
-  if (process.env.LANGSMITH_ENDPOINT) {
-    process.env.LANGCHAIN_ENDPOINT = process.env.LANGSMITH_ENDPOINT;
-  }
-}
-
 /**
  * LLMService - Orchestrator service for all LLM operations
  *
@@ -60,34 +40,40 @@ if (langsmithEnabled && langsmithApiKey) {
  * appropriate focused service. The service is now under 500 lines.
  */
 @Injectable()
-export class LLMService {
+export class LLMService implements OnModuleInit {
   private readonly logger = new Logger(LLMService.name);
-  private openai: OpenAI | null = null;
-  public readonly systemLLMConfigs: SystemLLMConfigs;
-  private readonly debugEnabled: boolean;
 
   constructor(
-    private readonly llmGenerationService: LLMGenerationService,
-    private readonly llmImageService: LLMImageService,
-    private readonly llmVideoService: LLMVideoService,
-    private readonly modelConfigurationService: ModelConfigurationService,
-    private readonly observabilityService: ObservabilityWebhookService,
-    private readonly observabilityEventsService: ObservabilityEventsService,
-    private readonly modelsService: ModelsService,
-    private readonly providersService: ProvidersService,
-  ) {
-    // Initialize OpenAI client only if API key is available
-    if (process.env.OPENAI_API_KEY) {
-      this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
+    @Inject(LLMGenerationService) private readonly llmGenerationService: LLMGenerationService,
+    @Inject(LLMImageService) private readonly llmImageService: LLMImageService,
+    @Inject(LLMVideoService) private readonly llmVideoService: LLMVideoService,
+    @Inject(ModelConfigurationService) private readonly modelConfigurationService: ModelConfigurationService,
+    @Inject(ObservabilityWebhookService) private readonly observabilityService: ObservabilityWebhookService,
+    @Inject(ObservabilityEventsService) private readonly observabilityEventsService: ObservabilityEventsService,
+    @Inject(ModelsService) private readonly modelsService: ModelsService,
+    @Inject(ProvidersService) private readonly providersService: ProvidersService,
+  ) {}
+
+  onModuleInit() {
+    // Set LangSmith/LangChain environment variables for automatic tracing.
+    // Performed here (not at top-level) to avoid side effects during module import.
+    const langsmithEnabled =
+      process.env.LANGSMITH_TRACING === 'true' ||
+      process.env.LANGSMITH_ENABLED === 'true';
+    const langsmithApiKey = process.env.LANGSMITH_API_KEY;
+    const langsmithProject =
+      process.env.LANGSMITH_PROJECT ||
+      process.env.LANGSMITH_PROJECT_NAME ||
+      'orchestrator-ai';
+
+    if (langsmithEnabled && langsmithApiKey) {
+      process.env.LANGCHAIN_TRACING_V2 = 'true';
+      process.env.LANGCHAIN_API_KEY = langsmithApiKey;
+      process.env.LANGCHAIN_PROJECT = langsmithProject;
+      if (process.env.LANGSMITH_ENDPOINT) {
+        process.env.LANGCHAIN_ENDPOINT = process.env.LANGSMITH_ENDPOINT;
+      }
     }
-
-    // Initialize empty system configs (deprecated - using ModelConfigurationService)
-    this.systemLLMConfigs = {} as SystemLLMConfigs;
-
-    // Disable verbose debug logs by default
-    this.debugEnabled = false;
   }
 
   // =============================================================================

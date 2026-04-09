@@ -57,8 +57,8 @@ export class LocalLLMService {
   private currentlyLoading = new Set<string>();
 
   constructor(
-    private readonly httpService: HttpService,
-    private readonly localModelStatusService: LocalModelStatusService,
+    @Inject(HttpService) private readonly httpService: HttpService,
+    @Inject(LocalModelStatusService) private readonly localModelStatusService: LocalModelStatusService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {
     this.ollamaBaseUrl =

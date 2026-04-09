@@ -9,7 +9,12 @@ export const useRiskStore = defineStore('risk', () => {
 
   async function fetchDimensions() {
     const api = useApi();
-    dimensions.value = await api.get<Record<string, unknown>[]>('/risk-dimensions');
+    loading.value = true;
+    try {
+      dimensions.value = await api.get<Record<string, unknown>[]>('/risk-dimensions');
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function fetchAssessments(opts?: { role?: string }) {

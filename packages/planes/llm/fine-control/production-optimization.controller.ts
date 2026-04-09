@@ -10,6 +10,7 @@ import {
   Logger,
   HttpCode,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
 import { MemoryManagerService, MemoryStats } from './memory-manager.service';
 import {
@@ -25,8 +26,8 @@ export class ProductionOptimizationController {
   private readonly logger = new Logger(ProductionOptimizationController.name);
 
   constructor(
-    private readonly memoryManagerService: MemoryManagerService,
-    private readonly modelMonitorService: ModelMonitorService,
+    @Inject(MemoryManagerService) private readonly memoryManagerService: MemoryManagerService,
+    @Inject(ModelMonitorService) private readonly modelMonitorService: ModelMonitorService,
   ) {}
 
   /**

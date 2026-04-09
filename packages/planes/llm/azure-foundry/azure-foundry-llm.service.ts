@@ -67,7 +67,7 @@ export class AzureFoundryLLMService implements LLMServiceProvider {
   private readonly cacheTtlMs = 5 * 60 * 1000; // 5 minutes
 
   constructor(
-    private readonly observabilityEventsService: ObservabilityEventsService,
+    @Inject(ObservabilityEventsService) private readonly observabilityEventsService: ObservabilityEventsService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {}
 

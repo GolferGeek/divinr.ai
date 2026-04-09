@@ -81,8 +81,8 @@ export class ModelMonitorService implements OnModuleInit, OnModuleDestroy {
   private isMonitoring = false;
 
   constructor(
-    private readonly localModelStatusService: LocalModelStatusService,
-    private readonly memoryManagerService: MemoryManagerService,
+    @Inject(LocalModelStatusService) private readonly localModelStatusService: LocalModelStatusService,
+    @Inject(MemoryManagerService) private readonly memoryManagerService: MemoryManagerService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {
     this.logger.log('ModelMonitorService initialized');

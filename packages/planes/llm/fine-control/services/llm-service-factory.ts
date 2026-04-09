@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { BaseLLMService } from './base-llm.service';
 import { OpenAILLMService } from './openai-llm.service';
@@ -58,12 +58,12 @@ export class LLMServiceFactory implements OnModuleInit {
   } as const;
 
   constructor(
-    private readonly piiService: PIIService,
-    private readonly dictionaryPseudonymizerService: DictionaryPseudonymizerService,
-    private readonly runMetadataService: RunMetadataService,
-    private readonly providerConfigService: ProviderConfigService,
-    private readonly httpService: HttpService,
-    private readonly llmPricingService: LLMPricingService,
+    @Inject(PIIService) private readonly piiService: PIIService,
+    @Inject(DictionaryPseudonymizerService) private readonly dictionaryPseudonymizerService: DictionaryPseudonymizerService,
+    @Inject(RunMetadataService) private readonly runMetadataService: RunMetadataService,
+    @Inject(ProviderConfigService) private readonly providerConfigService: ProviderConfigService,
+    @Inject(HttpService) private readonly httpService: HttpService,
+    @Inject(LLMPricingService) private readonly llmPricingService: LLMPricingService,
   ) {
     this.logger.log('LLMServiceFactory initialized');
   }

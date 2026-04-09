@@ -90,7 +90,7 @@ export class LocalModelStatusService {
   };
 
   constructor(
-    private readonly httpService: HttpService,
+    @Inject(HttpService) private readonly httpService: HttpService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {
     this.ollamaBaseUrl =

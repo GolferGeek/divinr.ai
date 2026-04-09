@@ -58,8 +58,8 @@ export class TwoTierLLMService implements LLMServiceProvider {
   constructor(
     @Inject(COMMERCIAL_CLIENT) private readonly commercialClient: LLMClient,
     @Inject(OPENSOURCE_CLIENT) private readonly opensourceClient: LLMClient,
-    private readonly openRouterClient: OpenRouterClient,
-    private readonly observabilityEventsService: ObservabilityEventsService,
+    @Inject(OpenRouterClient) private readonly openRouterClient: OpenRouterClient,
+    @Inject(ObservabilityEventsService) private readonly observabilityEventsService: ObservabilityEventsService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {}
 

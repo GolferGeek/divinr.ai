@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ExecutionContext } from '@orchestrator-ai/transport-types';
 import { LLMServiceFactory } from './llm-service-factory';
 import { LLMServiceConfig, VideoGenerationResponse } from './llm-interfaces';
@@ -20,7 +20,7 @@ import { LLMServiceConfig, VideoGenerationResponse } from './llm-interfaces';
 export class LLMVideoService {
   private readonly logger = new Logger(LLMVideoService.name);
 
-  constructor(private readonly llmServiceFactory: LLMServiceFactory) {}
+  constructor(@Inject(LLMServiceFactory) private readonly llmServiceFactory: LLMServiceFactory) {}
 
   /**
    * Generate video using provider-specific video generation APIs

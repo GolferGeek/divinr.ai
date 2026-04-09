@@ -69,11 +69,11 @@ export class ObservabilityWebhookService implements OnModuleInit {
   private readonly observabilityUrl: string;
 
   constructor(
-    private readonly httpService: HttpService,
+    @Inject(HttpService) private readonly httpService: HttpService,
     @Optional()
     @Inject(AUTH_SERVICE)
     private readonly authService: AuthServiceProvider | null,
-    private readonly configService: ConfigService,
+    @Inject(ConfigService) private readonly configService: ConfigService,
   ) {
     // No default port - must be explicitly configured
     // This sends events to observability endpoints within the Orchestrator AI API

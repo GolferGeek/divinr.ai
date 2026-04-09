@@ -23,6 +23,7 @@ import {
   Query,
   Res,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { LegacyThemesService } from './legacy-themes.service';
@@ -63,7 +64,7 @@ interface ImportThemeDto {
 
 @Controller('observability-legacy/api/themes')
 export class LegacyThemesController {
-  constructor(private readonly themesService: LegacyThemesService) {}
+  constructor(@Inject(LegacyThemesService) private readonly themesService: LegacyThemesService) {}
 
   @Post()
   async createTheme(@Body() themeData: CreateThemeDto, @Res() res: Response) {

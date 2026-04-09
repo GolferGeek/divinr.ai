@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConfigProvider } from './config-provider.interface';
 
@@ -8,7 +8,7 @@ import { ConfigProvider } from './config-provider.interface';
  */
 @Injectable()
 export class LocalConfigProvider implements ConfigProvider {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {}
 
   getRequired(key: string): string {
     const value = this.configService.get<string>(key);

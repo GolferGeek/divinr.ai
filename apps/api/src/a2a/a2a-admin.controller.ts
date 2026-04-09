@@ -1,14 +1,24 @@
 import {
+  BadRequestException,
   Controller,
   Post,
   Get,
   Delete,
   Body,
+  ForbiddenException,
   Param,
   Logger,
   Inject,
+  NotFoundException,
+  Req,
 } from '@nestjs/common';
 import { ServiceApiKeyService } from '../auth/service-api-key.service';
+
+interface AuthenticatedUser {
+  id: string;
+  email?: string;
+  role?: string;
+}
 
 /**
  * Admin endpoints for managing service API keys.
@@ -20,8 +30,18 @@ export class A2AAdminController {
 
   constructor(@Inject(ServiceApiKeyService) private readonly apiKeyService: ServiceApiKeyService) {}
 
+  private requireAdmin(req: { user?: AuthenticatedUser }): void {
+    if (!req.user?.id) {
+      throw new ForbiddenException('Authentication required');
+    }
+    if (req.user.role !== 'admin') {
+      throw new ForbiddenException('Admin access required');
+    }
+  }
+
   @Post()
   async generateKey(
+    @Req() req: { user?: AuthenticatedUser },
     @Body()
     body: {
       label: string;
@@ -29,11 +49,12 @@ export class A2AAdminController {
       scopes?: string[];
     },
   ) {
+    this.requireAdmin(req);
     if (!body.label) {
-      return { error: 'label is required' };
+      throw new BadRequestException('label is required');
     }
     if (!body.allowedMachineIdentities?.length) {
-      return { error: 'allowedMachineIdentities is required (at least one)' };
+      throw new BadRequestException('allowedMachineIdentities is required (at least one)');
     }
 
     const result = await this.apiKeyService.generateKey(
@@ -58,16 +79,18 @@ export class A2AAdminController {
   }
 
   @Get()
-  async listKeys() {
+  async listKeys(@Req() req: { user?: AuthenticatedUser }) {
+    this.requireAdmin(req);
     const keys = await this.apiKeyService.listKeys();
     return { keys };
   }
 
   @Delete(':id')
-  async revokeKey(@Param('id') id: string) {
+  async revokeKey(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    this.requireAdmin(req);
     const revoked = await this.apiKeyService.revokeKey(id);
     if (!revoked) {
-      return { error: 'Key not found' };
+      throw new NotFoundException('Key not found');
     }
     this.logger.log(`Revoked service API key: ${id}`);
     return { revoked: true, id };

@@ -292,7 +292,7 @@ function timeAgo(dateStr: string): string {
                   </div>
                 </div>
                 <div v-else class="trade-rec-hold">
-                  Portfolio Manager recommends holding — Kelly fraction below threshold or arbitrator flat.
+                  Portfolio Manager signal: hold — Kelly fraction below threshold or arbitrator flat.
                 </div>
               </div>
 

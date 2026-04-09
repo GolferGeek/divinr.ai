@@ -37,7 +37,7 @@ export class EodForcedBuyService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
-    private readonly helper: AutotradeOpenHelper,
+    @Inject(AutotradeOpenHelper) private readonly helper: AutotradeOpenHelper,
   ) {}
 
   private threshold(): number {

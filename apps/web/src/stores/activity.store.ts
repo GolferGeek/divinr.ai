@@ -20,6 +20,9 @@ export const useActivityStore = defineStore('activity', () => {
   const connected = ref(false);
   const panelOpen = ref(false);
   let eventSource: EventSource | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let retryCount = 0;
+  const MAX_RETRIES = 10;
 
   const recentEvents = computed(() => events.value.slice(-200));
 
@@ -37,6 +40,8 @@ export const useActivityStore = defineStore('activity', () => {
     connected.value = true;
 
     eventSource.onmessage = (e) => {
+      // Reset retry count on successful message
+      retryCount = 0;
       try {
         const event: ActivityEvent = JSON.parse(e.data);
         if (event.hook_event_type === 'connected') return;
@@ -53,12 +58,21 @@ export const useActivityStore = defineStore('activity', () => {
     eventSource.onerror = () => {
       connected.value = false;
       disconnect();
-      // Reconnect after 5 seconds
-      setTimeout(() => connect(), 5000);
+      if (retryCount >= MAX_RETRIES) return;
+      const delay = Math.min(5000 * 2 ** retryCount, 60000);
+      retryCount++;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
     };
   }
 
   function disconnect() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     if (eventSource) {
       eventSource.close();
       eventSource = null;

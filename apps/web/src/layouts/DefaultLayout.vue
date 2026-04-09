@@ -9,7 +9,9 @@ import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
   shieldOutline, briefcaseOutline, newspaperOutline,
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
+  menuOutline,
 } from 'ionicons/icons';
+import { ref } from 'vue';
 import { useTenantStore } from '../stores/tenant.store';
 import { useDomainStore } from '../stores/domain.store';
 import { useActivityStore } from '../stores/activity.store';
@@ -19,6 +21,7 @@ const tenant = useTenantStore();
 const domain = useDomainStore();
 const activity = useActivityStore();
 const router = useRouter();
+const sidebarOpen = ref(false);
 
 const navItems = [
   { title: 'Dashboard', icon: gridOutline, to: '/' },
@@ -50,7 +53,7 @@ function orgLabel(): string {
 <template>
   <ion-page>
     <div class="app-shell">
-      <nav class="sidebar">
+      <nav class="sidebar" :class="{ 'sidebar-mobile-open': sidebarOpen }">
         <div class="sidebar-header">Divinr AI</div>
         <ul class="sidebar-nav">
           <li
@@ -58,7 +61,10 @@ function orgLabel(): string {
             :key="item.to"
             class="sidebar-item"
             :class="{ active: $route.path === item.to }"
-            @click="router.push(item.to)"
+            role="link"
+            tabindex="0"
+            @click="router.push(item.to); sidebarOpen = false"
+            @keyup.enter="router.push(item.to); sidebarOpen = false"
           >
             <ion-icon :icon="item.icon" />
             <span>{{ item.title }}</span>
@@ -79,6 +85,11 @@ function orgLabel(): string {
       <div class="main-area">
         <ion-header>
           <ion-toolbar>
+            <ion-buttons slot="start" class="hamburger-btn">
+              <ion-button @click="sidebarOpen = !sidebarOpen" aria-label="Toggle navigation menu">
+                <ion-icon slot="icon-only" :icon="menuOutline" />
+              </ion-button>
+            </ion-buttons>
             <ion-title>Divinr AI</ion-title>
             <ion-buttons slot="end">
               <ion-chip color="medium" outline>
@@ -106,6 +117,7 @@ function orgLabel(): string {
         </ion-content>
       </div>
     </div>
+    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false" />
     <ActivityPanel />
   </ion-page>
 </template>
@@ -223,9 +235,37 @@ function orgLabel(): string {
   overflow: hidden;
 }
 
+.hamburger-btn {
+  display: none;
+}
+
 @media (max-width: 768px) {
+  .hamburger-btn {
+    display: flex;
+  }
+
   .sidebar {
     display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1000;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .sidebar.sidebar-mobile-open {
+    display: flex;
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 999;
   }
 }
 

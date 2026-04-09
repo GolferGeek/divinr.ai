@@ -12,7 +12,11 @@ const roleFilter = ref('all');
 onMounted(() => loadPredictions());
 
 async function loadPredictions() {
-  predictions.value = await api.get<Record<string, unknown>[]>(`/predictions?role=${roleFilter.value}`);
+  try {
+    predictions.value = await api.get<Record<string, unknown>[]>(`/predictions?role=${roleFilter.value}`);
+  } catch (err) {
+    console.error('Failed to load predictions', err);
+  }
 }
 </script>
 

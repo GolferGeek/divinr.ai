@@ -35,8 +35,8 @@ export class SupabaseAuthService
   constructor(
     @Inject(IDENTITY_PROVIDER) identityProvider: IdentityProvider,
     @Inject(DATABASE_SERVICE) db: DatabaseService,
-    private readonly supabaseService: SupabaseService,
-    private readonly identityLinkService: InternalIdentityLinkService,
+    @Inject(SupabaseService) private readonly supabaseService: SupabaseService,
+    @Inject(InternalIdentityLinkService) private readonly identityLinkService: InternalIdentityLinkService,
   ) {
     super(identityProvider, db);
   }

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConfigProvider } from './config-provider.interface';
 
@@ -36,7 +36,7 @@ export class GcpSecretManagerConfigProvider
   private readonly secretCache = new Map<string, string>();
   private readonly projectId: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
     this.projectId = this.configService.getOrThrow<string>('GCP_PROJECT_ID');
 
     /* eslint-disable @typescript-eslint/no-require-imports */

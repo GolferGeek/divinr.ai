@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 
@@ -44,7 +44,7 @@ export class OllamaDiscoveryService {
   private lastDiscoveryAttempt: Date | null = null;
   private cacheExpiryMs = 60000; // 1 minute cache
 
-  constructor(private readonly httpService: HttpService) {}
+  constructor(@Inject(HttpService) private readonly httpService: HttpService) {}
 
   /**
    * Get the current Ollama URL.

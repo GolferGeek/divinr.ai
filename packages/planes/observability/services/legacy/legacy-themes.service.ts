@@ -4,7 +4,7 @@
  *
  * Provides theme CRUD operations with validation, import/export, and stats.
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ObservabilityDbService } from '../observability-db.service';
 import type {
   Theme,
@@ -52,7 +52,7 @@ interface ThemeStats {
 export class LegacyThemesService {
   private readonly logger = new Logger(LegacyThemesService.name);
 
-  constructor(private readonly databaseService: ObservabilityDbService) {}
+  constructor(@Inject(ObservabilityDbService) private readonly databaseService: ObservabilityDbService) {}
 
   private generateId(): string {
     return Math.random().toString(36).substr(2, 16);

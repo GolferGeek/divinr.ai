@@ -51,7 +51,7 @@ export class MemoryManagerService implements OnModuleInit {
   ]);
 
   constructor(
-    private readonly localModelStatusService: LocalModelStatusService,
+    @Inject(LocalModelStatusService) private readonly localModelStatusService: LocalModelStatusService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {
     // Initialize memory configuration based on system resources

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 // eslint-disable-next-line no-restricted-imports -- Direct pg needed for optional orchestrator cross-DB connection
 import { Pool } from 'pg';
 
@@ -18,11 +18,15 @@ import { Pool } from 'pg';
  *   prediction.predictions — historical predictions
  */
 @Injectable()
-export class OrchestratorBaseDataService implements OnModuleInit {
+export class OrchestratorBaseDataService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OrchestratorBaseDataService.name);
   private pool: Pool | null = null;
 
   constructor() {}
+
+  async onModuleDestroy() {
+    await this.pool?.end();
+  }
 
   onModuleInit() {
     const url = process.env.ORCHESTRATOR_DATABASE_URL;

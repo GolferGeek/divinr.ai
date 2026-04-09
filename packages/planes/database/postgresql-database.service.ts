@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, PoolClient } from 'pg';
 import {
@@ -16,11 +16,17 @@ import {
  * Schema mapping: schema is passed as part of the qualified table name.
  */
 @Injectable()
-export class PostgresqlDatabaseService implements DatabaseService {
+export class PostgresqlDatabaseService implements DatabaseService, OnModuleDestroy {
   private readonly logger = new Logger(PostgresqlDatabaseService.name);
   private pool: Pool | null = null;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {}
+
+  async onModuleDestroy() {
+    if (this.pool) {
+      await this.pool.end();
+    }
+  }
 
   from(schema: string | null, table: string): QueryBuilder {
     return new PostgresQueryBuilder(() => this.getPool(), schema, table);

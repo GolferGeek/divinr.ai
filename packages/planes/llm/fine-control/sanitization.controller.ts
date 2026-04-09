@@ -64,8 +64,8 @@ export class SanitizationController {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
-    private readonly pseudonymizationService: PseudonymizationService,
-    private readonly piiPatternService: PIIPatternService,
+    @Inject(PseudonymizationService) private readonly pseudonymizationService: PseudonymizationService,
+    @Inject(PIIPatternService) private readonly piiPatternService: PIIPatternService,
   ) {}
 
   /**

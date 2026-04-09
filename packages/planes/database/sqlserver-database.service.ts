@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as mssql from 'mssql';
 import {
@@ -21,7 +21,7 @@ export class SqlServerDatabaseService implements DatabaseService {
   private readonly logger = new Logger(SqlServerDatabaseService.name);
   private pool: mssql.ConnectionPool | null = null;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {}
 
   from(schema: string | null, table: string): QueryBuilder {
     return new SqlServerQueryBuilder(() => this.getPool(), schema, table);

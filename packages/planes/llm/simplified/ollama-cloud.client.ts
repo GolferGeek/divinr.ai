@@ -5,7 +5,7 @@
  * Supports text generation via chat completions endpoint.
  * Handles auth and token counting.
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 
@@ -54,7 +54,7 @@ export interface OllamaCloudResult {
 export class OllamaCloudClient {
   private readonly logger = new Logger(OllamaCloudClient.name);
 
-  constructor(private readonly httpService: HttpService) {}
+  constructor(@Inject(HttpService) private readonly httpService: HttpService) {}
 
   private getBaseUrl(): string {
     return process.env.OLLAMA_CLOUD_BASE_URL || 'https://api.ollama.com/v1';

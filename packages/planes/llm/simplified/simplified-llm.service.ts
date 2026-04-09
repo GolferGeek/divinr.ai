@@ -40,10 +40,10 @@ export class SimplifiedLLMService implements LLMServiceProvider {
   private readonly cacheTtlMs = 5 * 60 * 1000; // 5 minutes
 
   constructor(
-    private readonly openRouterClient: OpenRouterClient,
-    private readonly ollamaCloudClient: OllamaCloudClient,
-    private readonly modelRouter: ModelRouter,
-    private readonly observabilityEventsService: ObservabilityEventsService,
+    @Inject(OpenRouterClient) private readonly openRouterClient: OpenRouterClient,
+    @Inject(OllamaCloudClient) private readonly ollamaCloudClient: OllamaCloudClient,
+    @Inject(ModelRouter) private readonly modelRouter: ModelRouter,
+    @Inject(ObservabilityEventsService) private readonly observabilityEventsService: ObservabilityEventsService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {}
 

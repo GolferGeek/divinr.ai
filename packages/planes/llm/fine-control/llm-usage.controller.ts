@@ -4,12 +4,13 @@ import {
   Param,
   Query,
   NotFoundException,
+  Inject,
 } from '@nestjs/common';
 import { RunMetadataService } from './run-metadata.service';
 
 @Controller('api/llm-usage')
 export class LlmUsageController {
-  constructor(private readonly runMetadataService: RunMetadataService) {}
+  constructor(@Inject(RunMetadataService) private readonly runMetadataService: RunMetadataService) {}
 
   /**
    * Get LLM usage records with filtering

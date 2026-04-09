@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Inject } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -16,7 +16,7 @@ import { UsageStatsResponseDto } from '../dto/llm-evaluation.dto';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class UsageController {
-  constructor(private readonly usageService: UsageService) {}
+  constructor(@Inject(UsageService) private readonly usageService: UsageService) {}
 
   @Get('stats')
   @ApiOperation({ summary: 'Get usage statistics for the current user' })

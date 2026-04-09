@@ -14,13 +14,13 @@ import {
   SubscribeMessage,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject } from '@nestjs/common';
 import { ObservabilityDbService } from '../observability-db.service';
 import type { HookEvent } from '../observability-types';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:7101'],
   },
   path: '/observability-legacy/stream',
   transports: ['websocket', 'polling'],
@@ -33,7 +33,7 @@ export class LegacyObservabilityGateway
 
   private readonly logger = new Logger(LegacyObservabilityGateway.name);
 
-  constructor(private readonly databaseService: ObservabilityDbService) {}
+  constructor(@Inject(ObservabilityDbService) private readonly databaseService: ObservabilityDbService) {}
 
   afterInit(_server: Server) {
     this.logger.log('Legacy Observability WebSocket Gateway initialized');

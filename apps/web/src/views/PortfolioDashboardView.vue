@@ -23,8 +23,8 @@ onMounted(async () => {
     portfolio.fetchMyPortfolio(),
     portfolio.fetchMyPositions('open'),
     portfolio.fetchMyQueue(),
-    api.get<Array<Record<string, unknown>>>('/trades/decisions').then(d => decisions.value = d).catch(() => {}),
-  ]).catch(() => {});
+    api.get<Array<Record<string, unknown>>>('/trades/decisions').then(d => decisions.value = d).catch((err) => console.error('Failed to load trade decisions', err)),
+  ]).catch((err) => console.error('Failed to load portfolio data', err));
 });
 
 function rowKey(p: PortfolioSummary): string { return `${p.kind}:${p.id}`; }

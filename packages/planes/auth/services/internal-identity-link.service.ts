@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { AuthenticatedPrincipal } from '../interfaces/authenticated-principal.interface';
 import { SupabaseService } from '../../database/supabase-client.service';
 
@@ -13,7 +13,7 @@ interface IdentityLinkRow {
 export class InternalIdentityLinkService {
   private readonly logger = new Logger(InternalIdentityLinkService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(@Inject(SupabaseService) private readonly supabaseService: SupabaseService) {}
 
   async findInternalUserId(
     principal: AuthenticatedPrincipal,

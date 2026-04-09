@@ -9,6 +9,7 @@ import {
   UseGuards,
   HttpStatus,
   HttpException,
+  Inject,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -39,7 +40,7 @@ import {
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class EvaluationController {
-  constructor(private readonly evaluationService: EvaluationService) {}
+  constructor(@Inject(EvaluationService) private readonly evaluationService: EvaluationService) {}
 
   @Post('messages/:messageId')
   @ApiOperation({ summary: 'Submit evaluation for a message' })

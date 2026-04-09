@@ -28,9 +28,9 @@ export class LLMController {
 
   constructor(
     @Inject(LLM_SERVICE) private readonly llmService: LLMServiceProvider,
-    private readonly localModelStatusService: LocalModelStatusService,
-    private readonly runMetadataService: RunMetadataService,
-    private readonly ollamaStartupService: OllamaStartupService,
+    @Inject(LocalModelStatusService) private readonly localModelStatusService: LocalModelStatusService,
+    @Inject(RunMetadataService) private readonly runMetadataService: RunMetadataService,
+    @Inject(OllamaStartupService) private readonly ollamaStartupService: OllamaStartupService,
   ) {}
 
   @Post('generate')

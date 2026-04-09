@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Inject,
   Param,
@@ -119,6 +120,12 @@ export class MarketsController {
       throw new BadRequestException('Authentication required');
     }
     return req.user;
+  }
+
+  private requireAdmin(user: AuthenticatedUser): void {
+    if (user.role !== 'admin') {
+      throw new ForbiddenException('Admin access required');
+    }
   }
 
   // ─── Instruments ───────────────────────────────────────────────
@@ -862,8 +869,9 @@ export class MarketsController {
     @Param('analystId') analystId: string,
     @Query('organizationSlug') orgSlug: string,
   ) {
-    this.getUser(req);
-    return this.analystPortfolio.getPortfolio(analystId, orgSlug);
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.analystPortfolio.getPortfolio(analystId, identity.organizationSlug);
   }
 
   @Get('portfolios/analysts/:analystId/positions')
@@ -873,8 +881,9 @@ export class MarketsController {
     @Query('organizationSlug') orgSlug: string,
     @Query('status') status?: string,
   ) {
-    this.getUser(req);
-    return this.analystPortfolio.listPositions(analystId, orgSlug, status);
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.analystPortfolio.listPositions(analystId, identity.organizationSlug, status);
   }
 
   @Get('portfolios/leaderboard')
@@ -1251,19 +1260,22 @@ export class MarketsController {
 
   @Post('admin/run-settlement')
   async triggerSettlement(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.eodSettlement.runSettlement();
   }
 
   @Post('admin/run-nightly-evaluation')
   async triggerNightlyEvaluation(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.nightlyEvaluation.runNightlyEvaluation();
   }
 
   @Post('admin/run-learning-cycle')
   async triggerLearningCycle(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.learningEngine.runLearningCycle();
   }
 
@@ -1305,81 +1317,94 @@ export class MarketsController {
   // Effort: automated-meta-loop. Trigger policy generation manually.
   @Post('admin/run-audit-policy-update')
   async triggerAuditPolicyUpdate(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.audit.updateAuditPolicy();
   }
 
   // Effort: tier-2-audit. Trigger the Tier 2 audit cycle manually.
   @Post('admin/run-tier2-audit')
   async triggerTier2Audit(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.audit.runAuditCycle();
   }
 
   @Post('admin/run-crawl')
   async triggerCrawl(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.crawler.runCrawl();
   }
 
   @Post('admin/run-predictor-generation')
   async triggerPredictorGeneration(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.predictorGenerator.runGeneration();
   }
 
   @Post('admin/run-prediction-generation')
   async triggerPredictionGeneration(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.predictionGenerator.runGeneration();
   }
 
   @Post('admin/run-outcome-tracking')
   async triggerOutcomeTracking(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.outcomeTracking.runTracking();
   }
 
   @Post('admin/run-stop-loss-sweep')
   async triggerStopLossSweep(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.stopLossWatcher.sweep();
   }
 
   @Post('portfolios/admin/monthly-reset')
   async triggerMonthlyReset(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.monthlyReset.runReset({ manual: true });
   }
 
   @Post('admin/run-daily-snapshots')
   async triggerDailySnapshots(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     const prices = await this.eodSettlement.captureClosingPrices();
     return this.eodSettlement.writeDailySnapshots(prices);
   }
 
   @Post('admin/run-benchmark-ingest')
   async triggerBenchmarkIngest(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.benchmarkIngest.ingestSpy();
   }
 
   @Post('admin/run-day-trader-strategies')
   async triggerDayTraderStrategies(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.dayTraderRunner.runStrategies();
   }
 
   @Post('admin/run-eod-forced-buy')
   async triggerEodForcedBuy(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     return this.eodForcedBuy.runSweep({ manual: true });
   }
 
   @Post('admin/run-pipeline')
   async triggerFullPipeline(@Req() req: { user?: AuthenticatedUser }) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    this.requireAdmin(user);
     const crawlResult = await this.crawler.runCrawl();
     const predictorResult = await this.predictorGenerator.runGeneration();
     const predictionResult = await this.predictionGenerator.runGeneration();

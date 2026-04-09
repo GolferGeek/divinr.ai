@@ -39,7 +39,7 @@ import { LLM_SERVICE, LLMServiceProvider } from '@orchestratorai/planes/llm';
 @ApiBearerAuth()
 export class ModelsController {
   constructor(
-    private readonly modelsService: ModelsService,
+    @Inject(ModelsService) private readonly modelsService: ModelsService,
     @Inject(LLM_SERVICE) private readonly llmService: LLMServiceProvider,
   ) {}
 

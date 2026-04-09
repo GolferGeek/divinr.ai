@@ -1,11 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { SupabaseService } from '../../database/supabase-client.service';
 import { IdentityProvider } from '../interfaces/identity-provider.interface';
 import { AuthenticatedPrincipal } from '../interfaces/authenticated-principal.interface';
 
 @Injectable()
 export class SupabaseIdentityProvider implements IdentityProvider {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(@Inject(SupabaseService) private readonly supabaseService: SupabaseService) {}
 
   async validateToken(token: string): Promise<AuthenticatedPrincipal> {
     const supabaseClient = this.supabaseService.getAnonClient();

@@ -6,6 +6,7 @@ import {
   HttpStatus,
   HttpException,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import {
@@ -26,7 +27,7 @@ export class SovereignPolicyController {
   private readonly logger = new Logger(SovereignPolicyController.name);
 
   constructor(
-    private readonly sovereignPolicyService: SovereignPolicyService,
+    @Inject(SovereignPolicyService) private readonly sovereignPolicyService: SovereignPolicyService,
   ) {}
 
   /**

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConfigProvider } from './config-provider.interface';
 
@@ -28,7 +28,7 @@ export class SupabaseVaultConfigProvider
   private readonly databaseUrl: string;
   private readonly secretCache = new Map<string, string>();
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
     this.databaseUrl = this.configService.getOrThrow<string>('DATABASE_URL');
   }
 

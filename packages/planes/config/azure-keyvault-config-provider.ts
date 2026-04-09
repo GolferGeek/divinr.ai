@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SecretClient } from '@azure/keyvault-secrets';
 import { ManagedIdentityCredential } from '@azure/identity';
@@ -29,7 +29,7 @@ export class AzureKeyVaultConfigProvider
   private readonly secretCache = new Map<string, string>();
   private readonly vaultUrl: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
     this.vaultUrl = this.configService.getOrThrow<string>('AZURE_KEYVAULT_URL');
     // Use ManagedIdentityCredential directly (system-assigned).
     // DefaultAzureCredential picks up AZURE_CLIENT_ID from env and

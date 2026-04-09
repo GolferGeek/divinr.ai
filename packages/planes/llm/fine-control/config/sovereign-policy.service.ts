@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export interface SovereignPolicy {
@@ -12,7 +12,7 @@ export interface SovereignPolicy {
 export class SovereignPolicyService {
   private readonly logger = new Logger(SovereignPolicyService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {}
 
   /**
    * Get the current sovereign mode policy from environment variables

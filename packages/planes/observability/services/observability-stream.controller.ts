@@ -1,10 +1,13 @@
-import { Controller, Get, Res, Logger, Query } from '@nestjs/common';
+import { Controller, Get, Res, Logger, Query, Inject, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import {
   ObservabilityEventsService,
   ObservabilityEventRecord,
 } from './observability-events.service';
 import { Subscription } from 'rxjs';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RbacGuard } from '../../rbac/guards/rbac.guard';
+import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 
 /**
  * Observability Stream Controller
@@ -20,11 +23,12 @@ import { Subscription } from 'rxjs';
  * Response: Server-Sent Events stream
  */
 @Controller('observability')
+@UseGuards(JwtAuthGuard, RbacGuard)
 export class ObservabilityStreamController {
   private readonly logger = new Logger(ObservabilityStreamController.name);
 
   constructor(
-    private readonly observabilityEvents: ObservabilityEventsService,
+    @Inject(ObservabilityEventsService) private readonly observabilityEvents: ObservabilityEventsService,
   ) {}
 
   /**
@@ -36,11 +40,9 @@ export class ObservabilityStreamController {
    * - filterAgentSlug: Filter by agent
    * - filterConversationId: Filter by conversation
    *
-   * Note: admin:audit permission is documented but not enforced via RbacGuard.
-   * Any authenticated user can access the stream, but should filter by their
-   * own conversationId or userId for appropriate access control.
    */
   @Get('stream')
+  @RequirePermission('admin:audit')
   streamEvents(
     @Res() response: Response,
     @Query('userId') filterUserId?: string,
@@ -56,7 +58,7 @@ export class ObservabilityStreamController {
     response.setHeader('Content-Type', 'text/event-stream');
     response.setHeader('Cache-Control', 'no-cache');
     response.setHeader('Connection', 'keep-alive');
-    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Access-Control-Allow-Origin', process.env.CORS_ORIGINS || 'http://localhost:7101');
     response.setHeader('X-Accel-Buffering', 'no');
 
     // Send initial connection confirmation
@@ -175,6 +177,7 @@ export class ObservabilityStreamController {
    * - limit: Max events to return (default 1000, max 5000)
    */
   @Get('history')
+  @RequirePermission('admin:audit')
   async getHistory(
     @Query('since') sinceParam?: string,
     @Query('until') untilParam?: string,

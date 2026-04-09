@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useApi } from '../composables/useApi';
+import { useTenantStore } from './tenant.store';
 
 export interface PortfolioSummary {
   kind: 'user' | 'analyst' | 'arbitrator' | 'day_trader';
@@ -59,26 +60,29 @@ export const usePortfolioStore = defineStore('portfolio', () => {
   const portfolioDetails = ref<Record<string, PortfolioDetail>>({});
   const loading = ref(false);
 
-  const api = useApi();
-
   async function fetchMyPortfolio() {
+    const api = useApi();
     myPortfolio.value = await api.get<Record<string, unknown>>('/portfolios/me');
   }
 
   async function fetchMyPositions(status?: string) {
+    const api = useApi();
     const qs = status ? `?status=${status}` : '';
     myPositions.value = await api.get<Record<string, unknown>[]>(`/portfolios/me/positions${qs}`);
   }
 
   async function fetchMyQueue() {
+    const api = useApi();
     myQueue.value = await api.get<Record<string, unknown>[]>('/portfolios/me/queue');
   }
 
   async function fetchLeaderboard() {
+    const api = useApi();
     leaderboard.value = await api.get<Record<string, unknown>[]>('/portfolios/leaderboard');
   }
 
   async function fetchAnalystPortfolios() {
+    const api = useApi();
     analystPortfolios.value = await api.get<Record<string, unknown>[]>('/portfolios/analysts');
   }
 
@@ -86,14 +90,17 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     predictionId: string; instrumentId: string; symbol: string;
     direction: 'long' | 'short'; quantity: number;
   }) {
+    const api = useApi();
     return api.post('/portfolios/me/queue-trade', input);
   }
 
   async function cancelTrade(tradeId: string) {
+    const api = useApi();
     return api.post(`/portfolios/me/queue-trade/${tradeId}/cancel`);
   }
 
   async function fetchAllPortfolios() {
+    const api = useApi();
     allPortfolios.value = await api.get<PortfolioSummary[]>('/portfolios');
   }
 
@@ -107,9 +114,11 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     direction: 'long' | 'short';
     quantity: number;
   }) {
+    const api = useApi();
+    const tenant = useTenantStore();
     const result = await api.post<Record<string, unknown>>('/portfolios/me/execute-trade', {
       ...input,
-      organizationSlug: localStorage.getItem('divinr_org') || '',
+      organizationSlug: tenant.orgSlug,
     });
     // Refresh user-side caches so the new position is visible immediately.
     await Promise.all([
@@ -127,8 +136,10 @@ export const usePortfolioStore = defineStore('portfolio', () => {
   }
 
   async function closePositionAction(positionId: string) {
+    const api = useApi();
+    const tenant = useTenantStore();
     const result = await api.post<Record<string, unknown>>(`/portfolios/me/positions/${positionId}/close`, {
-      organizationSlug: localStorage.getItem('divinr_org') || '',
+      organizationSlug: tenant.orgSlug,
     });
     await Promise.all([
       fetchMyPortfolio().catch(() => {}),
@@ -144,6 +155,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
   }
 
   async function fetchPortfolioDetail(kind: string, id: string) {
+    const api = useApi();
     // arbitrator + day_trader rows live in analyst_portfolios; the API only
     // accepts kind ∈ {user, analyst}.
     const apiKind = kind === 'user' ? 'user' : 'analyst';

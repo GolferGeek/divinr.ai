@@ -49,7 +49,7 @@ export class PatternRedactionService {
   private readonly logger = new Logger(PatternRedactionService.name);
 
   constructor(
-    private readonly piiPatternService: PIIPatternService,
+    @Inject(PIIPatternService) private readonly piiPatternService: PIIPatternService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {
     this.logger.log(

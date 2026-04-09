@@ -6,11 +6,10 @@ defineProps<{
   assessments: Record<string, unknown>[];
 }>();
 
-const expanded = ref<Set<string>>(new Set());
+const expanded = ref<Record<string, boolean>>({});
 
 function toggle(id: string) {
-  if (expanded.value.has(id)) expanded.value.delete(id);
-  else expanded.value.add(id);
+  expanded.value[id] = !expanded.value[id];
 }
 
 function scoreColor(score: number): string {
@@ -57,7 +56,7 @@ function verdictLabel(score: number): string {
           <p style="font-size:0.85rem;line-height:1.5;margin-bottom:8px">{{ a['reasoning'] }}</p>
 
           <!-- Expanded: evidence -->
-          <template v-if="expanded.has(String(a['id']))">
+          <template v-if="expanded[String(a['id'])]">
             <div v-if="(a['evidence'] as string[])?.length" style="margin-top:12px">
               <div style="font-size:0.8rem;font-weight:600;margin-bottom:4px">Key Evidence</div>
               <ul style="margin:0;padding-left:20px">

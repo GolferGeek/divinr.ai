@@ -52,14 +52,14 @@ Respond with valid JSON:
 
 const DEFAULT_ARBITER_PROMPT = `You are the Arbiter in a risk assessment debate.
 You have seen the Blue Agent's defense and the Red Agent's challenges.
-Synthesize both perspectives and recommend a score adjustment between -30 and +30.
+Synthesize both perspectives and propose a score adjustment between -30 and +30.
 
 Respond with valid JSON:
 {
   "final_assessment": "<your synthesis>",
   "accepted_challenges": ["<accepted challenge>", ...],
   "rejected_challenges": ["<rejected challenge>", ...],
-  "adjustment_reasoning": "<why you recommend this adjustment>",
+  "adjustment_reasoning": "<why you propose this adjustment>",
   "recommended_adjustment": <integer between -30 and +30>
 }`;
 

@@ -29,7 +29,7 @@ export class ExternalOidcAuthService
   constructor(
     @Inject(IDENTITY_PROVIDER) identityProvider: IdentityProvider,
     @Inject(DATABASE_SERVICE) db: DatabaseService,
-    private readonly identityLinkService: InternalIdentityLinkService,
+    @Inject(InternalIdentityLinkService) private readonly identityLinkService: InternalIdentityLinkService,
   ) {
     super(identityProvider, db);
   }

@@ -33,6 +33,11 @@ export const router = createRouter({
         { path: 'findings', name: 'findings', component: () => import('../views/AuditFindingsView.vue') },
       ],
     },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      redirect: '/',
+    },
   ],
 });
 

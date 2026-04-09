@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export interface FeatureFlagContext {
@@ -21,7 +21,7 @@ export interface FeatureFlagConfig {
 
 @Injectable()
 export class FeatureFlagService {
-  constructor(private configService: ConfigService) {}
+  constructor(@Inject(ConfigService) private configService: ConfigService) {}
 
   isEnabled(flagName: string, context: FeatureFlagContext = {}): boolean {
     const config = this.getFlagConfig(flagName);

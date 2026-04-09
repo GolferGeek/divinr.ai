@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { ExecutionContext } from '@orchestrator-ai/transport-types';
 import { LLMServiceFactory } from './llm-service-factory';
 import { LLMServiceConfig, ImageGenerationResponse } from './llm-interfaces';
@@ -19,7 +19,7 @@ import { LLMServiceConfig, ImageGenerationResponse } from './llm-interfaces';
 export class LLMImageService {
   private readonly logger = new Logger(LLMImageService.name);
 
-  constructor(private readonly llmServiceFactory: LLMServiceFactory) {}
+  constructor(@Inject(LLMServiceFactory) private readonly llmServiceFactory: LLMServiceFactory) {}
 
   /**
    * Generate image using provider-specific image generation APIs

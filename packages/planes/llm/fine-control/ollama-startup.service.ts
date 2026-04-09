@@ -100,8 +100,8 @@ export class OllamaStartupService implements OnModuleInit {
   private readonly logger = new Logger(OllamaStartupService.name);
 
   constructor(
-    private readonly discoveryService: OllamaDiscoveryService,
-    private readonly localModelStatusService: LocalModelStatusService,
+    @Inject(OllamaDiscoveryService) private readonly discoveryService: OllamaDiscoveryService,
+    @Inject(LocalModelStatusService) private readonly localModelStatusService: LocalModelStatusService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     private readonly configService: ConfigService,
   ) {}
