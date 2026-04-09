@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-09 (leaderboard-calibration-affordance archived)
+**Last updated:** 2026-04-09
 **Maintained by:** `/roadmap` skill
 
 ## Vision
@@ -40,7 +40,7 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 
 ## Current Effort
 
-None — ready for a new effort.
+**Contract Editor UI** — Admin surface for reading and editing analyst contracts with diff viewer (side-by-side version comparison) and one-click rollback. Lives alongside the Tier 2 inbox. Ready for intention writing.
 
 ---
 
@@ -51,9 +51,6 @@ These have enough definition to write intentions for. Order reflects dependencie
 ---
 
 ## Future Efforts
-
-### Contract Editor UI
-Admin surface for reading and editing contracts with diff viewer (side-by-side version comparison) and one-click rollback. Lives alongside the Tier 2 inbox.
 
 ### Risk-Debate Drilldown
 Visualize the three-way blue/red/arbiter debate that already has reasoning linked through `llm_usage_id`.
