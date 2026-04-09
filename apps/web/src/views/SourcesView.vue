@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useSourcesStore } from '../stores/sources.store';
+import { useCanWrite } from '../composables/useCanWrite';
 import {
   IonList, IonItem, IonLabel, IonChip, IonToggle, IonNote,
   IonCard, IonCardHeader, IonCardTitle, IonCardContent,
@@ -9,6 +10,7 @@ import {
 import { newspaperOutline, cloudOutline } from 'ionicons/icons';
 
 const store = useSourcesStore();
+const { canWrite } = useCanWrite();
 
 onMounted(() => {
   store.fetch();
@@ -94,6 +96,7 @@ function timeAgo(dateStr: string): string {
             </p>
           </ion-label>
           <ion-toggle
+            v-if="canWrite"
             slot="end"
             :checked="Boolean(s['is_enabled'] ?? s['is_global_default'])"
             color="success"

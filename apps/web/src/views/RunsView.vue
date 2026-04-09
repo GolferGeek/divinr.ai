@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRunsStore } from '../stores/runs.store';
+import { useCanWrite } from '../composables/useCanWrite';
 import { useInstrumentsStore } from '../stores/instruments.store';
 import {
   IonButton, IonItem, IonSelect, IonSelectOption,
@@ -14,6 +15,7 @@ import {
 } from 'ionicons/icons';
 
 const router = useRouter();
+const { canWrite } = useCanWrite();
 const runs = useRunsStore();
 const instruments = useInstrumentsStore();
 
@@ -129,7 +131,7 @@ function filterRuns() {
           </p>
         </div>
       </div>
-      <div class="page-header__actions">
+      <div v-if="canWrite" class="page-header__actions">
         <ion-button color="medium" fill="outline" @click="handleProcessNext">
           <ion-icon slot="start" :icon="playOutline" />
           Run Next

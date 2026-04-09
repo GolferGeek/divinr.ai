@@ -7,6 +7,7 @@ import {
 } from '@ionic/vue';
 import { arrowUpOutline, arrowDownOutline, removeOutline, trendingDownOutline } from 'ionicons/icons';
 import { useApi } from '../composables/useApi';
+import { useCanWrite } from '../composables/useCanWrite';
 import { useInstrumentsStore } from '../stores/instruments.store';
 import { useDomainStore } from '../stores/domain.store';
 import AnalystPredictionModal from '../components/AnalystPredictionModal.vue';
@@ -60,6 +61,7 @@ interface DashboardPrediction {
 
 const instruments = useInstrumentsStore();
 const domain = useDomainStore();
+const { canWrite } = useCanWrite();
 const router = useRouter();
 const { get } = useApi();
 
@@ -303,7 +305,7 @@ function timeAgo(dateStr: string): string {
                   <ion-button size="small" color="success" fill="outline" @click.stop="openAnalystModal(pred, 0)">
                     View Analysis
                   </ion-button>
-                  <ion-button size="small" color="primary" @click.stop="openTradeModal(pred)">
+                  <ion-button v-if="canWrite" size="small" color="primary" @click.stop="openTradeModal(pred)">
                     Trade
                   </ion-button>
                 </div>

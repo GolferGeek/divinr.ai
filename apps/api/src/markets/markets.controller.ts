@@ -14,6 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '@orchestratorai/planes/auth';
+import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { MarketsService } from './markets.service';
 import { NightlyEvaluationService } from './services/nightly-evaluation.service';
 import { LearningEngineService } from './services/learning-engine.service';
@@ -58,6 +59,7 @@ export class MarketsController {
   private readonly markets: MarketsService;
 
   constructor(
+    @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(MarketsService) markets: MarketsService,
     @Inject(NightlyEvaluationService) private readonly nightlyEvaluation: NightlyEvaluationService,
     @Inject(LearningEngineService) private readonly learningEngine: LearningEngineService,
@@ -128,6 +130,27 @@ export class MarketsController {
     }
   }
 
+  /**
+   * Block beta_reader users from mutation endpoints.
+   * Effort: beta-user-share-path.
+   */
+  private async requireWriteAccess(user: AuthenticatedUser, organizationSlug: string): Promise<void> {
+    const result = await this.db.rawQuery(
+      `SELECT rr.name FROM authz.rbac_user_org_roles r
+       JOIN authz.rbac_roles rr ON rr.id = r.role_id
+       WHERE r.user_id = $1 AND r.organization_slug = $2`,
+      [user.id, organizationSlug],
+    );
+    const roles = ((result.data as Array<{ name: string }> | null) ?? []).map(r => r.name);
+    // If user has any write-capable role, allow through
+    const writableRoles = ['super-admin', 'owner', 'member', 'admin'];
+    if (roles.some(r => writableRoles.includes(r))) return;
+    // If user only has beta_reader (or no roles), block
+    if (roles.includes('beta_reader') || roles.length === 0) {
+      throw new ForbiddenException('Read-only access — beta readers cannot perform this action');
+    }
+  }
+
   // ─── Instruments ───────────────────────────────────────────────
 
   @Get('instruments')
@@ -155,6 +178,7 @@ export class MarketsController {
       body: body.organizationSlug,
       header: typeof headerOrgSlug === 'string' ? headerOrgSlug : undefined,
     });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.createInstrument({
       ...body,
       organizationSlug: identity.organizationSlug,
@@ -202,6 +226,7 @@ export class MarketsController {
       throw new BadRequestException('slug, displayName, and personaPrompt are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.createAnalyst({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -227,6 +252,7 @@ export class MarketsController {
     const user = this.getUser(req);
     if (!analystId) throw new BadRequestException('analystId is required');
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.updateAnalyst({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -248,6 +274,7 @@ export class MarketsController {
     const user = this.getUser(req);
     if (!analystId) throw new BadRequestException('analystId is required');
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.rollbackAnalyst({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -265,6 +292,7 @@ export class MarketsController {
       throw new BadRequestException('instrumentId and analystId are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.assignAnalystToInstrument({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -295,6 +323,7 @@ export class MarketsController {
       throw new BadRequestException('sourceId and isEnabled are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.upsertSourceEntitlement({
       ...body,
       organizationSlug: identity.organizationSlug,
@@ -331,6 +360,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.syncExternalCrawlerData({
       ...body,
       organizationSlug: identity.organizationSlug,
@@ -374,6 +404,7 @@ export class MarketsController {
       throw new BadRequestException('instrumentId and articleId are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.scoreArticleForInstrument({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -392,6 +423,7 @@ export class MarketsController {
       throw new BadRequestException('instrumentId and articleIds (non-empty array) are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.scoreArticleBatch({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -436,6 +468,7 @@ export class MarketsController {
       throw new BadRequestException('instrumentId, articleId, and relevanceScore are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.upsertPredictor({
       ...body,
       organizationSlug: identity.organizationSlug,
@@ -458,6 +491,7 @@ export class MarketsController {
       throw new BadRequestException('runType must be one of: risk, prediction');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.enqueueRun({
       ...body,
       organizationSlug: identity.organizationSlug,
@@ -526,6 +560,7 @@ export class MarketsController {
       throw new BadRequestException('errorMessage is only allowed when status is failed');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.updateRunStatus({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -542,6 +577,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.processNextQueuedRun({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -555,6 +591,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     if (
       body.maxRuns !== undefined &&
       (!Number.isInteger(body.maxRuns) || body.maxRuns < 1 || body.maxRuns > 100)
@@ -581,6 +618,7 @@ export class MarketsController {
       throw new BadRequestException('runId and actualDirection are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.evaluateRun({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -600,6 +638,7 @@ export class MarketsController {
       throw new BadRequestException('runId and scenario are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.replayRun({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -766,6 +805,7 @@ export class MarketsController {
       throw new BadRequestException('slug, name, and weight are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.upsertRiskDimension({
       organizationSlug: identity.organizationSlug,
       userId: identity.userId,
@@ -827,6 +867,7 @@ export class MarketsController {
     const user = this.getUser(req);
     if (!proposalId) throw new BadRequestException('proposalId is required');
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.approveProposal(identity.organizationSlug, identity.userId, proposalId);
   }
 
@@ -839,6 +880,7 @@ export class MarketsController {
     const user = this.getUser(req);
     if (!proposalId) throw new BadRequestException('proposalId is required');
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.rejectProposal(identity.organizationSlug, identity.userId, proposalId, body.reason);
   }
 
@@ -935,6 +977,7 @@ export class MarketsController {
       throw new BadRequestException('predictionId, instrumentId, direction, and quantity are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.userPortfolio.queueTrade({
       userId: identity.userId,
       organizationSlug: identity.organizationSlug,
@@ -962,6 +1005,7 @@ export class MarketsController {
       throw new BadRequestException('predictionId, instrumentId, direction, and quantity are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
 
     // Disclaimer-ack guard — same shape as confirmTrade in markets.service.ts.
     await this.userPortfolio.ensurePortfolio(identity.userId, identity.organizationSlug);
@@ -986,6 +1030,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.userPortfolio.closePosition({ userId: identity.userId, positionId });
   }
 
@@ -1015,6 +1060,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     await this.userPortfolio.cancelTrade(tradeId, identity.userId, identity.organizationSlug);
     return { cancelled: true };
   }
@@ -1069,6 +1115,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
 
     // Stream results as each analyst completes
     res.setHeader('Content-Type', 'text/event-stream');
@@ -1106,6 +1153,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.acknowledgeDisclaimer(identity.organizationSlug, identity.userId);
   }
 
@@ -1119,6 +1167,7 @@ export class MarketsController {
       throw new BadRequestException('predictionId and direction are required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.confirmTrade(identity.organizationSlug, identity.userId, body);
   }
 
@@ -1132,6 +1181,7 @@ export class MarketsController {
       throw new BadRequestException('predictionId is required');
     }
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.skipTrade(identity.organizationSlug, identity.userId, body.predictionId);
   }
 
@@ -1231,6 +1281,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     // All pipeline runs use __base__ — instruments and analysts are base-level
     const enqueued = await this.markets.enqueueRun({
       organizationSlug: '__base__',
@@ -1253,6 +1304,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.markets.rerunDebate(identity.organizationSlug, identity.userId, runId);
   }
 
@@ -1300,6 +1352,7 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
     return this.audit.reviewFinding(identity.organizationSlug, identity.userId, findingId, body.action, body.reviewText);
   }
 

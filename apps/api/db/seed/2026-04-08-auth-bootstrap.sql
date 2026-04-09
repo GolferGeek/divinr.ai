@@ -22,7 +22,8 @@
 insert into authz.rbac_roles (id, name, display_name, description, is_system) values
   ('role-super-admin', 'super-admin', 'Super Admin', 'Full access across all organizations',           true),
   ('role-owner',       'owner',       'Owner',       'Owns and manages an organization',               true),
-  ('role-member',      'member',      'Member',      'Standard member of an organization',             true)
+  ('role-member',      'member',      'Member',      'Standard member of an organization',             true),
+  ('role-beta-reader', 'beta_reader', 'Beta Reader', 'Read-only access to an organization',           true)
 on conflict (id) do nothing;
 
 -- 2. Grant the two existing markets permissions to all three roles.
@@ -33,7 +34,8 @@ insert into authz.rbac_role_permissions (role_id, permission_id) values
   ('role-owner',       'markets-instruments-read'),
   ('role-owner',       'markets-instruments-write'),
   ('role-member',      'markets-instruments-read'),
-  ('role-member',      'markets-instruments-write')
+  ('role-member',      'markets-instruments-write'),
+  ('role-beta-reader', 'markets-instruments-read')
 on conflict (role_id, permission_id) do nothing;
 
 -- 3. Sentinel organization for global super-admin grants.

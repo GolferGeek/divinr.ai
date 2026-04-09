@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
 import { usePortfolioStore, type PortfolioSummary } from '../stores/portfolio.store';
+import { useCanWrite } from '../composables/useCanWrite';
 import { useApi } from '../composables/useApi';
 import EquitySparkline from '../components/EquitySparkline.vue';
 import EquityCurveChart from '../components/EquityCurveChart.vue';
@@ -13,6 +14,7 @@ import {
 } from '@ionic/vue';
 
 const portfolio = usePortfolioStore();
+const { canWrite } = useCanWrite();
 const api = useApi();
 const decisions = ref<Array<Record<string, unknown>>>([]);
 const expandedKey = ref<string | null>(null);
@@ -278,7 +280,7 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
                   <ion-list v-if="(portfolio.portfolioDetails[rowKey(p)]?.positions || []).length > 0">
                     <ion-item v-for="pos in portfolio.portfolioDetails[rowKey(p)].positions" :key="String(pos.id)">
                       <ion-button
-                        v-if="p.kind === 'user' && pos.status === 'open'"
+                        v-if="canWrite && p.kind === 'user' && pos.status === 'open'"
                         slot="end"
                         size="small"
                         color="danger"
@@ -365,7 +367,7 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
                           </p>
                           <p style="font-size:0.75rem">{{ new Date(String(t['queued_at'])).toLocaleString() }}</p>
                         </ion-label>
-                        <ion-button slot="end" fill="clear" size="small" color="danger" @click="portfolio.cancelTrade(String(t['id']))">Cancel</ion-button>
+                        <ion-button v-if="canWrite" slot="end" fill="clear" size="small" color="danger" @click="portfolio.cancelTrade(String(t['id']))">Cancel</ion-button>
                       </ion-item>
                     </ion-list>
                     <ion-note v-else color="primary" style="display:block;padding:12px">No queued trades. Trades execute at 5 PM ET settlement.</ion-note>

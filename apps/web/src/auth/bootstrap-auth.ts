@@ -22,6 +22,7 @@ interface MeResponse {
   id: string;
   email?: string;
   role?: string;
+  orgRole?: string | null;
 }
 
 const API_BASE = '/api';
@@ -58,9 +59,10 @@ export async function bootstrapAuth(): Promise<void> {
     }
     const login = (await loginRes.json()) as LoginResponse;
 
-    // Fetch the principal so we know the user id without parsing the JWT.
+    const org = defaultOrg ?? `personal-${email.split('@')[0]}`;
+    // Fetch the principal so we know the user id and org role without parsing the JWT.
     const meRes = await fetch(`${API_BASE}/auth/me`, {
-      headers: { Authorization: `Bearer ${login.accessToken}` },
+      headers: { Authorization: `Bearer ${login.accessToken}`, 'x-org-slug': org },
     });
     if (!meRes.ok) {
       const text = await meRes.text();
@@ -69,8 +71,8 @@ export async function bootstrapAuth(): Promise<void> {
     }
     const me = (await meRes.json()) as MeResponse;
 
-    tenant.setTenant(defaultOrg ?? `personal-${email.split('@')[0]}`, me.id, login.accessToken);
-    console.info(`[bootstrap-auth] Logged in as ${me.email ?? me.id}`);
+    tenant.setTenant(org, me.id, login.accessToken, me.orgRole ?? undefined);
+    console.info(`[bootstrap-auth] Logged in as ${me.email ?? me.id} (orgRole: ${me.orgRole ?? 'none'})`);
   } catch (err) {
     console.error('[bootstrap-auth] Auto-login error:', err);
   }

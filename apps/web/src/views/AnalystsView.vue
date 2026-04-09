@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useAnalystsStore } from '../stores/analysts.store';
+import { useCanWrite } from '../composables/useCanWrite';
 import {
   IonGrid, IonRow, IonCol, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonButton, IonChip, IonModal, IonItem, IonInput, IonTextarea,
@@ -9,6 +10,7 @@ import {
 import { addOutline } from 'ionicons/icons';
 
 const store = useAnalystsStore();
+const { canWrite } = useCanWrite();
 const dialog = ref(false);
 const form = ref({ slug: '', displayName: '', personaPrompt: '' });
 
@@ -27,7 +29,7 @@ async function handleCreate() {
   <div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <h1>Analysts</h1>
-      <ion-button color="primary" @click="dialog = true">
+      <ion-button v-if="canWrite" color="primary" @click="dialog = true">
         <ion-icon slot="start" :icon="addOutline" />
         Create Analyst
       </ion-button>
@@ -51,7 +53,7 @@ async function handleCreate() {
             <ion-card-content>
               <p>{{ String(a['persona_prompt']).slice(0, 200) }}...</p>
             </ion-card-content>
-            <div style="padding:0 16px 16px">
+            <div v-if="canWrite" style="padding:0 16px 16px">
               <ion-item lines="none">
                 <ion-toggle
                   :checked="Boolean(a['is_enabled'])"

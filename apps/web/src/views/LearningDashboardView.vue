@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useApi } from '../composables/useApi';
+import { useCanWrite } from '../composables/useCanWrite';
 import {
   IonButton, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle, IonCardContent,
   IonItem, IonSelect, IonSelectOption, IonChip, IonNote,
@@ -8,6 +9,7 @@ import {
 import { refreshOutline } from 'ionicons/icons';
 
 const api = useApi();
+const { canWrite } = useCanWrite();
 const proposals = ref<Record<string, unknown>[]>([]);
 const reports = ref<Record<string, unknown>[]>([]);
 const statusFilter = ref('');
@@ -56,7 +58,7 @@ function statusColor(status: unknown): string {
   <div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <h1>Learning Dashboard</h1>
-      <div style="display:flex;gap:8px">
+      <div v-if="canWrite" style="display:flex;gap:8px">
         <ion-button color="medium" size="small" @click="triggerEvaluation">
           <ion-icon slot="start" :icon="refreshOutline" />
           Run Evaluation
@@ -99,7 +101,7 @@ function statusColor(status: unknown): string {
         <p>{{ p['description'] }}</p>
         <p style="font-size:0.75rem;opacity:0.5">{{ p['rationale'] }}</p>
       </ion-card-content>
-      <div v-if="p['status'] === 'passed' || p['status'] === 'proposed'" style="display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px">
+      <div v-if="canWrite && (p['status'] === 'passed' || p['status'] === 'proposed')" style="display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px">
         <ion-button fill="clear" size="small" color="danger" @click="reject(String(p['id']))">Reject</ion-button>
         <ion-button fill="clear" size="small" color="success" @click="approve(String(p['id']))">Approve</ion-button>
       </div>

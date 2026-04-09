@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useApi } from '../composables/useApi';
+import { useCanWrite } from '../composables/useCanWrite';
 import {
   IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonChip, IonButton, IonNote, IonProgressBar, IonTextarea,
@@ -40,6 +41,7 @@ interface AuditPolicy {
 }
 
 const api = useApi();
+const { canWrite } = useCanWrite();
 const findings = ref<Finding[]>([]);
 const policy = ref<AuditPolicy | null>(null);
 const loading = ref(true);
@@ -186,7 +188,7 @@ function submitDisagree(findingId: string) {
         </div>
 
         <!-- Action buttons -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div v-if="canWrite" style="display:flex;gap:8px;flex-wrap:wrap">
           <ion-button
             color="success" size="small" fill="outline"
             :disabled="reviewingId === f.id"

@@ -10,6 +10,12 @@ export const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/signup/:token',
+      name: 'invite-signup',
+      component: () => import('../views/InviteSignupView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/',
       component: () => import('../layouts/DefaultLayout.vue'),
       children: [

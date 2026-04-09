@@ -99,6 +99,9 @@ function orgLabel(): string {
               <ion-chip color="primary" outline>
                 <ion-label>{{ orgLabel() }}</ion-label>
               </ion-chip>
+              <ion-chip v-if="tenant.isBetaReader" color="warning" outline>
+                <ion-label>Read Only</ion-label>
+              </ion-chip>
               <ion-chip color="medium">
                 <ion-label>{{ tenant.userId }}</ion-label>
               </ion-chip>

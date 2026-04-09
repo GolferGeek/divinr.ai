@@ -22,6 +22,7 @@ import { MarketsModule } from './markets/markets.module';
 import { A2AModule } from './a2a/a2a.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuthController } from './auth/auth.controller';
+import { InviteService } from './auth/invite.service';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { AuthController } from './auth/auth.controller';
     SupabaseAuthService,
     { provide: AUTH_SERVICE, useExisting: SupabaseAuthService },
     AuthMiddleware,
+    InviteService,
   ],
 })
 export class AppModule implements NestModule {
