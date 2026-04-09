@@ -1291,6 +1291,24 @@ export class MarketsController {
     return this.audit.reviewFinding(identity.organizationSlug, identity.userId, findingId, body.action, body.reviewText);
   }
 
+  @Get('audit/policy')
+  async getAuditPolicy(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    this.resolveIdentity(user, { query: orgSlug });
+    const policy = await this.audit.getAuditPolicy();
+    return { policy };
+  }
+
+  // Effort: automated-meta-loop. Trigger policy generation manually.
+  @Post('admin/run-audit-policy-update')
+  async triggerAuditPolicyUpdate(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.audit.updateAuditPolicy();
+  }
+
   // Effort: tier-2-audit. Trigger the Tier 2 audit cycle manually.
   @Post('admin/run-tier2-audit')
   async triggerTier2Audit(@Req() req: { user?: AuthenticatedUser }) {
