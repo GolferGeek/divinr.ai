@@ -1,37 +1,9 @@
 /**
- * Tests for MarketsService.parseContractMarkdown (private method, tested
- * indirectly via a thin wrapper). Effort: analyst-contracts.
+ * Tests for parseContractMarkdown (shared util).
+ * Effort: analyst-contracts.
  */
 import assert from 'node:assert/strict';
-
-// parseContractMarkdown is private on MarketsService. Rather than
-// instantiate the full NestJS DI graph, we extract the parsing logic
-// into a standalone function that mirrors the implementation exactly.
-// If the implementation changes, this test must be updated in lockstep.
-
-function parseContractMarkdown(markdown: string): {
-  general: string;
-  roles: Record<string, string>;
-  adaptations: string;
-} {
-  const sections = { general: '', roles: {} as Record<string, string>, adaptations: '' };
-  const parts = markdown.split(/^## /m);
-  for (const part of parts) {
-    const newlineIdx = part.indexOf('\n');
-    if (newlineIdx === -1) continue;
-    const heading = part.slice(0, newlineIdx).trim();
-    const body = part.slice(newlineIdx + 1).trim();
-    if (heading.toLowerCase() === 'general') {
-      sections.general = body;
-    } else if (heading.toLowerCase().startsWith('role:')) {
-      const roleName = heading.slice(5).trim();
-      sections.roles[roleName] = body;
-    } else if (heading.toLowerCase() === 'adaptations') {
-      sections.adaptations = body;
-    }
-  }
-  return sections;
-}
+import { parseContractMarkdown } from '../../src/markets/utils/parse-contract-markdown';
 
 // ─── Tests ──────────────────────────────────────────────────────
 

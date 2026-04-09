@@ -31,6 +31,7 @@ import { OutcomeTrackingService } from './services/outcome-tracking.service';
 import { StopLossWatcherService } from './services/stop-loss-watcher.service';
 import { EodForcedBuyService } from './services/eod-forced-buy.service';
 import { DayTraderRunnerService } from './services/day-trader-runner.service';
+import { AuditService } from './services/audit.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -74,6 +75,7 @@ export class MarketsController {
     @Inject(StopLossWatcherService) private readonly stopLossWatcher: StopLossWatcherService,
     @Inject(EodForcedBuyService) private readonly eodForcedBuy: EodForcedBuyService,
     @Inject(DayTraderRunnerService) private readonly dayTraderRunner: DayTraderRunnerService,
+    @Inject(AuditService) private readonly audit: AuditService,
   ) {
     this.markets = markets;
   }
@@ -1263,6 +1265,37 @@ export class MarketsController {
   async triggerLearningCycle(@Req() req: { user?: AuthenticatedUser }) {
     this.getUser(req);
     return this.learningEngine.runLearningCycle();
+  }
+
+  // ─── Tier 2 Audit (effort: tier-2-audit) ─────────────────────
+
+  @Get('audit/findings')
+  async getAuditFindings(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    const findings = await this.audit.getFindings(identity.organizationSlug, identity.userId);
+    return { findings };
+  }
+
+  @Post('audit/findings/:findingId/review')
+  async reviewAuditFinding(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('findingId') findingId: string,
+    @Body() body: { organizationSlug: string; action: string; reviewText?: string },
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    return this.audit.reviewFinding(identity.organizationSlug, identity.userId, findingId, body.action, body.reviewText);
+  }
+
+  // Effort: tier-2-audit. Trigger the Tier 2 audit cycle manually.
+  @Post('admin/run-tier2-audit')
+  async triggerTier2Audit(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.audit.runAuditCycle();
   }
 
   @Post('admin/run-crawl')
