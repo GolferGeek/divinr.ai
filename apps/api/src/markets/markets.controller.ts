@@ -1325,6 +1325,17 @@ export class MarketsController {
     return { enqueued, processed };
   }
 
+  @Get('risk-debates/:debateId/reasoning')
+  async getDebateReasoning(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('debateId') debateId: string,
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.getDebateReasoning(debateId, identity.organizationSlug);
+  }
+
   @Post('runs/:runId/rerun-debate')
   async rerunDebate(
     @Req() req: { user?: AuthenticatedUser },

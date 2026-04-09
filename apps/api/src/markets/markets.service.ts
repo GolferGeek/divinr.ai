@@ -3448,6 +3448,81 @@ Respond ONLY with valid JSON.`,
     return { compositeScore: compositeRow, dimensionAssessments: effectiveAssessments, debate: debateRow };
   }
 
+  // ─── Debate Reasoning Drilldown ─────────────────────────────────
+
+  async getDebateReasoning(debateId: string, organizationSlug: string) {
+    await this.schema.ensureSchema();
+
+    // Load the debate row to get transcript
+    const debateResult = await this.db.rawQuery(
+      `SELECT id, transcript FROM prediction.risk_debates
+       WHERE id = $1 AND (organization_slug = $2 OR organization_slug = '__base__')`,
+      [debateId, organizationSlug],
+    );
+    if (debateResult.error) throw new Error(debateResult.error.message);
+    const debateRows = (debateResult.data as Array<{ id: string; transcript: unknown }> | null) ?? [];
+    if (debateRows.length === 0) throw new BadRequestException('Debate not found');
+
+    const transcript = (debateRows[0].transcript ?? []) as Array<{ role: string; content: string; llm_usage_id: string | null }>;
+
+    // Build role → llm_usage_id map
+    const roleMap: Record<string, string> = {};
+    for (const entry of transcript) {
+      if (entry.llm_usage_id) {
+        roleMap[entry.role] = entry.llm_usage_id;
+      }
+    }
+
+    const usageIds = Object.values(roleMap);
+    if (usageIds.length === 0) {
+      return { blue: null, red: null, arbiter: null };
+    }
+
+    // Fetch reasoning from llm_usage
+    const usageResult = await this.db.rawQuery(
+      `SELECT run_id, provider, model, input_tokens, output_tokens,
+              reasoning_tokens, reasoning_content, reasoning_truncated
+       FROM public.llm_usage
+       WHERE run_id::text = ANY($1)`,
+      [usageIds],
+    );
+    if (usageResult.error) throw new Error(usageResult.error.message);
+    const usageRows = (usageResult.data as Array<Record<string, unknown>> | null) ?? [];
+
+    // Map run_id back to role
+    const usageByRunId: Record<string, Record<string, unknown>> = {};
+    for (const row of usageRows) {
+      usageByRunId[String(row.run_id)] = row;
+    }
+
+    function mapAgent(role: string): {
+      provider: string; model: string;
+      inputTokens: number | null; outputTokens: number | null;
+      reasoningTokens: number | null; reasoningContent: string | null;
+      reasoningTruncated: boolean;
+    } | null {
+      const usageId = roleMap[role];
+      if (!usageId) return null;
+      const row = usageByRunId[usageId];
+      if (!row) return null;
+      return {
+        provider: String(row.provider ?? ''),
+        model: String(row.model ?? ''),
+        inputTokens: row.input_tokens != null ? Number(row.input_tokens) : null,
+        outputTokens: row.output_tokens != null ? Number(row.output_tokens) : null,
+        reasoningTokens: row.reasoning_tokens != null ? Number(row.reasoning_tokens) : null,
+        reasoningContent: row.reasoning_content ? String(row.reasoning_content) : null,
+        reasoningTruncated: Boolean(row.reasoning_truncated),
+      };
+    }
+
+    return {
+      blue: mapAgent('blue'),
+      red: mapAgent('red'),
+      arbiter: mapAgent('arbiter'),
+    };
+  }
+
   /**
    * Re-run the risk debate for an existing risk run.
    * Loads the existing composite score and dimension assessments, then runs a fresh debate.
