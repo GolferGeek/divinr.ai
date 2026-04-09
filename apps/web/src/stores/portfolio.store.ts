@@ -18,6 +18,7 @@ export interface PortfolioSummary {
   max_drawdown_30d: number | null;
   longest_win_streak: number;
   calibration_score: number | null;
+  analyst_id: string | null;
 }
 
 export interface SnapshotHistoryPoint {

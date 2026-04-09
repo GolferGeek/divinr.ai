@@ -16,6 +16,7 @@ export interface PortfolioSummaryRow {
   max_drawdown_30d: number | null;
   longest_win_streak: number;
   calibration_score: number | null;
+  analyst_id: string | null;
 }
 
 export interface CalibrationBucket {
@@ -158,7 +159,8 @@ export class LeaderboardService {
             when ap.kind = 'analyst' and cal.resolved_count >= ${MIN_CALIBRATION_SAMPLE}
             then cal.calibration_score
             else null
-          end as calibration_score
+          end as calibration_score,
+          ap.analyst_id
         from prediction.analyst_portfolios ap
         left join prediction.market_analysts ma on ma.id = ap.analyst_id
         left join snap_metrics sm on sm.portfolio_kind = 'analyst' and sm.portfolio_id = ap.id
@@ -197,7 +199,8 @@ export class LeaderboardService {
           sm.sharpe_30d,
           sm.max_drawdown_30d,
           coalesce(ust.longest_win_streak, 0) as longest_win_streak,
-          null::float8 as calibration_score
+          null::float8 as calibration_score,
+          null::text as analyst_id
         from prediction.user_portfolios up
         left join snap_metrics sm on sm.portfolio_kind = 'user' and sm.portfolio_id = up.id
         left join user_streaks ust on ust.portfolio_id = up.id
@@ -233,6 +236,7 @@ export class LeaderboardService {
         max_drawdown_30d: r.max_drawdown_30d == null ? null : Number(r.max_drawdown_30d),
         longest_win_streak: Number(r.longest_win_streak ?? 0),
         calibration_score: r.calibration_score == null ? null : Number(r.calibration_score),
+        analyst_id: r.analyst_id ? String(r.analyst_id) : null,
       };
     });
   }

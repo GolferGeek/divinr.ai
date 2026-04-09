@@ -252,7 +252,15 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
               <td
                 style="padding:8px;text-align:right"
                 :title="p.calibration_score == null ? (p.kind === 'analyst' ? 'Needs ≥ 20 resolved analyses' : 'Not applicable for this actor type') : ''"
-              >{{ fmtCalibration(p.calibration_score) }}</td>
+              >
+                <router-link
+                  v-if="p.analyst_id && p.calibration_score != null"
+                  :to="{ name: 'analyst-performance', params: { id: p.analyst_id } }"
+                  style="text-decoration:underline;cursor:pointer;color:var(--ion-color-primary)"
+                  @click.stop
+                >{{ fmtCalibration(p.calibration_score) }}</router-link>
+                <template v-else>{{ fmtCalibration(p.calibration_score) }}</template>
+              </td>
               <td style="padding:8px">
                 <EquitySparkline :snapshots="(portfolio.portfolioDetails[rowKey(p)]?.snapshots || []) as []" />
               </td>

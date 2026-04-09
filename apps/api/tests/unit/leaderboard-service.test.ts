@@ -37,6 +37,7 @@ async function main(): Promise<void> {
           wins: 6, closed_count: 10, total_bailouts: 0, open_position_count: 2,
           sharpe_30d: 1.42, max_drawdown_30d: -0.084,
           longest_win_streak: 4, calibration_score: 0.78,
+          analyst_id: 'ma-alpha-analyst',
         },
         {
           kind: 'arbitrator', id: 'pf-portfolio-arbitrator', name: 'Arbitrator',
@@ -45,6 +46,7 @@ async function main(): Promise<void> {
           wins: 0, closed_count: 0, total_bailouts: 0, open_position_count: 0,
           sharpe_30d: null, max_drawdown_30d: null,
           longest_win_streak: 0, calibration_score: null,
+          analyst_id: 'ma-arbitrator',
         },
         {
           kind: 'day_trader', id: 'pf-portfolio-momentum-breakout', name: 'momentum',
@@ -53,6 +55,7 @@ async function main(): Promise<void> {
           wins: 2, closed_count: 5, total_bailouts: 0, open_position_count: 0,
           sharpe_30d: -0.31, max_drawdown_30d: -0.12,
           longest_win_streak: 1, calibration_score: null,
+          analyst_id: 'ma-momentum-breakout',
         },
         {
           kind: 'user', id: 'up-1', name: 'admin@alpha-capital.demo',
@@ -61,6 +64,7 @@ async function main(): Promise<void> {
           wins: 3, closed_count: 4, total_bailouts: 0, open_position_count: 1,
           sharpe_30d: null, max_drawdown_30d: null,
           longest_win_streak: 2, calibration_score: null,
+          analyst_id: null,
         },
       ],
       error: null,
@@ -84,6 +88,10 @@ async function main(): Promise<void> {
     assert(alpha.max_drawdown_30d === -0.084, 'max_drawdown_30d carried through');
     assert(alpha.longest_win_streak === 4, 'longest_win_streak carried through');
     assert(alpha.calibration_score === 0.78, 'calibration_score carried for analyst');
+    assert(alpha.analyst_id === 'ma-alpha-analyst', 'analyst_id carried for analyst');
+
+    const userRow = rows.find(r => r.kind === 'user')!;
+    assert(userRow.analyst_id === null, 'analyst_id null for user');
 
     const dt = rows.find(r => r.kind === 'day_trader')!;
     assert(dt.calibration_score === null, 'calibration null for day_trader');
