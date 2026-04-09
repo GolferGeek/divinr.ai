@@ -81,6 +81,55 @@ interface LlmCallRow {
   createdAt: string;
 }
 
+// Effort: calibration-drilldown. Response shape for getAnalystCalibration.
+// Kept inline (same convention as LlmCallRow above).
+interface AnalystCalibrationPayload {
+  analyst: {
+    id: string;
+    displayName: string;
+    personaPrompt: string;
+    analystType: string | null;
+  };
+  metrics: {
+    period: '30d';
+    horizonWindow: 3;
+    aggregate: {
+      accuracyRate: number | null;
+      avgConfidence: number | null;
+      calibrationScore: number | null;
+      sampleSize: number;
+    };
+    perInstrument: Array<{
+      instrumentId: string;
+      symbol: string;
+      accuracyRate: number | null;
+      avgConfidence: number | null;
+      calibrationScore: number | null;
+      sampleSize: number;
+      systematicBiases: Record<string, unknown>;
+    }>;
+  };
+  resolvedPredictions: Array<{
+    predictionId: string;
+    evaluationId: string;
+    instrumentId: string;
+    symbol: string;
+    predictedDirection: string;
+    actualDirection: string | null;
+    wasCorrect: boolean;
+    confidence: number | null;
+    predictionDate: string;
+    evaluationDate: string;
+    actualOutcome: {
+      changePercent: number;
+      priceAtPrediction: number;
+      priceAtHorizon: number;
+    } | null;
+    rationale: string | null;
+    hasReasoning: boolean;
+  }>;
+}
+
 @Injectable()
 export class MarketsService {
   private readonly allowedTransitions: Record<RunStatus, RunStatus[]> = {
@@ -881,6 +930,219 @@ export class MarketsService {
     }));
 
     return { predictionId, calls };
+  }
+
+  // ─── Analyst Calibration Drilldown ─────────────────────────────
+  //
+  // Effort: calibration-drilldown. Returns the headline calibration metrics
+  // (weighted across per-instrument profile rows), per-instrument breakdown,
+  // and the resolved-prediction history sorted wrong-first. Used by
+  // AnalystPerformanceView to render the calibration reading room.
+  // No reasoning content in this payload — that comes from
+  // getPredictionLlmCalls on demand when a row is expanded.
+
+  async getAnalystCalibration(
+    organizationSlug: string,
+    userId: string,
+    analystId: string,
+  ): Promise<AnalystCalibrationPayload> {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    // (a) analyst row — 404 if missing or wrong org (allow __base__).
+    const analystResult = await this.db.rawQuery(
+      `select id, display_name, persona_prompt, analyst_type
+       from prediction.market_analysts
+       where id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+       limit 1`,
+      [analystId, organizationSlug],
+    );
+    if (analystResult.error) throw new Error(analystResult.error.message);
+    const analystRows = (analystResult.data as Array<{
+      id: string;
+      display_name: string;
+      persona_prompt: string | null;
+      analyst_type: string | null;
+    }> | null) ?? [];
+    if (analystRows.length === 0) {
+      throw new Error(`Analyst ${analystId} not found in organization ${organizationSlug}`);
+    }
+    const analystRow = analystRows[0]!;
+
+    // (b) per-instrument profile rows for this analyst.
+    const profileResult = await this.db.rawQuery(
+      // distinct on (instrument_id) — the table can hold multiple rows per
+      // (analyst, org, instrument, period, horizon) because the nightly
+      // pipeline appends rather than upserts. Pick the freshest by computed_at.
+      `select * from (
+         select distinct on (app.instrument_id)
+                app.instrument_id,
+                i.symbol,
+                app.accuracy_rate,
+                app.avg_confidence,
+                app.calibration_score,
+                app.systematic_biases,
+                app.sample_size,
+                app.period,
+                app.horizon_window,
+                app.computed_at
+         from prediction.analyst_performance_profiles app
+         left join prediction.instruments i on i.id = app.instrument_id
+         where app.analyst_id = $1
+           and app.organization_slug = $2
+           and app.period = '30d'
+         order by app.instrument_id, app.computed_at desc
+       ) latest
+       order by sample_size desc`,
+      [analystId, organizationSlug],
+    );
+    if (profileResult.error) throw new Error(profileResult.error.message);
+    const profileRows = (profileResult.data as Array<{
+      instrument_id: string | null;
+      symbol: string | null;
+      accuracy_rate: number | string | null;
+      avg_confidence: number | string | null;
+      calibration_score: number | string | null;
+      systematic_biases: Record<string, unknown> | null;
+      sample_size: number;
+      period: string;
+      horizon_window: number;
+    }> | null) ?? [];
+
+    const perInstrument = profileRows
+      .filter((r) => r.instrument_id !== null)
+      .map((r) => ({
+        instrumentId: r.instrument_id!,
+        symbol: r.symbol ?? r.instrument_id!,
+        accuracyRate: r.accuracy_rate === null ? null : Number(r.accuracy_rate),
+        avgConfidence: r.avg_confidence === null ? null : Number(r.avg_confidence),
+        calibrationScore: r.calibration_score === null ? null : Number(r.calibration_score),
+        sampleSize: r.sample_size,
+        systematicBiases: r.systematic_biases ?? {},
+      }));
+
+    // Weighted aggregate (by sample_size) for accuracy/confidence; un-weighted
+    // average for calibration_score (per PRD §5.6 — calibration_score is not
+    // trivially weight-aggregatable without re-deriving from samples).
+    let totalSamples = 0;
+    let weightedAccuracyNum = 0;
+    let weightedAccuracyDen = 0;
+    let weightedConfidenceNum = 0;
+    let weightedConfidenceDen = 0;
+    let calibrationSum = 0;
+    let calibrationCount = 0;
+    for (const r of profileRows) {
+      totalSamples += r.sample_size;
+      if (r.accuracy_rate !== null && r.sample_size > 0) {
+        weightedAccuracyNum += Number(r.accuracy_rate) * r.sample_size;
+        weightedAccuracyDen += r.sample_size;
+      }
+      if (r.avg_confidence !== null && r.sample_size > 0) {
+        weightedConfidenceNum += Number(r.avg_confidence) * r.sample_size;
+        weightedConfidenceDen += r.sample_size;
+      }
+      if (r.calibration_score !== null) {
+        calibrationSum += Number(r.calibration_score);
+        calibrationCount += 1;
+      }
+    }
+    const aggregate = {
+      accuracyRate: weightedAccuracyDen > 0 ? weightedAccuracyNum / weightedAccuracyDen : null,
+      avgConfidence: weightedConfidenceDen > 0 ? weightedConfidenceNum / weightedConfidenceDen : null,
+      calibrationScore: calibrationCount > 0 ? calibrationSum / calibrationCount : null,
+      sampleSize: totalSamples,
+    };
+
+    // (c) resolved evaluations joined to market_predictions for rationale +
+    // llm_usage_id presence. Wrong-first sort, hard cap at 100.
+    // The IDOR filter applies on market_predictions.organization_slug;
+    // prediction_horizon_evaluations also carries organization_slug so we
+    // belt-and-suspenders both.
+    const evalResult = await this.db.rawQuery(
+      `select e.id as evaluation_id,
+              e.prediction_id,
+              e.instrument_id,
+              i.symbol,
+              e.predicted_direction,
+              e.actual_direction,
+              e.was_correct,
+              e.confidence_at_prediction,
+              e.prediction_date,
+              e.evaluation_date,
+              e.actual_outcome_data,
+              mp.rationale,
+              mp.llm_usage_id
+       from prediction.prediction_horizon_evaluations e
+       join prediction.market_predictions mp on mp.id = e.prediction_id
+       left join prediction.instruments i on i.id = e.instrument_id
+       where e.analyst_id = $1
+         and (e.organization_slug = $2 or e.organization_slug = '__base__')
+         and (mp.organization_slug = $2 or mp.organization_slug = '__base__')
+       order by e.was_correct asc, e.evaluation_date desc
+       limit 100`,
+      [analystId, organizationSlug],
+    );
+    if (evalResult.error) throw new Error(evalResult.error.message);
+    const evalRows = (evalResult.data as Array<{
+      evaluation_id: string;
+      prediction_id: string;
+      instrument_id: string;
+      symbol: string | null;
+      predicted_direction: string;
+      actual_direction: string | null;
+      was_correct: boolean;
+      confidence_at_prediction: number | string | null;
+      prediction_date: string;
+      evaluation_date: string;
+      actual_outcome_data: Record<string, unknown> | null;
+      rationale: string | null;
+      llm_usage_id: string | null;
+    }> | null) ?? [];
+
+    const resolvedPredictions = evalRows.map((r) => {
+      const outcome = r.actual_outcome_data ?? {};
+      const hasOutcome =
+        typeof outcome['changePercent'] === 'number' &&
+        typeof outcome['priceAtPrediction'] === 'number' &&
+        typeof outcome['priceAtHorizon'] === 'number';
+      return {
+        predictionId: r.prediction_id,
+        evaluationId: r.evaluation_id,
+        instrumentId: r.instrument_id,
+        symbol: r.symbol ?? r.instrument_id,
+        predictedDirection: r.predicted_direction,
+        actualDirection: r.actual_direction,
+        wasCorrect: r.was_correct,
+        confidence: r.confidence_at_prediction === null ? null : Number(r.confidence_at_prediction),
+        predictionDate: r.prediction_date,
+        evaluationDate: r.evaluation_date,
+        actualOutcome: hasOutcome
+          ? {
+              changePercent: outcome['changePercent'] as number,
+              priceAtPrediction: outcome['priceAtPrediction'] as number,
+              priceAtHorizon: outcome['priceAtHorizon'] as number,
+            }
+          : null,
+        rationale: r.rationale,
+        hasReasoning: r.llm_usage_id !== null,
+      };
+    });
+
+    return {
+      analyst: {
+        id: analystRow.id,
+        displayName: analystRow.display_name,
+        personaPrompt: analystRow.persona_prompt ?? '',
+        analystType: analystRow.analyst_type,
+      },
+      metrics: {
+        period: '30d',
+        horizonWindow: 3,
+        aggregate,
+        perInstrument,
+      },
+      resolvedPredictions,
+    };
   }
 
   // ─── Prediction Challenges ─────────────────────────────────────

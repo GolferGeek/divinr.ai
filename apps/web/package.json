@@ -20,9 +20,12 @@
     "@divinr/prediction-planes": "workspace:*",
     "@ionic/vue": "^8.8.3",
     "@ionic/vue-router": "^8.8.3",
+    "chart.js": "^4",
+    "chartjs-plugin-annotation": "^3",
     "ionicons": "^8.0.13",
     "pinia": "^3.0.4",
     "vue": "^3.5.31",
+    "vue-chartjs": "^5",
     "vue-router": "^5.0.4"
   },
   "devDependencies": {
