@@ -1021,6 +1021,20 @@ export class MarketsController {
     return this.markets.getPredictionProvenance(identity.organizationSlug, identity.userId, predictionId);
   }
 
+  // Effort: see-your-reasoning. Returns the captured LLM call(s) backing the
+  // prediction so the modal's Reasoning tab can render the model's thinking.
+  // See markets.service.ts:getPredictionLlmCalls for the IDOR-safe SQL.
+  @Get('predictions/:predictionId/llm-calls')
+  async getPredictionLlmCalls(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('predictionId') predictionId: string,
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.getPredictionLlmCalls(identity.organizationSlug, identity.userId, predictionId);
+  }
+
   @Post('predictions/:predictionId/challenge')
   async challengePrediction(
     @Req() req: { user?: AuthenticatedUser },

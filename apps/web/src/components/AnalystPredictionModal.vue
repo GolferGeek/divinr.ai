@@ -24,6 +24,21 @@ interface AnalystStance {
   risks: unknown;
 }
 
+// Effort: see-your-reasoning. Local row type for the new Reasoning tab.
+interface LlmCall {
+  runId: string;
+  provider: string;
+  model: string;
+  tier: string;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number | null;
+  totalCost: number | null;
+  reasoningContent: string;
+  reasoningTruncated: boolean;
+  createdAt: string;
+}
+
 const props = withDefaults(defineProps<{
   isOpen: boolean;
   symbol: string;
@@ -83,19 +98,45 @@ function formatFactors(factors: unknown): string[] {
 
 // ─── Provenance ──────────────────────────────────────────────
 const provenance = useProvenanceStore();
-const activeTab = ref<'analysis' | 'evidence' | 'risk' | 'memory' | 'challenge'>('analysis');
+const activeTab = ref<'analysis' | 'evidence' | 'risk' | 'memory' | 'challenge' | 'reasoning'>('analysis');
 const challenges = ref<Array<Record<string, unknown>>>([]);
 const challengeLoading = ref(false);
 const challengeThinking = ref<string | null>(null);
 
+// ─── Reasoning (effort: see-your-reasoning) ───────────────────
+const llmCalls = ref<LlmCall[]>([]);
+const llmCallsLoading = ref(false);
+const llmCallsError = ref<string | null>(null);
+
 watch(() => [props.isOpen, currentIndex.value], ([open]) => {
   if (open && analyst.value?.prediction_id) {
     provenance.fetchProvenance(analyst.value.prediction_id);
+    // Synchronously set loading=true before the async call so the Reasoning
+    // tab's disabled state stays consistent through the fetch round-trip
+    // (otherwise it would briefly render as "no reasoning yet → disabled"
+    // before the fetch completes and flips it).
+    llmCallsLoading.value = true;
+    llmCalls.value = [];
+    llmCallsError.value = null;
+    void loadLlmCalls(analyst.value.prediction_id);
   }
   activeTab.value = 'analysis';
   tradeResult.value = null;
   tradeError.value = '';
 });
+
+async function loadLlmCalls(predictionId: string) {
+  try {
+    const res = await api.get<{ predictionId: string; calls: LlmCall[] }>(
+      `/predictions/${predictionId}/llm-calls`,
+    );
+    llmCalls.value = res.calls;
+  } catch (err) {
+    llmCallsError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    llmCallsLoading.value = false;
+  }
+}
 
 // ─── Trade Actions ───────────────────────────────────────────
 const api = useApi();
@@ -331,6 +372,12 @@ async function loadChallenges() {
             <button :class="{ active: activeTab === 'evidence' }" @click="activeTab = 'evidence'">Evidence</button>
             <button :class="{ active: activeTab === 'risk' }" @click="activeTab = 'risk'">Risk</button>
             <button :class="{ active: activeTab === 'memory' }" @click="activeTab = 'memory'">Memory</button>
+            <button
+              :class="{ active: activeTab === 'reasoning' }"
+              :disabled="!llmCallsLoading && llmCalls.length === 0"
+              :title="llmCalls.length > 0 ? '' : 'This analyst call did not produce reasoning content'"
+              @click="activeTab = 'reasoning'"
+            >Reasoning</button>
             <button :class="{ active: activeTab === 'challenge' }" @click="activeTab = 'challenge'; if (challenges.length === 0 && !challengeLoading) loadChallenges()">Challenge</button>
           </div>
 
@@ -474,6 +521,25 @@ async function loadChallenges() {
             <div v-else class="section" style="text-align:center">
               <ion-button color="warning" @click="loadChallenges">Challenge This Analysis</ion-button>
               <p style="font-size:0.75rem;opacity:0.5;margin-top:8px">Other analysts will provide counter-arguments</p>
+            </div>
+          </div>
+
+          <!-- Reasoning Tab (effort: see-your-reasoning) -->
+          <div v-if="activeTab === 'reasoning'">
+            <div v-if="llmCallsLoading" class="section"><ion-note>Loading reasoning...</ion-note></div>
+            <div v-else-if="llmCallsError" class="section"><ion-note color="danger">{{ llmCallsError }}</ion-note></div>
+            <div v-else-if="llmCalls.length === 0" class="section">
+              <ion-note>No reasoning content captured for this call.</ion-note>
+            </div>
+            <div v-else>
+              <div v-for="call in llmCalls" :key="call.runId" class="section">
+                <div class="reasoning-header">
+                  <strong>{{ call.provider }}</strong> / <code>{{ call.model }}</code>
+                  <span v-if="call.reasoningTruncated" class="reasoning-truncated">(truncated at 64 KB)</span>
+                  <span class="reasoning-meta">{{ call.inputTokens }} in / {{ call.outputTokens }} out</span>
+                </div>
+                <pre class="reasoning-pre">{{ call.reasoningContent }}</pre>
+              </div>
             </div>
           </div>
 
@@ -741,6 +807,44 @@ async function loadChallenges() {
   background: var(--ion-color-primary);
   color: white;
   font-weight: 600;
+}
+
+.provenance-tabs button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Reasoning tab (effort: see-your-reasoning) */
+.reasoning-pre {
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 0.8rem;
+  max-height: 60vh;
+  overflow: auto;
+  background: #f8f8f8;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+.reasoning-header .reasoning-truncated {
+  color: var(--ion-color-warning, #ffa500);
+  font-size: 0.75rem;
+}
+
+.reasoning-header .reasoning-meta {
+  margin-left: auto;
+  opacity: 0.6;
+  font-size: 0.75rem;
 }
 
 .trade-actions {
