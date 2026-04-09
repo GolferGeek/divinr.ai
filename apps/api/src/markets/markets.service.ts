@@ -1244,15 +1244,21 @@ export class MarketsService {
    * Returns null if the version doesn't exist or has no context_markdown.
    */
   async getContextForConfigVersion(
+    organizationSlug: string,
+    userId: string,
     configVersionId: string,
   ): Promise<AnalystContract | null> {
     await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
 
+    // IDOR defense: filter on organization_slug so a caller can't
+    // retrieve a contract from another tenant by guessing the version id.
     const result = await this.db.rawQuery(
       `SELECT context_markdown
        FROM prediction.analyst_config_versions
-       WHERE id = $1`,
-      [configVersionId],
+       WHERE id = $1
+         AND (organization_slug = $2 OR organization_slug = '__base__')`,
+      [configVersionId, organizationSlug],
     );
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Array<{ context_markdown: string | null }> | null) ?? [];

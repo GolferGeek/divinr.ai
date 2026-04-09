@@ -244,10 +244,13 @@ async function main() {
         .replace(/\brecommends?\b/gi, 'assesses')
         .replace(/\brecommending\b/gi, 'assessing');
 
-      // Ensure placeholder header is present (local models often omit it)
-      if (!contract.includes('> v1 placeholder')) {
-        contract = '> v1 placeholder context, machine-authored, intended to be replaced by domain-expert review.\n\n' + contract;
-      }
+      // Ensure placeholder header is present exactly once (local models often
+      // omit it, but sometimes include it — deduplicate to avoid double headers).
+      const HEADER = '> v1 placeholder context, machine-authored, intended to be replaced by domain-expert review.';
+      // Strip any existing header lines the model generated
+      contract = contract.replace(/^> v1 placeholder[^\n]*\n*/gm, '').trimStart();
+      // Prepend the canonical header exactly once
+      contract = HEADER + '\n\n' + contract;
 
       // Validate
       let { ok, errors } = validate(contract);
