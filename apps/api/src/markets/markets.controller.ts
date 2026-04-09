@@ -34,6 +34,7 @@ import { StopLossWatcherService } from './services/stop-loss-watcher.service';
 import { EodForcedBuyService } from './services/eod-forced-buy.service';
 import { DayTraderRunnerService } from './services/day-trader-runner.service';
 import { AuditService } from './services/audit.service';
+import { StrategicOverhaulService } from './services/strategic-overhaul.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -79,6 +80,7 @@ export class MarketsController {
     @Inject(EodForcedBuyService) private readonly eodForcedBuy: EodForcedBuyService,
     @Inject(DayTraderRunnerService) private readonly dayTraderRunner: DayTraderRunnerService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(StrategicOverhaulService) private readonly strategicOverhaul: StrategicOverhaulService,
   ) {
     this.markets = markets;
   }
@@ -881,10 +883,23 @@ export class MarketsController {
     @Req() req: { user?: AuthenticatedUser },
     @Query('organizationSlug') orgSlug: string,
     @Query('status') status?: string,
+    @Query('tier') tier?: string,
   ) {
     const user = this.getUser(req);
     const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.listLearningProposals(identity.organizationSlug, identity.userId, status);
+    const tierNum = tier ? Number(tier) : undefined;
+    return this.markets.listLearningProposals(identity.organizationSlug, identity.userId, status, tierNum);
+  }
+
+  @Get('learning/proposals/:proposalId')
+  async getProposalDetail(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('organizationSlug') orgSlug: string,
+    @Param('proposalId') proposalId: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.getProposalDetail(identity.organizationSlug, identity.userId, proposalId);
   }
 
   @Post('learning/proposals/:proposalId/approve')
@@ -1421,6 +1436,14 @@ export class MarketsController {
     const user = this.getUser(req);
     this.requireAdmin(user);
     return this.audit.runAuditCycle();
+  }
+
+  // Effort: tier3-strategic-overhauls. Trigger the Tier 3 overhaul cycle manually.
+  @Post('admin/run-tier3-overhaul')
+  async triggerTier3Overhaul(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    this.requireAdmin(user);
+    return this.strategicOverhaul.runStrategicOverhaulCycle();
   }
 
   @Post('admin/run-crawl')

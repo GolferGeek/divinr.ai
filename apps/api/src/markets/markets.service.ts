@@ -3705,7 +3705,7 @@ Respond ONLY with valid JSON.`,
 
   // ─── Learning Proposal Management ─────────────────────────────
 
-  async listLearningProposals(organizationSlug: string, userId: string, status?: string) {
+  async listLearningProposals(organizationSlug: string, userId: string, status?: string, tier?: number) {
     await this.schema.ensureSchema();
     await this.requireRead(userId, organizationSlug);
 
@@ -3714,10 +3714,17 @@ Respond ONLY with valid JSON.`,
       left join prediction.market_analysts ma on ma.id = lp.analyst_id
       where lp.organization_slug = $1`;
     const params: unknown[] = [organizationSlug];
+    let paramIndex = 2;
 
     if (status) {
-      query += ` and lp.status = $2`;
+      query += ` and lp.status = $${paramIndex}`;
       params.push(status);
+      paramIndex++;
+    }
+    if (tier !== undefined) {
+      query += ` and lp.tier = $${paramIndex}`;
+      params.push(tier);
+      paramIndex++;
     }
     query += ' order by lp.proposed_at desc';
 
@@ -3726,10 +3733,28 @@ Respond ONLY with valid JSON.`,
     return (result.data as Record<string, unknown>[] | null) ?? [];
   }
 
+  async getProposalDetail(organizationSlug: string, userId: string, proposalId: string) {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    const result = await this.db.rawQuery(
+      `select lp.*, ma.display_name as analyst_name
+       from prediction.learning_proposals lp
+       left join prediction.market_analysts ma on ma.id = lp.analyst_id
+       where lp.id = $1 and lp.organization_slug = $2`,
+      [proposalId, organizationSlug],
+    );
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Record<string, unknown>[] | null) ?? [];
+    if (rows.length === 0) throw new BadRequestException('Proposal not found');
+    return rows[0];
+  }
+
   async approveProposal(organizationSlug: string, userId: string, proposalId: string) {
     await this.schema.ensureSchema();
     await this.requireWrite(userId, organizationSlug);
 
+    // Update proposal status
     const result = await this.db.rawQuery(
       `update prediction.learning_proposals
        set status = 'approved', reviewed_by = $1, reviewed_at = now()
@@ -3740,7 +3765,65 @@ Respond ONLY with valid JSON.`,
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Record<string, unknown>[] | null) ?? [];
     if (rows.length === 0) throw new BadRequestException('Proposal not found or not in an approvable state');
-    return rows[0];
+    const proposal = rows[0] as Record<string, unknown>;
+
+    // Tier 3: create new config version on approval
+    if (proposal.tier === 3 && proposal.proposed_context_markdown && proposal.analyst_id) {
+      const analystId = proposal.analyst_id as string;
+
+      // Get current active config version
+      const currentResult = await this.db.rawQuery(
+        `select id, version_number from prediction.analyst_config_versions
+         where analyst_id = $1 and organization_slug = $2 and is_active = true
+         order by version_number desc limit 1`,
+        [analystId, organizationSlug],
+      );
+      if (currentResult.error) throw new Error(currentResult.error.message);
+      const currentRows = (currentResult.data as Array<{ id: string; version_number: number }> | null) ?? [];
+      const current = currentRows[0];
+
+      if (current) {
+        const newVersionId = `acv-tier3-${Date.now()}`;
+        const newVersion = current.version_number + 1;
+
+        // Deactivate current version
+        await this.db.rawQuery(
+          `update prediction.analyst_config_versions set is_active = false where id = $1`,
+          [current.id],
+        );
+
+        // Create new version with tier3_strategic source
+        await this.db.rawQuery(
+          `insert into prediction.analyst_config_versions (
+            id, analyst_id, organization_slug, version_number,
+            persona_prompt, context_markdown, source, change_reason,
+            parent_version_id, is_active, created_by
+          ) select
+            $1, analyst_id, organization_slug, $2,
+            persona_prompt, $3, 'tier3_strategic', $4,
+            $5, true, $6
+          from prediction.analyst_config_versions where id = $5`,
+          [
+            newVersionId,
+            newVersion,
+            proposal.proposed_context_markdown as string,
+            `Tier 3 strategic overhaul: ${(proposal.description as string) || 'approved proposal'}`,
+            current.id,
+            userId,
+          ],
+        );
+
+        // Mark proposal as applied
+        await this.db.rawQuery(
+          `update prediction.learning_proposals set status = 'applied', applied_at = now() where id = $1`,
+          [proposalId],
+        );
+
+        return { ...proposal, status: 'applied', config_version_id: newVersionId };
+      }
+    }
+
+    return proposal;
   }
 
   async rejectProposal(organizationSlug: string, userId: string, proposalId: string, reason?: string) {

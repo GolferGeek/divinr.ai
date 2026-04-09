@@ -9,7 +9,7 @@ import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
   shieldOutline, briefcaseOutline, newspaperOutline,
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
-  menuOutline,
+  menuOutline, constructOutline,
 } from 'ionicons/icons';
 import { ref } from 'vue';
 import { useTenantStore } from '../stores/tenant.store';
@@ -33,6 +33,7 @@ const navItems = [
   { title: 'Sources', icon: newspaperOutline, to: '/sources' },
   { title: 'Evaluations', icon: ribbonOutline, to: '/evaluations' },
   { title: 'Learning', icon: bulbOutline, to: '/learning' },
+  { title: 'Proposals', icon: constructOutline, to: '/proposals' },
 ];
 
 function logout() {

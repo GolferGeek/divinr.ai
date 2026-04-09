@@ -33,6 +33,7 @@ import { MonthlyResetService } from './services/monthly-reset.service';
 import { BenchmarkIngestService } from './services/benchmark-ingest.service';
 import { DayTraderRunnerService } from './services/day-trader-runner.service';
 import { AuditService } from './services/audit.service';
+import { StrategicOverhaulService } from './services/strategic-overhaul.service';
 import { PolygonAdapter } from './adapters/polygon.adapter';
 import { FmpAdapter } from './adapters/fmp.adapter';
 import { TwelveDataAdapter } from './adapters/twelve-data.adapter';
@@ -83,6 +84,7 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     BenchmarkIngestService,
     DayTraderRunnerService,
     AuditService,
+    StrategicOverhaulService,
     MarketsService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],

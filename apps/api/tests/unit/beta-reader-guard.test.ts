@@ -45,6 +45,7 @@ const adminPaths = new Set([
   'admin/run-learning-cycle',
   'admin/run-audit-policy-update',
   'admin/run-tier2-audit',
+  'admin/run-tier3-overhaul',
   'admin/run-crawl',
   'admin/run-predictor-generation',
   'admin/run-prediction-generation',

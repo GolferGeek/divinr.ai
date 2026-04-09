@@ -627,6 +627,9 @@ export class MarketsSchemaService {
       alter table prediction.learning_proposals add column if not exists llm_usage_id uuid;
       create index if not exists prediction_learning_proposals_llm_usage_idx
         on prediction.learning_proposals (llm_usage_id) where llm_usage_id is not null;
+      alter table prediction.learning_proposals add column if not exists evidence_summary jsonb;
+      alter table prediction.learning_proposals add column if not exists proposed_context_markdown text;
+      alter table prediction.learning_proposals add column if not exists current_context_markdown text;
 
       create table if not exists prediction.learning_reports (
         id text primary key,
