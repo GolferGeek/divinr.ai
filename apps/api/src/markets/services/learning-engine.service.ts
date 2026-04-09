@@ -262,12 +262,20 @@ export class LearningEngineService {
     // Create a new config version marked as paper
     const versionId = randomUUID();
     await this.db.rawQuery(
+      // context_markdown carry-forward: inherit from the most recent version
+      // that has a contract, so Tier 1 cycles never drop the structured document.
+      // Effort: analyst-contracts.
       `insert into prediction.analyst_config_versions
         (id, analyst_id, organization_slug, version_number, persona_prompt,
-         default_weight, source, change_reason, is_active, created_by, created_at)
+         default_weight, context_markdown,
+         source, change_reason, is_active, created_by, created_at)
        values ($1, $2, $3,
          coalesce((select max(version_number) + 1 from prediction.analyst_config_versions where analyst_id = $2), 1),
-         $4, $5, 'tier1_auto', 'Tier 1 autonomous learning', false, 'learning-engine', $6)`,
+         $4, $5,
+         (select context_markdown from prediction.analyst_config_versions
+          where analyst_id = $2 and context_markdown is not null
+          order by version_number desc limit 1),
+         'tier1_auto', 'Tier 1 autonomous learning', false, 'learning-engine', $6)`,
       [versionId, analystId, organizationSlug, proposal.proposedPrompt, proposal.proposedWeight, new Date().toISOString()],
     );
 

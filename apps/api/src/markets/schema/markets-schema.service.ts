@@ -426,6 +426,8 @@ export class MarketsSchemaService {
       alter table prediction.analyst_config_versions add column if not exists llm_usage_id uuid;
       create index if not exists prediction_analyst_config_versions_llm_usage_idx
         on prediction.analyst_config_versions (llm_usage_id) where llm_usage_id is not null;
+      -- Effort: analyst-contracts. Structured markdown contract document.
+      alter table prediction.analyst_config_versions add column if not exists context_markdown text;
     `;
   }
 
