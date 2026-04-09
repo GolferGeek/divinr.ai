@@ -33,6 +33,7 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 | `automated-meta-loop` | Audit learns from user feedback — selection policy updates from accept/reject log | `docs/efforts/automated-meta-loop/` |
 | `harden-monitor` | Full codebase scan + hardening: 40 issues fixed across 89 files (@Inject, admin auth, security, legal language, dead code, accessibility) | `docs/efforts/harden-monitor/` |
 | `tier-1-structured-writes` | Learning engine writes structured adaptations into `## Adaptations` of `context_markdown` instead of appending to `persona_prompt`; audit and runner now include adaptations | `docs/efforts/tier-1-structured-writes/` |
+| `beta-user-share-path` | Invite-based signup for beta readers with read-only access; mutation guard on all endpoints; frontend canWrite composable | `docs/efforts/beta-user-share-path/` |
 
 ---
 
@@ -45,10 +46,6 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 ## Next Efforts
 
 These have enough definition to write intentions for. Order reflects dependencies.
-
-### 1. Beta-User Share Path
-**Depends on:** Harden + Monitor (complete)
-**Scope:** Let someone other than the founder see the explainability surfaces. Auth flow for external users, scoped access, read-only views. This is the gate to getting outside feedback.
 
 ---
 
@@ -90,7 +87,7 @@ see-your-reasoning────┤
   automated-meta-loop ✅   harden-monitor ✅
           │                  │
           ▼                  ▼
-  tier-1-structured-writes ✅ beta-user-share-path
+  tier-1-structured-writes ✅ beta-user-share-path ✅
           │
           ▼
   leaderboard-calibration
