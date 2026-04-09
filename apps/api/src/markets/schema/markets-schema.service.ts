@@ -23,6 +23,10 @@ export class MarketsSchemaService {
     const ddl = `
       create schema if not exists prediction;
 
+      -- Dead table cleanup: drop legacy tables superseded by market_analysts / analyst_config_versions
+      drop table if exists prediction.analyst_context_versions cascade;
+      drop table if exists prediction.analysts cascade;
+
       ${this.domainRegistryDdl()}
       ${this.instrumentsDdl()}
       ${this.orchestrationRunsDdl()}
