@@ -64,6 +64,23 @@ import type {
   TradeRecommendation,
 } from './markets.types';
 
+// Effort: see-your-reasoning. Local row type for the
+// GET /markets/predictions/:id/llm-calls endpoint. Kept inline (not exported,
+// not in markets.types.ts) to minimize blast radius for this small effort.
+interface LlmCallRow {
+  runId: string;
+  provider: string;
+  model: string;
+  tier: string;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number | null;
+  totalCost: number | null;
+  reasoningContent: string;
+  reasoningTruncated: boolean;
+  createdAt: string;
+}
+
 @Injectable()
 export class MarketsService {
   private readonly allowedTransitions: Record<RunStatus, RunStatus[]> = {
@@ -784,6 +801,86 @@ export class MarketsService {
         calibration: (analyst.memory_calibration as Record<string, unknown>) ?? {},
       },
     };
+  }
+
+  // ─── Prediction LLM Calls (reasoning content surface) ─────────
+  //
+  // Effort: see-your-reasoning. Returns the captured LLM call(s) backing a
+  // single market_predictions row, joining via market_predictions.llm_usage_id
+  // → public.llm_usage.run_id. Used by AnalystPredictionModal's "Reasoning" tab.
+
+  async getPredictionLlmCalls(
+    organizationSlug: string,
+    userId: string,
+    predictionId: string,
+  ): Promise<{ predictionId: string; calls: LlmCallRow[] }> {
+    await this.schema.ensureSchema();
+    await this.requireRead(userId, organizationSlug);
+
+    // IDOR defense: even if requireRead is bypassed somehow, the
+    // organization_slug filter refuses to leak rows from other orgs.
+    // The OR `__base__` clause honors the shared-template convention used
+    // throughout the markets services (see risk-runner.service.ts and
+    // others) — every tenant's dashboard surfaces __base__ predictions as
+    // shared base data, so reasoning for those rows must be reachable
+    // from every authenticated tenant. Other tenants' rows (not __base__)
+    // remain blocked.
+    //
+    // The ::text cast on both sides of the join is required because
+    // market_predictions.llm_usage_id is uuid and llm_usage.run_id is text.
+    const result = await this.db.rawQuery(
+      `select
+         lu.run_id,
+         lu.provider,
+         lu.model,
+         lu.tier,
+         lu.input_tokens,
+         lu.output_tokens,
+         lu.reasoning_tokens,
+         lu.cost,
+         lu.reasoning_content,
+         lu.reasoning_truncated,
+         lu.created_at
+       from prediction.market_predictions mp
+       join public.llm_usage lu on lu.run_id::text = mp.llm_usage_id::text
+       where mp.id = $1
+         and (mp.organization_slug = $2 or mp.organization_slug = '__base__')
+         and lu.reasoning_content is not null
+       order by lu.created_at desc`,
+      [predictionId, organizationSlug],
+    );
+    if (result.error) throw new Error(result.error.message);
+
+    type LlmUsageDbRow = {
+      run_id: string;
+      provider: string;
+      model: string;
+      tier: string;
+      input_tokens: number | null;
+      output_tokens: number | null;
+      reasoning_tokens: number | null;
+      cost: number | string | null;
+      reasoning_content: string;
+      reasoning_truncated: boolean;
+      created_at: string;
+    };
+
+    const rows = (result.data as LlmUsageDbRow[] | null) ?? [];
+    const calls: LlmCallRow[] = rows.map((r) => ({
+      runId: r.run_id,
+      provider: r.provider,
+      model: r.model,
+      tier: r.tier,
+      inputTokens: r.input_tokens ?? 0,
+      outputTokens: r.output_tokens ?? 0,
+      reasoningTokens: r.reasoning_tokens,
+      totalCost: r.cost === null ? null : Number(r.cost),
+      reasoningContent: r.reasoning_content,
+      reasoningTruncated: r.reasoning_truncated,
+      createdAt: r.created_at,
+    }));
+
+    return { predictionId, calls };
   }
 
   // ─── Prediction Challenges ─────────────────────────────────────
