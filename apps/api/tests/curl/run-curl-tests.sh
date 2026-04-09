@@ -61,6 +61,24 @@ check "POST /analysts (create)" "200,201,403,500" "$STATUS"
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "x-user-id: curl-test" "$BASE/analysts/some-analyst-id/calibration?organizationSlug=alpha-capital")
 check "GET /analysts/:id/calibration" "200,403,404,500" "$STATUS"
 
+# Tier 2 Audit (effort: tier-2-audit)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "x-user-id: curl-test" "$BASE/audit/findings?organizationSlug=alpha-capital")
+check "GET /audit/findings" "200,403" "$STATUS"
+
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -H "x-user-id: curl-test" "$BASE/audit/findings/nonexistent-id/review" -d '{"organizationSlug":"alpha-capital","action":"accepted"}')
+check "POST /audit/findings/:id/review" "200,403,404,500" "$STATUS"
+
+# Audit policy (effort: automated-meta-loop)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "x-user-id: curl-test" "$BASE/audit/policy?organizationSlug=alpha-capital")
+check "GET /audit/policy" "200,403" "$STATUS"
+
+# Admin: audit triggers
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "x-user-id: curl-test" "$BASE/admin/run-tier2-audit")
+check "POST /admin/run-tier2-audit" "200,201,403,500" "$STATUS"
+
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "x-user-id: curl-test" "$BASE/admin/run-audit-policy-update")
+check "POST /admin/run-audit-policy-update" "200,201,403,500" "$STATUS"
+
 # Sources
 echo ""
 echo "Sources:"

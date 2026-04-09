@@ -35,7 +35,7 @@ async function main(): Promise<void> {
         const targetDocId = `${seed.runId}:blocked-write`;
         const result = await app.db.rawQuery(
           `
-          select authz.secure_upsert_document($1::uuid, $2::varchar, $3::text, $4::text, $5::text) as document_id
+          select authz.secure_upsert_document($1::text, $2::varchar, $3::text, $4::text, $5::text) as document_id
           `,
           [
             seed.analystAUserId,
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
         const targetDocId = `${seed.runId}:allowed-write`;
         const result = await app.db.rawQuery(
           `
-          select authz.secure_upsert_document($1::uuid, $2::varchar, $3::text, $4::text, $5::text) as document_id
+          select authz.secure_upsert_document($1::text, $2::varchar, $3::text, $4::text, $5::text) as document_id
           `,
           [
             seed.adminUserId,
@@ -109,7 +109,7 @@ async function main(): Promise<void> {
 
         const blocked = await app.db.rawQuery(
           `
-          select authz.secure_upsert_document($1::uuid, $2::varchar, $3::text, $4::text, $5::text) as document_id
+          select authz.secure_upsert_document($1::text, $2::varchar, $3::text, $4::text, $5::text) as document_id
           `,
           [
             seed.analystAUserId,
@@ -147,7 +147,7 @@ async function main(): Promise<void> {
         for (let i = 0; i < 10; i += 1) {
           const blocked = await app.db.rawQuery(
             `
-            select authz.secure_upsert_document($1::uuid, $2::varchar, $3::text, $4::text, $5::text) as document_id
+            select authz.secure_upsert_document($1::text, $2::varchar, $3::text, $4::text, $5::text) as document_id
             `,
             [
               seed.analystBUserId,
