@@ -29,18 +29,34 @@ interface Finding {
   createdAt: string;
 }
 
+interface AuditPolicy {
+  policyText: string;
+  reviewedCount: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  notedCount: number;
+  confidenceLevel: string;
+  generatedAt: string;
+}
+
 const api = useApi();
 const findings = ref<Finding[]>([]);
+const policy = ref<AuditPolicy | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const reviewingId = ref<string | null>(null);
 const disagreeTextMap = ref<Record<string, string>>({});
 const showDisagreeInput = ref<string | null>(null);
+const policyExpanded = ref(false);
 
 onMounted(async () => {
   try {
-    const data = await api.get<{ findings: Finding[] }>('/audit/findings');
-    findings.value = data.findings;
+    const [findingsData, policyData] = await Promise.all([
+      api.get<{ findings: Finding[] }>('/audit/findings'),
+      api.get<{ policy: AuditPolicy | null }>('/audit/policy'),
+    ]);
+    findings.value = findingsData.findings;
+    policy.value = policyData.policy;
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
   }
@@ -90,6 +106,22 @@ function submitDisagree(findingId: string) {
     <ion-note v-if="error" color="danger" style="display:block;padding:12px;margin-bottom:8px">
       {{ error }}
     </ion-note>
+
+    <!-- Selection Policy (meta-loop) -->
+    <ion-card v-if="policy" style="margin-bottom:16px;cursor:pointer" @click="policyExpanded = !policyExpanded">
+      <ion-card-header>
+        <div style="display:flex;align-items:center;gap:8px">
+          <ion-card-title style="font-size:0.95rem">Audit Selection Policy</ion-card-title>
+          <ion-chip :color="policy.confidenceLevel === 'confident' ? 'success' : 'warning'" style="height:20px;font-size:0.65rem">
+            {{ policy.confidenceLevel }}
+          </ion-chip>
+          <span style="opacity:0.5;font-size:0.75rem;margin-left:auto">{{ policy.reviewedCount }} reviews ({{ policy.acceptedCount }}✓ {{ policy.rejectedCount }}✗ {{ policy.notedCount }}~)</span>
+        </div>
+      </ion-card-header>
+      <ion-card-content v-if="policyExpanded">
+        <p style="font-size:0.85rem;line-height:1.6;white-space:pre-wrap">{{ policy.policyText }}</p>
+      </ion-card-content>
+    </ion-card>
 
     <ion-note v-if="!loading && findings.length === 0 && !error" color="primary" style="display:block;padding:16px">
       No pending findings. The audit loop will surface discrepancies as it runs.

@@ -639,6 +639,14 @@ export class MarketsSchemaService {
       alter table prediction.learning_reports add column if not exists llm_usage_id uuid;
       create index if not exists prediction_learning_reports_llm_usage_idx
         on prediction.learning_reports (llm_usage_id) where llm_usage_id is not null;
+      -- Effort: automated-meta-loop. Allow audit_policy report type.
+      do $$ begin
+        alter table prediction.learning_reports
+          drop constraint learning_reports_report_type_check;
+        alter table prediction.learning_reports
+          add constraint learning_reports_report_type_check
+          check (report_type in ('nightly_evaluation', 'learning_cycle', 'audit_policy'));
+      exception when others then null; end $$;
 
       create table if not exists prediction.org_learning_config (
         organization_slug text primary key,

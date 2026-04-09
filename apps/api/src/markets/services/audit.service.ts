@@ -116,6 +116,144 @@ export class AuditService {
     @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
   ) {}
 
+  // ─── Audit Policy (meta-loop) ───────────────────────────────────
+
+  async updateAuditPolicy(): Promise<{ generated: boolean; reason?: string }> {
+    await this.schema.ensureSchema();
+    const minReviews = Number(process.env.AUDIT_POLICY_MIN_REVIEWS) || 5;
+
+    // Read all reviewed findings
+    const reviewResult = await this.db.rawQuery(
+      `SELECT af.status, af.discrepancy, af.hypothesis, af.severity,
+              af.review_text, ma.slug as analyst_slug, ma.analyst_type
+       FROM prediction.audit_findings af
+       JOIN prediction.market_analysts ma ON ma.id = af.analyst_id
+       WHERE af.status IN ('accepted', 'rejected', 'noted')
+       ORDER BY af.reviewed_at DESC`,
+    );
+    if (reviewResult.error) throw new Error(reviewResult.error.message);
+    const reviews = (reviewResult.data as Array<{
+      status: string; discrepancy: string; hypothesis: string; severity: string;
+      review_text: string | null; analyst_slug: string; analyst_type: string;
+    }> | null) ?? [];
+
+    if (reviews.length < minReviews) {
+      this.logger.log(`Not enough reviewed findings (${reviews.length} < ${minReviews}), skipping policy generation`);
+      return { generated: false, reason: `Not enough reviewed findings (${reviews.length} < ${minReviews})` };
+    }
+
+    const accepted = reviews.filter(r => r.status === 'accepted');
+    const rejected = reviews.filter(r => r.status === 'rejected');
+    const noted = reviews.filter(r => r.status === 'noted');
+    const confidenceLevel = reviews.length >= 15 ? 'confident' : 'tentative';
+
+    const formatFindings = (arr: typeof reviews) =>
+      arr.map(r => `- [${r.analyst_slug}/${r.severity}] ${r.discrepancy} — Hypothesis: ${r.hypothesis}${r.review_text ? ` — User note: ${r.review_text}` : ''}`).join('\n');
+
+    const prompt = `You are analyzing a user's feedback on AI-generated audit findings to learn their preferences.
+
+FEEDBACK SUMMARY:
+- Total reviewed: ${reviews.length}
+- Accepted: ${accepted.length} (${(accepted.length / reviews.length * 100).toFixed(0)}%)
+- Rejected: ${rejected.length} (${(rejected.length / reviews.length * 100).toFixed(0)}%)
+- Noted: ${noted.length} (${(noted.length / reviews.length * 100).toFixed(0)}%)
+
+ACCEPTED FINDINGS (the user agreed these were real problems):
+${accepted.length > 0 ? formatFindings(accepted) : '(none yet)'}
+
+REJECTED FINDINGS (the user said these were NOT problems):
+${rejected.length > 0 ? formatFindings(rejected) : '(none yet)'}
+
+NOTED FINDINGS (interesting but no action):
+${noted.length > 0 ? formatFindings(noted) : '(none yet)'}
+
+TASK:
+Based on this feedback, write a selection policy (200-400 words) that tells the audit system:
+1. What kinds of discrepancies to PRIORITIZE (patterns the user consistently accepts)
+2. What kinds of discrepancies to SKIP or de-prioritize (patterns the user consistently rejects)
+3. Any analyst-specific preferences (e.g., "the user cares more about Fundamentals Analyst findings")
+4. Severity preferences (does the user engage more with high, medium, or low severity?)
+
+Write the policy as direct instructions to the audit system, in second person ("You should prioritize...", "Skip findings about...").
+
+${confidenceLevel === 'tentative' ? 'NOTE: The sample size is small (< 15 reviews). Keep the policy tentative — use "slightly prioritize" rather than "always surface" or "never show".' : ''}
+
+Output ONLY the policy text. No preamble.`;
+
+    let policyText: string;
+    try {
+      const res = await fetch(`${AuditService.OLLAMA_URL}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: AuditService.AUDIT_MODEL, prompt, stream: false }),
+      });
+      if (!res.ok) {
+        this.logger.warn(`Ollama returned ${res.status} during policy generation`);
+        return { generated: false, reason: 'LLM unavailable' };
+      }
+      const data = await res.json() as { response: string };
+      policyText = data.response.trim();
+    } catch (err) {
+      this.logger.warn(`Ollama unreachable during policy generation: ${err instanceof Error ? err.message : String(err)}`);
+      return { generated: false, reason: 'LLM unavailable' };
+    }
+
+    // Store in learning_reports
+    const summary = JSON.stringify({
+      policyText,
+      reviewedCount: reviews.length,
+      acceptedCount: accepted.length,
+      rejectedCount: rejected.length,
+      notedCount: noted.length,
+      confidenceLevel,
+      generatedAt: new Date().toISOString(),
+    });
+    await this.db.rawQuery(
+      `INSERT INTO prediction.learning_reports (id, report_type, report_date, summary, created_at)
+       VALUES ($1, 'audit_policy', CURRENT_DATE, $2, now())
+       ON CONFLICT (report_type, report_date)
+       DO UPDATE SET summary = EXCLUDED.summary, created_at = EXCLUDED.created_at`,
+      [randomUUID(), summary],
+    );
+
+    this.logger.log(`Audit policy generated (${confidenceLevel}, ${reviews.length} reviews)`);
+    return { generated: true };
+  }
+
+  async getAuditPolicy(): Promise<{
+    policyText: string;
+    reviewedCount: number;
+    acceptedCount: number;
+    rejectedCount: number;
+    notedCount: number;
+    confidenceLevel: string;
+    generatedAt: string;
+  } | null> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `SELECT summary FROM prediction.learning_reports
+       WHERE report_type = 'audit_policy'
+       ORDER BY report_date DESC LIMIT 1`,
+    );
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Array<{ summary: Record<string, unknown> }> | null) ?? [];
+    if (rows.length === 0) return null;
+    const s = rows[0].summary as {
+      policyText?: string; reviewedCount?: number; acceptedCount?: number;
+      rejectedCount?: number; notedCount?: number; confidenceLevel?: string; generatedAt?: string;
+    };
+    if (!s.policyText) return null;
+    return {
+      policyText: s.policyText,
+      reviewedCount: s.reviewedCount ?? 0,
+      acceptedCount: s.acceptedCount ?? 0,
+      rejectedCount: s.rejectedCount ?? 0,
+      notedCount: s.notedCount ?? 0,
+      confidenceLevel: s.confidenceLevel ?? 'tentative',
+      generatedAt: s.generatedAt ?? '',
+    };
+  }
+
   // ─── Read + Review ──────────────────────────────────────────────
 
   async getFindings(organizationSlug: string, userId: string): Promise<AuditFindingRow[]> {
@@ -184,6 +322,17 @@ export class AuditService {
     }
   }
 
+  // Daily at 01:00 UTC — update the selection policy from accumulated feedback.
+  @Cron('0 1 * * *')
+  async scheduledPolicyUpdate(): Promise<void> {
+    if (process.env.MARKETS_ENABLE_LLM !== 'true') return;
+    try {
+      await this.updateAuditPolicy();
+    } catch (err) {
+      this.logger.warn(`Scheduled policy update failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   async runAuditCycle(options?: { count?: number }): Promise<AuditCycleResult> {
     await this.schema.ensureSchema();
 
@@ -215,11 +364,15 @@ export class AuditService {
     if (candidateResult.error) throw new Error(candidateResult.error.message);
     const candidates = (candidateResult.data as CandidateRow[] | null) ?? [];
 
+    // Load the current selection policy (meta-loop)
+    const policy = await this.getAuditPolicy();
+    const policyText = policy?.policyText ?? null;
+
     let findingsCreated = 0;
 
     for (const candidate of candidates) {
       try {
-        const finding = await this.auditPrediction(candidate);
+        const finding = await this.auditPrediction(candidate, policyText);
         if (finding) {
           findingsCreated++;
         }
@@ -232,7 +385,7 @@ export class AuditService {
     return { predictionsChecked: candidates.length, findingsCreated };
   }
 
-  private async auditPrediction(candidate: CandidateRow): Promise<boolean> {
+  private async auditPrediction(candidate: CandidateRow, policyText: string | null): Promise<boolean> {
     // Load the contract
     const configVersionId = candidate.config_version_id;
     let contextMarkdown: string | null = null;
@@ -269,7 +422,7 @@ export class AuditService {
     const roleSection = roleNames.length > 0 ? sections.roles[roleNames[0]] : '';
 
     // Call the LLM (stubbed for Phase 1 — replaced in Phase 3)
-    const llmResult = await this.callAuditLlm(candidate, sections.general, roleSection);
+    const llmResult = await this.callAuditLlm(candidate, sections.general, roleSection, policyText);
 
     if (!llmResult || !llmResult.finding) return false;
 
@@ -311,6 +464,7 @@ export class AuditService {
     candidate: CandidateRow,
     generalSection: string,
     roleSection: string,
+    policyText?: string | null,
   ): string {
     const outcome = candidate.actual_outcome_data ?? {};
     const changePercent = typeof outcome['changePercent'] === 'number'
@@ -320,7 +474,20 @@ export class AuditService {
     const sourceCtx = candidate.source_context && Object.keys(candidate.source_context).length > 0
       ? JSON.stringify(candidate.source_context).slice(0, 300) : 'None available';
 
-    return `You are auditing a financial market analyst's prediction against its operating contract.
+    const policyPreamble = policyText
+      ? `SELECTION GUIDANCE (learned from user feedback):
+"""
+${policyText}
+"""
+
+Apply this guidance when evaluating the following prediction. If the guidance says to skip a certain type of finding, respond with {"finding": false} even if you notice a minor discrepancy of that type.
+
+---
+
+`
+      : '';
+
+    return `${policyPreamble}You are auditing a financial market analyst's prediction against its operating contract.
 
 ANALYST CONTRACT (Role Section):
 """
@@ -364,6 +531,7 @@ Respond ONLY with the JSON. No preamble, no explanation.`;
     candidate: CandidateRow,
     generalSection: string,
     roleSection: string,
+    policyText?: string | null,
   ): Promise<{
     finding: boolean;
     contractExcerpt?: string;
@@ -373,7 +541,7 @@ Respond ONLY with the JSON. No preamble, no explanation.`;
     severity?: string;
     model?: string;
   } | null> {
-    const prompt = this.buildAuditPrompt(candidate, generalSection, roleSection);
+    const prompt = this.buildAuditPrompt(candidate, generalSection, roleSection, policyText);
 
     let response: string;
     try {
