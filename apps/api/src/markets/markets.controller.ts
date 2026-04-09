@@ -1035,6 +1035,20 @@ export class MarketsController {
     return this.markets.getPredictionLlmCalls(identity.organizationSlug, identity.userId, predictionId);
   }
 
+  // Effort: calibration-drilldown. Returns headline metrics, per-instrument
+  // breakdown, and the resolved-prediction history (wrong-first) for one
+  // analyst. Backs AnalystPerformanceView's calibration section.
+  @Get('analysts/:analystId/calibration')
+  async getAnalystCalibration(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('analystId') analystId: string,
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.getAnalystCalibration(identity.organizationSlug, identity.userId, analystId);
+  }
+
   @Post('predictions/:predictionId/challenge')
   async challengePrediction(
     @Req() req: { user?: AuthenticatedUser },

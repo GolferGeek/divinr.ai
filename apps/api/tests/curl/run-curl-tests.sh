@@ -57,6 +57,10 @@ check "GET /analysts" "200,403" "$STATUS"
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -H "x-user-id: curl-test" "$BASE/analysts" -d '{"organizationSlug":"alpha-capital","slug":"test-analyst","displayName":"Test","personaPrompt":"Test prompt"}')
 check "POST /analysts (create)" "200,201,403,500" "$STATUS"
 
+# Calibration drilldown (effort: calibration-drilldown)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "x-user-id: curl-test" "$BASE/analysts/some-analyst-id/calibration?organizationSlug=alpha-capital")
+check "GET /analysts/:id/calibration" "200,403,404,500" "$STATUS"
+
 # Sources
 echo ""
 echo "Sources:"
