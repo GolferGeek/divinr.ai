@@ -37,12 +37,13 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 | `leaderboard-calibration-affordance` | One-click link from leaderboard calibration score to analyst drilldown; added analyst_id to portfolio summary API | `docs/efforts/leaderboard-calibration-affordance/` |
 | `contract-editor-ui` | Admin contract editor at /analysts/:id/contract: read, version history, side-by-side diff, inline edit, one-click rollback; navigation from analyst list and findings | `docs/efforts/contract-editor-ui/` |
 | `risk-debate-drilldown` | Expandable LLM reasoning panels on Blue/Red/Arbiter debate columns; GET /risk-debates/:id/reasoning endpoint; lazy-loaded with provider/model/token metadata | `docs/efforts/risk-debate-drilldown/` |
+| `dead-table-cleanup` | Dropped legacy `prediction.analysts` and `prediction.analyst_context_versions` tables via ensureSchema() DDL | `docs/efforts/dead-table-cleanup/` |
 
 ---
 
 ## Current Effort
 
-**Dead Table Cleanup** — Drop `prediction.analysts` and `prediction.analyst_context_versions` (dead since 2026-03-15). Quick housekeeping to remove unused schema.
+None — ready for a new effort.
 
 ---
 
