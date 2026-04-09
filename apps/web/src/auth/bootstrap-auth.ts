@@ -41,7 +41,6 @@ export async function bootstrapAuth(): Promise<void> {
   if (!email || !password) {
     // No auto-login configured — leave the tenant store empty. The user will
     // see auth failures from the API until they manually configure a token.
-    // eslint-disable-next-line no-console
     console.warn('[bootstrap-auth] VITE_DEFAULT_USER_EMAIL/PASSWORD not set; auto-login skipped.');
     return;
   }
@@ -54,7 +53,6 @@ export async function bootstrapAuth(): Promise<void> {
     });
     if (!loginRes.ok) {
       const text = await loginRes.text();
-      // eslint-disable-next-line no-console
       console.error(`[bootstrap-auth] Login failed (${loginRes.status}): ${text}`);
       return;
     }
@@ -66,17 +64,14 @@ export async function bootstrapAuth(): Promise<void> {
     });
     if (!meRes.ok) {
       const text = await meRes.text();
-      // eslint-disable-next-line no-console
       console.error(`[bootstrap-auth] /auth/me failed (${meRes.status}): ${text}`);
       return;
     }
     const me = (await meRes.json()) as MeResponse;
 
     tenant.setTenant(defaultOrg ?? `personal-${email.split('@')[0]}`, me.id, login.accessToken);
-    // eslint-disable-next-line no-console
     console.info(`[bootstrap-auth] Logged in as ${me.email ?? me.id}`);
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('[bootstrap-auth] Auto-login error:', err);
   }
 }
