@@ -31,6 +31,10 @@ const TARGET_SLUGS = [
   'technical-analyst',
   'arbitrator',
   'portfolio-manager',
+  // Day traders (effort: day-trader-contracts)
+  'gap-and-go',
+  'mean-reversion',
+  'momentum-breakout',
 ];
 
 async function main() {
