@@ -32,12 +32,13 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 | `day-trader-contracts` | Extended structured contracts to day-trader analysts (gap-and-go, mean-reversion, momentum-breakout) | `docs/efforts/day-trader-contracts/` |
 | `automated-meta-loop` | Audit learns from user feedback — selection policy updates from accept/reject log | `docs/efforts/automated-meta-loop/` |
 | `harden-monitor` | Full codebase scan + hardening: 40 issues fixed across 89 files (@Inject, admin auth, security, legal language, dead code, accessibility) | `docs/efforts/harden-monitor/` |
+| `tier-1-structured-writes` | Learning engine writes structured adaptations into `## Adaptations` of `context_markdown` instead of appending to `persona_prompt`; audit and runner now include adaptations | `docs/efforts/tier-1-structured-writes/` |
 
 ---
 
 ## Current Effort
 
-**Tier 1 Structured Writes** — intention written, ready for `/build-prd`.
+**Leaderboard → Calibration Affordance** — ready for intention writing.
 
 ---
 
@@ -45,15 +46,7 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 
 These have enough definition to write intentions for. Order reflects dependencies.
 
-### 1. Tier 1 Structured Writes ← next
-**Depends on:** Analyst Contracts (complete), Automated Meta-Loop (complete)
-**Scope:** Update the Tier 1 learning engine to write into `## Adaptations` instead of appending hardcoded text suffixes to `persona_prompt`. The carry-forward keeps contracts alive in the meantime, but this is the proper solution. Should be relatively contained — the learning engine and carry-forward logic already exist.
-
-### 2. Leaderboard → Calibration Affordance
-**Depends on:** Calibration Drilldown (complete)
-**Scope:** Small effort. Wire the existing leaderboard to the calibration-drilldown view so clicking an analyst navigates to their performance page. Quick UX win.
-
-### 3. Beta-User Share Path
+### 1. Beta-User Share Path
 **Depends on:** Harden + Monitor (complete)
 **Scope:** Let someone other than the founder see the explainability surfaces. Auth flow for external users, scoped access, read-only views. This is the gate to getting outside feedback.
 
@@ -97,7 +90,10 @@ see-your-reasoning────┤
   automated-meta-loop ✅   harden-monitor ✅
           │                  │
           ▼                  ▼
-  tier-1-structured-writes   beta-user-share-path
+  tier-1-structured-writes ✅ beta-user-share-path
+          │
+          ▼
+  leaderboard-calibration
 ```
 
 ---
