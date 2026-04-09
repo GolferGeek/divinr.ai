@@ -30,6 +30,7 @@ export const router = createRouter({
         { path: 'predictions', name: 'predictions', component: () => import('../views/PredictionsView.vue') },
         { path: 'terms', name: 'terms', component: () => import('../views/TermsOfServiceView.vue') },
         { path: 'learning/canonical/:id', name: 'canonical-day', component: () => import('../views/CanonicalDayDetailView.vue') },
+        { path: 'findings', name: 'findings', component: () => import('../views/AuditFindingsView.vue') },
       ],
     },
   ],

@@ -44,6 +44,7 @@ export class MarketsSchemaService {
       ${this.dataSourceDdl()}
       ${this.tradeDecisionsDdl()}
       ${this.portfolioFoundationDdl()}
+      ${this.auditFindingsDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -1391,5 +1392,38 @@ export class MarketsSchemaService {
     if (portfolioResult.error) {
       this.logger.warn(`Failed to seed portfolio foundation portfolios: ${portfolioResult.error.message}`);
     }
+  }
+
+  // ─── Tier 2 Audit Findings (effort: tier-2-audit) ─────────────
+
+  private auditFindingsDdl(): string {
+    return `
+      create table if not exists prediction.audit_findings (
+        id                text primary key,
+        organization_slug text not null,
+        analyst_id        text not null,
+        prediction_id     text not null,
+        config_version_id text,
+        contract_excerpt  text not null,
+        output_excerpt    text not null,
+        discrepancy       text not null,
+        hypothesis        text not null,
+        severity          text not null check (severity in ('low', 'medium', 'high')),
+        status            text not null default 'pending_review'
+                          check (status in ('pending_review', 'accepted', 'rejected', 'noted')),
+        review_text       text,
+        reviewed_by       text,
+        reviewed_at       timestamptz,
+        llm_usage_id      uuid,
+        audit_model       text,
+        created_at        timestamptz not null default now()
+      );
+      create index if not exists audit_findings_status_idx
+        on prediction.audit_findings (organization_slug, status);
+      create index if not exists audit_findings_analyst_idx
+        on prediction.audit_findings (analyst_id);
+      create index if not exists audit_findings_prediction_idx
+        on prediction.audit_findings (prediction_id);
+    `;
   }
 }
