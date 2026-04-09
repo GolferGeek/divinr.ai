@@ -53,6 +53,14 @@ async function handleCreate() {
             <ion-card-content>
               <p>{{ String(a['persona_prompt']).slice(0, 200) }}...</p>
             </ion-card-content>
+            <div style="padding:0 16px 8px">
+              <router-link :to="{ name: 'analyst-contract', params: { id: a['id'] } }" @click.stop>
+                <ion-button fill="outline" size="small">Contract</ion-button>
+              </router-link>
+              <router-link :to="{ name: 'analyst-performance', params: { id: a['id'] } }" @click.stop>
+                <ion-button fill="outline" size="small" style="margin-left:4px">Performance</ion-button>
+              </router-link>
+            </div>
             <div v-if="canWrite" style="padding:0 16px 16px">
               <ion-item lines="none">
                 <ion-toggle

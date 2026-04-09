@@ -132,7 +132,13 @@ function submitDisagree(findingId: string) {
     <ion-card v-for="f in findings" :key="f.id" style="margin-bottom:16px">
       <ion-card-header>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <ion-card-title style="font-size:1rem">{{ f.analystName }}</ion-card-title>
+          <ion-card-title style="font-size:1rem">
+            <router-link
+              :to="{ name: 'analyst-contract', params: { id: f.analystId } }"
+              style="text-decoration:underline;color:var(--ion-color-primary)"
+              @click.stop
+            >{{ f.analystName }}</router-link>
+          </ion-card-title>
           <ion-chip :color="severityColor(f.severity)" style="height:22px;font-size:0.7rem">
             {{ f.severity }}
           </ion-chip>

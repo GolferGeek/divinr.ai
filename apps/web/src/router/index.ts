@@ -25,6 +25,7 @@ export const router = createRouter({
         { path: 'instruments/:id', name: 'instrument-detail', component: () => import('../views/InstrumentDetailView.vue') },
         { path: 'analysts', name: 'analysts', component: () => import('../views/AnalystsView.vue') },
         { path: 'analysts/:id/performance', name: 'analyst-performance', component: () => import('../views/AnalystPerformanceView.vue') },
+        { path: 'analysts/:id/contract', name: 'analyst-contract', component: () => import('../views/ContractEditorView.vue') },
         { path: 'runs', name: 'runs', component: () => import('../views/RunsView.vue') },
         { path: 'runs/:id', name: 'run-detail', component: () => import('../views/RunDetailView.vue') },
         { path: 'risk', name: 'risk', component: () => import('../views/RiskDashboardView.vue') },

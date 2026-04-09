@@ -1242,6 +1242,119 @@ export class MarketsService {
     return { markdown, sections: this.parseContractMarkdown(markdown) };
   }
 
+  // ─── Contract Editor ───────────────────────────────────────────
+
+  async getAnalystContract(analystId: string, organizationSlug: string) {
+    await this.schema.ensureSchema();
+
+    // Fetch analyst metadata
+    const analystResult = await this.db.rawQuery(
+      `SELECT id, display_name, current_config_version_id
+       FROM prediction.market_analysts
+       WHERE id = $1 AND (organization_slug = $2 OR organization_slug = '__base__')`,
+      [analystId, organizationSlug],
+    );
+    if (analystResult.error) throw new Error(analystResult.error.message);
+    const analysts = (analystResult.data as Array<{ id: string; display_name: string; current_config_version_id: string | null }> | null) ?? [];
+    if (analysts.length === 0) throw new BadRequestException('Analyst not found');
+    const analyst = analysts[0];
+
+    // Fetch all config versions
+    const versionsResult = await this.db.rawQuery(
+      `SELECT id, version_number, source, change_reason, created_by, created_at, is_active, context_markdown
+       FROM prediction.analyst_config_versions
+       WHERE analyst_id = $1 AND (organization_slug = $2 OR organization_slug = '__base__')
+       ORDER BY version_number DESC`,
+      [analystId, organizationSlug],
+    );
+    if (versionsResult.error) throw new Error(versionsResult.error.message);
+    const versionRows = (versionsResult.data as Array<Record<string, unknown>> | null) ?? [];
+
+    // Find active version and parse its contract
+    const activeVersion = versionRows.find(v => v.is_active === true);
+    const activeMarkdown = activeVersion?.context_markdown as string | null;
+    const contract = activeMarkdown
+      ? { markdown: activeMarkdown, sections: this.parseContractMarkdown(activeMarkdown) }
+      : null;
+
+    return {
+      analystId: analyst.id,
+      displayName: analyst.display_name,
+      activeVersionId: analyst.current_config_version_id,
+      contract,
+      versions: versionRows.map(v => ({
+        id: String(v.id),
+        versionNumber: Number(v.version_number),
+        source: String(v.source ?? 'manual'),
+        changeReason: v.change_reason ? String(v.change_reason) : null,
+        createdBy: v.created_by ? String(v.created_by) : null,
+        createdAt: String(v.created_at),
+        isActive: Boolean(v.is_active),
+        contextMarkdown: v.context_markdown ? String(v.context_markdown) : null,
+      })),
+    };
+  }
+
+  async saveAnalystContract(input: {
+    analystId: string;
+    organizationSlug: string;
+    userId: string;
+    markdown: string;
+    changeReason?: string;
+  }) {
+    await this.schema.ensureSchema();
+    await this.requireWrite(input.userId, input.organizationSlug);
+
+    // Load current analyst + active version
+    const analystResult = await this.db.rawQuery(
+      `SELECT ma.id, ma.current_config_version_id,
+              acv.persona_prompt, acv.tier_instructions, acv.default_weight, acv.version_number
+       FROM prediction.market_analysts ma
+       LEFT JOIN prediction.analyst_config_versions acv ON acv.id = ma.current_config_version_id
+       WHERE ma.id = $1 AND (ma.organization_slug = $2 OR ma.organization_slug = '__base__')`,
+      [input.analystId, input.organizationSlug],
+    );
+    if (analystResult.error) throw new Error(analystResult.error.message);
+    const rows = (analystResult.data as Array<Record<string, unknown>> | null) ?? [];
+    if (rows.length === 0) throw new BadRequestException('Analyst not found');
+    const current = rows[0];
+    const oldVersionId = current.current_config_version_id ? String(current.current_config_version_id) : null;
+
+    // Deactivate current version
+    if (oldVersionId) {
+      await this.db.rawQuery(
+        `UPDATE prediction.analyst_config_versions SET is_active = false WHERE id = $1`,
+        [oldVersionId],
+      );
+    }
+
+    // Insert new version
+    const newVersionId = randomUUID();
+    const newVersionNumber = (Number(current.version_number) || 0) + 1;
+    await this.db.rawQuery(
+      `INSERT INTO prediction.analyst_config_versions
+        (id, analyst_id, organization_slug, version_number, persona_prompt,
+         tier_instructions, default_weight, context_markdown,
+         source, change_reason, parent_version_id, is_active, created_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'manual', $9, $10, true, $11, $12)`,
+      [
+        newVersionId, input.analystId, input.organizationSlug, newVersionNumber,
+        current.persona_prompt ?? '', JSON.stringify(current.tier_instructions ?? null),
+        current.default_weight ?? 1.0, input.markdown,
+        input.changeReason || 'Manual contract edit',
+        oldVersionId, input.userId, new Date().toISOString(),
+      ],
+    );
+
+    // Update analyst pointer
+    await this.db.rawQuery(
+      `UPDATE prediction.market_analysts SET current_config_version_id = $1 WHERE id = $2`,
+      [newVersionId, input.analystId],
+    );
+
+    return this.getAnalystContract(input.analystId, input.organizationSlug);
+  }
+
   // ─── Prediction Challenges ─────────────────────────────────────
 
   async challengePrediction(organizationSlug: string, userId: string, predictionId: string) {

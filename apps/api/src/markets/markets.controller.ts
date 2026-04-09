@@ -282,6 +282,35 @@ export class MarketsController {
     });
   }
 
+  @Get('analysts/:analystId/contract')
+  async getAnalystContract(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('analystId') analystId: string,
+    @Query('organizationSlug') orgSlug: string,
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { query: orgSlug });
+    return this.markets.getAnalystContract(analystId, identity.organizationSlug);
+  }
+
+  @Put('analysts/:analystId/contract')
+  async saveAnalystContract(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('analystId') analystId: string,
+    @Body() body: { organizationSlug: string; markdown: string; changeReason?: string },
+  ) {
+    const user = this.getUser(req);
+    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
+    await this.requireWriteAccess(user, identity.organizationSlug);
+    return this.markets.saveAnalystContract({
+      analystId,
+      organizationSlug: identity.organizationSlug,
+      userId: identity.userId,
+      markdown: body.markdown,
+      changeReason: body.changeReason,
+    });
+  }
+
   @Post('analysts/assign')
   async assignAnalyst(
     @Req() req: { user?: AuthenticatedUser },
