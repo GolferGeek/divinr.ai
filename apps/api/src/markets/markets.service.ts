@@ -941,6 +941,10 @@ export class MarketsService {
   // No reasoning content in this payload — that comes from
   // getPredictionLlmCalls on demand when a row is expanded.
 
+  // Hard cap on the resolved-predictions list. With ~37 resolved evals in
+  // dev today this is ~2.7× headroom; pagination is a follow-on if needed.
+  private static readonly CALIBRATION_RESOLVED_LIMIT = 100;
+
   async getAnalystCalibration(
     organizationSlug: string,
     userId: string,
@@ -965,7 +969,7 @@ export class MarketsService {
       analyst_type: string | null;
     }> | null) ?? [];
     if (analystRows.length === 0) {
-      throw new Error(`Analyst ${analystId} not found in organization ${organizationSlug}`);
+      throw new NotFoundException(`Analyst ${analystId} not found in organization ${organizationSlug}`);
     }
     const analystRow = analystRows[0]!;
 
@@ -1079,8 +1083,8 @@ export class MarketsService {
          and (e.organization_slug = $2 or e.organization_slug = '__base__')
          and (mp.organization_slug = $2 or mp.organization_slug = '__base__')
        order by e.was_correct asc, e.evaluation_date desc
-       limit 100`,
-      [analystId, organizationSlug],
+       limit $3`,
+      [analystId, organizationSlug, MarketsService.CALIBRATION_RESOLVED_LIMIT],
     );
     if (evalResult.error) throw new Error(evalResult.error.message);
     const evalRows = (evalResult.data as Array<{
