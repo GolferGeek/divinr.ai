@@ -36,12 +36,13 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 | `beta-user-share-path` | Invite-based signup for beta readers with read-only access; mutation guard on all endpoints; frontend canWrite composable | `docs/efforts/beta-user-share-path/` |
 | `leaderboard-calibration-affordance` | One-click link from leaderboard calibration score to analyst drilldown; added analyst_id to portfolio summary API | `docs/efforts/leaderboard-calibration-affordance/` |
 | `contract-editor-ui` | Admin contract editor at /analysts/:id/contract: read, version history, side-by-side diff, inline edit, one-click rollback; navigation from analyst list and findings | `docs/efforts/contract-editor-ui/` |
+| `risk-debate-drilldown` | Expandable LLM reasoning panels on Blue/Red/Arbiter debate columns; GET /risk-debates/:id/reasoning endpoint; lazy-loaded with provider/model/token metadata | `docs/efforts/risk-debate-drilldown/` |
 
 ---
 
 ## Current Effort
 
-**Risk-Debate Drilldown** — Visualize the three-way blue/red/arbiter debate that already has reasoning linked through `llm_usage_id`. Ready for intention writing.
+None — ready for a new effort.
 
 ---
 
@@ -90,6 +91,9 @@ see-your-reasoning────┤
           │
           ▼
   contract-editor-ui ✅
+          │
+          ▼
+  risk-debate-drilldown ✅
 ```
 
 ---
