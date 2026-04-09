@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-09
+**Last updated:** 2026-04-09 (leaderboard-calibration-affordance archived)
 **Maintained by:** `/roadmap` skill
 
 ## Vision
@@ -34,12 +34,13 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 | `harden-monitor` | Full codebase scan + hardening: 40 issues fixed across 89 files (@Inject, admin auth, security, legal language, dead code, accessibility) | `docs/efforts/harden-monitor/` |
 | `tier-1-structured-writes` | Learning engine writes structured adaptations into `## Adaptations` of `context_markdown` instead of appending to `persona_prompt`; audit and runner now include adaptations | `docs/efforts/tier-1-structured-writes/` |
 | `beta-user-share-path` | Invite-based signup for beta readers with read-only access; mutation guard on all endpoints; frontend canWrite composable | `docs/efforts/beta-user-share-path/` |
+| `leaderboard-calibration-affordance` | One-click link from leaderboard calibration score to analyst drilldown; added analyst_id to portfolio summary API | `docs/efforts/leaderboard-calibration-affordance/` |
 
 ---
 
 ## Current Effort
 
-**Leaderboard → Calibration Affordance** — ready for intention writing.
+None — ready for a new effort.
 
 ---
 
@@ -90,7 +91,7 @@ see-your-reasoning────┤
   tier-1-structured-writes ✅ beta-user-share-path ✅
           │
           ▼
-  leaderboard-calibration
+  leaderboard-calibration-affordance ✅
 ```
 
 ---
