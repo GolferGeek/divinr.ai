@@ -12,6 +12,7 @@ import { Cron } from '@nestjs/schedule';
 import { randomUUID } from 'node:crypto';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
+import { parseContractMarkdown } from '../utils/parse-contract-markdown';
 
 interface AuditFindingRow {
   id: string;
@@ -104,31 +105,6 @@ interface CandidateRow {
   symbol: string;
   display_name: string;
   slug: string;
-}
-
-// Same section parser as MarketsService.parseContractMarkdown — duplicated
-// here to avoid a circular dependency. If this logic drifts, reconcile.
-function parseContractSections(markdown: string): {
-  general: string;
-  roles: Record<string, string>;
-  adaptations: string;
-} {
-  const sections = { general: '', roles: {} as Record<string, string>, adaptations: '' };
-  const parts = markdown.split(/^## /m);
-  for (const part of parts) {
-    const newlineIdx = part.indexOf('\n');
-    if (newlineIdx === -1) continue;
-    const heading = part.slice(0, newlineIdx).trim();
-    const body = part.slice(newlineIdx + 1).trim();
-    if (heading.toLowerCase() === 'general') {
-      sections.general = body;
-    } else if (heading.toLowerCase().startsWith('role:')) {
-      sections.roles[heading.slice(5).trim()] = body;
-    } else if (heading.toLowerCase() === 'adaptations') {
-      sections.adaptations = body;
-    }
-  }
-  return sections;
 }
 
 @Injectable()
@@ -288,7 +264,7 @@ export class AuditService {
       return false;
     }
 
-    const sections = parseContractSections(contextMarkdown);
+    const sections = parseContractMarkdown(contextMarkdown);
     const roleNames = Object.keys(sections.roles);
     const roleSection = roleNames.length > 0 ? sections.roles[roleNames[0]] : '';
 

@@ -21,6 +21,7 @@ import { MarketsLlmService } from './services/markets-llm.service';
 import { PositionSizingService } from './services/position-sizing.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
 import { TradeRecommendationService } from './services/trade-recommendation.service';
+import { parseContractMarkdown as parseContractMarkdownUtil } from './utils/parse-contract-markdown';
 import type {
   AssignAnalystInput,
   CreateAnalystInput,
@@ -1176,38 +1177,9 @@ export class MarketsService {
   // in analyst_config_versions.context_markdown. Every consumer of
   // contracts goes through these two methods — no ad-hoc joins.
 
-  /**
-   * Parse a context_markdown string into structured sections.
-   * Splits on `## ` headings: General, Role: <name>, Adaptations.
-   * Unrecognized headings are ignored. Missing sections return empty strings.
-   */
+  /** Delegates to the shared parser in utils/parse-contract-markdown.ts. */
   private parseContractMarkdown(markdown: string): AnalystContract['sections'] {
-    const sections: AnalystContract['sections'] = {
-      general: '',
-      roles: {},
-      adaptations: '',
-    };
-
-    // Split on lines that start with "## " (keeping the heading text)
-    const parts = markdown.split(/^## /m);
-    for (const part of parts) {
-      const newlineIdx = part.indexOf('\n');
-      if (newlineIdx === -1) continue;
-      const heading = part.slice(0, newlineIdx).trim();
-      const body = part.slice(newlineIdx + 1).trim();
-
-      if (heading.toLowerCase() === 'general') {
-        sections.general = body;
-      } else if (heading.toLowerCase().startsWith('role:')) {
-        const roleName = heading.slice(5).trim(); // after "Role:"
-        sections.roles[roleName] = body;
-      } else if (heading.toLowerCase() === 'adaptations') {
-        sections.adaptations = body;
-      }
-      // Unrecognized headings are silently ignored
-    }
-
-    return sections;
+    return parseContractMarkdownUtil(markdown);
   }
 
   /**
