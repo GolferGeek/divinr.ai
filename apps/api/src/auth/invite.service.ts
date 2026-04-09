@@ -142,6 +142,9 @@ export class InviteService {
     if (new Date(invite.expires_at) < new Date()) {
       return { valid: false, reason: 'Invite has expired' };
     }
+    // Note: organizationSlug is exposed to the public validate endpoint. This is
+    // acceptable because invite tokens are UUIDs (unguessable), and the frontend
+    // needs the slug for tenant store setup after signup.
     return {
       valid: true,
       organizationSlug: invite.organization_slug,
@@ -156,18 +159,33 @@ export class InviteService {
     password: string,
     displayName?: string,
   ) {
-    const validation = await this.validateInviteToken(token);
-    if (!validation.valid) {
-      throw new BadRequestException(validation.reason ?? 'Invalid invite');
-    }
-
-    // Check email restriction
-    const inviteResult = await this.db.rawQuery(
-      `SELECT * FROM authz.invites WHERE token = $1`,
+    // Atomic claim: mark accepted_at in a single UPDATE that also validates.
+    // Prevents race condition where two concurrent signups both pass validation.
+    const claimResult = await this.db.rawQuery(
+      `UPDATE authz.invites
+       SET accepted_at = now()
+       WHERE token = $1
+         AND accepted_at IS NULL
+         AND revoked_at IS NULL
+         AND expires_at > now()
+       RETURNING *`,
       [token],
     );
-    const invite = ((inviteResult.data as InviteRow[] | null) ?? [])[0];
+    const claimedRows = (claimResult.data as InviteRow[] | null) ?? [];
+    if (claimedRows.length === 0) {
+      // Re-validate to provide a specific error message
+      const validation = await this.validateInviteToken(token);
+      throw new BadRequestException(validation.reason ?? 'Invite is no longer valid');
+    }
+    const invite = claimedRows[0];
+
+    // Check email restriction
     if (invite.email && invite.email.toLowerCase() !== email.toLowerCase()) {
+      // Unclaim the invite since the email doesn't match
+      await this.db.rawQuery(
+        `UPDATE authz.invites SET accepted_at = NULL WHERE id = $1`,
+        [invite.id],
+      );
       throw new BadRequestException('This invite is restricted to a different email address');
     }
 
@@ -185,16 +203,15 @@ export class InviteService {
         invite.created_by,
       );
     } catch (err) {
+      // Unclaim the invite so it can be retried
+      await this.db.rawQuery(
+        `UPDATE authz.invites SET accepted_at = NULL WHERE id = $1`,
+        [invite.id],
+      );
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to create user for invite ${invite.id}: ${message}`);
       throw new BadRequestException(`Account creation failed: ${message}`);
     }
-
-    // Mark invite as accepted
-    await this.db.rawQuery(
-      `UPDATE authz.invites SET accepted_at = now() WHERE id = $1`,
-      [invite.id],
-    );
 
     // Auto-login and return JWT
     const loginResult = await this.authService.login({ email, password });
