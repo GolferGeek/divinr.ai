@@ -253,7 +253,9 @@ export class PredictionRunnerService {
             adaptationsText = sections.adaptations;
           }
         }
-      } catch { /* no contract available */ }
+      } catch (err) {
+        this.logger.debug(`Failed to load adaptations for config ${configId}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     const systemPrompt = this.buildAnalystSystemPrompt(analyst, adaptationsText);

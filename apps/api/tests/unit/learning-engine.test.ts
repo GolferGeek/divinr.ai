@@ -281,13 +281,11 @@ Reserved for learning-engine adaptations.`;
   assert(night2Parsed.adaptations.includes('2026-04-11'), 'Idempotent: new date present');
   assert(night2Parsed.adaptations.includes('Confidence shift: -12%'), 'Idempotent: new shift value');
 
-  // persona_prompt should be unchanged — verify the concept
+  // persona_prompt should be unchanged — adaptation lives in context_markdown
   const originalPrompt = 'You are a macro analyst.';
-  const suffix = '\n\nIMPORTANT: Be more conservative.';
-  // In the new flow, proposedPrompt is only for canonical testing
-  // persona_prompt in the config version stays as originalPrompt
-  assert(originalPrompt === originalPrompt, 'persona_prompt unchanged (conceptual — no suffix persisted)');
-  // The adaptation lives in context_markdown, not persona_prompt
+  const proposedPrompt = originalPrompt + overconfEntry.instruction;
+  assert(proposedPrompt !== originalPrompt, 'proposedPrompt differs (used only for canonical testing)');
+  assert(!originalPrompt.includes('IMPORTANT'), 'persona_prompt does not contain adaptation text');
   assert(overconfParsed.adaptations.includes('IMPORTANT:'), 'Adaptation instruction in context_markdown not persona_prompt');
 }
 
