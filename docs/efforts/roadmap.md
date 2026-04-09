@@ -42,7 +42,7 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 
 ## Current Effort
 
-None — ready for a new effort.
+**Dead Table Cleanup** — Drop `prediction.analysts` and `prediction.analyst_context_versions` (dead since 2026-03-15). Quick housekeeping to remove unused schema.
 
 ---
 
@@ -53,9 +53,6 @@ These have enough definition to write intentions for. Order reflects dependencie
 ---
 
 ## Future Efforts
-
-### Dead Table Cleanup
-Drop `prediction.analysts` and `prediction.analyst_context_versions` (dead since 2026-03-15).
 
 ### Tier 3 Strategic Overhauls
 The third tier of the learning system — significant analyst redesigns based on accumulated evidence. Requires substantial Tier 2 data history first.
