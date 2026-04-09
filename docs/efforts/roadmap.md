@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-09
+**Last updated:** 2026-04-09 (contract-editor-ui archived)
 **Maintained by:** `/roadmap` skill
 
 ## Vision
@@ -35,12 +35,13 @@ The tier system (`tier1_auto` / `tier2_approved` / `tier3_strategic` on `analyst
 | `tier-1-structured-writes` | Learning engine writes structured adaptations into `## Adaptations` of `context_markdown` instead of appending to `persona_prompt`; audit and runner now include adaptations | `docs/efforts/tier-1-structured-writes/` |
 | `beta-user-share-path` | Invite-based signup for beta readers with read-only access; mutation guard on all endpoints; frontend canWrite composable | `docs/efforts/beta-user-share-path/` |
 | `leaderboard-calibration-affordance` | One-click link from leaderboard calibration score to analyst drilldown; added analyst_id to portfolio summary API | `docs/efforts/leaderboard-calibration-affordance/` |
+| `contract-editor-ui` | Admin contract editor at /analysts/:id/contract: read, version history, side-by-side diff, inline edit, one-click rollback; navigation from analyst list and findings | `docs/efforts/contract-editor-ui/` |
 
 ---
 
 ## Current Effort
 
-**Contract Editor UI** — Admin surface for reading and editing analyst contracts with diff viewer (side-by-side version comparison) and one-click rollback. Lives alongside the Tier 2 inbox. Ready for intention writing.
+None — ready for a new effort.
 
 ---
 
@@ -89,6 +90,9 @@ see-your-reasoning────┤
           │
           ▼
   leaderboard-calibration-affordance ✅
+          │
+          ▼
+  contract-editor-ui ✅
 ```
 
 ---
