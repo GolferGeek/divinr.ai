@@ -421,8 +421,7 @@ Output ONLY the policy text. No preamble.`;
     const roleNames = Object.keys(sections.roles);
     const roleSection = roleNames.length > 0 ? sections.roles[roleNames[0]] : '';
 
-    // Call the LLM (stubbed for Phase 1 — replaced in Phase 3)
-    const llmResult = await this.callAuditLlm(candidate, sections.general, roleSection, policyText);
+    const llmResult = await this.callAuditLlm(candidate, sections.general, roleSection, policyText, sections.adaptations);
 
     if (!llmResult || !llmResult.finding) return false;
 
@@ -465,6 +464,7 @@ Output ONLY the policy text. No preamble.`;
     generalSection: string,
     roleSection: string,
     policyText?: string | null,
+    adaptationsSection?: string,
   ): string {
     const outcome = candidate.actual_outcome_data ?? {};
     const changePercent = typeof outcome['changePercent'] === 'number'
@@ -498,7 +498,12 @@ ANALYST CONTRACT (General Section):
 """
 ${generalSection}
 """
-
+${adaptationsSection ? `
+ANALYST CONTRACT (Adaptations — Tier 1 learning-engine adjustments active at prediction time):
+"""
+${adaptationsSection}
+"""
+` : ''}
 PREDICTION INPUT:
 - Instrument: ${candidate.symbol}
 - Predicted direction: ${candidate.predicted_direction}
@@ -532,6 +537,7 @@ Respond ONLY with the JSON. No preamble, no explanation.`;
     generalSection: string,
     roleSection: string,
     policyText?: string | null,
+    adaptationsSection?: string,
   ): Promise<{
     finding: boolean;
     contractExcerpt?: string;
@@ -541,7 +547,7 @@ Respond ONLY with the JSON. No preamble, no explanation.`;
     severity?: string;
     model?: string;
   } | null> {
-    const prompt = this.buildAuditPrompt(candidate, generalSection, roleSection, policyText);
+    const prompt = this.buildAuditPrompt(candidate, generalSection, roleSection, policyText, adaptationsSection);
 
     let response: string;
     try {

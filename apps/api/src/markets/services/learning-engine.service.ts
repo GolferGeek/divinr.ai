@@ -4,6 +4,7 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 import { CanonicalTestRunnerService } from './canonical-test-runner.service';
 import type { LearningProposal, AnalystPerformanceProfile } from '../markets.types';
+import { updateAdaptationsSection, type AdaptationEntry } from '../utils/parse-contract-markdown';
 
 interface LearningBoundaries {
   maxConfidenceShift: number;
@@ -104,6 +105,7 @@ export class LearningEngineService {
             weight_adjustment: proposal.weightAdjustment,
             proposed_prompt: proposal.proposedPrompt,
             proposed_weight: proposal.proposedWeight,
+            structured_adaptation: !!proposal.proposedContextMarkdown,
           },
           canonicalTestResults: testResult as unknown as Record<string, unknown>,
           netScore: testResult.netScore,
@@ -113,8 +115,8 @@ export class LearningEngineService {
 
         if (testResult.passed) {
           proposalsPassed++;
-          // 7. Apply to paper mode
-          await this.activatePaperMode(analyst.id, analyst.organization_slug, proposal);
+          // 7. Apply to paper mode (persona_prompt unchanged, adaptation in context_markdown)
+          await this.activatePaperMode(analyst.id, analyst.organization_slug, proposal, analyst.persona_prompt);
           paperModeActivated++;
         } else {
           proposalsFailed++;
@@ -232,23 +234,45 @@ export class LearningEngineService {
   // ─── Proposal Creation ───────────────────────────────────────
 
   private createProposal(
-    analyst: { id: string; persona_prompt: string; default_weight: number },
+    analyst: { id: string; persona_prompt: string; default_weight: number; context_markdown: string | null },
     pattern: { type: string; confidenceAdjustment: number; weightAdjustment: number; promptSuffix: string; rationale: string },
     boundaries: LearningBoundaries,
-  ): { description: string; proposedPrompt: string; proposedWeight: number; promptAdjustment: string; weightAdjustment: number } | null {
+  ): { description: string; proposedPrompt: string; proposedWeight: number; promptAdjustment: string; weightAdjustment: number; proposedContextMarkdown: string | null } | null {
+    if (!analyst.context_markdown) {
+      this.logger.warn(`Analyst ${analyst.id} has no context_markdown — skipping structured write`);
+      return null;
+    }
+
     const clampedWeight = Math.min(
       boundaries.maxWeightShift,
       Math.max(-boundaries.maxWeightShift, pattern.weightAdjustment),
     );
     const proposedWeight = Math.min(2.0, Math.max(0.1, analyst.default_weight + clampedWeight));
+
+    // Build structured adaptation entry for context_markdown
+    const patternTypeMap: Record<string, string> = {
+      confidence_calibration: pattern.confidenceAdjustment < 0 ? 'Overconfident' : 'Underconfident',
+      directional_bias: pattern.rationale.toLowerCase().includes('bullish') ? 'Bullish Bias' : 'Bearish Bias',
+    };
+    const entry: AdaptationEntry = {
+      patternType: patternTypeMap[pattern.type] ?? pattern.type,
+      date: new Date().toISOString().slice(0, 10),
+      instruction: pattern.promptSuffix.trim(),
+      confidenceShift: pattern.confidenceAdjustment,
+      weightShift: clampedWeight,
+    };
+    const proposedContextMarkdown = updateAdaptationsSection(analyst.context_markdown, entry);
+
+    // proposedPrompt for canonical testing: persona_prompt + suffix (simulates adaptation effect)
     const proposedPrompt = analyst.persona_prompt + pattern.promptSuffix;
 
     return {
-      description: `${pattern.type}: ${pattern.rationale.slice(0, 200)}`,
+      description: `${entry.patternType}: ${pattern.rationale.slice(0, 200)}`,
       proposedPrompt,
       proposedWeight,
       promptAdjustment: pattern.promptSuffix,
       weightAdjustment: clampedWeight,
+      proposedContextMarkdown,
     };
   }
 
@@ -257,26 +281,26 @@ export class LearningEngineService {
   private async activatePaperMode(
     analystId: string,
     organizationSlug: string,
-    proposal: { proposedPrompt: string; proposedWeight: number },
+    proposal: { proposedPrompt: string; proposedWeight: number; proposedContextMarkdown: string | null },
+    originalPersonaPrompt: string,
   ): Promise<void> {
-    // Create a new config version marked as paper
+    // Create a new config version marked as paper.
+    // persona_prompt is unchanged — Tier 1 writes go into context_markdown instead.
+    // Effort: tier-1-structured-writes.
     const versionId = randomUUID();
+    const changeReason = proposal.proposedContextMarkdown
+      ? 'Tier 1 structured adaptation written to context_markdown'
+      : 'Tier 1 autonomous learning';
     await this.db.rawQuery(
-      // context_markdown carry-forward: inherit from the most recent version
-      // that has a contract, so Tier 1 cycles never drop the structured document.
-      // Effort: analyst-contracts.
       `insert into prediction.analyst_config_versions
         (id, analyst_id, organization_slug, version_number, persona_prompt,
          default_weight, context_markdown,
          source, change_reason, is_active, created_by, created_at)
        values ($1, $2, $3,
          coalesce((select max(version_number) + 1 from prediction.analyst_config_versions where analyst_id = $2), 1),
-         $4, $5,
-         (select context_markdown from prediction.analyst_config_versions
-          where analyst_id = $2 and context_markdown is not null
-          order by version_number desc limit 1),
-         'tier1_auto', 'Tier 1 autonomous learning', false, 'learning-engine', $6)`,
-      [versionId, analystId, organizationSlug, proposal.proposedPrompt, proposal.proposedWeight, new Date().toISOString()],
+         $4, $5, $6,
+         'tier1_auto', $7, false, 'learning-engine', $8)`,
+      [versionId, analystId, organizationSlug, originalPersonaPrompt, proposal.proposedWeight, proposal.proposedContextMarkdown, changeReason, new Date().toISOString()],
     );
 
     // Set as paper config version (not active — runs alongside production)
@@ -370,15 +394,19 @@ export class LearningEngineService {
 
   private async getLearningEnabledAnalysts(): Promise<Array<{
     id: string; organization_slug: string; persona_prompt: string; default_weight: number;
+    context_markdown: string | null;
   }>> {
     const result = await this.db.rawQuery(`
-      select id, organization_slug, persona_prompt, default_weight
-      from prediction.market_analysts
-      where is_active = true and is_enabled = true and learning_enabled = true
-        and analyst_type = 'personality'
-      order by organization_slug, created_at
+      select ma.id, ma.organization_slug, ma.persona_prompt, ma.default_weight,
+             acv.context_markdown
+      from prediction.market_analysts ma
+      left join prediction.analyst_config_versions acv
+        on acv.id = ma.current_config_version_id
+      where ma.is_active = true and ma.is_enabled = true and ma.learning_enabled = true
+        and ma.analyst_type = 'personality'
+      order by ma.organization_slug, ma.created_at
     `);
-    return (result.data as Array<{ id: string; organization_slug: string; persona_prompt: string; default_weight: number }> | null) ?? [];
+    return (result.data as Array<{ id: string; organization_slug: string; persona_prompt: string; default_weight: number; context_markdown: string | null }> | null) ?? [];
   }
 
   private async getAnalystProfiles(

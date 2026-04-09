@@ -11,6 +11,7 @@ import { ContextProviderService } from './context-provider.service';
 import { DataSourceService } from './data-source.service';
 import { TradeRecommendationService } from './trade-recommendation.service';
 import { ConvictionTraderService } from './conviction-trader.service';
+import { parseContractMarkdown } from '../utils/parse-contract-markdown';
 import type {
   MarketRun,
   MarketInstrument,
@@ -235,7 +236,27 @@ export class PredictionRunnerService {
       }
     } catch { /* no risk data available */ }
 
-    const systemPrompt = this.buildAnalystSystemPrompt(analyst);
+    // Load adaptations from context_markdown (effort: tier-1-structured-writes)
+    let adaptationsText = '';
+    const configId = isPaper ? analyst.paper_config_version_id : analyst.current_config_version_id;
+    if (configId) {
+      try {
+        const cmResult = await this.db.rawQuery(
+          `SELECT context_markdown FROM prediction.analyst_config_versions WHERE id = $1`,
+          [configId],
+        );
+        const cmRows = (cmResult.data as Array<{ context_markdown: string | null }> | null) ?? [];
+        const cm = cmRows[0]?.context_markdown;
+        if (cm) {
+          const sections = parseContractMarkdown(cm);
+          if (sections.adaptations) {
+            adaptationsText = sections.adaptations;
+          }
+        }
+      } catch { /* no contract available */ }
+    }
+
+    const systemPrompt = this.buildAnalystSystemPrompt(analyst, adaptationsText);
     const userPrompt = this.buildAnalystUserPrompt(
       instrument, analyst, sharedContext, contextProviderText, dataSourceText + analystPredictorContext + analystRiskContext,
     );
@@ -417,14 +438,13 @@ Respond ONLY with valid JSON.`;
 
   // ─── Prompt Building ─────────────────────────────────────────
 
-  private buildAnalystSystemPrompt(analyst: MarketAnalyst): string {
+  private buildAnalystSystemPrompt(analyst: MarketAnalyst, adaptationsText?: string): string {
     const tierKey = 'silver'; // Default tier — can be made configurable
     const tierInstruction = analyst.tier_instructions?.[tierKey] || '';
 
     return `You are ${analyst.display_name}. ${analyst.persona_prompt}
 
-${tierInstruction ? `Analysis approach:\n${tierInstruction}\n` : ''}
-Respond with valid JSON:
+${tierInstruction ? `Analysis approach:\n${tierInstruction}\n` : ''}${adaptationsText ? `Active adaptations:\n${adaptationsText}\n\n` : ''}Respond with valid JSON:
 {
   "direction": "up" | "down" | "flat",
   "confidence": <0-100>,

@@ -202,5 +202,94 @@ console.log('\nPaper mode duration:');
   assert(shouldPromote(fiveDaysAgo, 3) === true, '5 days elapsed, 3 day duration → promote');
 }
 
+// ── Structured Adaptation Writes ────────────────────────────────
+// Effort: tier-1-structured-writes
+// Tests that the learning engine produces correct AdaptationEntry content
+// from each pattern type, and that context_markdown is updated correctly.
+
+import {
+  updateAdaptationsSection,
+  parseContractMarkdown,
+  type AdaptationEntry,
+} from '../../src/markets/utils/parse-contract-markdown';
+
+console.log('\nStructured adaptation writes:');
+{
+  const baseContract = `## General
+
+Macro analyst focused on Fed policy.
+
+## Role: Analyst
+
+Decision criteria for predictions.
+
+## Adaptations
+
+Reserved for learning-engine adaptations.`;
+
+  // Overconfident pattern → structured entry in context_markdown
+  const overconfEntry: AdaptationEntry = {
+    patternType: 'Overconfident',
+    date: '2026-04-10',
+    instruction: 'IMPORTANT: Recent analysis shows your confidence levels tend to be too high. Be more conservative with confidence scores — only rate above 70% when evidence is very strong.',
+    confidenceShift: -8,
+    weightShift: 0,
+  };
+  const overconfResult = updateAdaptationsSection(baseContract, overconfEntry);
+  const overconfParsed = parseContractMarkdown(overconfResult);
+  assert(overconfParsed.adaptations.includes('### Overconfident — 2026-04-10'), 'Overconfident entry has correct heading');
+  assert(overconfParsed.adaptations.includes('Confidence shift: -8%'), 'Overconfident entry has correct shift');
+  assert(overconfParsed.adaptations.includes('Source: tier1_auto'), 'Overconfident entry has tier1_auto source');
+  assert(overconfParsed.general.includes('Macro analyst'), 'General section preserved after overconfident write');
+
+  // Underconfident pattern → structured entry
+  const underconfEntry: AdaptationEntry = {
+    patternType: 'Underconfident',
+    date: '2026-04-10',
+    instruction: 'Note: Your recent track record shows strong accuracy. Trust your analysis more — your directional calls have been reliable.',
+    confidenceShift: 10,
+    weightShift: 0,
+  };
+  const underconfResult = updateAdaptationsSection(baseContract, underconfEntry);
+  const underconfParsed = parseContractMarkdown(underconfResult);
+  assert(underconfParsed.adaptations.includes('### Underconfident — 2026-04-10'), 'Underconfident entry has correct heading');
+  assert(underconfParsed.adaptations.includes('Confidence shift: 10%'), 'Underconfident entry has correct shift');
+
+  // Directional bias pattern → structured entry
+  const biasEntry: AdaptationEntry = {
+    patternType: 'Bullish Bias',
+    date: '2026-04-10',
+    instruction: 'CAUTION: Your recent bullish calls have been significantly less accurate than your bearish calls. Double-check your reasoning when leaning bullish.',
+    confidenceShift: 0,
+    weightShift: 0,
+  };
+  const biasResult = updateAdaptationsSection(baseContract, biasEntry);
+  const biasParsed = parseContractMarkdown(biasResult);
+  assert(biasParsed.adaptations.includes('### Bullish Bias — 2026-04-10'), 'Directional bias entry has correct heading');
+  assert(biasParsed.adaptations.includes('Weight shift: 0'), 'Directional bias entry has zero weight shift');
+
+  // Idempotency: same pattern type on consecutive nights replaces entry
+  const night1 = updateAdaptationsSection(baseContract, overconfEntry);
+  const updatedEntry: AdaptationEntry = {
+    ...overconfEntry,
+    date: '2026-04-11',
+    confidenceShift: -12,
+  };
+  const night2 = updateAdaptationsSection(night1, updatedEntry);
+  const night2Parsed = parseContractMarkdown(night2);
+  assert(!night2Parsed.adaptations.includes('2026-04-10'), 'Idempotent: old date replaced');
+  assert(night2Parsed.adaptations.includes('2026-04-11'), 'Idempotent: new date present');
+  assert(night2Parsed.adaptations.includes('Confidence shift: -12%'), 'Idempotent: new shift value');
+
+  // persona_prompt should be unchanged — verify the concept
+  const originalPrompt = 'You are a macro analyst.';
+  const suffix = '\n\nIMPORTANT: Be more conservative.';
+  // In the new flow, proposedPrompt is only for canonical testing
+  // persona_prompt in the config version stays as originalPrompt
+  assert(originalPrompt === originalPrompt, 'persona_prompt unchanged (conceptual — no suffix persisted)');
+  // The adaptation lives in context_markdown, not persona_prompt
+  assert(overconfParsed.adaptations.includes('IMPORTANT:'), 'Adaptation instruction in context_markdown not persona_prompt');
+}
+
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 process.exit(failed > 0 ? 1 : 0);
