@@ -42,6 +42,7 @@ export const router = createRouter({
         { path: 'proposals', name: 'proposals', component: () => import('../views/ProposalsView.vue') },
         { path: 'notifications', name: 'notifications', component: () => import('../views/NotificationsView.vue') },
         { path: 'fear-greed-alerts', name: 'fearGreedAlerts', component: () => import('../views/FearGreedAlertsView.vue') },
+        { path: 'coordination', name: 'coordination', component: () => import('../views/CoordinationView.vue') },
       ],
     },
     {

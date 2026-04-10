@@ -40,6 +40,7 @@ import { StrategicOverhaulService } from './services/strategic-overhaul.service'
 import { AffinityService } from './services/affinity.service';
 import { NotificationService } from './services/notification.service';
 import { FearGreedAlertService } from './services/fear-greed-alert.service';
+import { CoordinationService } from './services/coordination.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -89,6 +90,7 @@ export class MarketsController {
     @Inject(AffinityService) private readonly affinityService: AffinityService,
     @Inject(NotificationService) private readonly notificationService: NotificationService,
     @Inject(FearGreedAlertService) private readonly fearGreedAlertService: FearGreedAlertService,
+    @Inject(CoordinationService) private readonly coordination: CoordinationService,
   ) {
     this.markets = markets;
   }
@@ -1485,5 +1487,55 @@ export class MarketsController {
       predictions: predictionResult,
       outcomes: outcomeResult,
     };
+  }
+
+  // ─── Coordination ───────────────────────────────────────────
+
+  @Post('coordination/compute')
+  async triggerCoordinationCompute(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    return this.coordination.computeAll();
+  }
+
+  @Get('coordination/correlations')
+  async getCorrelations(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('period') period?: string,
+    @Query('instrument_id') instrumentId?: string,
+    @Query('flagOnly') flagOnly?: string,
+  ) {
+    this.getUser(req);
+    return this.coordination.getCorrelations(
+      period || '30d',
+      instrumentId || undefined,
+      flagOnly === 'true',
+    );
+  }
+
+  @Get('coordination/coverage')
+  async getCoverage(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('period') period?: string,
+    @Query('gapsOnly') gapsOnly?: string,
+  ) {
+    this.getUser(req);
+    return this.coordination.getCoverage(
+      period || '30d',
+      gapsOnly === 'true',
+    );
+  }
+
+  @Get('coordination/contributions')
+  async getContributions(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('period') period?: string,
+    @Query('instrument_id') instrumentId?: string,
+  ) {
+    this.getUser(req);
+    return this.coordination.getContributions(
+      period || '30d',
+      instrumentId || undefined,
+    );
   }
 }

@@ -53,6 +53,7 @@ export class MarketsSchemaService {
       ${this.affinityDdl()}
       ${this.notificationsDdl()}
       ${this.fearGreedAlertsDdl()}
+      ${this.coordinationDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -1735,6 +1736,59 @@ export class MarketsSchemaService {
         on prediction.fear_greed_alerts (user_id, is_read, created_at desc);
       create unique index if not exists fear_greed_alerts_predictor_user_key
         on prediction.fear_greed_alerts (predictor_id, user_id);
+    `;
+  }
+
+  // ─── Multi-Analyst Coordination ──────────────────────────────
+
+  private coordinationDdl(): string {
+    return `
+      create table if not exists prediction.analyst_pair_correlations (
+        id text primary key default gen_random_uuid()::text,
+        analyst_a_id text not null,
+        analyst_b_id text not null,
+        instrument_id text,
+        horizon_window integer,
+        period text not null check (period in ('30d', '90d', 'all')),
+        agreement_rate numeric not null,
+        sample_size integer not null,
+        flag text check (flag in ('redundant', 'adversarial')),
+        computed_at timestamptz not null default now(),
+        unique (analyst_a_id, analyst_b_id, instrument_id, horizon_window, period)
+      );
+      create index if not exists analyst_pair_corr_flag_idx
+        on prediction.analyst_pair_correlations (flag) where flag is not null;
+
+      create table if not exists prediction.analyst_coverage_gaps (
+        id text primary key default gen_random_uuid()::text,
+        instrument_id text not null,
+        horizon_window integer,
+        period text not null check (period in ('30d', '90d', 'all')),
+        best_analyst_id text,
+        best_accuracy numeric,
+        analyst_count integer not null,
+        avg_accuracy numeric not null,
+        is_gap boolean not null,
+        computed_at timestamptz not null default now(),
+        unique (instrument_id, horizon_window, period)
+      );
+      create index if not exists analyst_coverage_gaps_gap_idx
+        on prediction.analyst_coverage_gaps (is_gap) where is_gap = true;
+
+      create table if not exists prediction.analyst_contribution_scores (
+        id text primary key default gen_random_uuid()::text,
+        analyst_id text not null,
+        instrument_id text,
+        period text not null check (period in ('30d', '90d', 'all')),
+        composite_accuracy_with numeric not null,
+        composite_accuracy_without numeric not null,
+        marginal_contribution numeric not null,
+        prediction_count integer not null,
+        computed_at timestamptz not null default now(),
+        unique (analyst_id, instrument_id, period)
+      );
+      create index if not exists analyst_contribution_scores_analyst_idx
+        on prediction.analyst_contribution_scores (analyst_id);
     `;
   }
 

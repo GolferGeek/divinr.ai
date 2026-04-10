@@ -10,7 +10,7 @@ import {
   shieldOutline, briefcaseOutline, newspaperOutline,
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
   menuOutline, constructOutline, heartOutline, notificationsOutline,
-  warningOutline,
+  warningOutline, gitNetworkOutline,
 } from 'ionicons/icons';
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -34,6 +34,7 @@ const navItems = [
   { title: 'Dashboard', icon: gridOutline, to: '/' },
   { title: 'Instruments', icon: statsChartOutline, to: '/instruments' },
   { title: 'Analysts', icon: peopleOutline, to: '/analysts' },
+  { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination' },
   { title: 'Runs', icon: playOutline, to: '/runs' },
   { title: 'Risk', icon: shieldOutline, to: '/risk' },
   { title: 'Portfolios', icon: briefcaseOutline, to: '/portfolios' },

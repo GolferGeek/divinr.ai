@@ -37,6 +37,7 @@ import { StrategicOverhaulService } from './services/strategic-overhaul.service'
 import { AffinityService } from './services/affinity.service';
 import { NotificationService } from './services/notification.service';
 import { FearGreedAlertService } from './services/fear-greed-alert.service';
+import { CoordinationService } from './services/coordination.service';
 import { PolygonAdapter } from './adapters/polygon.adapter';
 import { FmpAdapter } from './adapters/fmp.adapter';
 import { TwelveDataAdapter } from './adapters/twelve-data.adapter';
@@ -91,6 +92,7 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     AffinityService,
     NotificationService,
     FearGreedAlertService,
+    CoordinationService,
     MarketsService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],
