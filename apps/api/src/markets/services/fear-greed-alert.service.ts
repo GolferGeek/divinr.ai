@@ -27,8 +27,9 @@ export class FearGreedAlertService {
     const result = await this.db.rawQuery(
       `select id from prediction.market_predictors
        where crowd_reaction in ('fear_trigger', 'greed_trigger')
-         and crowd_reaction_confidence >= ${CONFIDENCE_THRESHOLD}
+         and crowd_reaction_confidence >= $1
          and updated_at >= now() - interval '10 minutes'`,
+      [CONFIDENCE_THRESHOLD],
     );
     const rows = (result.data as Array<{ id: string }> | null) ?? [];
     if (rows.length === 0) return 0;
@@ -46,6 +47,7 @@ export class FearGreedAlertService {
 
     // Find sentiment-analyst predictors with crowd_reaction triggers above threshold
     const placeholders = predictorIds.map((_, i) => `$${i + 1}`).join(', ');
+    const thresholdParam = `$${predictorIds.length + 1}`;
     const result = await this.db.rawQuery(
       `select mp.id as predictor_id, mp.instrument_id, mp.crowd_reaction,
               mp.crowd_reaction_confidence, mp.crowd_reaction_rationale,
@@ -55,8 +57,8 @@ export class FearGreedAlertService {
        join prediction.instruments i on i.id = mp.instrument_id
        where mp.id in (${placeholders})
          and mp.crowd_reaction in ('fear_trigger', 'greed_trigger')
-         and mp.crowd_reaction_confidence >= ${CONFIDENCE_THRESHOLD}`,
-      predictorIds,
+         and mp.crowd_reaction_confidence >= ${thresholdParam}`,
+      [...predictorIds, CONFIDENCE_THRESHOLD],
     );
 
     if (result.error) {
@@ -108,9 +110,9 @@ export class FearGreedAlertService {
     );
     const users = (usersResult.data as Array<{ user_id: string }> | null) ?? [];
     if (users.length === 0) {
-      // Fallback: alert all users with portfolios
+      // Fallback: alert all users with portfolios (capped to prevent alert explosion)
       const allResult = await this.db.rawQuery(
-        `select distinct user_id from prediction.user_portfolios`,
+        `select distinct user_id from prediction.user_portfolios limit 50`,
       );
       const allUsers = (allResult.data as Array<{ user_id: string }> | null) ?? [];
       users.push(...allUsers);
@@ -173,14 +175,19 @@ export class FearGreedAlertService {
     const title = `${isFear ? 'FEAR' : 'GREED'} ALERT: ${trigger.symbol} — ${reactionLabel} signal`;
     const summary = `${actionLabel}${windowLabel}`;
 
-    // Push notification first to get the ID
-    const notificationId = await this.notifications.notify(userId, {
-      event_type: 'fear_greed_alert',
-      urgency: 'immediate',
-      title,
-      summary,
-      link_to: `/markets/instruments/${trigger.instrument_id}`,
-    });
+    // Push notification — continue with null ID if notification fails
+    let notificationId: string | null = null;
+    try {
+      notificationId = await this.notifications.notify(userId, {
+        event_type: 'fear_greed_alert',
+        urgency: 'immediate',
+        title,
+        summary,
+        link_to: `/markets/instruments/${trigger.instrument_id}`,
+      });
+    } catch (err) {
+      this.logger.warn(`Notification push failed for fear/greed alert: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     // Insert the fear/greed alert row
     const insertResult = await this.db.rawQuery(
