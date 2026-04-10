@@ -9,19 +9,21 @@ import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
   shieldOutline, briefcaseOutline, newspaperOutline,
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
-  menuOutline, constructOutline, heartOutline,
+  menuOutline, constructOutline, heartOutline, notificationsOutline,
 } from 'ionicons/icons';
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 import { useDomainStore } from '../stores/domain.store';
 import { useActivityStore } from '../stores/activity.store';
 import { useAffinityStore } from '../stores/affinity.store';
+import { useNotificationStore } from '../stores/notification.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
 
 const auth = useAuthStore();
 const domain = useDomainStore();
 const activity = useActivityStore();
 const affinityStore = useAffinityStore();
+const notificationStore = useNotificationStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
@@ -37,10 +39,12 @@ const navItems = [
   { title: 'Learning', icon: bulbOutline, to: '/learning' },
   { title: 'Proposals', icon: constructOutline, to: '/proposals' },
   { title: 'Affinity', icon: heartOutline, to: '/affinity' },
+  { title: 'Notifications', icon: notificationsOutline, to: '/notifications' },
 ];
 
-// Load contrarian alerts on mount
+// Load contrarian alerts and notification count on mount
 affinityStore.fetchContrarianAlerts(true);
+notificationStore.fetchUnreadCount();
 
 function logout() {
   auth.clear();
@@ -94,9 +98,10 @@ function logout() {
                 <ion-icon :icon="earthOutline" />
                 <ion-label>{{ domain.activeUniverse }}</ion-label>
               </ion-chip>
-              <ion-chip v-if="affinityStore.unreadAlertCount > 0" color="warning" outline @click="router.push('/')">
-                <ion-label>{{ affinityStore.unreadAlertCount }} alerts</ion-label>
-              </ion-chip>
+              <ion-button fill="clear" class="notification-bell" @click="router.push('/notifications')">
+                <ion-icon :icon="notificationsOutline" />
+                <span v-if="notificationStore.unreadCount > 0" class="notification-badge">{{ notificationStore.unreadCount }}</span>
+              </ion-button>
               <ion-chip v-if="auth.isBetaReader" color="warning" outline>
                 <ion-label>Read Only</ion-label>
               </ion-chip>
@@ -268,6 +273,27 @@ function logout() {
     background: rgba(0, 0, 0, 0.3);
     z-index: 999;
   }
+}
+
+.notification-bell {
+  position: relative;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: var(--ion-color-danger, #eb445a);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
 }
 
 .legal-footer {

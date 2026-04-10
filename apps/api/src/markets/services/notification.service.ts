@@ -1,0 +1,129 @@
+import { Injectable, Inject, Logger, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
+import { NIL_UUID } from '@orchestrator-ai/transport-types';
+import { MarketsSchemaService } from '../schema/markets-schema.service';
+import type { NotificationEventType, NotificationUrgency, Notification } from '../markets.types';
+
+export interface NotifyInput {
+  event_type: NotificationEventType;
+  urgency: NotificationUrgency;
+  title: string;
+  summary?: string;
+  link_to: string;
+}
+
+@Injectable()
+export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name);
+
+  constructor(
+    @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
+    @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Optional() @Inject(ObservabilityEventsService) private readonly observability?: ObservabilityEventsService,
+  ) {}
+
+  async notify(userId: string, input: NotifyInput): Promise<string> {
+    await this.schema.ensureSchema();
+    const id = randomUUID();
+    const result = await this.db.rawQuery(
+      `insert into prediction.notifications
+        (id, user_id, event_type, urgency, title, summary, link_to)
+       values ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, userId, input.event_type, input.urgency, input.title, input.summary ?? null, input.link_to],
+    );
+    if (result.error) {
+      this.logger.error(`Failed to create notification: ${result.error.message}`);
+      throw new Error(`Failed to create notification: ${result.error.message}`);
+    }
+
+    // Push SSE event so the frontend can update the bell in real-time
+    if (this.observability) {
+      await this.observability.push({
+        context: {
+          userId,
+          conversationId: NIL_UUID,
+          agentSlug: 'notification-service',
+          agentType: 'context',
+          provider: 'system',
+          model: 'system',
+        },
+        source_app: 'divinr-api',
+        hook_event_type: 'notification_created',
+        status: 'created',
+        message: input.title,
+        progress: null,
+        step: null,
+        payload: { event_type: input.event_type, urgency: input.urgency },
+        timestamp: Date.now(),
+      }).catch(err => this.logger.warn(`SSE push failed: ${err}`));
+    }
+
+    return id;
+  }
+
+  async getNotifications(userId: string, unreadOnly = false): Promise<Notification[]> {
+    await this.schema.ensureSchema();
+    const whereClause = unreadOnly
+      ? 'where user_id = $1 and is_read = false'
+      : 'where user_id = $1';
+    const result = await this.db.rawQuery(
+      `select * from prediction.notifications
+       ${whereClause}
+       order by created_at desc
+       limit 100`,
+      [userId],
+    );
+    if (result.error) throw new Error(result.error.message);
+    return (result.data as Notification[] | null) ?? [];
+  }
+
+  async getUnreadCount(userId: string): Promise<number> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `select count(*) as cnt from prediction.notifications
+       where user_id = $1 and is_read = false`,
+      [userId],
+    );
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Array<{ cnt: string }> | null) ?? [];
+    return parseInt(rows[0]?.cnt ?? '0', 10);
+  }
+
+  async markRead(id: string, userId: string): Promise<void> {
+    await this.schema.ensureSchema();
+    await this.db.rawQuery(
+      `update prediction.notifications
+       set is_read = true
+       where id = $1 and user_id = $2`,
+      [id, userId],
+    );
+  }
+
+  /**
+   * Broadcast a notification to all users with portfolios.
+   * Used by system-level services (stop-loss, nightly eval, etc.) that
+   * don't have a specific userId in context.
+   */
+  async notifyAllUsers(input: NotifyInput): Promise<void> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `select distinct user_id from prediction.user_portfolios`,
+    );
+    const users = (result.data as Array<{ user_id: string }> | null) ?? [];
+    for (const u of users) {
+      await this.notify(u.user_id, input);
+    }
+  }
+
+  async markAllRead(userId: string): Promise<void> {
+    await this.schema.ensureSchema();
+    await this.db.rawQuery(
+      `update prediction.notifications
+       set is_read = true
+       where user_id = $1 and is_read = false`,
+      [userId],
+    );
+  }
+}

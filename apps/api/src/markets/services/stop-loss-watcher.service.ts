@@ -1,6 +1,7 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { AnalystPortfolioService } from './analyst-portfolio.service';
+import { NotificationService } from './notification.service';
 
 /**
  * Agent Autotrading — Phase 2.
@@ -54,6 +55,7 @@ export class StopLossWatcherService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(AnalystPortfolioService) private readonly portfolios: AnalystPortfolioService,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
 
   /**
@@ -167,6 +169,13 @@ export class StopLossWatcherService {
           this.logger.log(
             `Stop watcher close: position=${row.id} symbol=${row.symbol} reason=${decision.closeReason} exit=${currentPrice}`,
           );
+          await this.notifications.notifyAllUsers({
+            event_type: 'stop_loss',
+            urgency: 'immediate',
+            title: `${row.symbol} ${decision.closeReason.replace(/_/g, ' ')} triggered`,
+            summary: `Position closed at $${currentPrice.toFixed(2)} (entry $${Number(row.entry_price).toFixed(2)})`,
+            link_to: '/portfolios',
+          }).catch(err => this.logger.warn(`Notification failed: ${err}`));
         } catch (err) {
           this.logger.warn(
             `Stop watcher close failed for position=${row.id}: ${err instanceof Error ? err.message : String(err)}`,

@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
+import { NotificationService } from './notification.service';
 import type { AffinitySignalType, ContrarianAlert, UserAnalystAffinity } from '../markets.types';
 
 /** Signal weights by type — trade signals strongest, browse weakest. */
@@ -31,6 +32,7 @@ export class AffinityService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
 
   /**
@@ -282,6 +284,15 @@ export class AffinityService {
           String(pred.rationale ?? 'No rationale provided'),
         ],
       );
+
+      await this.notifications.notify(userId, {
+        event_type: 'contrarian_alert',
+        urgency: 'actionable',
+        title: `Contrarian alert: ${String(pred.symbol)} (${analyst.direction})`,
+        summary: `Analyst disagrees with consensus (${consensus.direction}), confidence ${analyst.confidence}%`,
+        link_to: '/affinity',
+      }).catch(err => this.logger.warn(`Notification failed: ${err}`));
+
       alertsCreated++;
     }
 

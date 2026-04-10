@@ -51,6 +51,7 @@ export class MarketsSchemaService {
       ${this.auditFindingsDdl()}
       ${this.userScopingMigrationDdl()}
       ${this.affinityDdl()}
+      ${this.notificationsDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -1700,6 +1701,25 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_contrarian_alerts_user_idx
         on prediction.user_contrarian_alerts (user_id, is_read, created_at desc);
+    `;
+  }
+
+  /** Unified notification system table. */
+  notificationsDdl(): string {
+    return `
+      create table if not exists prediction.notifications (
+        id text primary key default gen_random_uuid()::text,
+        user_id text not null,
+        event_type text not null,
+        urgency text not null check (urgency in ('immediate', 'actionable', 'informational')),
+        title text not null,
+        summary text,
+        link_to text not null,
+        is_read boolean not null default false,
+        created_at timestamptz not null default now()
+      );
+      create index if not exists notifications_user_unread_idx
+        on prediction.notifications (user_id, is_read, created_at desc);
     `;
   }
 }

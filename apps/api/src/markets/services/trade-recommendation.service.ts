@@ -1,6 +1,7 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
+import { NotificationService } from './notification.service';
 import type { TradeAction, TradeRecommendation } from '../markets.types';
 
 /**
@@ -31,6 +32,7 @@ export class TradeRecommendationService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
 
   // ─── Public API ─────────────────────────────────────────────────
@@ -503,6 +505,16 @@ export class TradeRecommendationService {
       'pm-base-portfolio-manager',
       JSON.stringify(tradeMetadata),
     ]);
+
+    if (input.computed.action !== 'hold') {
+      await this.notifications.notifyAllUsers({
+        event_type: 'trade_recommendation',
+        urgency: 'actionable',
+        title: `${input.symbol} ${input.computed.action.toUpperCase()} recommendation`,
+        summary: `${input.arbitratorDirection} direction, ${input.arbitratorConfidence}% confidence, ${(input.computed.positionPercent * 100).toFixed(1)}% position`,
+        link_to: '/portfolios',
+      }).catch(err => this.logger.warn(`Notification failed: ${err}`));
+    }
 
     return {
       id,

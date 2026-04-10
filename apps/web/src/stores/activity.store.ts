@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { useNotificationStore } from './notification.store';
 export interface ActivityEvent {
   id?: string;
   hook_event_type: string;
@@ -45,6 +46,10 @@ export const useActivityStore = defineStore('activity', () => {
       try {
         const event: ActivityEvent = JSON.parse(e.data);
         if (event.hook_event_type === 'connected') return;
+        if (event.hook_event_type === 'notification_created') {
+          const notificationStore = useNotificationStore();
+          notificationStore.fetchUnreadCount();
+        }
         events.value.push(event);
         // Keep buffer at 500 max
         if (events.value.length > 500) {

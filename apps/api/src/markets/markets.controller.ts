@@ -38,6 +38,7 @@ import { DayTraderRunnerService } from './services/day-trader-runner.service';
 import { AuditService } from './services/audit.service';
 import { StrategicOverhaulService } from './services/strategic-overhaul.service';
 import { AffinityService } from './services/affinity.service';
+import { NotificationService } from './services/notification.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -85,6 +86,7 @@ export class MarketsController {
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(StrategicOverhaulService) private readonly strategicOverhaul: StrategicOverhaulService,
     @Inject(AffinityService) private readonly affinityService: AffinityService,
+    @Inject(NotificationService) private readonly notificationService: NotificationService,
   ) {
     this.markets = markets;
   }
@@ -1118,6 +1120,47 @@ export class MarketsController {
     await this.requireWriteAccess(user);
     await this.affinityService.markAlertRead(alertId, user.id);
     return { success: true };
+  }
+
+  // ─── Notifications ───────────────────────────────────────────────
+
+  @Get('notifications')
+  async getNotifications(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('unread_only') unreadOnly?: string,
+  ) {
+    const user = this.getUser(req);
+    const notifications = await this.notificationService.getNotifications(
+      user.id,
+      unreadOnly === 'true',
+    );
+    return { notifications };
+  }
+
+  @Get('notifications/unread-count')
+  async getNotificationUnreadCount(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    const count = await this.notificationService.getUnreadCount(user.id);
+    return { count };
+  }
+
+  @Patch('notifications/:id/read')
+  @HttpCode(204)
+  async markNotificationRead(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('id') id: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.notificationService.markRead(id, user.id);
+  }
+
+  @Patch('notifications/read-all')
+  @HttpCode(204)
+  async markAllNotificationsRead(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.notificationService.markAllRead(user.id);
   }
 
   // ─── Base Data (from orchestrator-ai) ───────────────────────────

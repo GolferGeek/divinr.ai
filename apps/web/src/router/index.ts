@@ -40,6 +40,7 @@ export const router = createRouter({
         { path: 'findings', name: 'findings', component: () => import('../views/AuditFindingsView.vue') },
         { path: 'affinity', name: 'affinity', component: () => import('../views/AffinityView.vue') },
         { path: 'proposals', name: 'proposals', component: () => import('../views/ProposalsView.vue') },
+        { path: 'notifications', name: 'notifications', component: () => import('../views/NotificationsView.vue') },
       ],
     },
     {

@@ -6,6 +6,7 @@ import { StocksPredictionPlane, OutcomeDataNotAvailableError } from '@divinr/pre
 import type { PredictionPlaneEvaluation } from '@divinr/prediction-planes';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 import { AffinityService } from './affinity.service';
+import { NotificationService } from './notification.service';
 
 interface PendingEvaluation {
   prediction_id: string;
@@ -45,6 +46,7 @@ export class NightlyEvaluationService {
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
     @Inject(AffinityService) private readonly affinityService: AffinityService,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {
     this.planeEval = new StocksPredictionPlane().evaluation;
   }
@@ -189,6 +191,14 @@ export class NightlyEvaluationService {
 
     // Persist report for dashboard consumption
     await this.persistReport('nightly_evaluation', summary as unknown as Record<string, unknown>);
+
+    await this.notifications.notifyAllUsers({
+      event_type: 'nightly_eval',
+      urgency: 'informational',
+      title: 'Nightly evaluation complete',
+      summary: `${totalEvaluated} evaluated: ${totalCorrect} correct, ${totalIncorrect} incorrect, ${profilesUpdated} profiles updated`,
+      link_to: '/evaluations',
+    }).catch(err => this.logger.warn(`Notification failed: ${err}`));
 
     this.logger.log(
       `Nightly evaluation complete: ${totalEvaluated} evaluated (${totalCorrect} correct, ${totalIncorrect} incorrect), ${totalSkipped} skipped, ${totalErrors} errors, ${canonicalCandidates} canonical candidates, ${profilesUpdated} profiles updated`,

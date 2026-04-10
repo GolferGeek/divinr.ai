@@ -14,6 +14,7 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 import { CanonicalTestRunnerService } from './canonical-test-runner.service';
 import { MarketsLlmService } from './markets-llm.service';
+import { NotificationService } from './notification.service';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ export class StrategicOverhaulService {
     @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
     @Inject(CanonicalTestRunnerService) private readonly canonicalRunner: CanonicalTestRunnerService,
     @Inject(MarketsLlmService) private readonly llmService: MarketsLlmService,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
   ) {}
 
   // ─── Evidence Aggregation ──────────────────────────────────────
@@ -271,6 +273,14 @@ ${findingsSummary}`;
         currentMarkdown,
       ],
     );
+
+    await this.notifications.notifyAllUsers({
+      event_type: 'tier3_proposal',
+      urgency: 'actionable',
+      title: `Tier 3 proposal for analyst ${analystId.slice(0, 8)}`,
+      summary: `Status: ${status}, based on ${evidence.acceptedFindingsCount} findings`,
+      link_to: '/proposals',
+    }).catch(err => this.logger.warn(`Notification failed: ${err}`));
 
     return { proposalId, status, passed: testResult.passed };
   }

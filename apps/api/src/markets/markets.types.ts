@@ -746,6 +746,29 @@ export interface UserAnalystAffinity {
   updated_at: string;
 }
 
+// ─── Unified Notifications ──────────────────────────────────
+
+export type NotificationEventType =
+  | 'stop_loss'
+  | 'trade_recommendation'
+  | 'tier3_proposal'
+  | 'nightly_eval'
+  | 'contrarian_alert';
+
+export type NotificationUrgency = 'immediate' | 'actionable' | 'informational';
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  event_type: NotificationEventType;
+  urgency: NotificationUrgency;
+  title: string;
+  summary: string | null;
+  link_to: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface ContrarianAlert {
   id: string;
   user_id: string;
