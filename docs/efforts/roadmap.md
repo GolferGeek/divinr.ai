@@ -46,12 +46,13 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `user-scoped-platform` | Replaced organization_slug multi-tenant layer with user_id ownership across 117 files. Schema, services, controllers, frontend, RBAC all migrated. | `docs/efforts/user-scoped-platform/` |
 | `user-analyst-affinity` | Affinity Agent learns user preferences from trade decisions, challenges, and browsing. Exponential decay scoring, contrarian alerts, dashboard personalization. 74 new tests. | `docs/efforts/user-analyst-affinity/` |
 | `notification-system` | Unified in-app notification bell + list page. 5 event producers wired (stop-loss, trade recs, nightly eval, Tier 3 proposals, contrarian alerts). SSE real-time updates. 24 new tests. | `docs/efforts/notification-system/` |
+| `fear-greed-alerting` | Sentiment Analyst predicts crowd reaction (fear/greed/noise). Immediate alerts on high-conviction triggers with trade rec context. 5-alert cap, dedup, legal-safe language. 44 new tests. | `docs/efforts/fear-greed-alerting/` |
 
 ---
 
 ## Current Effort
 
-**Fear/Greed Alerting** (`docs/efforts/current/fear-greed-alerting/`) — Evolve Sentiment Analyst to predict crowd reaction to breaking news. Urgency bypass for immediate alerts. Builds on the notification system.
+**Multi-Analyst Coordination** (`docs/efforts/current/multi-analyst-coordination/`) — Correlation analysis, coverage gaps, contribution scoring across the analyst panel. Read-only admin dashboard. Weekly scheduled computation from existing evaluation data.
 
 ---
 
@@ -59,9 +60,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/intention.md`. When promoted to current, the folder moves into `docs/efforts/current/`. Order reflects priority.
 
-1. **Multi-Analyst Coordination** (`docs/efforts/next/multi-analyst-coordination/`) — Detect redundant or conflicting analysts, surface coverage gaps and contribution scores. Read-only analysis layer for admin.
-
-2. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
+1. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
 
 ---
 
@@ -122,7 +121,7 @@ see-your-reasoning────┤
   │                                   │
   │  user-analyst-affinity ✅          │
   │  notification-system ✅            │
-  │  fear-greed-alerting              │
+  │  fear-greed-alerting ✅            │
   │  multi-analyst-coordination       │
   │  performance-dashboard            │
   │  mobile-polish                    │
