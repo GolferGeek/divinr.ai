@@ -9,17 +9,19 @@ import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
   shieldOutline, briefcaseOutline, newspaperOutline,
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
-  menuOutline, constructOutline,
+  menuOutline, constructOutline, heartOutline,
 } from 'ionicons/icons';
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 import { useDomainStore } from '../stores/domain.store';
 import { useActivityStore } from '../stores/activity.store';
+import { useAffinityStore } from '../stores/affinity.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
 
 const auth = useAuthStore();
 const domain = useDomainStore();
 const activity = useActivityStore();
+const affinityStore = useAffinityStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
@@ -34,7 +36,11 @@ const navItems = [
   { title: 'Evaluations', icon: ribbonOutline, to: '/evaluations' },
   { title: 'Learning', icon: bulbOutline, to: '/learning' },
   { title: 'Proposals', icon: constructOutline, to: '/proposals' },
+  { title: 'Affinity', icon: heartOutline, to: '/affinity' },
 ];
+
+// Load contrarian alerts on mount
+affinityStore.fetchContrarianAlerts(true);
 
 function logout() {
   auth.clear();
@@ -87,6 +93,9 @@ function logout() {
               <ion-chip color="medium" outline>
                 <ion-icon :icon="earthOutline" />
                 <ion-label>{{ domain.activeUniverse }}</ion-label>
+              </ion-chip>
+              <ion-chip v-if="affinityStore.unreadAlertCount > 0" color="warning" outline @click="router.push('/')">
+                <ion-label>{{ affinityStore.unreadAlertCount }} alerts</ion-label>
               </ion-chip>
               <ion-chip v-if="auth.isBetaReader" color="warning" outline>
                 <ion-label>Read Only</ion-label>

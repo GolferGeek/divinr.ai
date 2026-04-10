@@ -22,6 +22,7 @@ import { MarketsLlmService } from './services/markets-llm.service';
 import { PositionSizingService } from './services/position-sizing.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
 import { TradeRecommendationService } from './services/trade-recommendation.service';
+import { AffinityService } from './services/affinity.service';
 import { parseContractMarkdown as parseContractMarkdownUtil } from './utils/parse-contract-markdown';
 import type {
   AssignAnalystInput,
@@ -176,6 +177,8 @@ export class MarketsService {
     private readonly userPortfolio: UserPortfolioService,
     @Inject(TradeRecommendationService)
     private readonly tradeRecommendation: TradeRecommendationService,
+    @Inject(AffinityService)
+    private readonly affinity: AffinityService,
   ) {}
 
   private isExternalCrawlerSyncEnabled(force = false): boolean {
@@ -1649,6 +1652,12 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
        direction === 'long' ? 'buy' : 'sell', input.analystId, trade.id, effectiveConfidence],
     );
 
+    // Fire-and-forget: record affinity signals for analysts in this run
+    this.recordTradeAffinitySignals(
+      userId, input.predictionId, String(pred.instrument_id),
+      direction === 'long' ? 'buy' : 'sell',
+    ).catch((err) => this.logger.warn(`Affinity signal recording failed: ${err instanceof Error ? err.message : String(err)}`));
+
     return {
       tradeId: trade.id,
       symbol: pred.symbol,
@@ -1683,6 +1692,11 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
       [userId, predictionId, instrumentId, symbol],
     );
     const rows = (result.data as Array<{ id: string }> | null) ?? [];
+
+    // Fire-and-forget: record skip-disagreement signals for recommending analysts
+    this.recordSkipAffinitySignals(userId, predictionId, instrumentId)
+      .catch((err) => this.logger.warn(`Affinity skip signal failed: ${err instanceof Error ? err.message : String(err)}`));
+
     return { decisionId: rows[0]?.id ?? null, decision: 'skip' };
   }
 
@@ -3810,5 +3824,112 @@ Respond ONLY with valid JSON.`,
       riskScores: riskRows,
       learningReports: reportRows,
     };
+  }
+
+  // ─── Affinity Signal Helpers ────────────────────────────────
+
+  /**
+   * After a buy/sell trade decision, record agreement signals for analysts
+   * whose prediction aligned with the user's action.
+   */
+  private async recordTradeAffinitySignals(
+    userId: string,
+    predictionId: string,
+    instrumentId: string,
+    decision: 'buy' | 'sell',
+  ): Promise<void> {
+    // Find the run for this prediction, then get all analyst predictions in that run
+    const runResult = await this.db.rawQuery(
+      `select run_id from prediction.market_predictions where id = $1`,
+      [predictionId],
+    );
+    const runRows = (runResult.data as Array<{ run_id: string }> | null) ?? [];
+    if (runRows.length === 0) return;
+
+    const analystPreds = await this.db.rawQuery(
+      `select analyst_id, predicted_direction
+       from prediction.market_predictions
+       where run_id = $1 and role = 'analyst' and analyst_id is not null`,
+      [runRows[0].run_id],
+    );
+    const analysts = (analystPreds.data as Array<{ analyst_id: string; predicted_direction: string }> | null) ?? [];
+
+    for (const a of analysts) {
+      const userDirection = decision === 'buy' ? 'up' : 'down';
+      if (a.predicted_direction === userDirection) {
+        await this.affinity.recordSignal(
+          userId, a.analyst_id,
+          decision === 'buy' ? 'buy_agreement' : 'sell_agreement',
+          predictionId, instrumentId,
+        );
+      }
+    }
+
+    // Check for challenge signals
+    await this.recordChallengeAffinitySignals(userId, predictionId, instrumentId, true);
+  }
+
+  /**
+   * After a skip decision, record disagreement signals for analysts
+   * who recommended action (predicted up or down, not flat).
+   */
+  private async recordSkipAffinitySignals(
+    userId: string,
+    predictionId: string,
+    instrumentId: string,
+  ): Promise<void> {
+    const runResult = await this.db.rawQuery(
+      `select run_id from prediction.market_predictions where id = $1`,
+      [predictionId],
+    );
+    const runRows = (runResult.data as Array<{ run_id: string }> | null) ?? [];
+    if (runRows.length === 0) return;
+
+    const analystPreds = await this.db.rawQuery(
+      `select analyst_id, predicted_direction
+       from prediction.market_predictions
+       where run_id = $1 and role = 'analyst' and analyst_id is not null
+         and predicted_direction != 'flat'`,
+      [runRows[0].run_id],
+    );
+    const analysts = (analystPreds.data as Array<{ analyst_id: string; predicted_direction: string }> | null) ?? [];
+
+    for (const a of analysts) {
+      await this.affinity.recordSignal(
+        userId, a.analyst_id, 'skip_disagreement',
+        predictionId, instrumentId,
+      );
+    }
+
+    // Check for challenge signals
+    await this.recordChallengeAffinitySignals(userId, predictionId, instrumentId, false);
+  }
+
+  /**
+   * If a challenge exists for this prediction, record challenge_accept or challenge_reject
+   * for the challenged analyst.
+   */
+  private async recordChallengeAffinitySignals(
+    userId: string,
+    predictionId: string,
+    instrumentId: string,
+    userActed: boolean,
+  ): Promise<void> {
+    const challengeResult = await this.db.rawQuery(
+      `select challenged_analyst_id from prediction.prediction_challenges
+       where prediction_id = $1
+       limit 1`,
+      [predictionId],
+    );
+    const challenges = (challengeResult.data as Array<{ challenged_analyst_id: string }> | null) ?? [];
+    if (challenges.length === 0) return;
+
+    const signalType = userActed ? 'challenge_accept' : 'challenge_reject';
+    for (const c of challenges) {
+      await this.affinity.recordSignal(
+        userId, c.challenged_analyst_id, signalType,
+        predictionId, instrumentId,
+      );
+    }
   }
 }

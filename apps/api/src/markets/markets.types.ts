@@ -708,3 +708,56 @@ export interface PositionSizingTier {
   max_confidence: number;
   position_percent: number;
 }
+
+// ─── User-Analyst Affinity ──────────────────────────────────
+
+export type AffinitySignalType =
+  | 'buy_agreement'
+  | 'sell_agreement'
+  | 'skip_disagreement'
+  | 'challenge_accept'
+  | 'challenge_reject'
+  | 'browse_interest';
+
+export interface AffinitySignal {
+  id: string;
+  user_id: string;
+  analyst_id: string;
+  signal_type: AffinitySignalType;
+  prediction_id: string | null;
+  instrument_id: string | null;
+  weight: number;
+  created_at: string;
+}
+
+export interface UserAnalystAffinity {
+  id: string;
+  user_id: string;
+  analyst_id: string;
+  affinity_score: number;
+  signal_count: number;
+  buy_agreement: number;
+  skip_disagreement: number;
+  challenge_accept: number;
+  challenge_reject: number;
+  browse_signals: number;
+  last_signal_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContrarianAlert {
+  id: string;
+  user_id: string;
+  analyst_id: string;
+  prediction_id: string;
+  instrument_id: string;
+  symbol: string;
+  user_weighted_direction: 'up' | 'down' | 'flat';
+  contrarian_direction: 'up' | 'down' | 'flat';
+  contrarian_confidence: number;
+  affinity_score_at_alert: number;
+  rationale: string;
+  is_read: boolean;
+  created_at: string;
+}

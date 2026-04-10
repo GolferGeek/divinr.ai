@@ -6,6 +6,7 @@ import {
   Get,
   Inject,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -35,6 +36,7 @@ import { EodForcedBuyService } from './services/eod-forced-buy.service';
 import { DayTraderRunnerService } from './services/day-trader-runner.service';
 import { AuditService } from './services/audit.service';
 import { StrategicOverhaulService } from './services/strategic-overhaul.service';
+import { AffinityService } from './services/affinity.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -81,6 +83,7 @@ export class MarketsController {
     @Inject(DayTraderRunnerService) private readonly dayTraderRunner: DayTraderRunnerService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(StrategicOverhaulService) private readonly strategicOverhaul: StrategicOverhaulService,
+    @Inject(AffinityService) private readonly affinityService: AffinityService,
   ) {
     this.markets = markets;
   }
@@ -1067,6 +1070,54 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     return this.markets.getTradeDecisions(user.id);
+  }
+
+  // ─── Affinity ─────────────────────────────────────────────────
+
+  @Get('affinity')
+  async getAffinityProfile(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    const affinities = await this.affinityService.getUserAffinityProfile(user.id);
+    return { affinities };
+  }
+
+  @Get('affinity/alerts')
+  async getContrarianAlerts(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('unread_only') unreadOnly?: string,
+  ) {
+    const user = this.getUser(req);
+    const alerts = await this.affinityService.getContrarianAlerts(
+      user.id,
+      unreadOnly === 'true',
+    );
+    return { alerts };
+  }
+
+  @Post('affinity/signals/browse')
+  async recordBrowseSignal(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { analyst_id: string },
+    @Res() res: { status: (code: number) => { send: () => void } },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    if (!body?.analyst_id) {
+      throw new BadRequestException('analyst_id is required');
+    }
+    await this.affinityService.recordSignal(user.id, body.analyst_id, 'browse_interest');
+    res.status(204).send();
+  }
+
+  @Patch('affinity/alerts/:id/read')
+  async markAlertRead(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('id') alertId: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.affinityService.markAlertRead(alertId, user.id);
+    return { success: true };
   }
 
   // ─── Base Data (from orchestrator-ai) ───────────────────────────

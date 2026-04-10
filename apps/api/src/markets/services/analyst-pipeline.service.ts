@@ -11,6 +11,7 @@ import { CrawlerService } from './crawler.service';
 import { PredictorGeneratorService } from './predictor-generator.service';
 import { PredictionGeneratorService } from './prediction-generator.service';
 import { OutcomeTrackingService } from './outcome-tracking.service';
+import { AffinityService } from './affinity.service';
 
 /**
  * Analyst Pipeline — runs every 30 minutes.
@@ -40,6 +41,7 @@ export class AnalystPipelineService {
     @Inject(PredictorGeneratorService) private readonly predictorGenerator: PredictorGeneratorService,
     @Inject(PredictionGeneratorService) private readonly predictionGenerator: PredictionGeneratorService,
     @Inject(OutcomeTrackingService) private readonly outcomeTracking: OutcomeTrackingService,
+    @Inject(AffinityService) private readonly affinityService: AffinityService,
   ) {
     this.enabled = process.env.MARKETS_ENABLE_PIPELINE === 'true';
     if (this.enabled) {
@@ -120,6 +122,15 @@ export class AnalystPipelineService {
         result.errors.push(`Prediction generation failed: ${err instanceof Error ? err.message : String(err)}`);
       }
 
+      // Step 3b: Generate contrarian alerts for users with affinity data
+      if (result.runsProcessed > 0) {
+        try {
+          await this.generateContrarianAlertsForRecentRuns();
+        } catch (err) {
+          result.errors.push(`Contrarian alerts failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
       // Step 4: Outcome tracking
       this.logger.log('Pipeline Step 4: Outcome tracking');
       const outcomeStart = Date.now();
@@ -146,6 +157,42 @@ export class AnalystPipelineService {
     }
 
     return this.finalize(result, startTime);
+  }
+
+  /**
+   * After new predictions are generated, check for contrarian alerts
+   * for all users who have affinity data.
+   */
+  private async generateContrarianAlertsForRecentRuns(): Promise<void> {
+    // Get runs created in the last hour (covers this pipeline cycle)
+    const runsResult = await this.db.rawQuery(
+      `select distinct run_id from prediction.market_predictions
+       where created_at > now() - interval '1 hour' and role = 'analyst'`,
+    );
+    const runs = (runsResult.data as Array<{ run_id: string }> | null) ?? [];
+    if (runs.length === 0) return;
+
+    // Get users with affinity data
+    const usersResult = await this.db.rawQuery(
+      `select distinct user_id from prediction.user_analyst_affinity`,
+    );
+    const users = (usersResult.data as Array<{ user_id: string }> | null) ?? [];
+    if (users.length === 0) return;
+
+    let totalAlerts = 0;
+    for (const user of users) {
+      for (const run of runs) {
+        try {
+          totalAlerts += await this.affinityService.generateContrarianAlerts(user.user_id, run.run_id);
+        } catch {
+          // Skip failures for individual user/run combos
+        }
+      }
+    }
+
+    if (totalAlerts > 0) {
+      this.logger.log(`Contrarian alerts: ${totalAlerts} generated across ${users.length} users`);
+    }
   }
 
   private finalize(result: PipelineResult, startTime: number): PipelineResult {

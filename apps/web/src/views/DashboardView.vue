@@ -11,6 +11,8 @@ import { useCanWrite } from '../composables/useCanWrite';
 import { useInstrumentsStore } from '../stores/instruments.store';
 import { useDomainStore } from '../stores/domain.store';
 import AnalystPredictionModal from '../components/AnalystPredictionModal.vue';
+import { useAffinityStore } from '../stores/affinity.store';
+import ContrarianAlert from '../components/ContrarianAlert.vue';
 
 interface AnalystStance {
   prediction_id: string;
@@ -61,6 +63,7 @@ interface DashboardPrediction {
 
 const instruments = useInstrumentsStore();
 const domain = useDomainStore();
+const affinityStore = useAffinityStore();
 const { canWrite } = useCanWrite();
 const router = useRouter();
 const { get } = useApi();
@@ -103,11 +106,24 @@ function openTradeModal(pred: DashboardPrediction) {
 
 onMounted(async () => {
   await instruments.fetch().catch(() => {});
+  affinityStore.fetchAffinityProfile().catch(() => {});
   try {
     predictions.value = await get<DashboardPrediction[]>('/predictions/dashboard');
   } catch { /* empty */ }
   loading.value = false;
 });
+
+/** Sort analysts by affinity (highest first) when affinity data is available. */
+function sortedAnalysts(analysts: AnalystStance[]): AnalystStance[] {
+  return affinityStore.sortByAffinity(analysts);
+}
+
+/** Get affinity score for an analyst (0-100 display). Returns null if no data. */
+function affinityBadge(analystId: string): string | null {
+  const entry = affinityStore.affinityMap.get(analystId);
+  if (!entry || entry.signal_count < 5) return null;
+  return (entry.affinity_score * 100).toFixed(0);
+}
 
 function directionColor(dir: string): string {
   if (dir === 'up') return 'success';
@@ -165,6 +181,9 @@ function timeAgo(dateStr: string): string {
   <div>
     <h1>{{ domain.dashboardLayout?.title ?? 'Dashboard' }}</h1>
     <ion-note>{{ domain.activeDomain }} / {{ domain.activeUniverse }}</ion-note>
+
+    <!-- Contrarian Alerts -->
+    <ContrarianAlert />
 
     <!-- Summary Stats -->
     <ion-grid>
@@ -239,12 +258,15 @@ function timeAgo(dateStr: string): string {
               <!-- Analyst Stances -->
               <div v-if="pred.analysts.length > 0" class="analyst-stances">
                 <div
-                  v-for="(a, aIdx) in pred.analysts.filter(x => x.direction !== 'flat')"
+                  v-for="(a, aIdx) in sortedAnalysts(pred.analysts).filter(x => x.direction !== 'flat')"
                   :key="a.analyst_id"
                   class="stance-row clickable"
                   @click.stop="openAnalystModal(pred, pred.analysts.indexOf(a))"
                 >
-                  <span class="stance-name">{{ shortName(a.analyst_name) }}</span>
+                  <span class="stance-name">
+                    {{ shortName(a.analyst_name) }}
+                    <span v-if="affinityBadge(a.analyst_id)" class="affinity-badge">{{ affinityBadge(a.analyst_id) }}</span>
+                  </span>
                   <ion-chip
                     :color="directionColor(a.direction)"
                     style="height:22px;font-size:0.75rem"
@@ -408,6 +430,19 @@ function timeAgo(dateStr: string): string {
   font-size: 0.8rem;
   color: #666;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.affinity-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0 4px;
+  color: #aaa;
+  line-height: 1.4;
 }
 
 .rationale-preview {

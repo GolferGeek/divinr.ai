@@ -50,6 +50,7 @@ export class MarketsSchemaService {
       ${this.portfolioFoundationDdl()}
       ${this.auditFindingsDdl()}
       ${this.userScopingMigrationDdl()}
+      ${this.affinityDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -1641,5 +1642,64 @@ export class MarketsSchemaService {
     }
 
     this.logger.log('Phase 5: organization_slug columns dropped');
+  }
+
+  // ─── User-Analyst Affinity ──────────────────────────────────
+
+  private affinityDdl(): string {
+    return `
+      create table if not exists prediction.user_analyst_affinity (
+        id text primary key default gen_random_uuid()::text,
+        user_id text not null,
+        analyst_id text not null,
+        affinity_score numeric not null default 0.5,
+        signal_count integer not null default 0,
+        buy_agreement integer not null default 0,
+        skip_disagreement integer not null default 0,
+        challenge_accept integer not null default 0,
+        challenge_reject integer not null default 0,
+        browse_signals integer not null default 0,
+        last_signal_at timestamptz,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now(),
+        unique(user_id, analyst_id)
+      );
+      create index if not exists prediction_user_analyst_affinity_user_idx
+        on prediction.user_analyst_affinity (user_id);
+
+      create table if not exists prediction.user_affinity_signals (
+        id text primary key default gen_random_uuid()::text,
+        user_id text not null,
+        analyst_id text not null,
+        signal_type text not null check (signal_type in (
+          'buy_agreement', 'sell_agreement', 'skip_disagreement',
+          'challenge_accept', 'challenge_reject', 'browse_interest'
+        )),
+        prediction_id text,
+        instrument_id text,
+        weight numeric not null,
+        created_at timestamptz not null default now()
+      );
+      create index if not exists prediction_affinity_signals_user_idx
+        on prediction.user_affinity_signals (user_id, created_at desc);
+
+      create table if not exists prediction.user_contrarian_alerts (
+        id text primary key default gen_random_uuid()::text,
+        user_id text not null,
+        analyst_id text not null,
+        prediction_id text not null,
+        instrument_id text not null,
+        symbol text not null,
+        user_weighted_direction text not null check (user_weighted_direction in ('up', 'down', 'flat')),
+        contrarian_direction text not null check (contrarian_direction in ('up', 'down', 'flat')),
+        contrarian_confidence numeric not null,
+        affinity_score_at_alert numeric not null,
+        rationale text not null,
+        is_read boolean not null default false,
+        created_at timestamptz not null default now()
+      );
+      create index if not exists prediction_contrarian_alerts_user_idx
+        on prediction.user_contrarian_alerts (user_id, is_read, created_at desc);
+    `;
   }
 }

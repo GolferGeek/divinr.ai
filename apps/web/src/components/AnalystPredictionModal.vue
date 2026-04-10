@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import {
   IonModal, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonButton,
   IonIcon, IonChip, IonNote,
@@ -12,6 +12,7 @@ import { useApi } from '../composables/useApi';
 import { useProvenanceStore } from '../stores/provenance.store';
 import { usePortfolioStore } from '../stores/portfolio.store';
 import { useAuthStore } from '../stores/auth.store';
+import { useAffinityStore } from '../stores/affinity.store';
 
 interface AnalystStance {
   prediction_id: string;
@@ -61,6 +62,39 @@ const currentIndex = ref(props.initialIndex);
 watch(() => [props.isOpen, props.initialIndex], ([open]) => {
   if (open) currentIndex.value = props.initialIndex;
 });
+
+// ─── Browse Signal Tracking ──────────────────────────────────
+const affinityStore = useAffinityStore();
+const browseTimerRef = ref<ReturnType<typeof setTimeout> | null>(null);
+const lastBrowseSignal = new Map<string, number>();
+
+function startBrowseTimer(analystId: string) {
+  clearBrowseTimer();
+  if (!analystId) return;
+  const lastSent = lastBrowseSignal.get(analystId) ?? 0;
+  if (Date.now() - lastSent < 5 * 60 * 1000) return; // debounce: 5 min per analyst
+  browseTimerRef.value = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      affinityStore.recordBrowseSignal(analystId);
+      lastBrowseSignal.set(analystId, Date.now());
+    }
+  }, 10_000); // 10 seconds
+}
+
+function clearBrowseTimer() {
+  if (browseTimerRef.value) {
+    clearTimeout(browseTimerRef.value);
+    browseTimerRef.value = null;
+  }
+}
+
+// Start/stop timer when modal opens/closes or analyst changes
+watch(() => [props.isOpen, analyst.value?.analyst_id], ([open, aId]) => {
+  if (open && aId) startBrowseTimer(aId as string);
+  else clearBrowseTimer();
+});
+
+onUnmounted(() => clearBrowseTimer());
 
 const analyst = computed(() => props.analysts[currentIndex.value] ?? props.analysts[0]);
 const hasPrev = computed(() => currentIndex.value > 0);

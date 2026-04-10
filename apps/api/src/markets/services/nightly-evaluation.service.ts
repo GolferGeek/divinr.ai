@@ -5,6 +5,7 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
 import { StocksPredictionPlane, OutcomeDataNotAvailableError } from '@divinr/prediction-planes';
 import type { PredictionPlaneEvaluation } from '@divinr/prediction-planes';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
+import { AffinityService } from './affinity.service';
 
 interface PendingEvaluation {
   prediction_id: string;
@@ -43,6 +44,7 @@ export class NightlyEvaluationService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
+    @Inject(AffinityService) private readonly affinityService: AffinityService,
   ) {
     this.planeEval = new StocksPredictionPlane().evaluation;
   }
@@ -167,6 +169,13 @@ export class NightlyEvaluationService {
 
     // Phase 3: Evaluate user trade decisions at each horizon
     await this.evaluateDecisionOutcomes(horizons);
+
+    // Phase 4: Decay affinity signals and recompute scores
+    try {
+      await this.affinityService.decayAllAffinities();
+    } catch (err) {
+      this.logger.warn(`Affinity decay phase failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     const summary: EvaluationSummary = {
       evaluated: totalEvaluated,

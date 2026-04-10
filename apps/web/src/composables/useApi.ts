@@ -93,5 +93,27 @@ export function useApi() {
     }
   }
 
-  return { get, post, put, loading, error };
+  async function patch<T = unknown>(path: string, body?: unknown): Promise<T> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const res = await fetch(`${BASE_URL}${path}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text}`);
+      }
+      return await res.json() as T;
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err);
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  return { get, post, put, patch, loading, error };
 }
