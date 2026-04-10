@@ -4,6 +4,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  HttpCode,
   Inject,
   Param,
   Patch,
@@ -1095,10 +1096,10 @@ export class MarketsController {
   }
 
   @Post('affinity/signals/browse')
+  @HttpCode(204)
   async recordBrowseSignal(
     @Req() req: { user?: AuthenticatedUser },
     @Body() body: { analyst_id: string },
-    @Res() res: { status: (code: number) => { send: () => void } },
   ) {
     const user = this.getUser(req);
     await this.requireWriteAccess(user);
@@ -1106,7 +1107,6 @@ export class MarketsController {
       throw new BadRequestException('analyst_id is required');
     }
     await this.affinityService.recordSignal(user.id, body.analyst_id, 'browse_interest');
-    res.status(204).send();
   }
 
   @Patch('affinity/alerts/:id/read')

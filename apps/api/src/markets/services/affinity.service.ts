@@ -91,7 +91,6 @@ export class AffinityService {
     const now = Date.now();
     let positiveWeighted = 0;
     let negativeWeighted = 0;
-    let totalWeight = 0;
 
     const counters = {
       signal_count: signals.length,
@@ -132,19 +131,18 @@ export class AffinityService {
           negativeWeighted += effectiveWeight;
           break;
       }
-      totalWeight += effectiveWeight;
     }
 
     // sell_agreement also counts as buy_agreement bucket for the counter
-    // (it's a positive signal — user agreed with the analyst)
-    // Already counted positiveWeighted above; just track the count
     for (const sig of signals) {
       if (sig.signal_type === 'sell_agreement') counters.buy_agreement++;
     }
 
     // Compute score: ratio of positive to total, scaled to 0–1
     // With a baseline pull toward 0.5 to prevent wild swings on few signals
-    const rawRatio = totalWeight > 0 ? positiveWeighted / (positiveWeighted + negativeWeighted) : DEFAULT_AFFINITY;
+    const rawRatio = (positiveWeighted + negativeWeighted) > 0
+      ? positiveWeighted / (positiveWeighted + negativeWeighted)
+      : DEFAULT_AFFINITY;
     const bayesianWeight = Math.min(signals.length / 10, 1); // reaches full weight at 10 signals
     const score = DEFAULT_AFFINITY * (1 - bayesianWeight) + rawRatio * bayesianWeight;
     const clampedScore = Math.max(0, Math.min(1, score));
