@@ -69,8 +69,11 @@ Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/int
 Efforts with intentions at `docs/efforts/future/[name]/intention.md`. Not yet ready to schedule.
 
 - **Power User Expansion** (`docs/efforts/future/power-user-expansion/`) — Three-level pricing model ($20 base, $10/resource, $150-200 early-adopter for new resources with crowd-funded price drops). Custom instruments, sources, and analysts. Local hybrid desktop tier.
-- **Mobile Polish** — Capacitor/iOS app refinement. Table stakes for a stock app.
-- **Testing & Marketing Readiness** — Comprehensive E2E testing, demo scenarios, marketing copy.
+- **Premium Data Sources** (`docs/efforts/future/premium-data-sources/`) — Upgrade from free-tier data APIs to paid feeds (Polygon, FMP, Twelve Data, Finnhub) when revenue justifies it. Tiered: essential ($114/mo), news ($200-400/mo), specialty ($100-300/mo).
+- **Fear/Greed Alerting** (`docs/efforts/future/fear-greed-alerting/`) — Evolve Sentiment Analyst to predict crowd reaction to breaking news. Urgency bypass for immediate alerts. Depends on notification-system.
+- **User-Analyst Affinity** (`docs/efforts/future/user-analyst-affinity/`) — Affinity Agent that learns which analysts a user trusts from their trade decisions and browsing patterns. Enables personalized weighting and contrarian alerts.
+- **Mobile Polish** (`docs/efforts/future/mobile-polish/`) — Capacitor/iOS app refinement, responsive layout audit, Electron desktop polish. Table stakes for a stock app.
+- **Testing & Marketing Readiness** (`docs/efforts/future/testing-marketing-readiness/`) — Comprehensive E2E testing, demo scenarios, marketing copy that communicates the explainability story.
 
 ---
 
