@@ -48,7 +48,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 ## Current Effort
 
-(none — ready for a new effort)
+**User-Scoped Platform** (`docs/efforts/current/user-scoped-platform/`) — Remove the `organization_slug` multi-tenant layer and replace with `user_id`-based ownership. Foundation for all user-facing features (affinity, notifications, pricing). Intention written, ready for PRD.
 
 ---
 
