@@ -54,40 +54,23 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 ## Next Efforts
 
-These have enough definition to write intentions for. Order reflects dependencies.
+Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/intention.md`. When promoted to current, the folder moves into `docs/efforts/current/`. Order reflects priority.
 
-### Phase 1: Professional Polish (target: ~1 week sprint)
+1. **Multi-Analyst Coordination** (`docs/efforts/next/multi-analyst-coordination/`) — Detect redundant or conflicting analysts, surface coverage gaps and contribution scores. Read-only analysis layer for admin.
 
-1. **Multi-Analyst Coordination** — Detect redundant or conflicting analysts ("these two always cancel each other out", "these two are saying the same thing"). Surface coordination insights to admin. Builds on Tier 3's evidence aggregation patterns.
+2. **Notification System** (`docs/efforts/next/notification-system/`) — Push alerts for stop-loss hits, new proposals, position events, nightly eval. In-app + email first, extensible to Slack/push later.
 
-2. **Notification System** — Push alerts for stop-loss hits, new Tier 3 proposals, position entries/exits, nightly evaluation summaries. Start with in-app + email; Slack later. A professional tool doesn't make you poll a dashboard.
-
-3. **Performance Dashboard** — At-a-glance equity curve, PnL summary, analyst leaderboard for beta readers and subscribers. The data exists (portfolio snapshots, calibration scores) — needs a compelling read-only view.
-
-4. **Mobile Polish** — Capacitor/iOS app refinement. For a stock app, mobile is table stakes. Electron desktop is already scaffolded but needs attention too.
-
-5. **Testing & Marketing Readiness** — Comprehensive E2E testing, demo scenarios, marketing copy that communicates the explainability story. Understand and document all the coolness we have.
+3. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
 
 ---
 
 ## Future Efforts
 
-### Phase 2: SaaS Power Tier
+Efforts with intentions at `docs/efforts/future/[name]/intention.md`. Not yet ready to schedule.
 
-**Custom extensions within the SaaS platform.** Power users get the full shared layer (all base analysts, predictions, risk debates, evaluations) plus their own sandbox:
-- Custom data sources and article feeds (proprietary research, private RSS)
-- Custom analysts with their own contracts, running on our infrastructure
-- Separate API namespace or app section for their extensions
-- Natural monetization boundary: shared = standard subscription, custom = power tier
-
-### Phase 3: Local Hybrid Tier
-
-**Desktop app with local API backend.** The most advanced tier — everything from Phase 2, plus:
-- Desktop app (Electron, already scaffolded) that federates between the SaaS API and a local backend
-- Local LLM execution on user's hardware (DGX Spark, etc.) for private analysts
-- Proprietary data that never leaves the user's machine
-- Private analysis layered on top of the shared intelligence
-- Hardest to build (federation protocol, local deployment packaging, sync) but most defensible
+- **Power User Expansion** (`docs/efforts/future/power-user-expansion/`) — Three-level pricing model ($20 base, $10/resource, $150-200 early-adopter for new resources with crowd-funded price drops). Custom instruments, sources, and analysts. Local hybrid desktop tier.
+- **Mobile Polish** — Capacitor/iOS app refinement. Table stakes for a stock app.
+- **Testing & Marketing Readiness** — Comprehensive E2E testing, demo scenarios, marketing copy.
 
 ---
 
