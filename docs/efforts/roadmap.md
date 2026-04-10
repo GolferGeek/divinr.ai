@@ -45,12 +45,13 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `tier3-strategic-overhauls` | Tier 3 learning: evidence aggregation from Tier 2 findings, LLM contract rewrites via gemma4:26b, canonical test validation, admin /proposals page with approve/reject, weekly cron | `docs/efforts/tier3-strategic-overhauls/` |
 | `user-scoped-platform` | Replaced organization_slug multi-tenant layer with user_id ownership across 117 files. Schema, services, controllers, frontend, RBAC all migrated. | `docs/efforts/user-scoped-platform/` |
 | `user-analyst-affinity` | Affinity Agent learns user preferences from trade decisions, challenges, and browsing. Exponential decay scoring, contrarian alerts, dashboard personalization. 74 new tests. | `docs/efforts/user-analyst-affinity/` |
+| `notification-system` | Unified in-app notification bell + list page. 5 event producers wired (stop-loss, trade recs, nightly eval, Tier 3 proposals, contrarian alerts). SSE real-time updates. 24 new tests. | `docs/efforts/notification-system/` |
 
 ---
 
 ## Current Effort
 
-**In-App Notification System** (`docs/efforts/current/notification-system/`) — Unified in-app notification bell + list page. All event producers (stop-loss, proposals, nightly eval, trade recs, contrarian alerts) write to a single notifications table. Click-through to relevant pages. No email/push — in-app only.
+**Fear/Greed Alerting** (`docs/efforts/current/fear-greed-alerting/`) — Evolve Sentiment Analyst to predict crowd reaction to breaking news. Urgency bypass for immediate alerts. Builds on the notification system.
 
 ---
 
@@ -58,11 +59,9 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/intention.md`. When promoted to current, the folder moves into `docs/efforts/current/`. Order reflects priority.
 
-1. **Fear/Greed Alerting** (`docs/efforts/next/fear-greed-alerting/`) — Evolve Sentiment Analyst to predict crowd reaction to breaking news. Urgency bypass for immediate alerts. Depends on notification-system.
+1. **Multi-Analyst Coordination** (`docs/efforts/next/multi-analyst-coordination/`) — Detect redundant or conflicting analysts, surface coverage gaps and contribution scores. Read-only analysis layer for admin.
 
-2. **Multi-Analyst Coordination** (`docs/efforts/next/multi-analyst-coordination/`) — Detect redundant or conflicting analysts, surface coverage gaps and contribution scores. Read-only analysis layer for admin.
-
-3. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
+2. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
 
 ---
 
@@ -122,9 +121,9 @@ see-your-reasoning────┤
   ┌── Phase 1: Professional Polish ──┐
   │                                   │
   │  user-analyst-affinity ✅          │
+  │  notification-system ✅            │
   │  fear-greed-alerting              │
   │  multi-analyst-coordination       │
-  │  notification-system              │
   │  performance-dashboard            │
   │  mobile-polish                    │
   │  testing-marketing-readiness      │
