@@ -18,16 +18,17 @@
 --   PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres \
 --     -f apps/api/db/seed/2026-04-08-auth-bootstrap.sql
 
--- 1. Roles
+-- 1. Roles (legacy org-scoped + new user-scoped)
 insert into authz.rbac_roles (id, name, display_name, description, is_system) values
   ('role-super-admin', 'super-admin', 'Super Admin', 'Full access across all organizations',           true),
   ('role-owner',       'owner',       'Owner',       'Owns and manages an organization',               true),
   ('role-member',      'member',      'Member',      'Standard member of an organization',             true),
-  ('role-beta-reader', 'beta_reader', 'Beta Reader', 'Read-only access to an organization',           true)
+  ('role-beta-reader', 'beta_reader', 'Beta Reader', 'Read-only invited user',                        true),
+  ('role-admin',       'admin',       'Admin',       'Platform admin — full access',                   true),
+  ('role-subscriber',  'subscriber',  'Subscriber',  'Paying user — read + write own resources',       true)
 on conflict (id) do nothing;
 
--- 2. Grant the two existing markets permissions to all three roles.
---    (Once more permissions exist, super-admin/owner/member will diverge meaningfully.)
+-- 2. Grant the two existing markets permissions to all roles.
 insert into authz.rbac_role_permissions (role_id, permission_id) values
   ('role-super-admin', 'markets-instruments-read'),
   ('role-super-admin', 'markets-instruments-write'),
@@ -35,7 +36,11 @@ insert into authz.rbac_role_permissions (role_id, permission_id) values
   ('role-owner',       'markets-instruments-write'),
   ('role-member',      'markets-instruments-read'),
   ('role-member',      'markets-instruments-write'),
-  ('role-beta-reader', 'markets-instruments-read')
+  ('role-beta-reader', 'markets-instruments-read'),
+  ('role-admin',       'markets-instruments-read'),
+  ('role-admin',       'markets-instruments-write'),
+  ('role-subscriber',  'markets-instruments-read'),
+  ('role-subscriber',  'markets-instruments-write')
 on conflict (role_id, permission_id) do nothing;
 
 -- 3. Sentinel organization for global super-admin grants.
@@ -49,11 +54,19 @@ on conflict (slug) do nothing;
 
 -- 4. Insert authz.users rows whose id is the Supabase auth.users uuid.
 --    This is the FK target for rbac_user_org_roles.user_id.
+--    organization_slug maps to the user's personal org (used for backfill).
 insert into authz.users (id, email, display_name, organization_slug)
-select id::text, email, split_part(email, '@', 1), null
+select id::text, email, split_part(email, '@', 1),
+  case
+    when email = 'golfergeek@orchestratorai.io' then 'personal-golfergeek'
+    when email = 'demo-user@orchestratorai.io' then 'personal-demo-user'
+    else null
+  end
 from auth.users
 where email in ('golfergeek@orchestratorai.io', 'demo-user@orchestratorai.io')
-on conflict (id) do nothing;
+on conflict (id) do update
+  set organization_slug = excluded.organization_slug
+  where authz.users.organization_slug is null;
 
 -- 5. Role grants — golfergeek
 --

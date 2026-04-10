@@ -49,6 +49,7 @@ export class MarketsSchemaService {
       ${this.tradeDecisionsDdl()}
       ${this.portfolioFoundationDdl()}
       ${this.auditFindingsDdl()}
+      ${this.userScopingMigrationDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -64,6 +65,7 @@ export class MarketsSchemaService {
     await this.seedDataSources();
     await this.seedPortfolioManagerAnalyst();
     await this.seedPortfolioFoundation();
+    await this.backfillUserId();
     this.schemaReady = true;
     this.logger.log('Prediction schema ready');
   }
@@ -1440,5 +1442,131 @@ export class MarketsSchemaService {
       create index if not exists audit_findings_prediction_idx
         on prediction.audit_findings (prediction_id);
     `;
+  }
+
+  // ─── User-Scoped Platform Migration ──────────────────────────
+
+  /**
+   * Additive DDL for user-scoped platform effort.
+   * Adds user_id columns to ownership tables, new indexes on user_id,
+   * renames org_learning_config → learning_config,
+   * updates position_sizing_config to remove org PK,
+   * and renames market_articles.external_organization_slug.
+   */
+  private userScopingMigrationDdl(): string {
+    return `
+      -- Step 1.1: Add user_id columns to ownership tables
+      alter table prediction.instruments
+        add column if not exists user_id text;
+      alter table prediction.market_analysts
+        add column if not exists user_id text;
+      alter table prediction.risk_dimensions
+        add column if not exists user_id text;
+      alter table prediction.risk_debate_contexts
+        add column if not exists user_id text;
+      alter table prediction.learning_proposals
+        add column if not exists user_id text;
+      alter table prediction.canonical_test_days
+        add column if not exists user_id text;
+      alter table prediction.analyst_portfolios
+        add column if not exists user_id text;
+      alter table prediction.audit_findings
+        add column if not exists user_id text;
+      -- user_trade_decisions and user_trade_queue already have user_id
+      -- (the acting user IS the owner) — no new column needed, just drop org later.
+      alter table prediction.prediction_challenges
+        add column if not exists user_id text;
+      alter table prediction.analyst_risk_assessments
+        add column if not exists user_id text;
+
+      -- Step 1.2: Add indexes on user_id for ownership tables
+      create index if not exists prediction_instruments_user_id_idx
+        on prediction.instruments (user_id);
+      create index if not exists prediction_analysts_user_id_idx
+        on prediction.market_analysts (user_id);
+      create index if not exists prediction_risk_dimensions_user_id_idx
+        on prediction.risk_dimensions (user_id);
+      create index if not exists prediction_risk_debate_contexts_user_id_idx
+        on prediction.risk_debate_contexts (user_id);
+      create index if not exists prediction_learning_proposals_user_id_idx
+        on prediction.learning_proposals (user_id, status);
+      create index if not exists prediction_canonical_test_days_user_id_idx
+        on prediction.canonical_test_days (user_id, instrument_id, is_active)
+        where is_active = true;
+      create index if not exists prediction_analyst_portfolios_user_id_idx
+        on prediction.analyst_portfolios (analyst_id, user_id);
+      create index if not exists prediction_audit_findings_user_id_idx
+        on prediction.audit_findings (user_id, status);
+      create index if not exists prediction_prediction_challenges_user_id_idx
+        on prediction.prediction_challenges (user_id);
+      create index if not exists prediction_analyst_risk_assessments_user_id_idx
+        on prediction.analyst_risk_assessments (user_id, instrument_id);
+
+      -- Step 1.3: Rename org_learning_config → learning_config with user_id
+      alter table if exists prediction.org_learning_config
+        rename to learning_config;
+      alter table prediction.learning_config
+        add column if not exists user_id text;
+
+      -- Step 1.4: position_sizing_config — remove org dependency
+      -- Drop the old unique constraint that includes organization_slug
+      alter table prediction.position_sizing_config
+        drop constraint if exists position_sizing_config_organization_slug_tier_name_key;
+      -- Add new unique on tier_name only (system-level config)
+      create unique index if not exists prediction_position_sizing_tier_unique_idx
+        on prediction.position_sizing_config (tier_name);
+
+      -- Step 1.5: Rename market_articles column
+      do $$ begin
+        alter table prediction.market_articles
+          rename column external_organization_slug to external_source_slug;
+      exception when undefined_column then null;
+      end $$;
+      -- Update the index to use the new column name
+      drop index if exists prediction.prediction_market_articles_external_org_idx;
+      create index if not exists prediction_market_articles_external_source_idx
+        on prediction.market_articles (external_source_slug);
+    `;
+  }
+
+  /**
+   * Step 1.8: Backfill user_id from organization_slug → authz.users lookup.
+   * Maps existing org-scoped data to user-scoped ownership.
+   * System/base resources (organization_slug = '__base__' or '__template__')
+   * get user_id = NULL. User resources get the user's ID.
+   */
+  private async backfillUserId(): Promise<void> {
+    const tables = [
+      'instruments',
+      'market_analysts',
+      'risk_dimensions',
+      'risk_debate_contexts',
+      'learning_proposals',
+      'canonical_test_days',
+      'analyst_portfolios',
+      'audit_findings',
+      'prediction_challenges',
+      'analyst_risk_assessments',
+    ];
+
+    for (const table of tables) {
+      const sql = `
+        update prediction.${table}
+        set user_id = u.id
+        from authz.users u
+        where prediction.${table}.organization_slug = u.organization_slug
+          and prediction.${table}.user_id is null
+          and prediction.${table}.organization_slug not in ('__base__', '__template__', '*')
+      `;
+      const result = await this.db.rawQuery(sql);
+      if (result.error) {
+        this.logger.warn(`Backfill user_id for ${table}: ${result.error.message}`);
+      }
+    }
+
+    // user_trade_decisions, user_trade_queue, and user_portfolios already
+    // have user_id as the owner — no backfill needed for those.
+
+    this.logger.log('User ID backfill complete');
   }
 }

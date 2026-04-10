@@ -50,7 +50,6 @@ export interface MarketInstrument {
 }
 
 export interface CreateInstrumentInput {
-  organizationSlug: string;
   userId: string;
   symbol: string;
   name?: string;
@@ -91,7 +90,6 @@ export interface MarketAnalyst {
 }
 
 export interface CreateAnalystInput {
-  organizationSlug: string;
   userId: string;
   slug: string;
   displayName: string;
@@ -99,7 +97,6 @@ export interface CreateAnalystInput {
 }
 
 export interface AssignAnalystInput {
-  organizationSlug: string;
   userId: string;
   instrumentId: string;
   analystId: string;
@@ -128,7 +125,6 @@ export interface SourceEntitlement {
 }
 
 export interface UpsertSourceEntitlementInput {
-  organizationSlug: string;
   userId: string;
   sourceId: string;
   isEnabled: boolean;
@@ -136,7 +132,6 @@ export interface UpsertSourceEntitlementInput {
 }
 
 export interface CreateRunInput {
-  organizationSlug: string;
   userId: string;
   instrumentId: string;
   runType: RunType;
@@ -157,7 +152,6 @@ export interface MarketRun {
 }
 
 export interface UpdateRunStatusInput {
-  organizationSlug: string;
   userId: string;
   runId: string;
   status: RunStatus;
@@ -165,13 +159,11 @@ export interface UpdateRunStatusInput {
 }
 
 export interface ListRunsInput {
-  organizationSlug: string;
   userId: string;
   status?: RunStatus;
 }
 
 export interface ProcessNextRunInput {
-  organizationSlug: string;
   userId: string;
 }
 
@@ -235,7 +227,6 @@ export interface MarketPredictor {
 }
 
 export interface UpsertPredictorInput {
-  organizationSlug: string;
   userId: string;
   instrumentId: string;
   articleId: string;
@@ -245,7 +236,6 @@ export interface UpsertPredictorInput {
 }
 
 export interface ListPredictorsInput {
-  organizationSlug: string;
   userId: string;
   instrumentId: string;
   status?: PredictorStatus | 'all';
@@ -263,14 +253,12 @@ export interface RiskAssessment {
 }
 
 export interface EvaluateRunInput {
-  organizationSlug: string;
   userId: string;
   runId: string;
   actualDirection: 'up' | 'down' | 'flat';
 }
 
 export interface ReplayRunInput {
-  organizationSlug: string;
   userId: string;
   runId: string;
   scenario: string;
@@ -297,20 +285,17 @@ export interface RunReplay {
 }
 
 export interface ListRunArtifactsInput {
-  organizationSlug: string;
   userId: string;
   runId: string;
 }
 
 export interface ListPredictionOutcomesInput {
-  organizationSlug: string;
   userId: string;
   runId?: string;
   instrumentId?: string;
 }
 
 export interface ListRiskAssessmentsInput {
-  organizationSlug: string;
   userId: string;
   runId?: string;
   instrumentId?: string;
@@ -323,7 +308,7 @@ export interface MarketArticle {
   external_source_id: string;
   source_id: string;
   source_origin: string;
-  external_organization_slug: string;
+  external_source_slug: string;
   title: string | null;
   url: string;
   summary: string | null;
@@ -338,21 +323,19 @@ export interface MarketArticle {
 }
 
 export interface ListMarketArticlesInput {
-  organizationSlug: string;
   userId: string;
   sourceId?: string;
   limit?: number;
 }
 
 export interface ExternalCrawlerSyncInput {
-  organizationSlug: string;
   userId: string;
   force?: boolean;
 }
 
 export interface ExternalCrawlerSyncResult {
   enabled: boolean;
-  externalOrganizationSlug: string | null;
+  externalSourceSlug: string | null;
   sourceRowsProcessed: number;
   articleRowsProcessed: number;
   totalSyncedSources: number;
@@ -610,14 +593,12 @@ export interface MultiAnalystPrediction extends PredictionOutcome {
 }
 
 export interface ScorePredictorInput {
-  organizationSlug: string;
   userId: string;
   instrumentId: string;
   articleId: string;
 }
 
 export interface ScorePredictorBatchInput {
-  organizationSlug: string;
   userId: string;
   instrumentId: string;
   articleIds: string[];

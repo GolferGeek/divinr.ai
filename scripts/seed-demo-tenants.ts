@@ -116,13 +116,13 @@ async function assignUserRole(userId: string, orgSlug: string, roleId: string) {
   }
 }
 
-async function upsertInstrument(orgSlug: string, symbol: string, name: string) {
+async function upsertInstrument(orgSlug: string, symbol: string, name: string, userId?: string) {
   const id = `${orgSlug}_${symbol.toLowerCase()}`;
   const { error } = await db
     .schema('prediction')
     .from('instruments')
     .upsert(
-      { id, organization_slug: orgSlug, symbol, name, asset_type: 'stock', universe_slug: 'stocks', is_active: true },
+      { id, organization_slug: orgSlug, symbol, name, asset_type: 'stock', universe_slug: 'stocks', is_active: true, user_id: userId ?? null },
       { onConflict: 'id' },
     );
   if (error) console.warn(`  instrument ${symbol} (${orgSlug}): ${error.message}`);
@@ -134,7 +134,7 @@ async function upsertAnalyst(
   slug: string,
   displayName: string,
   personaPrompt: string,
-  opts: { weight?: number; isSystemDefault?: boolean; isEnabled?: boolean; workflowScope?: string; tierInstructions?: Record<string, string> },
+  opts: { weight?: number; isSystemDefault?: boolean; isEnabled?: boolean; workflowScope?: string; tierInstructions?: Record<string, string>; userId?: string },
 ) {
   const id = `${orgSlug}_${slug}`;
   const { error } = await db
@@ -157,6 +157,7 @@ async function upsertAnalyst(
         workflow_scope: opts.workflowScope ?? 'both',
         domain_slug: 'financial',
         created_by: 'seed-script',
+        user_id: opts.userId ?? null,
       },
       { onConflict: 'id' },
     );
@@ -361,17 +362,20 @@ async function main() {
     await upsertOrg(org.slug, org.name);
 
     const adminId = randomUUID();
-    const analystId = randomUUID();
+    const analystUserId = randomUUID();
     await upsertUser(adminId, org.adminEmail, `Admin - ${org.name}`, org.slug);
-    await upsertUser(analystId, org.analystEmail, `Analyst - ${org.name}`, org.slug);
+    await upsertUser(analystUserId, org.analystEmail, `Analyst - ${org.name}`, org.slug);
     await assignUserRole(adminId, org.slug, adminRoleId);
-    await assignUserRole(analystId, org.slug, analystRoleId);
+    await assignUserRole(analystUserId, org.slug, analystRoleId);
+
+    // Use adminId as the owner for org-level resources
+    const ownerId = adminId;
 
     // Instruments
     console.log('  Instruments:');
     const instrumentIds: string[] = [];
     for (const inst of INSTRUMENTS) {
-      const iId = await upsertInstrument(org.slug, inst.symbol, inst.name);
+      const iId = await upsertInstrument(org.slug, inst.symbol, inst.name, ownerId);
       instrumentIds.push(iId);
     }
 
@@ -386,6 +390,7 @@ async function main() {
         isSystemDefault: true,
         isEnabled: !isDisabled,
         tierInstructions: def.tier,
+        userId: ownerId,
       });
       if (!isDisabled) analystIds.push(aId);
     }
@@ -397,6 +402,7 @@ async function main() {
         weight: custom.weight,
         isSystemDefault: false,
         isEnabled: true,
+        userId: ownerId,
       });
       analystIds.push(aId);
     }
