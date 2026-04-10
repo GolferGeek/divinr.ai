@@ -49,7 +49,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 ## Current Effort
 
-**None** — `docs/efforts/current/` is empty. Ready to promote the next effort.
+**User-Analyst Affinity** (`docs/efforts/current/user-analyst-affinity/`) — Affinity Agent that learns which analysts a user trusts from trade decisions and browsing patterns. Personalized weighting and contrarian alerts. Intention written, ready for PRD.
 
 ---
 
@@ -57,15 +57,13 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/intention.md`. When promoted to current, the folder moves into `docs/efforts/current/`. Order reflects priority.
 
-1. **User-Analyst Affinity** (`docs/efforts/next/user-analyst-affinity/`) — Affinity Agent that learns which analysts a user trusts from trade decisions and browsing patterns. Personalized weighting and contrarian alerts.
+1. **Fear/Greed Alerting** (`docs/efforts/next/fear-greed-alerting/`) — Evolve Sentiment Analyst to predict crowd reaction to breaking news. Urgency bypass for immediate alerts. Depends on notification-system.
 
-2. **Fear/Greed Alerting** (`docs/efforts/next/fear-greed-alerting/`) — Evolve Sentiment Analyst to predict crowd reaction to breaking news. Urgency bypass for immediate alerts. Depends on notification-system.
+2. **Multi-Analyst Coordination** (`docs/efforts/next/multi-analyst-coordination/`) — Detect redundant or conflicting analysts, surface coverage gaps and contribution scores. Read-only analysis layer for admin.
 
-3. **Multi-Analyst Coordination** (`docs/efforts/next/multi-analyst-coordination/`) — Detect redundant or conflicting analysts, surface coverage gaps and contribution scores. Read-only analysis layer for admin.
+3. **Notification System** (`docs/efforts/next/notification-system/`) — Push alerts for stop-loss hits, new proposals, position events, nightly eval. In-app + email first, extensible to Slack/push later.
 
-4. **Notification System** (`docs/efforts/next/notification-system/`) — Push alerts for stop-loss hits, new proposals, position events, nightly eval. In-app + email first, extensible to Slack/push later.
-
-5. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
+4. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
 
 ---
 
