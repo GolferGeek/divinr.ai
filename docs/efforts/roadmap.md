@@ -43,12 +43,13 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `risk-debate-drilldown` | Expandable LLM reasoning panels on Blue/Red/Arbiter debate columns; GET /risk-debates/:id/reasoning endpoint; lazy-loaded with provider/model/token metadata | `docs/efforts/risk-debate-drilldown/` |
 | `dead-table-cleanup` | Dropped legacy `prediction.analysts` and `prediction.analyst_context_versions` tables via ensureSchema() DDL | `docs/efforts/dead-table-cleanup/` |
 | `tier3-strategic-overhauls` | Tier 3 learning: evidence aggregation from Tier 2 findings, LLM contract rewrites via gemma4:26b, canonical test validation, admin /proposals page with approve/reject, weekly cron | `docs/efforts/tier3-strategic-overhauls/` |
+| `user-scoped-platform` | Replaced organization_slug multi-tenant layer with user_id ownership across 117 files. Schema, services, controllers, frontend, RBAC all migrated. | `docs/efforts/user-scoped-platform/` |
 
 ---
 
 ## Current Effort
 
-**User-Scoped Platform** (`docs/efforts/current/user-scoped-platform/`) — Remove the `organization_slug` multi-tenant layer and replace with `user_id`-based ownership. Foundation for all user-facing features (affinity, notifications, pricing). Intention written, ready for PRD.
+**None** — `docs/efforts/current/` is empty. Ready to promote the next effort.
 
 ---
 
@@ -118,8 +119,13 @@ see-your-reasoning────┤
   tier3-strategic-overhauls ✅
           │
           ▼
+  user-scoped-platform ✅
+          │
+          ▼
   ┌── Phase 1: Professional Polish ──┐
   │                                   │
+  │  user-analyst-affinity             │
+  │  fear-greed-alerting              │
   │  multi-analyst-coordination       │
   │  notification-system              │
   │  performance-dashboard            │
