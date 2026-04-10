@@ -44,12 +44,13 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `dead-table-cleanup` | Dropped legacy `prediction.analysts` and `prediction.analyst_context_versions` tables via ensureSchema() DDL | `docs/efforts/dead-table-cleanup/` |
 | `tier3-strategic-overhauls` | Tier 3 learning: evidence aggregation from Tier 2 findings, LLM contract rewrites via gemma4:26b, canonical test validation, admin /proposals page with approve/reject, weekly cron | `docs/efforts/tier3-strategic-overhauls/` |
 | `user-scoped-platform` | Replaced organization_slug multi-tenant layer with user_id ownership across 117 files. Schema, services, controllers, frontend, RBAC all migrated. | `docs/efforts/user-scoped-platform/` |
+| `user-analyst-affinity` | Affinity Agent learns user preferences from trade decisions, challenges, and browsing. Exponential decay scoring, contrarian alerts, dashboard personalization. 74 new tests. | `docs/efforts/user-analyst-affinity/` |
 
 ---
 
 ## Current Effort
 
-**User-Analyst Affinity** (`docs/efforts/current/user-analyst-affinity/`) — Affinity Agent that learns which analysts a user trusts from trade decisions and browsing patterns. Personalized weighting and contrarian alerts. Intention written, ready for PRD.
+*None — slot is open. Next in queue: Fear/Greed Alerting.*
 
 ---
 
@@ -122,7 +123,7 @@ see-your-reasoning────┤
           ▼
   ┌── Phase 1: Professional Polish ──┐
   │                                   │
-  │  user-analyst-affinity             │
+  │  user-analyst-affinity ✅          │
   │  fear-greed-alerting              │
   │  multi-analyst-coordination       │
   │  notification-system              │
