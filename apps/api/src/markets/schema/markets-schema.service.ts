@@ -52,6 +52,7 @@ export class MarketsSchemaService {
       ${this.userScopingMigrationDdl()}
       ${this.affinityDdl()}
       ${this.notificationsDdl()}
+      ${this.fearGreedAlertsDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -296,6 +297,12 @@ export class MarketsSchemaService {
       alter table prediction.market_predictors add column if not exists llm_usage_id uuid;
       create index if not exists prediction_market_predictors_llm_usage_idx
         on prediction.market_predictors (llm_usage_id) where llm_usage_id is not null;
+
+      -- Fear/greed crowd-reaction classification (sentiment-analyst only)
+      alter table prediction.market_predictors add column if not exists crowd_reaction text;
+      alter table prediction.market_predictors add column if not exists crowd_reaction_confidence numeric;
+      alter table prediction.market_predictors add column if not exists crowd_reaction_rationale text;
+      alter table prediction.market_predictors add column if not exists estimated_reaction_window_minutes integer;
     `;
   }
 
@@ -1705,6 +1712,32 @@ export class MarketsSchemaService {
   }
 
   /** Unified notification system table. */
+  private fearGreedAlertsDdl(): string {
+    return `
+      create table if not exists prediction.fear_greed_alerts (
+        id text primary key default gen_random_uuid()::text,
+        user_id text not null,
+        predictor_id text not null,
+        instrument_id text not null,
+        symbol text not null,
+        crowd_reaction text not null check (crowd_reaction in ('fear_trigger', 'greed_trigger')),
+        crowd_reaction_confidence numeric not null,
+        estimated_reaction_window_minutes integer,
+        trade_action text,
+        entry_price numeric,
+        stop_loss numeric,
+        take_profit numeric,
+        notification_id text,
+        is_read boolean not null default false,
+        created_at timestamptz not null default now()
+      );
+      create index if not exists fear_greed_alerts_user_unread_idx
+        on prediction.fear_greed_alerts (user_id, is_read, created_at desc);
+      create unique index if not exists fear_greed_alerts_predictor_user_key
+        on prediction.fear_greed_alerts (predictor_id, user_id);
+    `;
+  }
+
   private notificationsDdl(): string {
     return `
       create table if not exists prediction.notifications (

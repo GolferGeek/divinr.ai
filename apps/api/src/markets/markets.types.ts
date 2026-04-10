@@ -208,6 +208,8 @@ export interface PredictionOutcome {
 
 export type PredictorStatus = 'active' | 'dismissed';
 
+export type CrowdReaction = 'fear_trigger' | 'greed_trigger' | 'noise';
+
 export interface MarketPredictor {
   id: string;
   instrument_id: string;
@@ -218,6 +220,10 @@ export interface MarketPredictor {
   created_by: string;
   created_at: string;
   updated_at: string;
+  crowd_reaction?: CrowdReaction | null;
+  crowd_reaction_confidence?: number | null;
+  crowd_reaction_rationale?: string | null;
+  estimated_reaction_window_minutes?: number | null;
 }
 
 export interface UpsertPredictorInput {
@@ -753,7 +759,8 @@ export type NotificationEventType =
   | 'trade_recommendation'
   | 'tier3_proposal'
   | 'nightly_eval'
-  | 'contrarian_alert';
+  | 'contrarian_alert'
+  | 'fear_greed_alert';
 
 export type NotificationUrgency = 'immediate' | 'actionable' | 'informational';
 
@@ -765,6 +772,24 @@ export interface Notification {
   title: string;
   summary: string | null;
   link_to: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface FearGreedAlert {
+  id: string;
+  user_id: string;
+  predictor_id: string;
+  instrument_id: string;
+  symbol: string;
+  crowd_reaction: 'fear_trigger' | 'greed_trigger';
+  crowd_reaction_confidence: number;
+  estimated_reaction_window_minutes: number | null;
+  trade_action: string | null;
+  entry_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
+  notification_id: string | null;
   is_read: boolean;
   created_at: string;
 }

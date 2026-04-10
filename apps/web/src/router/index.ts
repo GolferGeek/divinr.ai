@@ -41,6 +41,7 @@ export const router = createRouter({
         { path: 'affinity', name: 'affinity', component: () => import('../views/AffinityView.vue') },
         { path: 'proposals', name: 'proposals', component: () => import('../views/ProposalsView.vue') },
         { path: 'notifications', name: 'notifications', component: () => import('../views/NotificationsView.vue') },
+        { path: 'fear-greed-alerts', name: 'fearGreedAlerts', component: () => import('../views/FearGreedAlertsView.vue') },
       ],
     },
     {

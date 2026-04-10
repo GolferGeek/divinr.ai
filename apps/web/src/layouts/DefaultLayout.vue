@@ -10,6 +10,7 @@ import {
   shieldOutline, briefcaseOutline, newspaperOutline,
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
   menuOutline, constructOutline, heartOutline, notificationsOutline,
+  warningOutline,
 } from 'ionicons/icons';
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -17,6 +18,7 @@ import { useDomainStore } from '../stores/domain.store';
 import { useActivityStore } from '../stores/activity.store';
 import { useAffinityStore } from '../stores/affinity.store';
 import { useNotificationStore } from '../stores/notification.store';
+import { useFearGreedStore } from '../stores/fear-greed.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
 
 const auth = useAuthStore();
@@ -24,6 +26,7 @@ const domain = useDomainStore();
 const activity = useActivityStore();
 const affinityStore = useAffinityStore();
 const notificationStore = useNotificationStore();
+const fearGreedStore = useFearGreedStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
@@ -45,6 +48,7 @@ const navItems = [
 // Load contrarian alerts and notification count on mount
 affinityStore.fetchContrarianAlerts(true);
 notificationStore.fetchUnreadCount();
+fearGreedStore.fetchUnreadCount();
 
 function logout() {
   auth.clear();
@@ -98,6 +102,10 @@ function logout() {
                 <ion-icon :icon="earthOutline" />
                 <ion-label>{{ domain.activeUniverse }}</ion-label>
               </ion-chip>
+              <ion-button fill="clear" class="notification-bell fear-greed-bell" @click="router.push('/fear-greed-alerts')" v-if="fearGreedStore.unreadCount > 0">
+                <ion-icon :icon="warningOutline" />
+                <span class="notification-badge fear-greed-badge">{{ fearGreedStore.unreadCount }}</span>
+              </ion-button>
               <ion-button fill="clear" class="notification-bell" @click="router.push('/notifications')">
                 <ion-icon :icon="notificationsOutline" />
                 <span v-if="notificationStore.unreadCount > 0" class="notification-badge">{{ notificationStore.unreadCount }}</span>
@@ -294,6 +302,15 @@ function logout() {
   align-items: center;
   justify-content: center;
   padding: 0 4px;
+}
+
+.fear-greed-bell ion-icon {
+  color: var(--ion-color-warning, #ffc409);
+}
+
+.fear-greed-badge {
+  background: var(--ion-color-warning, #ffc409) !important;
+  color: #000 !important;
 }
 
 .legal-footer {

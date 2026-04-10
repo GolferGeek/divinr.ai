@@ -12,6 +12,7 @@ import { PredictorGeneratorService } from './predictor-generator.service';
 import { PredictionGeneratorService } from './prediction-generator.service';
 import { OutcomeTrackingService } from './outcome-tracking.service';
 import { AffinityService } from './affinity.service';
+import { FearGreedAlertService } from './fear-greed-alert.service';
 
 /**
  * Analyst Pipeline — runs every 30 minutes.
@@ -42,6 +43,7 @@ export class AnalystPipelineService {
     @Inject(PredictionGeneratorService) private readonly predictionGenerator: PredictionGeneratorService,
     @Inject(OutcomeTrackingService) private readonly outcomeTracking: OutcomeTrackingService,
     @Inject(AffinityService) private readonly affinityService: AffinityService,
+    @Inject(FearGreedAlertService) private readonly fearGreedAlertService: FearGreedAlertService,
   ) {
     this.enabled = process.env.MARKETS_ENABLE_PIPELINE === 'true';
     if (this.enabled) {
@@ -108,6 +110,19 @@ export class AnalystPipelineService {
         this.logger.log(`Scoring: ${scoringResult.predictorsCreated} predictors created (${Date.now() - scoringStart}ms)`);
       } catch (err) {
         result.errors.push(`Scoring failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      // Step 2b: Fear/greed alert evaluation on recently scored predictors
+      if (result.predictorsScored > 0) {
+        try {
+          const fgStart = Date.now();
+          const fgAlerts = await this.fearGreedAlertService.evaluateRecentPredictors();
+          if (fgAlerts > 0) {
+            this.logger.log(`Fear/greed: ${fgAlerts} alerts generated (${Date.now() - fgStart}ms)`);
+          }
+        } catch (err) {
+          result.errors.push(`Fear/greed alerts failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
 
       // Step 3: Signal-based prediction generation (includes risk runs)

@@ -266,6 +266,14 @@ export class PredictorGeneratorService {
     let dismissed = false;
     let llmUsageId: string | null = null;
 
+    // Crowd-reaction fields (sentiment-analyst only)
+    let crowdReaction: string | null = null;
+    let crowdReactionConfidence: number | null = null;
+    let crowdReactionRationale: string | null = null;
+    let estimatedReactionWindowMinutes: number | null = null;
+
+    const isSentimentAnalyst = analyst.slug === 'sentiment-analyst';
+
     if (this.marketsLlm.isLlmEnabled()) {
       const articleText = [article.title, article.summary, article.content?.slice(0, 1500)]
         .filter(Boolean)
@@ -275,6 +283,17 @@ export class PredictorGeneratorService {
         'system',
         'predictor-scoring',
       );
+
+      const crowdReactionPromptAddition = isSentimentAnalyst
+        ? `
+Additionally, predict how retail investors will emotionally react when they see this headline.
+Will enough people panic-sell (fear) or FOMO-buy (greed) to move the price within 2 hours?
+Include these extra fields in your JSON response:
+  "crowd_reaction": "<one of: fear_trigger, greed_trigger, noise>",
+  "crowd_reaction_confidence": <number 0.0-1.0, how confident you are in this classification>,
+  "crowd_reaction_rationale": "<one sentence: why will retail investors react this way?>",
+  "estimated_reaction_window_minutes": <integer 15-120, how many minutes before the crowd prices it in>`
+        : '';
 
       try {
         const llmResult = await this.marketsLlm.generateText(
@@ -286,7 +305,7 @@ Respond with valid JSON only:
   "relevance": <number 0.0-1.0, where 0=irrelevant to your analysis, 1=highly relevant to your specialty>,
   "rationale": "<brief one-sentence explanation from your perspective>",
   "dismiss": <boolean, true if article is clearly irrelevant to your type of analysis>
-}`,
+}${crowdReactionPromptAddition}`,
           `Score this article's relevance to ${instrument.symbol} (${instrument.name}, ${instrument.asset_type}) from your perspective as ${analyst.display_name}:\n\n${articleText}`,
         );
 
@@ -297,6 +316,19 @@ Respond with valid JSON only:
           relevanceScore = Math.min(1, Math.max(0, Number(parsed['relevance']) || 0.5));
           rationale = String(parsed['rationale'] || llmResult.text.slice(0, 500));
           dismissed = Boolean(parsed['dismiss']);
+
+          if (isSentimentAnalyst) {
+            const rawReaction = String(parsed['crowd_reaction'] || '');
+            crowdReaction = ['fear_trigger', 'greed_trigger', 'noise'].includes(rawReaction)
+              ? rawReaction : 'noise';
+            const rawConf = Number(parsed['crowd_reaction_confidence']);
+            crowdReactionConfidence = Number.isFinite(rawConf) ? Math.min(1, Math.max(0, rawConf)) : 0;
+            crowdReactionRationale = parsed['crowd_reaction_rationale']
+              ? String(parsed['crowd_reaction_rationale']).slice(0, 500) : null;
+            const rawWindow = Number(parsed['estimated_reaction_window_minutes']);
+            estimatedReactionWindowMinutes = Number.isInteger(rawWindow) && rawWindow >= 15 && rawWindow <= 120
+              ? rawWindow : null;
+          }
         }
       } catch (err) {
         this.logger.debug(
@@ -317,6 +349,10 @@ Respond with valid JSON only:
       'system',
       analyst.id,
       llmUsageId,
+      crowdReaction,
+      crowdReactionConfidence,
+      crowdReactionRationale,
+      estimatedReactionWindowMinutes,
     );
 
     return { relevanceScore, rationale, dismissed };
@@ -361,22 +397,34 @@ Respond with valid JSON only:
     createdBy: string,
     scoredByAnalystId: string,
     llmUsageId: string | null,
+    crowdReaction: string | null = null,
+    crowdReactionConfidence: number | null = null,
+    crowdReactionRationale: string | null = null,
+    estimatedReactionWindowMinutes: number | null = null,
   ): Promise<void> {
     const result = await this.db.rawQuery(
       `
       insert into prediction.market_predictors
         (id, instrument_id, article_id, relevance_score,
-         status, rationale, created_by, scored_by_analyst_id, llm_usage_id, created_at, updated_at)
-      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, now(), now())
+         status, rationale, created_by, scored_by_analyst_id, llm_usage_id,
+         crowd_reaction, crowd_reaction_confidence, crowd_reaction_rationale,
+         estimated_reaction_window_minutes,
+         created_at, updated_at)
+      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())
       on conflict (instrument_id, article_id, scored_by_analyst_id)
       do update set
         relevance_score = excluded.relevance_score,
         status = excluded.status,
         rationale = excluded.rationale,
         llm_usage_id = excluded.llm_usage_id,
+        crowd_reaction = excluded.crowd_reaction,
+        crowd_reaction_confidence = excluded.crowd_reaction_confidence,
+        crowd_reaction_rationale = excluded.crowd_reaction_rationale,
+        estimated_reaction_window_minutes = excluded.estimated_reaction_window_minutes,
         updated_at = now()
       `,
-      [instrumentId, articleId, relevanceScore, status, rationale, createdBy, scoredByAnalystId, llmUsageId],
+      [instrumentId, articleId, relevanceScore, status, rationale, createdBy, scoredByAnalystId, llmUsageId,
+       crowdReaction, crowdReactionConfidence, crowdReactionRationale, estimatedReactionWindowMinutes],
     );
     if (result.error) {
       throw new Error(result.error.message);

@@ -39,6 +39,7 @@ import { AuditService } from './services/audit.service';
 import { StrategicOverhaulService } from './services/strategic-overhaul.service';
 import { AffinityService } from './services/affinity.service';
 import { NotificationService } from './services/notification.service';
+import { FearGreedAlertService } from './services/fear-greed-alert.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -87,6 +88,7 @@ export class MarketsController {
     @Inject(StrategicOverhaulService) private readonly strategicOverhaul: StrategicOverhaulService,
     @Inject(AffinityService) private readonly affinityService: AffinityService,
     @Inject(NotificationService) private readonly notificationService: NotificationService,
+    @Inject(FearGreedAlertService) private readonly fearGreedAlertService: FearGreedAlertService,
   ) {
     this.markets = markets;
   }
@@ -1161,6 +1163,47 @@ export class MarketsController {
     const user = this.getUser(req);
     await this.requireWriteAccess(user);
     await this.notificationService.markAllRead(user.id);
+  }
+
+  // ─── Fear/Greed Alerts ──────────────────────────────────────────
+
+  @Get('fear-greed-alerts')
+  async getFearGreedAlerts(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('unread_only') unreadOnly?: string,
+  ) {
+    const user = this.getUser(req);
+    const alerts = await this.fearGreedAlertService.getAlerts(
+      user.id,
+      unreadOnly === 'true',
+    );
+    return { alerts };
+  }
+
+  @Get('fear-greed-alerts/unread-count')
+  async getFearGreedUnreadCount(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    const count = await this.fearGreedAlertService.getUnreadCount(user.id);
+    return { count };
+  }
+
+  @Patch('fear-greed-alerts/:id/read')
+  @HttpCode(204)
+  async markFearGreedRead(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('id') id: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.fearGreedAlertService.markRead(id, user.id);
+  }
+
+  @Patch('fear-greed-alerts/read-all')
+  @HttpCode(204)
+  async markAllFearGreedRead(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.fearGreedAlertService.markAllRead(user.id);
   }
 
   // ─── Base Data (from orchestrator-ai) ───────────────────────────
