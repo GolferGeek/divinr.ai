@@ -77,11 +77,11 @@ async function main(): Promise<void> {
       recent_bars: Array.from({ length: RECENT_BARS_CAP - 1 }, (_, i) => ({ t: `t${i}`, o: 1, h: 1, l: 1, c: 1, v: 0 })),
     };
     const updateFn = (svc as any).updateInstrumentPrice.bind(svc);
-    await updateFn('inst-1', 'acme', { price: 42, change: 1, changePercent: 1 });
+    await updateFn('inst-1', { price: 42, change: 1, changePercent: 1 });
     assert(db.state.recent_bars!.length === RECENT_BARS_CAP, `length is exactly ${RECENT_BARS_CAP} after first append`);
 
     // Append again — should still be capped, oldest dropped
-    await updateFn('inst-1', 'acme', { price: 99, change: 2, changePercent: 2 });
+    await updateFn('inst-1', { price: 99, change: 2, changePercent: 2 });
     assert(db.state.recent_bars!.length === RECENT_BARS_CAP, `length stays at ${RECENT_BARS_CAP} after another append`);
     const last = db.state.recent_bars![RECENT_BARS_CAP - 1];
     assert(last.c === 99, 'newest bar is at the end');
@@ -93,7 +93,7 @@ async function main(): Promise<void> {
     const db = new MockDb();
     const svc = new OutcomeTrackingService(db as any, mockObservability, mockStopLoss);
     const updateFn = (svc as any).updateInstrumentPrice.bind(svc);
-    await updateFn('inst-1', 'acme', { price: 50, change: 0, changePercent: 0 });
+    await updateFn('inst-1', { price: 50, change: 0, changePercent: 0 });
     assert(db.state.recent_bars!.length === 1, 'first append yields 1 bar');
     assert(db.state.recent_bars![0].o === 50 && db.state.recent_bars![0].c === 50, 'o=c=price for synthetic bar');
   }

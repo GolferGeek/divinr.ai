@@ -19,6 +19,9 @@ export const useAuthStore = defineStore('auth', () => {
       role.value = userRole;
       localStorage.setItem('divinr_role', userRole);
     }
+    // Clean up stale org-scoped keys from pre-migration sessions
+    localStorage.removeItem('divinr_org');
+    localStorage.removeItem('divinr_org_role');
   }
 
   function clear() {
@@ -28,6 +31,8 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('divinr_user');
     localStorage.removeItem('divinr_token');
     localStorage.removeItem('divinr_role');
+    localStorage.removeItem('divinr_org');
+    localStorage.removeItem('divinr_org_role');
   }
 
   const isConfigured = () => userId.value.length > 0;
