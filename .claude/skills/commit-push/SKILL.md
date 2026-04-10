@@ -7,7 +7,7 @@ allowed-tools: Read Write Edit Grep Glob Bash Agent
 
 # Commit Push
 
-The effort directory is `docs/efforts/current/`. The plan is at `docs/efforts/current/plan.md`, the PRD at `docs/efforts/current/prd.md`, and the intention at `docs/efforts/current/intention.md`.
+Discover the current effort by finding the single subfolder inside `docs/efforts/current/` (e.g., `docs/efforts/current/multi-analyst-coordination/`). The plan is at `<effort-dir>/plan.md`, the PRD at `<effort-dir>/prd.md`, and the intention at `<effort-dir>/intention.md`.
 
 ## Process
 

@@ -1,13 +1,13 @@
 ---
 name: build-prd
-description: Build a PRD from the current effort's intention file. Reads from docs/efforts/current/intention.md, writes prd.md, verifies, then flows into build-plan.
+description: Build a PRD from the current effort's intention file. Finds the effort folder inside docs/efforts/current/, writes prd.md, verifies, then flows into build-plan.
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Agent
 ---
 
 # Build PRD from Intention
 
-Read the intention file at `docs/efforts/current/intention.md`. All effort documents (prd.md, plan.md, completion-report.md) will be written to `docs/efforts/current/`.
+Discover the current effort by finding the single subfolder inside `docs/efforts/current/` (e.g., `docs/efforts/current/multi-analyst-coordination/`). Read the intention file at `<effort-dir>/intention.md`. All effort documents (prd.md, plan.md, completion-report.md) will be written to that same effort directory.
 
 ## Process
 

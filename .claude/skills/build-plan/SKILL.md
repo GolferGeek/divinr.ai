@@ -7,7 +7,7 @@ allowed-tools: Read Write Edit Grep Glob Bash Agent
 
 # Build Implementation Plan from PRD
 
-Read the PRD file at `docs/efforts/current/prd.md`. The intention file is at `docs/efforts/current/intention.md`. Write the plan to `docs/efforts/current/plan.md`.
+Discover the current effort by finding the single subfolder inside `docs/efforts/current/` (e.g., `docs/efforts/current/multi-analyst-coordination/`). Read the PRD at `<effort-dir>/prd.md`. The intention is at `<effort-dir>/intention.md`. Write the plan to `<effort-dir>/plan.md`.
 
 ## Process
 

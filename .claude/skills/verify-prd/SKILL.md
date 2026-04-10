@@ -9,8 +9,9 @@ allowed-tools: Read Write Edit Grep Glob Bash Agent
 
 ## Setup
 
-1. **Read the PRD file** at `docs/efforts/current/prd.md`.
-2. **Read the intention file** at `docs/efforts/current/intention.md`.
+1. **Discover the current effort** by finding the single subfolder inside `docs/efforts/current/` (e.g., `docs/efforts/current/multi-analyst-coordination/`).
+2. **Read the PRD file** at `<effort-dir>/prd.md`.
+3. **Read the intention file** at `<effort-dir>/intention.md`.
 3. **Read the current codebase** enough to validate technical claims in the PRD.
 
 ## Verification Pass

@@ -7,7 +7,7 @@ allowed-tools: Read Write Edit Grep Glob Bash Agent mcp__claude_ai_Gmail__gmail_
 
 # Run Implementation Plan
 
-Read the plan file at `docs/efforts/current/plan.md`. The PRD is at `docs/efforts/current/prd.md`. The intention is at `docs/efforts/current/intention.md`. The completion report will be written to `docs/efforts/current/completion-report.md`.
+Discover the current effort by finding the single subfolder inside `docs/efforts/current/` (e.g., `docs/efforts/current/multi-analyst-coordination/`). Read the plan at `<effort-dir>/plan.md`. The PRD is at `<effort-dir>/prd.md`. The intention is at `<effort-dir>/intention.md`. The completion report will be written to `<effort-dir>/completion-report.md`.
 
 ## Startup
 

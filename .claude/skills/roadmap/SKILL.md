@@ -12,7 +12,7 @@ The roadmap lives at `docs/efforts/roadmap.md`. It tracks the full arc of divinr
 ## When Invoked
 
 1. **Read the roadmap** at `docs/efforts/roadmap.md`.
-2. **Read the current effort's status** — check `docs/efforts/current/` for which documents exist (intention.md, prd.md, plan.md, completion-report.md) to determine where the current effort stands.
+2. **Read the current effort's status** — find the single effort subfolder inside `docs/efforts/current/` (e.g., `docs/efforts/current/multi-analyst-coordination/`). Check which documents exist in it (intention.md, prd.md, plan.md, completion-report.md) to determine where the current effort stands. If `docs/efforts/current/` is empty, there is no current effort.
 3. **Present a concise status** to the user:
    - What's current and where it stands (intention written? PRD built? plan running? complete?)
    - What's next in the queue
@@ -41,4 +41,5 @@ The roadmap lives at `docs/efforts/roadmap.md`. It tracks the full arc of divinr
 - **Dependencies matter.** When reordering, check whether the new order respects the dependency graph. If it doesn't, flag the conflict to the user.
 - **Don't over-plan.** The roadmap should have 2-3 "Next" efforts and a handful of "Future" ones. If the list grows past ~10 future efforts, consolidate or prune.
 - **Key decisions from conversations belong here** — especially scope decisions and "why this order" rationale. These are the things that get lost when conversation context compresses.
-- **When an effort completes:** move it to the Completed table, promote the first "Next" to "Current" (or ask the user which one), and adjust the dependency graph.
+- **When an effort completes:** move its folder from `docs/efforts/current/[name]/` to `docs/efforts/[name]/` (archive), update the Completed table, promote the next effort by moving its folder from `docs/efforts/next/[name]/` into `docs/efforts/current/`, and adjust the dependency graph.
+- **Effort lifecycle on disk:** `docs/efforts/future/[name]/` → `docs/efforts/next/[name]/` → `docs/efforts/current/[name]/` → `docs/efforts/[name]/` (archived). Each folder contains at minimum an `intention.md`. PRD, plan, and completion-report are added as the effort progresses through the pipeline.
