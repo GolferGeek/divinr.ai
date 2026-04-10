@@ -50,7 +50,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 ## Current Effort
 
-*None — slot is open. Next in queue: Fear/Greed Alerting.*
+**In-App Notification System** (`docs/efforts/current/notification-system/`) — Unified in-app notification bell + list page. All event producers (stop-loss, proposals, nightly eval, trade recs, contrarian alerts) write to a single notifications table. Click-through to relevant pages. No email/push — in-app only.
 
 ---
 
@@ -62,9 +62,7 @@ Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/int
 
 2. **Multi-Analyst Coordination** (`docs/efforts/next/multi-analyst-coordination/`) — Detect redundant or conflicting analysts, surface coverage gaps and contribution scores. Read-only analysis layer for admin.
 
-3. **Notification System** (`docs/efforts/next/notification-system/`) — Push alerts for stop-loss hits, new proposals, position events, nightly eval. In-app + email first, extensible to Slack/push later.
-
-4. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
+3. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
 
 ---
 
