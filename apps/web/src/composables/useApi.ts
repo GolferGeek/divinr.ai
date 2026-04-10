@@ -106,6 +106,7 @@ export function useApi() {
         const text = await res.text();
         throw new Error(`${res.status}: ${text}`);
       }
+      if (res.status === 204) return undefined as T;
       return await res.json() as T;
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err);

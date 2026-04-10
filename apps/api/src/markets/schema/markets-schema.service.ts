@@ -1705,7 +1705,7 @@ export class MarketsSchemaService {
   }
 
   /** Unified notification system table. */
-  notificationsDdl(): string {
+  private notificationsDdl(): string {
     return `
       create table if not exists prediction.notifications (
         id text primary key default gen_random_uuid()::text,

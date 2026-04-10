@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useApi } from '../composables/useApi';
-import { useAuthStore } from './auth.store';
 
 export interface AppNotification {
   id: string;
@@ -45,16 +44,8 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   async function markRead(id: string) {
-    const auth = useAuthStore();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
-
-    const isElectron = typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI;
-    const base = isElectron
-      ? (localStorage.getItem('divinr_api_url') || 'http://localhost:6100') + '/markets'
-      : '/api/markets';
-
-    await fetch(`${base}/notifications/${id}/read`, { method: 'PATCH', headers });
+    const api = useApi();
+    await api.patch(`/notifications/${id}/read`);
     const n = notifications.value.find(n => n.id === id);
     if (n && !n.is_read) {
       n.is_read = true;
@@ -63,16 +54,8 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   async function markAllRead() {
-    const auth = useAuthStore();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
-
-    const isElectron = typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI;
-    const base = isElectron
-      ? (localStorage.getItem('divinr_api_url') || 'http://localhost:6100') + '/markets'
-      : '/api/markets';
-
-    await fetch(`${base}/notifications/read-all`, { method: 'PATCH', headers });
+    const api = useApi();
+    await api.patch('/notifications/read-all');
     for (const n of notifications.value) n.is_read = true;
     unreadCount.value = 0;
   }
