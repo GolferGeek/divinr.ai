@@ -84,7 +84,7 @@ async function main(): Promise<void> {
     ]);
 
     const svc = new MarketsService(db as any, null as any, null as any, null as any, new MockSchema() as any, null as any, null as any, null as any, null as any, null as any, null as any);
-    const result = await svc.getAnalystContract('ma-alpha', 'test-org');
+    const result = await svc.getAnalystContract('ma-alpha', 'test-user-id');
 
     assert(result.analystId === 'ma-alpha', 'analystId returned');
     assert(result.displayName === 'Alpha Analyst', 'displayName returned');
@@ -122,7 +122,7 @@ async function main(): Promise<void> {
     ]);
 
     const svc = new MarketsService(db as any, null as any, null as any, null as any, new MockSchema() as any, null as any, null as any, null as any, null as any, null as any, null as any);
-    const result = await svc.getAnalystContract('ma-empty', 'test-org');
+    const result = await svc.getAnalystContract('ma-empty', 'test-user-id');
 
     assert(result.contract === null, 'contract is null when no context_markdown');
     assert(result.versions.length === 1, 'still returns versions');
@@ -182,7 +182,6 @@ async function main(): Promise<void> {
     const svc = new MarketsService(db as any, null as any, new MockRbac() as any, null as any, new MockSchema() as any, null as any, null as any, null as any, null as any, null as any, null as any);
     const result = await svc.saveAnalystContract({
       analystId: 'ma-alpha',
-      organizationSlug: 'test-org',
       userId: 'admin',
       markdown: newMd,
       changeReason: 'Test save',

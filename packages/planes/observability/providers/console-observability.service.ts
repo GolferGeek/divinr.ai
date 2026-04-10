@@ -29,7 +29,7 @@ export class ConsoleObservabilityService implements ObservabilityServiceProvider
     event: InvocationEvent,
   ): Promise<void> {
     this.logger.log(
-      `[${event.type}] ${context.agentSlug} | ${event.message || ''} | org=${context.orgSlug} user=${context.userId}`,
+      `[${event.type}] ${context.agentSlug} | ${event.message || ''} | user=${context.userId}`,
     );
 
     this.pushToBuffer({

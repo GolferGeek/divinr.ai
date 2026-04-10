@@ -76,7 +76,6 @@ describe('OpenAILLMService', () => {
   };
 
   const mockExecutionContext = createMockExecutionContext({
-    orgSlug: 'test-org',
     userId: 'user-123',
     conversationId: 'conv-123',
     provider: 'openai',

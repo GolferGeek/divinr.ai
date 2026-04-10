@@ -15,7 +15,6 @@ export interface Signal {
 export interface DayTraderPortfolioRow {
   id: string;
   analyst_id: string;
-  organization_slug: string;
   current_balance: number | string;
   strategy_name: string | null;
   strategy_state: Record<string, unknown> | null;

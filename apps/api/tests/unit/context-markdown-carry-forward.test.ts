@@ -30,9 +30,9 @@ async function main() {
     const testMarkdown = '## General\n\nTest contract.\n\n## Role: Analyst\n\nTest role.\n\n## Adaptations\n\nReserved.';
     await client.query(
       `INSERT INTO prediction.analyst_config_versions
-        (id, analyst_id, organization_slug, version_number, persona_prompt,
+        (id, analyst_id, version_number, persona_prompt,
          context_markdown, source, change_reason, is_active, created_by, created_at)
-       VALUES ($1, $2, '__test__', 1, 'test prompt', $3, 'manual', 'test setup', true, 'test', $4)`,
+       VALUES ($1, $2, 1, 'test prompt', $3, 'manual', 'test setup', true, 'test', $4)`,
       [v1Id, testAnalystId, testMarkdown, now],
     );
 
@@ -40,10 +40,10 @@ async function main() {
     const v2Id = randomUUID();
     await client.query(
       `INSERT INTO prediction.analyst_config_versions
-        (id, analyst_id, organization_slug, version_number, persona_prompt,
+        (id, analyst_id, version_number, persona_prompt,
          context_markdown,
          source, change_reason, is_active, created_by, created_at)
-       VALUES ($1, $2, '__test__', 2, 'updated prompt',
+       VALUES ($1, $2, 2, 'updated prompt',
          (SELECT context_markdown FROM prediction.analyst_config_versions
           WHERE analyst_id = $2 AND context_markdown IS NOT NULL
           ORDER BY version_number DESC LIMIT 1),
@@ -64,10 +64,10 @@ async function main() {
     const v3Id = randomUUID();
     await client.query(
       `INSERT INTO prediction.analyst_config_versions
-        (id, analyst_id, organization_slug, version_number, persona_prompt,
+        (id, analyst_id, version_number, persona_prompt,
          context_markdown,
          source, change_reason, is_active, created_by, created_at)
-       VALUES ($1, $2, '__test__', 1, 'new prompt',
+       VALUES ($1, $2, 1, 'new prompt',
          (SELECT context_markdown FROM prediction.analyst_config_versions
           WHERE analyst_id = $2 AND context_markdown IS NOT NULL
           ORDER BY version_number DESC LIMIT 1),
@@ -89,17 +89,17 @@ async function main() {
     const v3MiddleId = randomUUID();
     await client.query(
       `INSERT INTO prediction.analyst_config_versions
-        (id, analyst_id, organization_slug, version_number, persona_prompt,
+        (id, analyst_id, version_number, persona_prompt,
          context_markdown, source, change_reason, is_active, created_by, created_at)
-       VALUES ($1, $2, '__test__', 3, 'middle prompt', NULL, 'tier1_auto', 'no contract', false, 'test', $3)`,
+       VALUES ($1, $2, 3, 'middle prompt', NULL, 'tier1_auto', 'no contract', false, 'test', $3)`,
       [v3MiddleId, testAnalystId, now],
     );
     await client.query(
       `INSERT INTO prediction.analyst_config_versions
-        (id, analyst_id, organization_slug, version_number, persona_prompt,
+        (id, analyst_id, version_number, persona_prompt,
          context_markdown,
          source, change_reason, is_active, created_by, created_at)
-       VALUES ($1, $2, '__test__', 4, 'v4 prompt',
+       VALUES ($1, $2, 4, 'v4 prompt',
          (SELECT context_markdown FROM prediction.analyst_config_versions
           WHERE analyst_id = $2 AND context_markdown IS NOT NULL
           ORDER BY version_number DESC LIMIT 1),
@@ -118,7 +118,7 @@ async function main() {
   } finally {
     // Cleanup test data
     await client.query(
-      `DELETE FROM prediction.analyst_config_versions WHERE organization_slug = '__test__'`,
+      `DELETE FROM prediction.analyst_config_versions WHERE analyst_id LIKE 'test-%'`,
     );
     await client.end();
   }

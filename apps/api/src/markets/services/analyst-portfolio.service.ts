@@ -20,13 +20,13 @@ export class AnalystPortfolioService {
     @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
   ) {}
 
-  async ensurePortfolio(analystId: string, organizationSlug: string, initialBalance = 1000000): Promise<AnalystPortfolio> {
+  async ensurePortfolio(analystId: string, initialBalance = 1000000): Promise<AnalystPortfolio> {
     await this.schema.ensureSchema();
 
     // Check if portfolio exists
     const existing = await this.db.rawQuery(
-      `select * from prediction.analyst_portfolios where analyst_id = $1 and organization_slug = $2`,
-      [analystId, organizationSlug],
+      `select * from prediction.analyst_portfolios where analyst_id = $1`,
+      [analystId],
     );
     const rows = (existing.data as AnalystPortfolio[] | null) ?? [];
     if (rows.length > 0) return rows[0];
@@ -35,10 +35,10 @@ export class AnalystPortfolioService {
     const id = randomUUID();
     const result = await this.db.rawQuery(
       `insert into prediction.analyst_portfolios
-        (id, analyst_id, organization_slug, initial_balance, current_balance)
-       values ($1, $2, $3, $4, $5)
+        (id, analyst_id, initial_balance, current_balance)
+       values ($1, $2, $3, $4)
        returning *`,
-      [id, analystId, organizationSlug, initialBalance, initialBalance],
+      [id, analystId, initialBalance, initialBalance],
     );
     if (result.error) throw new Error(result.error.message);
     return ((result.data as AnalystPortfolio[] | null) ?? [])[0]!;
@@ -46,7 +46,6 @@ export class AnalystPortfolioService {
 
   async createPositionFromPrediction(input: {
     analystId: string;
-    organizationSlug: string;
     predictionId: string;
     instrumentId: string;
     symbol: string;
@@ -55,7 +54,7 @@ export class AnalystPortfolioService {
     entryPrice: number;
     isPaperOnly?: boolean;
   }): Promise<AnalystPosition | null> {
-    const portfolio = await this.ensurePortfolio(input.analystId, input.organizationSlug);
+    const portfolio = await this.ensurePortfolio(input.analystId);
 
     // Check portfolio status
     if (portfolio.status === 'suspended' && !input.isPaperOnly) {
@@ -63,7 +62,7 @@ export class AnalystPortfolioService {
     }
 
     // Calculate position size
-    const positionPercent = await this.sizing.getPositionPercent(input.confidence, input.organizationSlug);
+    const positionPercent = await this.sizing.getPositionPercent(input.confidence);
     if (positionPercent <= 0) return null; // Below min confidence
 
     const quantity = this.sizing.calculatePositionSize(portfolio.current_balance, input.entryPrice, positionPercent);
@@ -74,14 +73,14 @@ export class AnalystPortfolioService {
 
     const result = await this.db.rawQuery(
       `insert into prediction.analyst_positions
-        (id, portfolio_id, analyst_id, organization_slug, prediction_id, instrument_id, symbol,
+        (id, portfolio_id, analyst_id, prediction_id, instrument_id, symbol,
          direction, quantity, entry_price, current_price, is_paper_only, status, opened_at,
          trigger_reason, trigger_prediction_id, trigger_conviction)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'open', now(),
-               'eod_backfill', $5, $13)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'open', now(),
+               'eod_backfill', $4, $12)
        returning *`,
       [
-        id, portfolio.id, input.analystId, input.organizationSlug,
+        id, portfolio.id, input.analystId,
         input.predictionId, input.instrumentId, input.symbol,
         posDirection, quantity, input.entryPrice, input.entryPrice,
         input.isPaperOnly ?? false, input.confidence,
@@ -180,31 +179,29 @@ export class AnalystPortfolioService {
     return updated;
   }
 
-  async getPortfolio(analystId: string, organizationSlug: string): Promise<AnalystPortfolio | null> {
+  async getPortfolio(analystId: string): Promise<AnalystPortfolio | null> {
     const result = await this.db.rawQuery(
-      `select * from prediction.analyst_portfolios where analyst_id = $1 and organization_slug = $2`,
-      [analystId, organizationSlug],
+      `select * from prediction.analyst_portfolios where analyst_id = $1`,
+      [analystId],
     );
     return ((result.data as AnalystPortfolio[] | null) ?? [])[0] ?? null;
   }
 
-  async listPortfolios(organizationSlug: string): Promise<AnalystPortfolio[]> {
+  async listPortfolios(): Promise<AnalystPortfolio[]> {
     const result = await this.db.rawQuery(
       `select ap.*, ma.display_name as analyst_name
        from prediction.analyst_portfolios ap
        join prediction.market_analysts ma on ma.id = ap.analyst_id
-       where (ap.organization_slug = $1 or ap.organization_slug = '__base__' or ap.organization_slug = '*')
        order by ap.current_balance desc`,
-      [organizationSlug],
     );
     return (result.data as AnalystPortfolio[] | null) ?? [];
   }
 
-  async listPositions(analystId: string, organizationSlug: string, status?: string): Promise<AnalystPosition[]> {
-    let query = `select * from prediction.analyst_positions where analyst_id = $1 and organization_slug = $2`;
-    const params: unknown[] = [analystId, organizationSlug];
+  async listPositions(analystId: string, status?: string): Promise<AnalystPosition[]> {
+    let query = `select * from prediction.analyst_positions where analyst_id = $1`;
+    const params: unknown[] = [analystId];
     if (status) {
-      query += ` and status = $3`;
+      query += ` and status = $2`;
       params.push(status);
     }
     query += ' order by opened_at desc';
@@ -212,7 +209,7 @@ export class AnalystPortfolioService {
     return (result.data as AnalystPosition[] | null) ?? [];
   }
 
-  async getLeaderboard(organizationSlug: string): Promise<Array<Record<string, unknown>>> {
+  async getLeaderboard(): Promise<Array<Record<string, unknown>>> {
     const result = await this.db.rawQuery(
       `select ap.*, ma.display_name as analyst_name, ma.default_weight,
               case when ap.win_count + ap.loss_count > 0
@@ -221,9 +218,7 @@ export class AnalystPortfolioService {
               round((ap.current_balance - ap.initial_balance) / ap.initial_balance * 100, 2) as pnl_percent
        from prediction.analyst_portfolios ap
        join prediction.market_analysts ma on ma.id = ap.analyst_id
-       where (ap.organization_slug = $1 or ap.organization_slug = '__base__' or ap.organization_slug = '*')
        order by ap.current_balance desc`,
-      [organizationSlug],
     );
     return (result.data as Record<string, unknown>[] | null) ?? [];
   }

@@ -18,7 +18,6 @@ interface UnscoredArticle {
 
 interface ActiveInstrument {
   id: string;
-  organization_slug: string;
   symbol: string;
   name: string;
   asset_type: string;
@@ -188,7 +187,7 @@ export class PredictorGeneratorService {
   private async getPersonalityAnalysts(): Promise<ScoringAnalyst[]> {
     const result = await this.db.rawQuery(
       `select id, slug, display_name from prediction.market_analysts
-       where organization_slug = '__base__' and analyst_type = 'personality'
+       where analyst_type = 'personality'
          and is_enabled = true and is_active = true
        order by slug`,
     );
@@ -205,10 +204,9 @@ export class PredictorGeneratorService {
    */
   private async getActiveInstruments(): Promise<ActiveInstrument[]> {
     const result = await this.db.rawQuery(
-      `select id, organization_slug, symbol, name, asset_type
+      `select id, symbol, name, asset_type
        from prediction.instruments
        where is_active = true
-         and organization_slug = '__base__'
        order by symbol`,
     );
     if (result.error) {
@@ -234,15 +232,14 @@ export class PredictorGeneratorService {
         select count(distinct mp.scored_by_analyst_id)
         from prediction.market_predictors mp
         where mp.instrument_id = $1
-          and mp.organization_slug = $2
           and mp.article_id = ma.id
           and mp.scored_by_analyst_id is not null
-      ) < $3
+      ) < $2
       and coalesce(ma.published_at, ma.first_seen_at, ma.created_at) >= now() - interval '7 days'
       order by coalesce(ma.published_at, ma.first_seen_at, ma.created_at) desc
       limit 20
       `,
-      [instrument.id, instrument.organization_slug, analystCount],
+      [instrument.id, analystCount],
     );
     if (result.error) {
       this.logger.error(`Failed to query unscored articles for ${instrument.symbol}: ${result.error.message}`);
@@ -275,7 +272,6 @@ export class PredictorGeneratorService {
         .join('\n');
 
       const context = this.marketsLlm.buildExecutionContext(
-        instrument.organization_slug,
         'system',
         'predictor-scoring',
       );
@@ -313,7 +309,6 @@ Respond with valid JSON only:
     if (relevanceScore < 0.2) dismissed = true;
 
     await this.upsertPredictor(
-      instrument.organization_slug,
       instrument.id,
       article.id,
       relevanceScore,
@@ -358,7 +353,6 @@ Respond with valid JSON only:
    * Upsert a predictor row with per-analyst scoring.
    */
   private async upsertPredictor(
-    organizationSlug: string,
     instrumentId: string,
     articleId: string,
     relevanceScore: number,
@@ -371,10 +365,10 @@ Respond with valid JSON only:
     const result = await this.db.rawQuery(
       `
       insert into prediction.market_predictors
-        (id, organization_slug, instrument_id, article_id, relevance_score,
+        (id, instrument_id, article_id, relevance_score,
          status, rationale, created_by, scored_by_analyst_id, llm_usage_id, created_at, updated_at)
-      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
-      on conflict (organization_slug, instrument_id, article_id, scored_by_analyst_id)
+      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, now(), now())
+      on conflict (instrument_id, article_id, scored_by_analyst_id)
       do update set
         relevance_score = excluded.relevance_score,
         status = excluded.status,
@@ -382,7 +376,7 @@ Respond with valid JSON only:
         llm_usage_id = excluded.llm_usage_id,
         updated_at = now()
       `,
-      [organizationSlug, instrumentId, articleId, relevanceScore, status, rationale, createdBy, scoredByAnalystId, llmUsageId],
+      [instrumentId, articleId, relevanceScore, status, rationale, createdBy, scoredByAnalystId, llmUsageId],
     );
     if (result.error) {
       throw new Error(result.error.message);

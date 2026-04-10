@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { useTenantStore } from '../stores/tenant.store';
+import { useAuthStore } from '../stores/auth.store';
 
 /**
  * Base URL for API calls.
@@ -23,31 +23,19 @@ export function useApi() {
   const error = ref<string | null>(null);
 
   function getHeaders(): Record<string, string> {
-    const tenant = useTenantStore();
+    const auth = useAuthStore();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (tenant.token) {
-      headers['Authorization'] = `Bearer ${tenant.token}`;
-    }
-    // x-user-id is no longer sent — it was a dev bypass header that only worked
-    // when MARKETS_DEV_AUTH_BYPASS=true. Real auth uses the bearer token above.
-    if (tenant.orgSlug) {
-      headers['x-org-slug'] = tenant.orgSlug;
+    if (auth.token) {
+      headers['Authorization'] = `Bearer ${auth.token}`;
     }
     return headers;
-  }
-
-  function appendOrg(url: string): string {
-    const tenant = useTenantStore();
-    if (!tenant.orgSlug) return url;
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}organizationSlug=${encodeURIComponent(tenant.orgSlug)}`;
   }
 
   async function get<T = unknown>(path: string): Promise<T> {
     loading.value = true;
     error.value = null;
     try {
-      const res = await fetch(appendOrg(`${BASE_URL}${path}`), { headers: getHeaders() });
+      const res = await fetch(`${BASE_URL}${path}`, { headers: getHeaders() });
       if (!res.ok) {
         const body = await res.text();
         throw new Error(`${res.status}: ${body}`);
@@ -64,15 +52,11 @@ export function useApi() {
   async function post<T = unknown>(path: string, body?: unknown): Promise<T> {
     loading.value = true;
     error.value = null;
-    const tenant = useTenantStore();
-    const payload = body && typeof body === 'object'
-      ? { organizationSlug: tenant.orgSlug, ...body as Record<string, unknown> }
-      : body;
     try {
       const res = await fetch(`${BASE_URL}${path}`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const text = await res.text();
@@ -90,15 +74,11 @@ export function useApi() {
   async function put<T = unknown>(path: string, body?: unknown): Promise<T> {
     loading.value = true;
     error.value = null;
-    const tenant = useTenantStore();
-    const payload = body && typeof body === 'object'
-      ? { organizationSlug: tenant.orgSlug, ...body as Record<string, unknown> }
-      : body;
     try {
       const res = await fetch(`${BASE_URL}${path}`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const text = await res.text();

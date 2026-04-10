@@ -271,7 +271,7 @@ let RbacService = RbacService_1 = class RbacService {
         }
         const typedRole = role;
         // Insert assignment
-        const { error } = await this.db.from('authz', 'rbac_user_org_roles').upsert({
+        const { error } = await this.db.from('authz', 'rbac_user_roles').upsert({
             user_id: targetUserId,
             organization_slug: organizationSlug,
             role_id: typedRole.id,
@@ -305,7 +305,7 @@ let RbacService = RbacService_1 = class RbacService {
         const typedRole = role;
         // Delete assignment
         const { error } = (await this.db
-            .from('authz', 'rbac_user_org_roles')
+            .from('authz', 'rbac_user_roles')
             .delete()
             .eq('user_id', targetUserId)
             .eq('organization_slug', organizationSlug)
@@ -327,7 +327,7 @@ let RbacService = RbacService_1 = class RbacService {
     async isSuperAdmin(userId) {
         // Check if user has super-admin role by joining user_org_roles with roles
         const { data, error } = (await this.db
-            .from('authz', 'rbac_user_org_roles')
+            .from('authz', 'rbac_user_roles')
             .select('id, role_id, organization_slug')
             .eq('user_id', userId)
             .limit(100));
@@ -376,7 +376,7 @@ let RbacService = RbacService_1 = class RbacService {
         // If organizationSlug is '*', check if user is admin for any organization
         if (organizationSlug === '*') {
             const { data, error } = (await this.db
-                .from('authz', 'rbac_user_org_roles')
+                .from('authz', 'rbac_user_roles')
                 .select('id, role_id')
                 .eq('user_id', userId)
                 .eq('role_id', adminRoleId)
@@ -389,7 +389,7 @@ let RbacService = RbacService_1 = class RbacService {
         }
         // Check if user has admin role for the specific organization
         const { data, error } = (await this.db
-            .from('authz', 'rbac_user_org_roles')
+            .from('authz', 'rbac_user_roles')
             .select('id, role_id')
             .eq('user_id', userId)
             .eq('organization_slug', organizationSlug)

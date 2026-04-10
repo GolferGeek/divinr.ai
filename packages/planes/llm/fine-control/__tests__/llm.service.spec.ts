@@ -22,7 +22,6 @@ describe('LLMService', () => {
   let observabilityEventsService: jest.Mocked<ObservabilityEventsService>;
 
   const mockExecutionContext: ExecutionContext = createMockExecutionContext({
-    orgSlug: 'test-org',
     userId: 'user-123',
     conversationId: 'conv-123',
     provider: 'openai',

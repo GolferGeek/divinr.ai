@@ -33,15 +33,12 @@ interface UserDbRecord {
   id: string;
   email: string;
   display_name: string;
-  organization_slug?: string;
   status: string;
   created_at: string;
   updated_at: string;
 }
 
 interface UserOrgRpcResult {
-  organization_slug: string;
-  organization_name: string;
   role_name: string;
   is_global: boolean;
 }
@@ -114,7 +111,7 @@ export abstract class BaseAuthService implements AuthServiceProvider {
     try {
       const { data: userData, error: userError } = (await this.db
         .from('authz', 'users')
-        .select('id, email, display_name, organization_slug, created_at')
+        .select('id, email, display_name, created_at')
         .eq('id', currentAuthUser.id)
         .single()) as QueryResult<unknown>;
 
@@ -127,7 +124,6 @@ export abstract class BaseAuthService implements AuthServiceProvider {
 
       const typedUser = userData as {
         display_name: string;
-        organization_slug?: string;
       };
 
       const { data: userOrgs, error: orgsError } = (await this.db.rpc(
@@ -142,17 +138,7 @@ export abstract class BaseAuthService implements AuthServiceProvider {
 
       const typedOrgs = (userOrgs as UserOrgRpcResult[] | null) ?? [];
 
-      const organizationAccess = [
-        ...new Set(typedOrgs.map((o) => o.organization_slug)),
-      ];
-
-      if (organizationAccess.length === 0) {
-        if (typedUser.organization_slug) {
-          organizationAccess.push(typedUser.organization_slug);
-        } else {
-          organizationAccess.push('demo-org');
-        }
-      }
+      const organizationAccess: string[] = [];
 
       const roles =
         typedOrgs.length > 0
@@ -184,7 +170,7 @@ export abstract class BaseAuthService implements AuthServiceProvider {
       const { data: result, error } = (await this.db
         .from('authz', 'users')
         .select(
-          'id, email, display_name, organization_slug, status, created_at, updated_at',
+          'id, email, display_name, status, created_at, updated_at',
         )
         .eq('id', userId)
         .single()) as QueryResult<unknown>;
@@ -209,7 +195,6 @@ export abstract class BaseAuthService implements AuthServiceProvider {
 
       const typedOrgs =
         (userOrgs as Array<{
-          organization_slug: string;
           role_name: string;
         }> | null) ?? [];
 
@@ -218,10 +203,6 @@ export abstract class BaseAuthService implements AuthServiceProvider {
           ? [...new Set(typedOrgs.map((o) => o.role_name))]
           : ['member'];
 
-      const organizationAccess = [
-        ...new Set(typedOrgs.map((o) => o.organization_slug)),
-      ];
-
       return {
         id: data.id,
         email: data.email,
@@ -229,7 +210,7 @@ export abstract class BaseAuthService implements AuthServiceProvider {
         roles,
         createdAt: new Date(data.created_at),
         updatedAt: new Date(data.updated_at),
-        organizationAccess,
+        organizationAccess: [],
       };
     } catch {
       throw new HttpException(
@@ -253,21 +234,8 @@ export abstract class BaseAuthService implements AuthServiceProvider {
       );
     }
 
-    const typedOrgs =
-      (userOrgs as Array<{ organization_slug: string }> | null) ?? [];
-
-    const organizations = [
-      ...new Set(typedOrgs.map((o) => o.organization_slug)),
-    ];
-
-    if (organizations.length === 0) {
-      throw new HttpException(
-        'No organization access configured for this user.',
-        HttpStatus.FORBIDDEN,
-      );
-    }
-
-    return organizations;
+    // Organization scoping removed — return empty array.
+    return [];
   }
 
   async getAllUsers(_adminId: string): Promise<unknown[]> {
@@ -275,7 +243,7 @@ export abstract class BaseAuthService implements AuthServiceProvider {
       const { data: users, error } = (await this.db
         .from('authz', 'users')
         .select(
-          'id, email, display_name, organization_slug, status, created_at',
+          'id, email, display_name, status, created_at',
         )
         .order('created_at', { ascending: false })) as QueryResult<unknown>;
 
@@ -296,7 +264,7 @@ export abstract class BaseAuthService implements AuthServiceProvider {
       const { data: user, error } = (await this.db
         .from('authz', 'users')
         .select(
-          'id, email, display_name, organization_slug, status, created_at',
+          'id, email, display_name, status, created_at',
         )
         .eq('id', userId)
         .single()) as QueryResult<unknown>;

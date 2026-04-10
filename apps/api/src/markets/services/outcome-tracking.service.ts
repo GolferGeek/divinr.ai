@@ -10,7 +10,6 @@ import { DayTraderRunnerService } from './day-trader-runner.service';
 
 interface ActiveInstrumentPrice {
   id: string;
-  organization_slug: string;
   symbol: string;
   current_state: Record<string, unknown> | null;
 }
@@ -18,7 +17,6 @@ interface ActiveInstrumentPrice {
 interface PendingPrediction {
   id: string;
   instrument_id: string;
-  organization_slug: string;
   predicted_direction: string;
   confidence: number;
   horizon_minutes: number;
@@ -200,7 +198,7 @@ export class OutcomeTrackingService {
       try {
         const priceData = await this.fetchPrice(inst.symbol, polygonKey);
         if (priceData !== null) {
-          await this.updateInstrumentPrice(inst.id, inst.organization_slug, priceData);
+          await this.updateInstrumentPrice(inst.id, priceData);
           captured++;
           this.logger.log(`${inst.symbol}: $${priceData.price} (${priceData.change >= 0 ? '+' : ''}${priceData.changePercent.toFixed(2)}%)`);
           this.emit('price.captured', `${inst.symbol}: $${priceData.price}`, { symbol: inst.symbol, ...priceData });
@@ -257,7 +255,6 @@ export class OutcomeTrackingService {
    */
   private async updateInstrumentPrice(
     instrumentId: string,
-    _organizationSlug: string,
     priceData: { price: number; change: number; changePercent: number },
   ): Promise<void> {
     // Get latest prediction direction/confidence for this instrument
@@ -342,10 +339,10 @@ export class OutcomeTrackingService {
    */
   private async getActiveInstruments(): Promise<ActiveInstrumentPrice[]> {
     const result = await this.db.rawQuery(
-      `select distinct on (symbol) id, organization_slug, symbol, current_state
+      `select distinct on (symbol) id, symbol, current_state
        from prediction.instruments
-       where is_active = true and organization_slug != '__base__'
-       order by symbol, organization_slug`,
+       where is_active = true
+       order by symbol`,
     );
     if (result.error) {
       this.logger.error(`Failed to query instruments: ${result.error.message}`);
@@ -363,7 +360,7 @@ export class OutcomeTrackingService {
     // Find predictions that have reached their horizon but aren't yet resolved
     const pendingResult = await this.db.rawQuery(
       `
-      select mp.id, mp.instrument_id, mp.organization_slug,
+      select mp.id, mp.instrument_id,
              mp.predicted_direction, mp.confidence, mp.horizon_minutes,
              mp.created_at
       from prediction.market_predictions mp
@@ -392,8 +389,8 @@ export class OutcomeTrackingService {
         // Get the instrument's current price
         const instResult = await this.db.rawQuery(
           `select current_state from prediction.instruments
-           where id = $1 and organization_slug = $2`,
-          [pred.instrument_id, pred.organization_slug],
+           where id = $1`,
+          [pred.instrument_id],
         );
 
         const instruments = (instResult.data as Array<{ current_state: Record<string, unknown> | null }> | null) ?? [];
@@ -413,17 +410,16 @@ export class OutcomeTrackingService {
         await this.db.rawQuery(
           `
           insert into prediction.prediction_horizon_evaluations
-            (id, prediction_id, run_id, organization_slug, instrument_id,
+            (id, prediction_id, run_id, instrument_id,
              analyst_id, horizon_window, prediction_date, evaluation_date,
              predicted_direction, created_at)
-          values (gen_random_uuid()::text, $1, null, $2, $3,
-                  null, $4, $5, now(),
-                  $6, now())
+          values (gen_random_uuid()::text, $1, null, $2,
+                  null, $3, $4, now(),
+                  $5, now())
           on conflict do nothing
           `,
           [
             pred.id,
-            pred.organization_slug,
             pred.instrument_id,
             horizonWindow,
             pred.created_at,

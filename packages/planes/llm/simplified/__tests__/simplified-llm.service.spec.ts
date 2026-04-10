@@ -8,7 +8,6 @@ import { DATABASE_SERVICE } from '@/database';
 import { ExecutionContext } from '@orchestrator-ai/transport-types';
 
 const mockExecutionContext: ExecutionContext = {
-  orgSlug: 'test-org',
   userId: 'user-1',
   conversationId: 'conv-1',
   agentSlug: 'test-agent',

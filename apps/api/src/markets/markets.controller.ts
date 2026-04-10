@@ -85,40 +85,6 @@ export class MarketsController {
     this.markets = markets;
   }
 
-  /**
-   * Resolve identity from the authenticated user (JWT/middleware) and
-   * the organizationSlug from query/body/header.
-   *
-   * userId always comes from the authenticated principal.
-   * organizationSlug comes from the request (query param, body field, or x-org-slug header).
-   */
-  private resolveIdentity(
-    user: AuthenticatedUser,
-    orgSlugSources: { query?: string; body?: string; header?: string },
-  ): { organizationSlug: string; userId: string } {
-    // If multiple sources are provided, they must agree. This blocks
-    // confused-deputy attacks where a caller passes one slug in the
-    // header and a different one in the body, hoping different layers
-    // validate against different sources.
-    const provided = [
-      orgSlugSources.header,
-      orgSlugSources.body,
-      orgSlugSources.query,
-    ].filter((v): v is string => typeof v === 'string' && v.length > 0);
-    if (provided.length === 0) {
-      throw new BadRequestException(
-        'organizationSlug is required (via query param, body, or x-org-slug header)',
-      );
-    }
-    const distinct = new Set(provided);
-    if (distinct.size > 1) {
-      throw new BadRequestException(
-        'organizationSlug mismatch between header, body, and query — they must agree',
-      );
-    }
-    return { organizationSlug: provided[0], userId: user.id };
-  }
-
   private getUser(req: { user?: AuthenticatedUser }): AuthenticatedUser {
     if (!req.user?.id) {
       throw new BadRequestException('Authentication required');
@@ -136,21 +102,27 @@ export class MarketsController {
    * Block beta_reader users from mutation endpoints.
    * Effort: beta-user-share-path.
    */
-  private async requireWriteAccess(user: AuthenticatedUser, organizationSlug: string): Promise<void> {
+  private async requireWriteAccess(user: AuthenticatedUser): Promise<void> {
     const result = await this.db.rawQuery(
-      `SELECT rr.name FROM authz.rbac_user_org_roles r
+      `SELECT rr.name FROM authz.rbac_user_roles r
        JOIN authz.rbac_roles rr ON rr.id = r.role_id
-       WHERE r.user_id = $1 AND r.organization_slug = $2`,
-      [user.id, organizationSlug],
+       WHERE r.user_id = $1
+       ORDER BY CASE rr.name
+         WHEN 'super-admin' THEN 1
+         WHEN 'owner' THEN 2
+         WHEN 'admin' THEN 3
+         WHEN 'member' THEN 4
+         WHEN 'beta_reader' THEN 5
+         ELSE 6
+       END
+       LIMIT 1`,
+      [user.id],
     );
-    const roles = ((result.data as Array<{ name: string }> | null) ?? []).map(r => r.name);
-    // If user has any write-capable role, allow through
+    const rows = (result.data as Array<{ name: string }> | null) ?? [];
+    const role = rows.length > 0 ? rows[0].name : null;
     const writableRoles = ['super-admin', 'owner', 'member', 'admin'];
-    if (roles.some(r => writableRoles.includes(r))) return;
-    // If user only has beta_reader (or no roles), block
-    if (roles.includes('beta_reader') || roles.length === 0) {
-      throw new ForbiddenException('Read-only access — beta readers cannot perform this action');
-    }
+    if (role && writableRoles.includes(role)) return;
+    throw new ForbiddenException('Read-only access — beta readers cannot perform this action');
   }
 
   // ─── Instruments ───────────────────────────────────────────────
@@ -158,33 +130,24 @@ export class MarketsController {
   @Get('instruments')
   async listInstruments(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
-    @Query('x-org-slug') headerOrgSlug?: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug, header: headerOrgSlug });
-    return this.markets.listInstruments(identity.organizationSlug, identity.userId);
+    return this.markets.listInstruments(user.id);
   }
 
   @Post('instruments')
   async createInstrument(
-    @Req() req: { user?: AuthenticatedUser; headers?: Record<string, string | string[] | undefined> },
+    @Req() req: { user?: AuthenticatedUser },
     @Body() body: CreateInstrumentInput,
   ) {
     const user = this.getUser(req);
     if (!body?.symbol) {
       throw new BadRequestException('symbol is required');
     }
-    const headerOrgSlug = req.headers?.['x-org-slug'];
-    const identity = this.resolveIdentity(user, {
-      body: body.organizationSlug,
-      header: typeof headerOrgSlug === 'string' ? headerOrgSlug : undefined,
-    });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.createInstrument({
       ...body,
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
     });
   }
 
@@ -193,27 +156,22 @@ export class MarketsController {
   @Get('analysts')
   async listAnalysts(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.listAnalysts(identity.organizationSlug, identity.userId);
+    return this.markets.listAnalysts(user.id);
   }
 
   @Get('instruments/:instrumentId/analysts')
   async listInstrumentAnalysts(
     @Req() req: { user?: AuthenticatedUser },
     @Param('instrumentId') instrumentId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
     if (!instrumentId) {
       throw new BadRequestException('instrumentId is required');
     }
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     return this.markets.listAnalystsForInstrument(
-      identity.organizationSlug,
-      identity.userId,
+      user.id,
       instrumentId,
     );
   }
@@ -227,11 +185,9 @@ export class MarketsController {
     if (!body?.slug || !body?.displayName || !body?.personaPrompt) {
       throw new BadRequestException('slug, displayName, and personaPrompt are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.createAnalyst({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       slug: body.slug,
       displayName: body.displayName,
       personaPrompt: body.personaPrompt,
@@ -243,7 +199,6 @@ export class MarketsController {
     @Req() req: { user?: AuthenticatedUser },
     @Param('analystId') analystId: string,
     @Body() body: {
-      organizationSlug: string;
       personaPrompt?: string;
       defaultWeight?: number;
       tierInstructions?: Record<string, string>;
@@ -253,11 +208,9 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     if (!analystId) throw new BadRequestException('analystId is required');
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.updateAnalyst({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       analystId,
       personaPrompt: body.personaPrompt,
       defaultWeight: body.defaultWeight,
@@ -271,15 +224,12 @@ export class MarketsController {
   async rollbackAnalyst(
     @Req() req: { user?: AuthenticatedUser },
     @Param('analystId') analystId: string,
-    @Body() body: { organizationSlug: string },
   ) {
     const user = this.getUser(req);
     if (!analystId) throw new BadRequestException('analystId is required');
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.rollbackAnalyst({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       analystId,
     });
   }
@@ -288,26 +238,22 @@ export class MarketsController {
   async getAnalystContract(
     @Req() req: { user?: AuthenticatedUser },
     @Param('analystId') analystId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getAnalystContract(analystId, identity.organizationSlug);
+    return this.markets.getAnalystContract(analystId, user.id);
   }
 
   @Put('analysts/:analystId/contract')
   async saveAnalystContract(
     @Req() req: { user?: AuthenticatedUser },
     @Param('analystId') analystId: string,
-    @Body() body: { organizationSlug: string; markdown: string; changeReason?: string },
+    @Body() body: { markdown: string; changeReason?: string },
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.saveAnalystContract({
       analystId,
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       markdown: body.markdown,
       changeReason: body.changeReason,
     });
@@ -316,17 +262,15 @@ export class MarketsController {
   @Post('analysts/assign')
   async assignAnalyst(
     @Req() req: { user?: AuthenticatedUser },
-    @Body() body: { organizationSlug: string; instrumentId: string; analystId: string },
+    @Body() body: { instrumentId: string; analystId: string },
   ) {
     const user = this.getUser(req);
     if (!body?.instrumentId || !body?.analystId) {
       throw new BadRequestException('instrumentId and analystId are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.assignAnalystToInstrument({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       instrumentId: body.instrumentId,
       analystId: body.analystId,
     });
@@ -337,11 +281,9 @@ export class MarketsController {
   @Get('sources')
   async listSources(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.listEntitledSources(identity.organizationSlug, identity.userId);
+    return this.markets.listEntitledSources(user.id);
   }
 
   @Post('sources/entitlements')
@@ -353,12 +295,10 @@ export class MarketsController {
     if (!body?.sourceId || body?.isEnabled === undefined) {
       throw new BadRequestException('sourceId and isEnabled are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.upsertSourceEntitlement({
       ...body,
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
     });
   }
 
@@ -366,22 +306,18 @@ export class MarketsController {
   async listSourceArticles(
     @Req() req: { user?: AuthenticatedUser },
     @Param('sourceId') sourceId: string,
-    @Query('organizationSlug') orgSlug: string,
     @Query('limit') limit?: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.listSourceArticles(identity.organizationSlug, identity.userId, sourceId, parseInt(limit || '20', 10));
+    return this.markets.listSourceArticles(user.id, sourceId, parseInt(limit || '20', 10));
   }
 
   @Get('sources/data-adapters')
   async listDataAdapters(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.listDataAdapters(identity.organizationSlug, identity.userId);
+    return this.markets.listDataAdapters(user.id);
   }
 
   @Post('data/sync/external-crawler')
@@ -390,24 +326,20 @@ export class MarketsController {
     @Body() body: ExternalCrawlerSyncInput,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.syncExternalCrawlerData({
       ...body,
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
     });
   }
 
   @Get('articles')
   async listArticles(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
     @Query('sourceId') sourceId?: string,
     @Query('limit') limit?: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     const parsedLimit =
       limit === undefined
         ? undefined
@@ -415,8 +347,7 @@ export class MarketsController {
           ? undefined
           : Number(limit);
     const request: ListMarketArticlesInput = {
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       sourceId,
       limit: parsedLimit,
     };
@@ -428,17 +359,15 @@ export class MarketsController {
   @Post('predictors/score')
   async scorePredictor(
     @Req() req: { user?: AuthenticatedUser },
-    @Body() body: { organizationSlug: string; instrumentId: string; articleId: string },
+    @Body() body: { instrumentId: string; articleId: string },
   ) {
     const user = this.getUser(req);
     if (!body?.instrumentId || !body?.articleId) {
       throw new BadRequestException('instrumentId and articleId are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.scoreArticleForInstrument({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       instrumentId: body.instrumentId,
       articleId: body.articleId,
     });
@@ -447,17 +376,15 @@ export class MarketsController {
   @Post('predictors/score-batch')
   async scorePredictorBatch(
     @Req() req: { user?: AuthenticatedUser },
-    @Body() body: { organizationSlug: string; instrumentId: string; articleIds: string[] },
+    @Body() body: { instrumentId: string; articleIds: string[] },
   ) {
     const user = this.getUser(req);
     if (!body?.instrumentId || !Array.isArray(body?.articleIds) || body.articleIds.length === 0) {
       throw new BadRequestException('instrumentId and articleIds (non-empty array) are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.scoreArticleBatch({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       instrumentId: body.instrumentId,
       articleIds: body.articleIds,
     });
@@ -466,7 +393,6 @@ export class MarketsController {
   @Get('predictors')
   async listPredictors(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
     @Query('instrumentId') instrumentId: string,
     @Query('status') status?: 'active' | 'dismissed' | 'all',
   ) {
@@ -474,10 +400,8 @@ export class MarketsController {
     if (!instrumentId) {
       throw new BadRequestException('instrumentId is required');
     }
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     const request: ListPredictorsInput = {
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       instrumentId,
       status,
     };
@@ -498,12 +422,10 @@ export class MarketsController {
     ) {
       throw new BadRequestException('instrumentId, articleId, and relevanceScore are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.upsertPredictor({
       ...body,
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
     });
   }
 
@@ -521,23 +443,19 @@ export class MarketsController {
     if (body.runType !== 'risk' && body.runType !== 'prediction') {
       throw new BadRequestException('runType must be one of: risk, prediction');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.enqueueRun({
       ...body,
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
     });
   }
 
   @Get('runs')
   async listRuns(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
     @Query('status') status?: RunStatus,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     if (
       status &&
       status !== 'queued' &&
@@ -548,8 +466,7 @@ export class MarketsController {
       throw new BadRequestException('status must be one of: queued, running, completed, failed');
     }
     return this.markets.listRuns({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       status,
     });
   }
@@ -558,23 +475,21 @@ export class MarketsController {
   async getRun(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Query('organizationSlug') orgSlug: string,
     @Query('detail') detail?: string,
   ) {
     const user = this.getUser(req);
     if (!runId) throw new BadRequestException('runId is required');
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     if (detail === 'true') {
-      return this.markets.getRunDetail(identity.organizationSlug, identity.userId, runId);
+      return this.markets.getRunDetail(user.id, runId);
     }
-    return this.markets.getRun(identity.organizationSlug, identity.userId, runId);
+    return this.markets.getRun(user.id, runId);
   }
 
   @Post('runs/:runId/status')
   async updateRunStatus(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Body() body: { organizationSlug: string; status: RunStatus; errorMessage?: string },
+    @Body() body: { status: RunStatus; errorMessage?: string },
   ) {
     const user = this.getUser(req);
     if (!runId || !body?.status) {
@@ -590,11 +505,9 @@ export class MarketsController {
     if (body.status !== 'failed' && body.errorMessage && body.errorMessage.trim().length > 0) {
       throw new BadRequestException('errorMessage is only allowed when status is failed');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.updateRunStatus({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       runId,
       status: body.status,
       errorMessage: body.errorMessage,
@@ -604,25 +517,21 @@ export class MarketsController {
   @Post('runs/process-next')
   async processNextRun(
     @Req() req: { user?: AuthenticatedUser },
-    @Body() body: { organizationSlug: string },
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.processNextQueuedRun({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
     });
   }
 
   @Post('runs/process')
   async processRuns(
     @Req() req: { user?: AuthenticatedUser },
-    @Body() body: { organizationSlug: string; maxRuns?: number },
+    @Body() body: { maxRuns?: number },
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     if (
       body.maxRuns !== undefined &&
       (!Number.isInteger(body.maxRuns) || body.maxRuns < 1 || body.maxRuns > 100)
@@ -630,8 +539,7 @@ export class MarketsController {
       throw new BadRequestException('maxRuns must be an integer between 1 and 100');
     }
     return this.markets.processQueuedRuns({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       maxRuns: body.maxRuns,
     });
   }
@@ -642,17 +550,15 @@ export class MarketsController {
   async evaluateRun(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Body() body: { organizationSlug: string; actualDirection: 'up' | 'down' | 'flat' },
+    @Body() body: { actualDirection: 'up' | 'down' | 'flat' },
   ) {
     const user = this.getUser(req);
     if (!runId || !body?.actualDirection) {
       throw new BadRequestException('runId and actualDirection are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.evaluateRun({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       runId,
       actualDirection: body.actualDirection,
     });
@@ -662,17 +568,15 @@ export class MarketsController {
   async replayRun(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Body() body: { organizationSlug: string; scenario: string },
+    @Body() body: { scenario: string },
   ) {
     const user = this.getUser(req);
     if (!runId || !body?.scenario) {
       throw new BadRequestException('runId and scenario are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.replayRun({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       runId,
       scenario: body.scenario,
     });
@@ -684,16 +588,13 @@ export class MarketsController {
   async listRunArtifacts(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
     if (!runId) {
       throw new BadRequestException('runId is required');
     }
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     return this.markets.listRunArtifacts({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       runId,
     });
   }
@@ -701,46 +602,38 @@ export class MarketsController {
   @Get('predictions/dashboard')
   async getDashboardPredictions(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getDashboardPredictions(identity.organizationSlug, identity.userId);
+    return this.markets.getDashboardPredictions(user.id);
   }
 
   @Get('runs/:runId/trade-recommendation')
   async getTradeRecommendation(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getTradeRecommendation(runId, identity.organizationSlug, identity.userId);
+    return this.markets.getTradeRecommendation(runId, user.id);
   }
 
   @Get('predictions')
   async listPredictions(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
     @Query('runId') runId?: string,
     @Query('instrumentId') instrumentId?: string,
     @Query('role') role?: 'analyst' | 'arbitrator' | 'all',
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     if (role) {
       return this.markets.listPredictionsWithRole({
-        organizationSlug: identity.organizationSlug,
-        userId: identity.userId,
+        userId: user.id,
         runId,
         instrumentId,
         role,
       });
     }
     return this.markets.listPredictionOutcomes({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       runId,
       instrumentId,
     });
@@ -749,20 +642,17 @@ export class MarketsController {
   @Get('risk-assessments')
   async listRiskAssessments(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
     @Query('runId') runId?: string,
     @Query('instrumentId') instrumentId?: string,
     @Query('role') role?: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     // When no filters provided, return composite scores across all instruments
     if (!runId && !instrumentId) {
-      return this.markets.getDashboardRiskSummary(identity.organizationSlug, identity.userId);
+      return this.markets.getDashboardRiskSummary(user.id);
     }
     return this.markets.listRiskAssessments({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       runId,
       instrumentId,
       role,
@@ -773,16 +663,13 @@ export class MarketsController {
   async listRunEvaluations(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
     if (!runId) {
       throw new BadRequestException('runId is required');
     }
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     return this.markets.listRunEvaluations(
-      identity.organizationSlug,
-      identity.userId,
+      user.id,
       runId,
     );
   }
@@ -791,16 +678,13 @@ export class MarketsController {
   async listRunReplays(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
     if (!runId) {
       throw new BadRequestException('runId is required');
     }
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     return this.markets.listRunReplays(
-      identity.organizationSlug,
-      identity.userId,
+      user.id,
       runId,
     );
   }
@@ -810,18 +694,15 @@ export class MarketsController {
   @Get('risk-dimensions')
   async listRiskDimensions(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.listRiskDimensions(identity.organizationSlug, identity.userId);
+    return this.markets.listRiskDimensions(user.id);
   }
 
   @Post('risk-dimensions')
   async upsertRiskDimension(
     @Req() req: { user?: AuthenticatedUser },
     @Body() body: {
-      organizationSlug: string;
       slug: string;
       name: string;
       description?: string;
@@ -835,11 +716,9 @@ export class MarketsController {
     if (!body?.slug || !body?.name || body?.weight === undefined) {
       throw new BadRequestException('slug, name, and weight are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.markets.upsertRiskDimension({
-      organizationSlug: identity.organizationSlug,
-      userId: identity.userId,
+      userId: user.id,
       slug: body.slug,
       name: body.name,
       description: body.description,
@@ -854,24 +733,20 @@ export class MarketsController {
   async getRunRiskDetails(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
     if (!runId) throw new BadRequestException('runId is required');
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getRunRiskDetails(identity.organizationSlug, identity.userId, runId);
+    return this.markets.getRunRiskDetails(user.id, runId);
   }
 
   @Get('instruments/:instrumentId/composite-score')
   async getInstrumentCompositeScore(
     @Req() req: { user?: AuthenticatedUser },
     @Param('instrumentId') instrumentId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
     if (!instrumentId) throw new BadRequestException('instrumentId is required');
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getInstrumentCompositeScore(identity.organizationSlug, identity.userId, instrumentId);
+    return this.markets.getInstrumentCompositeScore(user.id, instrumentId);
   }
 
   // ─── Admin: Learning & Evaluation ──────────────────────────────
@@ -881,134 +756,114 @@ export class MarketsController {
   @Get('learning/proposals')
   async listLearningProposals(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
     @Query('status') status?: string,
     @Query('tier') tier?: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     const tierNum = tier ? Number(tier) : undefined;
-    return this.markets.listLearningProposals(identity.organizationSlug, identity.userId, status, tierNum);
+    return this.markets.listLearningProposals(user.id, status, tierNum);
   }
 
   @Get('learning/proposals/:proposalId')
   async getProposalDetail(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
     @Param('proposalId') proposalId: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getProposalDetail(identity.organizationSlug, identity.userId, proposalId);
+    return this.markets.getProposalDetail(user.id, proposalId);
   }
 
   @Post('learning/proposals/:proposalId/approve')
   async approveProposal(
     @Req() req: { user?: AuthenticatedUser },
     @Param('proposalId') proposalId: string,
-    @Body() body: { organizationSlug: string },
   ) {
     const user = this.getUser(req);
     if (!proposalId) throw new BadRequestException('proposalId is required');
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
-    return this.markets.approveProposal(identity.organizationSlug, identity.userId, proposalId);
+    await this.requireWriteAccess(user);
+    return this.markets.approveProposal(user.id, proposalId);
   }
 
   @Post('learning/proposals/:proposalId/reject')
   async rejectProposal(
     @Req() req: { user?: AuthenticatedUser },
     @Param('proposalId') proposalId: string,
-    @Body() body: { organizationSlug: string; reason?: string },
+    @Body() body: { reason?: string },
   ) {
     const user = this.getUser(req);
     if (!proposalId) throw new BadRequestException('proposalId is required');
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
-    return this.markets.rejectProposal(identity.organizationSlug, identity.userId, proposalId, body.reason);
+    await this.requireWriteAccess(user);
+    return this.markets.rejectProposal(user.id, proposalId, body.reason);
   }
 
   @Get('learning/reports')
   async listLearningReports(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
     @Query('limit') limit?: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
     const parsedLimit = limit ? Math.min(50, Math.max(1, Number(limit) || 10)) : 10;
-    return this.markets.listLearningReports(identity.organizationSlug, identity.userId, parsedLimit);
+    return this.markets.listLearningReports(user.id, parsedLimit);
   }
 
   // ─── Portfolios ────────────────────────────────────────────────
 
   @Get('portfolios/analysts')
-  async listAnalystPortfolios(@Req() req: { user?: AuthenticatedUser }, @Query('organizationSlug') orgSlug: string) {
-    const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.analystPortfolio.listPortfolios(identity.organizationSlug);
+  async listAnalystPortfolios(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.analystPortfolio.listPortfolios();
   }
 
   @Get('portfolios/analysts/:analystId')
   async getAnalystPortfolio(
     @Req() req: { user?: AuthenticatedUser },
     @Param('analystId') analystId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
-    const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.analystPortfolio.getPortfolio(analystId, identity.organizationSlug);
+    this.getUser(req);
+    return this.analystPortfolio.getPortfolio(analystId);
   }
 
   @Get('portfolios/analysts/:analystId/positions')
   async listAnalystPositions(
     @Req() req: { user?: AuthenticatedUser },
     @Param('analystId') analystId: string,
-    @Query('organizationSlug') orgSlug: string,
     @Query('status') status?: string,
   ) {
-    const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.analystPortfolio.listPositions(analystId, identity.organizationSlug, status);
+    this.getUser(req);
+    return this.analystPortfolio.listPositions(analystId, status);
   }
 
   @Get('portfolios/leaderboard')
-  async getLeaderboard(@Req() req: { user?: AuthenticatedUser }, @Query('organizationSlug') orgSlug: string) {
-    const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.analystPortfolio.getLeaderboard(identity.organizationSlug);
+  async getLeaderboard(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.analystPortfolio.getLeaderboard();
   }
 
   @Get('portfolios/me')
-  async getMyPortfolio(@Req() req: { user?: AuthenticatedUser }, @Query('organizationSlug') orgSlug: string) {
+  async getMyPortfolio(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.userPortfolio.ensurePortfolio(identity.userId, identity.organizationSlug);
+    return this.userPortfolio.ensurePortfolio(user.id);
   }
 
   @Get('portfolios/me/positions')
   async getMyPositions(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
     @Query('status') status?: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.userPortfolio.listPositions(identity.userId, identity.organizationSlug, status);
+    return this.userPortfolio.listPositions(user.id, status);
   }
 
   @Get('portfolios/me/queue')
-  async getMyTradeQueue(@Req() req: { user?: AuthenticatedUser }, @Query('organizationSlug') orgSlug: string) {
+  async getMyTradeQueue(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.userPortfolio.getQueuedTrades(identity.userId, identity.organizationSlug);
+    return this.userPortfolio.getQueuedTrades(user.id);
   }
 
   @Post('portfolios/me/queue-trade')
   async queueTrade(
     @Req() req: { user?: AuthenticatedUser },
     @Body() body: {
-      organizationSlug: string;
       predictionId: string;
       instrumentId: string;
       symbol: string;
@@ -1020,11 +875,9 @@ export class MarketsController {
     if (!body?.predictionId || !body?.instrumentId || !body?.direction || !body?.quantity) {
       throw new BadRequestException('predictionId, instrumentId, direction, and quantity are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     return this.userPortfolio.queueTrade({
-      userId: identity.userId,
-      organizationSlug: identity.organizationSlug,
+      userId: user.id,
       predictionId: body.predictionId,
       instrumentId: body.instrumentId,
       symbol: body.symbol,
@@ -1037,7 +890,6 @@ export class MarketsController {
   async executeTrade(
     @Req() req: { user?: AuthenticatedUser },
     @Body() body: {
-      organizationSlug: string;
       predictionId: string;
       instrumentId: string;
       direction: 'long' | 'short';
@@ -1048,17 +900,15 @@ export class MarketsController {
     if (!body?.predictionId || !body?.instrumentId || !body?.direction || !body?.quantity) {
       throw new BadRequestException('predictionId, instrumentId, direction, and quantity are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
 
     // Disclaimer-ack guard — same shape as confirmTrade in markets.service.ts.
-    await this.userPortfolio.ensurePortfolio(identity.userId, identity.organizationSlug);
-    const ack = await this.userPortfolio.isDisclaimerAcknowledged(identity.userId, identity.organizationSlug);
+    await this.userPortfolio.ensurePortfolio(user.id);
+    const ack = await this.userPortfolio.isDisclaimerAcknowledged(user.id);
     if (!ack) return { requiresDisclaimer: true };
 
     return this.userPortfolio.executeImmediate({
-      userId: identity.userId,
-      organizationSlug: identity.organizationSlug,
+      userId: user.id,
       predictionId: body.predictionId,
       instrumentId: body.instrumentId,
       direction: body.direction,
@@ -1070,12 +920,10 @@ export class MarketsController {
   async closeMyPosition(
     @Req() req: { user?: AuthenticatedUser },
     @Param('positionId') positionId: string,
-    @Body() body: { organizationSlug: string },
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
-    return this.userPortfolio.closePosition({ userId: identity.userId, positionId });
+    await this.requireWriteAccess(user);
+    return this.userPortfolio.closePosition({ userId: user.id, positionId });
   }
 
   @Get('portfolios')
@@ -1100,12 +948,10 @@ export class MarketsController {
   async cancelTrade(
     @Req() req: { user?: AuthenticatedUser },
     @Param('tradeId') tradeId: string,
-    @Body() body: { organizationSlug: string },
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
-    await this.userPortfolio.cancelTrade(tradeId, identity.userId, identity.organizationSlug);
+    await this.requireWriteAccess(user);
+    await this.userPortfolio.cancelTrade(tradeId, user.id);
     return { cancelled: true };
   }
 
@@ -1115,11 +961,9 @@ export class MarketsController {
   async getPredictionProvenance(
     @Req() req: { user?: AuthenticatedUser },
     @Param('predictionId') predictionId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getPredictionProvenance(identity.organizationSlug, identity.userId, predictionId);
+    return this.markets.getPredictionProvenance(user.id, predictionId);
   }
 
   // Effort: see-your-reasoning. Returns the captured LLM call(s) backing the
@@ -1129,11 +973,9 @@ export class MarketsController {
   async getPredictionLlmCalls(
     @Req() req: { user?: AuthenticatedUser },
     @Param('predictionId') predictionId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getPredictionLlmCalls(identity.organizationSlug, identity.userId, predictionId);
+    return this.markets.getPredictionLlmCalls(user.id, predictionId);
   }
 
   // Effort: calibration-drilldown. Returns headline metrics, per-instrument
@@ -1143,23 +985,19 @@ export class MarketsController {
   async getAnalystCalibration(
     @Req() req: { user?: AuthenticatedUser },
     @Param('analystId') analystId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getAnalystCalibration(identity.organizationSlug, identity.userId, analystId);
+    return this.markets.getAnalystCalibration(user.id, analystId);
   }
 
   @Post('predictions/:predictionId/challenge')
   async challengePrediction(
     @Req() req: { user?: AuthenticatedUser },
     @Param('predictionId') predictionId: string,
-    @Body() body: { organizationSlug: string },
     @Res() res: any,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
 
     // Stream results as each analyst completes
     res.setHeader('Content-Type', 'text/event-stream');
@@ -1167,7 +1005,7 @@ export class MarketsController {
     res.setHeader('Connection', 'keep-alive');
 
     try {
-      for await (const challenge of this.markets.challengePredictionStream(identity.organizationSlug, identity.userId, predictionId)) {
+      for await (const challenge of this.markets.challengePredictionStream(user.id, predictionId)) {
         res.write(`data: ${JSON.stringify(challenge)}\n\n`);
       }
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
@@ -1181,11 +1019,9 @@ export class MarketsController {
   async getChallenges(
     @Req() req: { user?: AuthenticatedUser },
     @Param('predictionId') predictionId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getChallenges(identity.organizationSlug, identity.userId, predictionId);
+    return this.markets.getChallenges(user.id, predictionId);
   }
 
   // ─── Trade Decisions ─────────────────────────────────────────────
@@ -1193,50 +1029,44 @@ export class MarketsController {
   @Post('trades/acknowledge-disclaimer')
   async acknowledgeDisclaimer(
     @Req() req: { user?: AuthenticatedUser },
-    @Body() body: { organizationSlug: string },
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
-    return this.markets.acknowledgeDisclaimer(identity.organizationSlug, identity.userId);
+    await this.requireWriteAccess(user);
+    return this.markets.acknowledgeDisclaimer(user.id);
   }
 
   @Post('trades/confirm')
   async confirmTrade(
     @Req() req: { user?: AuthenticatedUser },
-    @Body() body: { predictionId: string; analystId: string; direction: string; organizationSlug: string },
+    @Body() body: { predictionId: string; analystId: string; direction: string },
   ) {
     const user = this.getUser(req);
     if (!body?.predictionId || !body?.direction) {
       throw new BadRequestException('predictionId and direction are required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
-    return this.markets.confirmTrade(identity.organizationSlug, identity.userId, body);
+    await this.requireWriteAccess(user);
+    return this.markets.confirmTrade(user.id, body);
   }
 
   @Post('trades/skip')
   async skipTrade(
     @Req() req: { user?: AuthenticatedUser },
-    @Body() body: { predictionId: string; organizationSlug: string },
+    @Body() body: { predictionId: string },
   ) {
     const user = this.getUser(req);
     if (!body?.predictionId) {
       throw new BadRequestException('predictionId is required');
     }
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
-    return this.markets.skipTrade(identity.organizationSlug, identity.userId, body.predictionId);
+    await this.requireWriteAccess(user);
+    return this.markets.skipTrade(user.id, body.predictionId);
   }
 
   @Get('trades/decisions')
   async getTradeDecisions(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getTradeDecisions(identity.organizationSlug, identity.userId);
+    return this.markets.getTradeDecisions(user.id);
   }
 
   // ─── Base Data (from orchestrator-ai) ───────────────────────────
@@ -1321,21 +1151,17 @@ export class MarketsController {
   async rerunRisk(
     @Req() req: { user?: AuthenticatedUser },
     @Param('instrumentId') instrumentId: string,
-    @Body() body: { organizationSlug?: string },
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
+    await this.requireWriteAccess(user);
     // All pipeline runs use __base__ — instruments and analysts are base-level
     const enqueued = await this.markets.enqueueRun({
-      organizationSlug: '__base__',
-      userId: identity.userId,
+      userId: user.id,
       instrumentId,
       runType: 'risk',
     });
     const processed = await this.markets.processNextQueuedRun({
-      organizationSlug: '__base__',
-      userId: identity.userId,
+      userId: user.id,
     });
     return { enqueued, processed };
   }
@@ -1344,23 +1170,19 @@ export class MarketsController {
   async getDebateReasoning(
     @Req() req: { user?: AuthenticatedUser },
     @Param('debateId') debateId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
-    const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    return this.markets.getDebateReasoning(debateId, identity.organizationSlug);
+    this.getUser(req);
+    return this.markets.getDebateReasoning(debateId);
   }
 
   @Post('runs/:runId/rerun-debate')
   async rerunDebate(
     @Req() req: { user?: AuthenticatedUser },
     @Param('runId') runId: string,
-    @Body() body: { organizationSlug?: string },
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body?.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
-    return this.markets.rerunDebate(identity.organizationSlug, identity.userId, runId);
+    await this.requireWriteAccess(user);
+    return this.markets.rerunDebate(user.id, runId);
   }
 
   // ─── Admin: Settlement, Learning & Evaluation ─────────────────
@@ -1391,11 +1213,9 @@ export class MarketsController {
   @Get('audit/findings')
   async getAuditFindings(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { query: orgSlug });
-    const findings = await this.audit.getFindings(identity.organizationSlug, identity.userId);
+    const findings = await this.audit.getFindings(user.id);
     return { findings };
   }
 
@@ -1403,21 +1223,18 @@ export class MarketsController {
   async reviewAuditFinding(
     @Req() req: { user?: AuthenticatedUser },
     @Param('findingId') findingId: string,
-    @Body() body: { organizationSlug: string; action: string; reviewText?: string },
+    @Body() body: { action: string; reviewText?: string },
   ) {
     const user = this.getUser(req);
-    const identity = this.resolveIdentity(user, { body: body.organizationSlug });
-    await this.requireWriteAccess(user, identity.organizationSlug);
-    return this.audit.reviewFinding(identity.organizationSlug, identity.userId, findingId, body.action, body.reviewText);
+    await this.requireWriteAccess(user);
+    return this.audit.reviewFinding(user.id, findingId, body.action, body.reviewText);
   }
 
   @Get('audit/policy')
   async getAuditPolicy(
     @Req() req: { user?: AuthenticatedUser },
-    @Query('organizationSlug') orgSlug: string,
   ) {
-    const user = this.getUser(req);
-    this.resolveIdentity(user, { query: orgSlug });
+    this.getUser(req);
     const policy = await this.audit.getAuditPolicy();
     return { policy };
   }

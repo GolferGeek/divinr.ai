@@ -147,17 +147,11 @@ export async function ensureComplianceSchema(db: DatabaseService): Promise<void>
     create schema if not exists authz;
     `,
     `
-    create table if not exists authz.organizations (
-      slug text primary key,
-      name text not null
-    );
-    `,
-    `
     create table if not exists authz.users (
       id text primary key,
       email text not null,
       display_name text,
-      organization_slug text references authz.organizations(slug),
+      organization_slug text,
       status text not null default 'active',
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
@@ -189,15 +183,47 @@ export async function ensureComplianceSchema(db: DatabaseService): Promise<void>
     );
     `,
     `
-    create table if not exists authz.rbac_user_org_roles (
+    create table if not exists authz.rbac_user_roles (
       user_id text not null references authz.users(id) on delete cascade,
-      organization_slug text not null references authz.organizations(slug) on delete cascade,
+      organization_slug text,
       role_id text not null references authz.rbac_roles(id) on delete cascade,
       assigned_by text,
       assigned_at timestamptz not null default now(),
       expires_at timestamptz,
-      primary key (user_id, organization_slug, role_id)
+      primary key (user_id, role_id)
     );
+    `,
+    `
+    -- Migrate existing table to user-scoped PK if it still has the old 3-column PK
+    DO $$
+    BEGIN
+      -- Check if the old 3-column PK exists
+      IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+        WHERE tc.table_schema = 'authz'
+          AND tc.table_name = 'rbac_user_roles'
+          AND tc.constraint_type = 'PRIMARY KEY'
+          AND kcu.column_name = 'organization_slug'
+      ) THEN
+        -- Remove duplicates keeping earliest assignment per (user_id, role_id)
+        DELETE FROM authz.rbac_user_roles a
+        USING authz.rbac_user_roles b
+        WHERE a.user_id = b.user_id
+          AND a.role_id = b.role_id
+          AND a.organization_slug > b.organization_slug;
+
+        ALTER TABLE authz.rbac_user_roles
+          DROP CONSTRAINT rbac_user_roles_pkey;
+        ALTER TABLE authz.rbac_user_roles
+          ADD PRIMARY KEY (user_id, role_id);
+        ALTER TABLE authz.rbac_user_roles
+          ALTER COLUMN organization_slug DROP NOT NULL;
+      END IF;
+    END;
+    $$;
     `,
     `
     create table if not exists authz.rbac_audit_log (
@@ -214,11 +240,18 @@ export async function ensureComplianceSchema(db: DatabaseService): Promise<void>
     `
     create table if not exists authz.compliance_documents (
       id text primary key,
-      organization_slug text not null references authz.organizations(slug) on delete cascade,
+      organization_slug text,
+      user_id text,
       title text not null,
       body text not null,
       created_at timestamptz not null default now()
     );
+    `,
+    `
+    ALTER TABLE authz.compliance_documents ADD COLUMN IF NOT EXISTS user_id text;
+    `,
+    `
+    NOTIFY pgrst, 'reload schema';
     `,
     `
     create table if not exists public.observability_events (
@@ -268,9 +301,8 @@ export async function ensureComplianceSchema(db: DatabaseService): Promise<void>
     `
     create or replace function authz.rbac_has_permission(
       p_user_id text,
-      p_organization_slug varchar,
-      p_permission varchar,
-      p_resource_type varchar default null,
+      p_permission text,
+      p_resource_type text default null,
       p_resource_id text default null
     )
     returns boolean
@@ -279,11 +311,10 @@ export async function ensureComplianceSchema(db: DatabaseService): Promise<void>
     as $$
       select exists (
         select 1
-        from authz.rbac_user_org_roles uor
+        from authz.rbac_user_roles uor
         join authz.rbac_role_permissions rp on rp.role_id = uor.role_id
         join authz.rbac_permissions p on p.id = rp.permission_id
         where uor.user_id = p_user_id
-          and uor.organization_slug = p_organization_slug
           and p.name = p_permission
           and (uor.expires_at is null or uor.expires_at > now())
       );
@@ -303,7 +334,6 @@ export async function ensureComplianceSchema(db: DatabaseService): Promise<void>
     begin
       if not authz.rbac_has_permission(
         p_user_id,
-        p_organization_slug,
         'compliance.documents.write',
         null,
         null
@@ -311,8 +341,8 @@ export async function ensureComplianceSchema(db: DatabaseService): Promise<void>
         return null;
       end if;
 
-      insert into authz.compliance_documents (id, organization_slug, title, body)
-      values (p_document_id, p_organization_slug, p_title, p_body)
+      insert into authz.compliance_documents (id, organization_slug, user_id, title, body)
+      values (p_document_id, p_organization_slug, p_user_id, p_title, p_body)
       on conflict (id) do update
       set title = excluded.title,
           body = excluded.body
@@ -367,17 +397,6 @@ export async function seedComplianceData(
   let createdWritePermission = false;
   const docAId = randomUUID();
   const docBId = randomUUID();
-
-  await expectOk(
-    db.from('authz', 'organizations').upsert(
-      [
-        { slug: orgA, name: 'Tenant A' },
-        { slug: orgB, name: 'Tenant B' },
-      ],
-      { onConflict: 'slug' },
-    ),
-    'seed organizations',
-  );
 
   await expectOk(
     db.from('authz', 'rbac_roles').insert(
@@ -512,7 +531,7 @@ export async function seedComplianceData(
   );
 
   await expectOk(
-    db.from('authz', 'rbac_user_org_roles').insert(
+    db.from('authz', 'rbac_user_roles').insert(
       [
         {
           user_id: adminUserId,
@@ -537,25 +556,19 @@ export async function seedComplianceData(
     'seed user role assignments',
   );
 
-  await expectOk(
-    db.from('authz', 'compliance_documents').upsert(
-      [
-        {
-          id: docAId,
-          organization_slug: orgA,
-          title: 'Tenant A Compliance Evidence',
-          body: 'A-only policy body',
-        },
-        {
-          id: docBId,
-          organization_slug: orgB,
-          title: 'Tenant B Compliance Evidence',
-          body: 'B-only policy body',
-        },
-      ],
-      { onConflict: 'id' },
-    ),
-    'seed compliance documents',
+  await execSql(
+    db,
+    `
+    insert into authz.compliance_documents (id, organization_slug, user_id, title, body)
+    values
+      ('${docAId}', '${orgA}', '${analystAUserId}', 'Tenant A Compliance Evidence', 'A-only policy body'),
+      ('${docBId}', '${orgB}', '${analystBUserId}', 'Tenant B Compliance Evidence', 'B-only policy body')
+    on conflict (id) do update
+    set organization_slug = excluded.organization_slug,
+        user_id = excluded.user_id,
+        title = excluded.title,
+        body = excluded.body;
+    `,
   );
 
   return {
@@ -596,7 +609,7 @@ export async function cleanupComplianceData(
     .delete()
     .in('id', [seed.docAId, seed.docBId]);
   await db
-    .from('authz', 'rbac_user_org_roles')
+    .from('authz', 'rbac_user_roles')
     .delete()
     .in('user_id', [seed.adminUserId, seed.analystAUserId, seed.analystBUserId]);
   await db
@@ -619,14 +632,13 @@ export async function cleanupComplianceData(
     .from('authz', 'rbac_roles')
     .delete()
     .in('id', [seed.adminRoleId, seed.analystRoleId]);
-  await db.from('authz', 'organizations').delete().in('slug', [seed.orgA, seed.orgB]);
+  // organizations table dropped in Phase 3
 }
 
 export function buildExecutionContext(seed: ComplianceSeed): ExecutionContext {
   return {
     conversationId: randomUUID(),
     userId: randomUUID(),
-    orgSlug: seed.orgA,
     agentSlug: 'compliance-agent',
     agentType: 'system',
     provider: 'openrouter',

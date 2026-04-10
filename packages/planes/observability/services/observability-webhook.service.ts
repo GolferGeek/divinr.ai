@@ -29,7 +29,6 @@ export interface ObservabilityEvent {
   username?: string; // display_name or email
   conversationId?: string;
   agentSlug?: string;
-  organizationSlug?: string;
   mode?: string;
   message?: string;
   progress?: number;
@@ -222,10 +221,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
 
     // Reconstruct ExecutionContext from event fields if not provided directly
     const context: ExecutionContext | undefined = event.context ?? {
-      orgSlug:
-        asString(event.organizationSlug) ??
-        asString(payload.organizationSlug) ??
-        '',
       userId: asString(event.userId) ?? asString(payload.userId) ?? '',
       conversationId: resolvedConversationId,
       agentSlug: asString(event.agentSlug) ?? asString(payload.agentSlug) ?? '',
@@ -245,8 +240,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
       userId: asString(event.userId) ?? asString(payload.userId),
       username: asString(event.username) ?? asString(payload.username),
       agentSlug: asString(event.agentSlug) ?? asString(payload.agentSlug),
-      organizationSlug:
-        asString(event.organizationSlug) ?? asString(payload.organizationSlug),
       mode: asString(event.mode) ?? asString(payload.mode),
       message:
         asString(event.message) ?? asString(payload.message) ?? undefined,
@@ -277,7 +270,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
     userId: string;
     conversationId: string;
     agentSlug: string;
-    organizationSlug?: string;
     mode: string;
     payload?: Record<string, unknown>;
   }): Promise<void> {
@@ -288,7 +280,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
       userId: params.userId,
       conversationId: params.conversationId,
       agentSlug: params.agentSlug,
-      organizationSlug: params.organizationSlug,
       mode: params.mode,
       payload: {
         ...params.payload,
@@ -309,7 +300,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
     userId: string;
     conversationId: string;
     agentSlug: string;
-    organizationSlug?: string;
     mode: string;
     success: boolean;
     result?: unknown;
@@ -323,7 +313,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
       userId: params.userId,
       conversationId: params.conversationId,
       agentSlug: params.agentSlug,
-      organizationSlug: params.organizationSlug,
       mode: params.mode,
       payload: {
         success: params.success,
@@ -347,7 +336,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
     userId: string;
     conversationId: string;
     agentSlug: string;
-    organizationSlug?: string;
     mode: string;
     message: string;
     progress?: number;
@@ -361,7 +349,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
       userId: params.userId,
       conversationId: params.conversationId,
       agentSlug: params.agentSlug,
-      organizationSlug: params.organizationSlug,
       mode: params.mode,
       payload: {
         message: params.message,
@@ -428,7 +415,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
       userId: context.userId,
       conversationId: context.conversationId,
       agentSlug: context.agentSlug,
-      organizationSlug: context.orgSlug,
       mode: params.mode,
       payload: {
         ...params.payload,
@@ -461,7 +447,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
       userId: context.userId,
       conversationId: context.conversationId,
       agentSlug: context.agentSlug,
-      organizationSlug: context.orgSlug,
       mode: params.mode,
       payload: {
         success: params.success,
@@ -497,7 +482,6 @@ export class ObservabilityWebhookService implements OnModuleInit {
       userId: context.userId,
       conversationId: context.conversationId,
       agentSlug: context.agentSlug,
-      organizationSlug: context.orgSlug,
       mode: params.mode,
       payload: {
         message: params.message,

@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useApi } from '../composables/useApi';
-import { useTenantStore } from './tenant.store';
 
 export interface PortfolioSummary {
   kind: 'user' | 'analyst' | 'arbitrator' | 'day_trader';
@@ -116,11 +115,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     quantity: number;
   }) {
     const api = useApi();
-    const tenant = useTenantStore();
-    const result = await api.post<Record<string, unknown>>('/portfolios/me/execute-trade', {
-      ...input,
-      organizationSlug: tenant.orgSlug,
-    });
+    const result = await api.post<Record<string, unknown>>('/portfolios/me/execute-trade', input);
     // Refresh user-side caches so the new position is visible immediately.
     await Promise.all([
       fetchMyPortfolio().catch(() => {}),
@@ -138,10 +133,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
 
   async function closePositionAction(positionId: string) {
     const api = useApi();
-    const tenant = useTenantStore();
-    const result = await api.post<Record<string, unknown>>(`/portfolios/me/positions/${positionId}/close`, {
-      organizationSlug: tenant.orgSlug,
-    });
+    const result = await api.post<Record<string, unknown>>(`/portfolios/me/positions/${positionId}/close`);
     await Promise.all([
       fetchMyPortfolio().catch(() => {}),
       fetchMyPositions('open').catch(() => {}),

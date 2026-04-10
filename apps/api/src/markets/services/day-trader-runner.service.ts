@@ -29,7 +29,7 @@ const BASE_SIZE_PCT = 0.05;
 export interface DayTraderPortfolioRow {
   id: string;
   analyst_id: string;
-  organization_slug: string;
+  user_id: string | null;
   current_balance: number | string;
   strategy_name: string | null;
   strategy_state: Record<string, unknown> | null;
@@ -230,7 +230,7 @@ export class DayTraderRunnerService {
 
   private async loadDayTraderPortfolios(): Promise<DayTraderPortfolioRow[]> {
     const result = await this.db.rawQuery(
-      `select id, analyst_id, organization_slug, current_balance, strategy_name, strategy_state
+      `select id, analyst_id, user_id, current_balance, strategy_name, strategy_state
          from prediction.analyst_portfolios
         where kind = 'day_trader'
           and status = 'active'
@@ -260,8 +260,8 @@ export class DayTraderRunnerService {
     const result = await this.db.rawQuery(
       `select distinct on (symbol) id, symbol, current_state
          from prediction.instruments
-        where is_active = true and organization_slug != '__base__'
-        order by symbol, organization_slug`,
+        where is_active = true
+        order by symbol`,
       [],
     );
     const rows = (result.data as Array<{
@@ -395,7 +395,7 @@ export class DayTraderRunnerService {
       portfolio: {
         id: portfolio.id,
         analyst_id: portfolio.analyst_id,
-        organization_slug: portfolio.organization_slug,
+        user_id: portfolio.user_id,
         current_balance: portfolio.current_balance,
       },
       instrumentId: decision.instrumentId,
@@ -407,7 +407,6 @@ export class DayTraderRunnerService {
       conviction: 0,
       triggerReason: 'strategy',
       triggerStrategy: portfolio.strategy_name ?? undefined,
-      organizationSlug: portfolio.organization_slug,
     });
 
     if (result.reason !== 'inserted') return false;

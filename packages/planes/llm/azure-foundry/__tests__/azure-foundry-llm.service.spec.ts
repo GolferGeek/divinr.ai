@@ -11,7 +11,6 @@ jest.mock('@azure-rest/ai-inference');
 jest.mock('@azure/core-auth');
 
 const mockExecutionContext: ExecutionContext = {
-  orgSlug: 'test-org',
   userId: 'user-1',
   conversationId: 'conv-1',
   agentSlug: 'test-agent',

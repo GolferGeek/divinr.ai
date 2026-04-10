@@ -8,7 +8,6 @@ import type { CanonicalTestDay, AnalystConfigVersion } from '../markets.types';
 export interface CanonicalTestInput {
   /** The analyst being tested */
   analystId: string;
-  organizationSlug: string;
   /** The proposed config to test */
   proposedPrompt: string;
   proposedWeight: number;
@@ -84,7 +83,6 @@ export class CanonicalTestRunnerService {
     // 2. Replay each canonical day
     const dayResults: CanonicalDayResult[] = [];
     const context = this.llmService.buildExecutionContext(
-      input.organizationSlug,
       'canonical-test-runner',
       'canonical-test',
     );
@@ -216,21 +214,20 @@ ${articleContext ? `\nRelevant articles:\n${articleContext}` : ''}`;
     // Get instruments this analyst is assigned to
     const scopeFilter = input.testScope === 'both'
       ? `and ctd.test_scope in ('prediction', 'risk', 'both')`
-      : `and ctd.test_scope in ($3, 'both')`;
+      : `and ctd.test_scope in ($2, 'both')`;
 
-    const params: unknown[] = [input.organizationSlug, input.analystId];
+    const params: unknown[] = [input.analystId];
     if (input.testScope !== 'both') params.push(input.testScope);
 
     const result = await this.db.rawQuery(
       `select ctd.*
        from prediction.canonical_test_days ctd
-       where ctd.organization_slug = $1
-         and ctd.is_active = true
+       where ctd.is_active = true
          and ctd.instrument_id in (
            select instrument_id from prediction.market_instrument_analyst_assignments
-           where analyst_id = $2 and organization_slug = $1
+           where analyst_id = $1
            union
-           select id from prediction.instruments where organization_slug = $1
+           select id from prediction.instruments
          )
          ${scopeFilter}
        order by ctd.canonical_date desc

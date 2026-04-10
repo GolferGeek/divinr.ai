@@ -66,7 +66,7 @@ export class StrategicOverhaulService {
 
   // ─── Evidence Aggregation ──────────────────────────────────────
 
-  async aggregateEvidence(analystId: string, organizationSlug: string): Promise<EvidenceDossier> {
+  async aggregateEvidence(analystId: string): Promise<EvidenceDossier> {
     await this.schema.ensureSchema();
 
     // 1. Accepted audit findings grouped by discrepancy pattern
@@ -74,10 +74,9 @@ export class StrategicOverhaulService {
       `SELECT id, discrepancy, severity, created_at
        FROM prediction.audit_findings
        WHERE analyst_id = $1
-         AND organization_slug = $2
          AND status = 'accepted'
        ORDER BY created_at DESC`,
-      [analystId, organizationSlug],
+      [analystId],
     );
     if (findingsResult.error) throw new Error(findingsResult.error.message);
     const findings = (findingsResult.data as Array<{
@@ -101,10 +100,9 @@ export class StrategicOverhaulService {
       `SELECT period, calibration_score
        FROM prediction.analyst_performance_profiles
        WHERE analyst_id = $1
-         AND organization_slug = $2
          AND period IN ('30d', 'all')
        ORDER BY computed_at DESC`,
-      [analystId, organizationSlug],
+      [analystId],
     );
     if (calibResult.error) throw new Error(calibResult.error.message);
     const calibRows = (calibResult.data as Array<{
@@ -125,10 +123,8 @@ export class StrategicOverhaulService {
       `SELECT count(*) as total,
               count(*) filter (where abs(score_adjustment) >= 10) as overrides
        FROM prediction.risk_debates
-       WHERE organization_slug = $1
-         AND status = 'completed'
+       WHERE status = 'completed'
          AND created_at >= now() - interval '30 days'`,
-      [organizationSlug],
     );
     if (debateResult.error) throw new Error(debateResult.error.message);
     const debateRow = ((debateResult.data as Array<{ total: string; overrides: string }> | null) ?? [])[0];
@@ -158,7 +154,6 @@ export class StrategicOverhaulService {
 
   async generateProposal(
     analystId: string,
-    organizationSlug: string,
     evidence: EvidenceDossier,
   ): Promise<{ proposedContextMarkdown: string; rationale: string }> {
     // Load current active config
@@ -166,11 +161,10 @@ export class StrategicOverhaulService {
       `SELECT id, context_markdown, version_number
        FROM prediction.analyst_config_versions
        WHERE analyst_id = $1
-         AND organization_slug = $2
          AND is_active = true
        ORDER BY version_number DESC
        LIMIT 1`,
-      [analystId, organizationSlug],
+      [analystId],
     );
     if (configResult.error) throw new Error(configResult.error.message);
     const configRows = (configResult.data as Array<{
@@ -217,7 +211,7 @@ ${patternsSummary}
 RECENT FINDINGS:
 ${findingsSummary}`;
 
-    const context = this.llmService.buildExecutionContext(organizationSlug, 'system', 'prediction');
+    const context = this.llmService.buildExecutionContext('system', 'prediction');
     const result = await this.llmService.generateText(context, systemPrompt, userPrompt);
 
     const parts = result.text.split('---RATIONALE---');
@@ -231,7 +225,6 @@ ${findingsSummary}`;
 
   async testAndPersistProposal(
     analystId: string,
-    organizationSlug: string,
     evidence: EvidenceDossier,
     proposedMarkdown: string,
     currentMarkdown: string,
@@ -240,7 +233,6 @@ ${findingsSummary}`;
     // Run canonical tests
     const testResult = await this.canonicalRunner.runCanonicalTests({
       analystId,
-      organizationSlug,
       proposedPrompt: proposedMarkdown,
       proposedWeight: 1.0,
       proposedTierInstructions: {},
@@ -252,21 +244,20 @@ ${findingsSummary}`;
 
     await this.db.rawQuery(
       `INSERT INTO prediction.learning_proposals (
-        id, organization_slug, tier, analyst_id, proposal_type,
+        id, tier, analyst_id, proposal_type,
         description, rationale, proposed_change,
         canonical_test_results, net_score, has_severity_regression,
         status, proposed_at,
         evidence_summary, proposed_context_markdown, current_context_markdown
       ) VALUES (
-        $1, $2, 3, $3, 'strategic_rewrite',
-        $4, $5, $6,
-        $7, $8, $9,
-        $10, now(),
-        $11, $12, $13
+        $1, 3, $2, 'strategic_rewrite',
+        $3, $4, $5,
+        $6, $7, $8,
+        $9, now(),
+        $10, $11, $12
       )`,
       [
         proposalId,
-        organizationSlug,
         analystId,
         `Tier 3 strategic rewrite based on ${evidence.acceptedFindingsCount} accepted findings`,
         rationale,
@@ -307,13 +298,13 @@ ${findingsSummary}`;
 
     // Get all analysts
     const analystResult = await this.db.rawQuery(
-      `SELECT id, display_name, organization_slug
+      `SELECT id, display_name
        FROM prediction.market_analysts
        WHERE is_active = true AND learning_enabled = true`,
     );
     if (analystResult.error) throw new Error(analystResult.error.message);
     const analysts = (analystResult.data as Array<{
-      id: string; display_name: string; organization_slug: string;
+      id: string; display_name: string;
     }> | null) ?? [];
 
     for (const analyst of analysts) {
@@ -323,10 +314,10 @@ ${findingsSummary}`;
         // Check for existing pending proposal (deduplication)
         const dupCheck = await this.db.rawQuery(
           `SELECT id FROM prediction.learning_proposals
-           WHERE tier = 3 AND analyst_id = $1 AND organization_slug = $2
+           WHERE tier = 3 AND analyst_id = $1
              AND status IN ('proposed', 'passed', 'testing')
            LIMIT 1`,
-          [analyst.id, analyst.organization_slug],
+          [analyst.id],
         );
         if (dupCheck.error) throw new Error(dupCheck.error.message);
         if (((dupCheck.data as unknown[] | null) ?? []).length > 0) {
@@ -336,7 +327,7 @@ ${findingsSummary}`;
         }
 
         // Aggregate evidence
-        const evidence = await this.aggregateEvidence(analyst.id, analyst.organization_slug);
+        const evidence = await this.aggregateEvidence(analyst.id);
 
         // Check threshold
         if (!this.meetsThreshold(evidence)) {
@@ -350,23 +341,21 @@ ${findingsSummary}`;
         // Generate proposal via LLM
         const { proposedContextMarkdown, rationale } = await this.generateProposal(
           analyst.id,
-          analyst.organization_slug,
           evidence,
         );
 
         // Get current markdown for snapshot
         const currentConfigResult = await this.db.rawQuery(
           `SELECT context_markdown FROM prediction.analyst_config_versions
-           WHERE analyst_id = $1 AND organization_slug = $2 AND is_active = true
+           WHERE analyst_id = $1 AND is_active = true
            ORDER BY version_number DESC LIMIT 1`,
-          [analyst.id, analyst.organization_slug],
+          [analyst.id],
         );
         const currentMarkdown = ((currentConfigResult.data as Array<{ context_markdown: string }> | null) ?? [])[0]?.context_markdown ?? '';
 
         // Test and persist
         const proposalResult = await this.testAndPersistProposal(
           analyst.id,
-          analyst.organization_slug,
           evidence,
           proposedContextMarkdown,
           currentMarkdown,

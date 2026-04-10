@@ -14,8 +14,8 @@ export class PositionSizingService {
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {}
 
-  async getPositionPercent(confidence: number, organizationSlug: string): Promise<number> {
-    const tiers = await this.loadTiers(organizationSlug);
+  async getPositionPercent(confidence: number): Promise<number> {
+    const tiers = await this.loadTiers();
     for (const tier of tiers) {
       if (confidence >= tier.min_confidence && confidence < tier.max_confidence) {
         return tier.position_percent;
@@ -61,13 +61,13 @@ export class PositionSizingService {
    * Adjust confidence by analyst calibration accuracy.
    * Well-calibrated analysts get full credit; overconfident analysts get reduced position sizes.
    */
-  async getEffectiveConfidence(confidence: number, analystId: string, organizationSlug: string): Promise<number> {
+  async getEffectiveConfidence(confidence: number, analystId: string): Promise<number> {
     try {
       const result = await this.db.rawQuery(
         `select calibration_score from prediction.analyst_performance_profiles
-         where analyst_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+         where analyst_id = $1
          order by computed_at desc limit 1`,
-        [analystId, organizationSlug],
+        [analystId],
       );
       const rows = (result.data as Array<{ calibration_score: number | null }> | null) ?? [];
       const calibration = rows[0]?.calibration_score;
@@ -86,15 +86,10 @@ export class PositionSizingService {
     return 1.0;
   }
 
-  private async loadTiers(organizationSlug: string): Promise<PositionSizingTier[]> {
-    // Try org-specific first, then fall back to global
+  private async loadTiers(): Promise<PositionSizingTier[]> {
     const result = await this.db.rawQuery(
       `select * from prediction.position_sizing_config
-       where organization_slug in ($1, '*')
-       order by
-         case when organization_slug = $1 then 0 else 1 end,
-         min_confidence asc`,
-      [organizationSlug],
+       order by min_confidence asc`,
     );
     if (result.error) {
       this.logger.warn(`Failed to load sizing tiers: ${result.error.message}`);
@@ -114,9 +109,9 @@ export class PositionSizingService {
 
   private defaultTiers(): PositionSizingTier[] {
     return [
-      { id: 'default_low', organization_slug: '*', tier_name: 'low', min_confidence: 60, max_confidence: 70, position_percent: 0.05 },
-      { id: 'default_medium', organization_slug: '*', tier_name: 'medium', min_confidence: 70, max_confidence: 80, position_percent: 0.10 },
-      { id: 'default_high', organization_slug: '*', tier_name: 'high', min_confidence: 80, max_confidence: 100, position_percent: 0.15 },
+      { id: 'default_low', tier_name: 'low', min_confidence: 60, max_confidence: 70, position_percent: 0.05 },
+      { id: 'default_medium', tier_name: 'medium', min_confidence: 70, max_confidence: 80, position_percent: 0.10 },
+      { id: 'default_high', tier_name: 'high', min_confidence: 80, max_confidence: 100, position_percent: 0.15 },
     ];
   }
 }

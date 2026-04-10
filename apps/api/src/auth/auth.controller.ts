@@ -7,7 +7,6 @@ import {
   Inject,
   Param,
   Post,
-  Query,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -27,7 +26,6 @@ interface LogoutBody {
 }
 
 interface InviteBody {
-  organizationSlug?: string;
   email?: string;
 }
 
@@ -74,28 +72,23 @@ export class AuthController {
   }
 
   /**
-   * Return the current authenticated principal with org role.
+   * Return the current authenticated principal with global role.
    * AuthMiddleware has already validated the bearer token and populated req.user.
    */
   @Get('me')
   async me(
-    @Req() req: { user?: { id: string; email?: string; role?: string }; headers: Record<string, string | string[] | undefined> },
+    @Req() req: { user?: { id: string; email?: string; role?: string } },
   ) {
     if (!req.user?.id) {
       throw new UnauthorizedException('Authentication required');
     }
-    // Resolve org role from RBAC tables
-    const orgSlugHeader = req.headers['x-org-slug'];
-    const orgSlug = Array.isArray(orgSlugHeader) ? orgSlugHeader[0] : orgSlugHeader;
-    let orgRole: string | null = null;
-    if (orgSlug) {
-      orgRole = await this.inviteService.getOrgRole(req.user.id, orgSlug);
-    }
+    // Resolve global role from RBAC tables
+    const globalRole = await this.inviteService.getUserRole(req.user.id);
     return {
       id: req.user.id,
       email: req.user.email,
       role: req.user.role,
-      orgRole,
+      globalRole,
     };
   }
 
@@ -112,24 +105,21 @@ export class AuthController {
     @Body() body: InviteBody,
   ) {
     if (!req.user?.id) throw new UnauthorizedException('Authentication required');
-    if (!body.organizationSlug) throw new UnauthorizedException('organizationSlug is required');
     // Only admin/owner can create invites
-    await this.requireInviteAccess(req.user.id, body.organizationSlug);
-    return this.inviteService.createInvite(body.organizationSlug, req.user.id, body.email);
+    await this.requireInviteAccess(req.user.id);
+    return this.inviteService.createInvite(req.user.id, body.email);
   }
 
   /**
-   * List invites for an organization.
+   * List invites.
    */
   @Get('invites')
   async listInvites(
     @Req() req: { user?: { id: string } },
-    @Query('organizationSlug') orgSlug?: string,
   ) {
     if (!req.user?.id) throw new UnauthorizedException('Authentication required');
-    if (!orgSlug) throw new UnauthorizedException('organizationSlug query param is required');
-    await this.requireInviteAccess(req.user.id, orgSlug);
-    return this.inviteService.listInvites(orgSlug);
+    await this.requireInviteAccess(req.user.id);
+    return this.inviteService.listInvites();
   }
 
   /**
@@ -137,14 +127,12 @@ export class AuthController {
    */
   @Delete('invites/:id')
   async revokeInvite(
-    @Req() req: { user?: { id: string }; headers: Record<string, string | string[] | undefined> },
+    @Req() req: { user?: { id: string } },
     @Param('id') id: string,
-    @Query('organizationSlug') orgSlug?: string,
   ) {
     if (!req.user?.id) throw new UnauthorizedException('Authentication required');
-    if (!orgSlug) throw new UnauthorizedException('organizationSlug query param is required');
-    await this.requireInviteAccess(req.user.id, orgSlug);
-    return this.inviteService.revokeInvite(id, orgSlug);
+    await this.requireInviteAccess(req.user.id);
+    return this.inviteService.revokeInvite(id);
   }
 
   /**
@@ -170,8 +158,8 @@ export class AuthController {
 
   // ─── Helpers ───────────────────────────────────────────────────
 
-  private async requireInviteAccess(userId: string, organizationSlug: string): Promise<void> {
-    const role = await this.inviteService.getOrgRole(userId, organizationSlug);
+  private async requireInviteAccess(userId: string): Promise<void> {
+    const role = await this.inviteService.getUserRole(userId);
     if (!role || !['super-admin', 'owner', 'admin'].includes(role)) {
       throw new ForbiddenException('Only organization owners or admins can manage invites');
     }

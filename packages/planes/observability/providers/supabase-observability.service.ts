@@ -209,7 +209,7 @@ export class SupabaseObservabilityService implements ObservabilityServiceProvide
         conversation_id: record.context.conversationId || null,
         user_id: record.context.userId || null,
         agent_slug: record.context.agentSlug || null,
-        organization_slug: record.context.orgSlug || null,
+        organization_slug: null,
         // Provider/model attribution
         session_id: record.context.conversationId || 'unknown',
       });
@@ -222,7 +222,6 @@ export class SupabaseObservabilityService implements ObservabilityServiceProvide
   private mapRowToRecord(row: Record<string, unknown>): ObservabilityEventRecord {
     return {
       context: {
-        orgSlug: (row.organization_slug as string) || '',
         userId: (row.user_id as string) || '',
         conversationId: (row.conversation_id as string) || '',
         agentSlug: (row.agent_slug as string) || '',

@@ -9,7 +9,6 @@ import { MarketsSchemaService } from '../schema/markets-schema.service';
 interface PendingEvaluation {
   prediction_id: string;
   run_id: string;
-  organization_slug: string;
   instrument_id: string;
   analyst_id: string | null;
   predicted_direction: 'up' | 'down' | 'flat';
@@ -119,7 +118,6 @@ export class NightlyEvaluationService {
           await this.persistHorizonEvaluation({
             predictionId: pred.prediction_id,
             runId: pred.run_id,
-            organizationSlug: pred.organization_slug,
             instrumentId: pred.instrument_id,
             analystId: pred.analyst_id,
             horizonWindow: horizon.value,
@@ -136,7 +134,6 @@ export class NightlyEvaluationService {
           if (pred.analyst_id) {
             await this.writeAnalystMemory({
               analystId: pred.analyst_id,
-              organizationSlug: pred.organization_slug,
               instrumentId: pred.instrument_id,
               symbol: await this.getInstrumentSymbol(pred.instrument_id),
               predictedDirection: pred.predicted_direction,
@@ -202,7 +199,6 @@ export class NightlyEvaluationService {
       `select
          mp.id as prediction_id,
          mp.run_id,
-         mp.organization_slug,
          mp.instrument_id,
          mp.analyst_id,
          mp.predicted_direction,
@@ -216,7 +212,7 @@ export class NightlyEvaluationService {
            select 1 from prediction.prediction_horizon_evaluations phe
            where phe.prediction_id = mp.id and phe.horizon_window = $1::int
          )
-       order by mp.organization_slug, mp.instrument_id`,
+       order by mp.instrument_id`,
       [horizonDays],
     );
     if (result.error) {
@@ -229,7 +225,6 @@ export class NightlyEvaluationService {
   private async persistHorizonEvaluation(input: {
     predictionId: string;
     runId: string;
-    organizationSlug: string;
     instrumentId: string;
     analystId: string | null;
     horizonWindow: number;
@@ -243,14 +238,14 @@ export class NightlyEvaluationService {
   }): Promise<void> {
     const result = await this.db.rawQuery(
       `insert into prediction.prediction_horizon_evaluations
-        (id, prediction_id, run_id, organization_slug, instrument_id, analyst_id,
+        (id, prediction_id, run_id, instrument_id, analyst_id,
          horizon_window, prediction_date, evaluation_date,
          predicted_direction, actual_direction, actual_outcome_data,
          was_correct, confidence_at_prediction, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        on conflict do nothing`,
       [
-        randomUUID(), input.predictionId, input.runId, input.organizationSlug,
+        randomUUID(), input.predictionId, input.runId,
         input.instrumentId, input.analystId, input.horizonWindow,
         input.predictionDate, input.evaluationDate,
         input.predictedDirection, input.actualDirection,
@@ -299,12 +294,11 @@ export class NightlyEvaluationService {
     // Compute rolling accuracy for each analyst × instrument × horizon × period
     const result = await this.db.rawQuery(`
       insert into prediction.analyst_performance_profiles
-        (id, analyst_id, organization_slug, instrument_id, horizon_window, period,
+        (id, analyst_id, instrument_id, horizon_window, period,
          accuracy_rate, avg_confidence, calibration_score, systematic_biases, sample_size, computed_at)
       select
         gen_random_uuid()::text,
         phe.analyst_id,
-        phe.organization_slug,
         phe.instrument_id,
         phe.horizon_window,
         '30d',
@@ -323,7 +317,7 @@ export class NightlyEvaluationService {
       from prediction.prediction_horizon_evaluations phe
       where phe.analyst_id is not null
         and phe.created_at >= now() - interval '30 days'
-      group by phe.analyst_id, phe.organization_slug, phe.instrument_id, phe.horizon_window
+      group by phe.analyst_id, phe.instrument_id, phe.horizon_window
       on conflict do nothing
     `);
     if (result.error) {
@@ -340,14 +334,13 @@ export class NightlyEvaluationService {
       with multi_horizon_failures as (
         select
           phe.prediction_id,
-          phe.organization_slug,
           phe.instrument_id,
           min(phe.prediction_date) as prediction_date,
           count(*) as horizons_evaluated,
           count(*) filter (where not phe.was_correct) as horizons_wrong,
           max(phe.confidence_at_prediction) as max_confidence
         from prediction.prediction_horizon_evaluations phe
-        group by phe.prediction_id, phe.organization_slug, phe.instrument_id
+        group by phe.prediction_id, phe.instrument_id
         having count(*) >= 2
           and count(*) filter (where not phe.was_correct) = count(*)
           and max(phe.confidence_at_prediction) >= 70
@@ -355,8 +348,7 @@ export class NightlyEvaluationService {
       select * from multi_horizon_failures
       where not exists (
         select 1 from prediction.canonical_test_days ctd
-        where ctd.organization_slug = multi_horizon_failures.organization_slug
-          and ctd.instrument_id = multi_horizon_failures.instrument_id
+        where ctd.instrument_id = multi_horizon_failures.instrument_id
           and ctd.canonical_date = multi_horizon_failures.prediction_date::date
       )
     `);
@@ -367,7 +359,6 @@ export class NightlyEvaluationService {
 
     const candidates = (result.data as Array<{
       prediction_id: string;
-      organization_slug: string;
       instrument_id: string;
       prediction_date: string;
       horizons_wrong: number;
@@ -378,13 +369,13 @@ export class NightlyEvaluationService {
     for (const c of candidates) {
       await this.db.rawQuery(
         `insert into prediction.canonical_test_days
-          (id, instrument_id, organization_slug, universe_slug, canonical_date,
+          (id, instrument_id, universe_slug, canonical_date,
            failure_classification, test_scope, is_active, added_by, added_at)
-         values ($1, $2, $3, 'stocks', $4,
-           $5, 'prediction', true, 'nightly-evaluation', $6)
+         values ($1, $2, 'stocks', $3,
+           $4, 'prediction', true, 'nightly-evaluation', $5)
          on conflict do nothing`,
         [
-          randomUUID(), c.instrument_id, c.organization_slug,
+          randomUUID(), c.instrument_id,
           new Date(c.prediction_date).toISOString().slice(0, 10),
           `Wrong at all ${c.horizons_wrong} horizons with ${c.max_confidence}% confidence`,
           new Date().toISOString(),
@@ -501,7 +492,6 @@ export class NightlyEvaluationService {
 
   private async writeAnalystMemory(input: {
     analystId: string;
-    organizationSlug: string;
     instrumentId: string;
     symbol: string;
     predictedDirection: string;

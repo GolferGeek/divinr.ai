@@ -224,36 +224,31 @@ export class MarketsService {
 
   private async requireRead(
     userId: string,
-    organizationSlug: string,
   ): Promise<void> {
     if (process.env.MARKETS_DEV_AUTH_BYPASS === 'true') return;
     const allowed = await this.rbac.hasPermission(
       userId,
-      organizationSlug,
       'markets.instruments.read',
     );
     if (!allowed) {
-      throw new ForbiddenException('Read permission denied for organization');
+      throw new ForbiddenException('Read permission denied');
     }
   }
 
   private async requireWrite(
     userId: string,
-    organizationSlug: string,
   ): Promise<void> {
     if (process.env.MARKETS_DEV_AUTH_BYPASS === 'true') return;
     const allowed = await this.rbac.hasPermission(
       userId,
-      organizationSlug,
       'markets.instruments.write',
     );
     if (!allowed) {
-      throw new ForbiddenException('Write permission denied for organization');
+      throw new ForbiddenException('Write permission denied');
     }
   }
 
   private buildExecutionContext(
-    organizationSlug: string,
     userId: string,
     runType: RunType,
   ): ExecutionContext {
@@ -261,7 +256,6 @@ export class MarketsService {
     return {
       conversationId: randomUUID(),
       userId,
-      orgSlug: organizationSlug,
       agentSlug: `markets-${runType}-orchestrator`,
       agentType: 'system',
       provider: llmConfig.provider,
@@ -362,25 +356,17 @@ export class MarketsService {
   }
 
   async listInstruments(
-    organizationSlug: string,
     userId: string,
   ): Promise<MarketInstrument[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
-    // Show org-specific instruments; fall back to __base__ only for symbols the org doesn't have
+    // Show user-specific instruments + system instruments
     const result = await this.db.rawQuery(
       `select * from prediction.instruments
-       where organization_slug = $1
-       union all
-       select b.* from prediction.instruments b
-       where b.organization_slug = '__base__'
-         and not exists (
-           select 1 from prediction.instruments o
-           where o.organization_slug = $1 and o.symbol = b.symbol
-         )
+       where (user_id IS NULL OR user_id = $1)
        order by symbol asc`,
-      [organizationSlug],
+      [userId],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -390,11 +376,11 @@ export class MarketsService {
 
   async createInstrument(input: CreateInstrumentInput): Promise<MarketInstrument> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     const instrument: MarketInstrument = {
       id: randomUUID(),
-      organization_slug: input.organizationSlug,
+      user_id: input.userId,
       symbol: input.symbol.toUpperCase(),
       name: input.name || input.symbol.toUpperCase(),
       asset_type: input.assetType || 'stock',
@@ -417,12 +403,12 @@ export class MarketsService {
 
   async createAnalyst(input: CreateAnalystInput): Promise<MarketAnalyst> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     const now = new Date().toISOString();
     const analyst: MarketAnalyst = {
       id: randomUUID(),
-      organization_slug: input.organizationSlug,
+      user_id: input.userId,
       slug: input.slug.trim().toLowerCase(),
       display_name: input.displayName.trim(),
       analyst_type: 'personality',
@@ -449,14 +435,14 @@ export class MarketsService {
     const insert = await this.db.rawQuery(
       `
       insert into prediction.market_analysts
-        (id, organization_slug, slug, display_name, name, persona_prompt, analyst_type,
+        (id, user_id, slug, display_name, name, persona_prompt, analyst_type,
          default_weight, tier_instructions, is_system_default, is_enabled, is_active,
          workflow_scope, domain_slug, created_by, created_at, updated_at)
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       returning *
       `,
       [
-        analyst.id, analyst.organization_slug, analyst.slug,
+        analyst.id, analyst.user_id, analyst.slug,
         analyst.display_name, analyst.display_name, analyst.persona_prompt,
         analyst.analyst_type, analyst.default_weight,
         JSON.stringify(analyst.tier_instructions), analyst.is_system_default,
@@ -476,14 +462,14 @@ export class MarketsService {
       // context_markdown is NULL for new analysts — contracts are generated
       // separately. Effort: analyst-contracts.
       `insert into prediction.analyst_config_versions
-        (id, analyst_id, organization_slug, version_number, persona_prompt,
+        (id, analyst_id, version_number, persona_prompt,
          tier_instructions, default_weight, context_markdown,
          source, change_reason, is_active, created_by, created_at)
-       values ($1, $2, $3, 1, $4, $5, $6, null,
-               'manual', 'Initial creation', true, $7, $8)
+       values ($1, $2, 1, $3, $4, $5, null,
+               'manual', 'Initial creation', true, $6, $7)
        on conflict do nothing`,
       [
-        versionId, created.id, created.organization_slug,
+        versionId, created.id,
         created.persona_prompt, JSON.stringify(created.tier_instructions),
         created.default_weight, created.created_by, created.created_at,
       ],
@@ -499,7 +485,6 @@ export class MarketsService {
   }
 
   async updateAnalyst(input: {
-    organizationSlug: string;
     userId: string;
     analystId: string;
     personaPrompt?: string;
@@ -509,12 +494,12 @@ export class MarketsService {
     changeReason?: string;
   }): Promise<MarketAnalyst> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     // Load current analyst
     const current = await this.db.rawQuery(
-      `select * from prediction.market_analysts where id = $1 and organization_slug = $2`,
-      [input.analystId, input.organizationSlug],
+      `select * from prediction.market_analysts where id = $1 and user_id = $2`,
+      [input.analystId, input.userId],
     );
     if (current.error) throw new Error(current.error.message);
     const analyst = ((current.data as MarketAnalyst[] | null) ?? [])[0];
@@ -532,20 +517,20 @@ export class MarketsService {
       // context_markdown carry-forward: inherit from the most recent version
       // that has a contract. Effort: analyst-contracts.
       `insert into prediction.analyst_config_versions
-        (id, analyst_id, organization_slug, version_number, persona_prompt,
+        (id, analyst_id, version_number, persona_prompt,
          tier_instructions, default_weight, context_markdown,
          source, change_reason,
          parent_version_id, is_active, created_by, created_at)
-       values ($1, $2, $3,
+       values ($1, $2,
          coalesce((select max(version_number) + 1 from prediction.analyst_config_versions where analyst_id = $2), 1),
-         $4, $5, $6,
+         $3, $4, $5,
          (select context_markdown from prediction.analyst_config_versions
           where analyst_id = $2 and context_markdown is not null
           order by version_number desc limit 1),
-         'manual', $7, $8, true, $9, $10)
+         'manual', $6, $7, true, $8, $9)
        returning version_number`,
       [
-        versionId, input.analystId, input.organizationSlug,
+        versionId, input.analystId,
         newPrompt, JSON.stringify(newTier), newWeight,
         input.changeReason || 'Manual update',
         analyst.current_config_version_id, input.userId, new Date().toISOString(),
@@ -566,29 +551,28 @@ export class MarketsService {
       `update prediction.market_analysts
        set persona_prompt = $1, default_weight = $2, tier_instructions = $3,
            is_enabled = $4, current_config_version_id = $5, updated_at = $6
-       where id = $7 and organization_slug = $8
+       where id = $7 and user_id = $8
        returning *`,
-      [newPrompt, newWeight, JSON.stringify(newTier), newEnabled, versionId, new Date().toISOString(), input.analystId, input.organizationSlug],
+      [newPrompt, newWeight, JSON.stringify(newTier), newEnabled, versionId, new Date().toISOString(), input.analystId, input.userId],
     );
     if (update.error) throw new Error(update.error.message);
     return ((update.data as MarketAnalyst[] | null) ?? [])[0] as MarketAnalyst;
   }
 
   async rollbackAnalyst(input: {
-    organizationSlug: string;
     userId: string;
     analystId: string;
   }): Promise<MarketAnalyst> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     // Find current version's parent
     const current = await this.db.rawQuery(
       `select acv.parent_version_id
        from prediction.market_analysts ma
        join prediction.analyst_config_versions acv on acv.id = ma.current_config_version_id
-       where ma.id = $1 and ma.organization_slug = $2`,
-      [input.analystId, input.organizationSlug],
+       where ma.id = $1 and ma.user_id = $2`,
+      [input.analystId, input.userId],
     );
     const rows = (current.data as Array<{ parent_version_id: string | null }> | null) ?? [];
     if (rows.length === 0 || !rows[0].parent_version_id) {
@@ -608,8 +592,8 @@ export class MarketsService {
     // Deactivate current, activate parent
     await this.db.rawQuery(
       `update prediction.analyst_config_versions set is_active = false
-       where analyst_id = $1 and organization_slug = $2 and is_active = true`,
-      [input.analystId, input.organizationSlug],
+       where analyst_id = $1 and is_active = true`,
+      [input.analystId],
     );
     await this.db.rawQuery(
       `update prediction.analyst_config_versions set is_active = true where id = $1`,
@@ -621,29 +605,28 @@ export class MarketsService {
       `update prediction.market_analysts
        set persona_prompt = $1, default_weight = $2, tier_instructions = $3,
            current_config_version_id = $4, updated_at = $5
-       where id = $6 and organization_slug = $7
+       where id = $6 and user_id = $7
        returning *`,
-      [prev.persona_prompt, prev.default_weight, JSON.stringify(prev.tier_instructions), parentVersionId, new Date().toISOString(), input.analystId, input.organizationSlug],
+      [prev.persona_prompt, prev.default_weight, JSON.stringify(prev.tier_instructions), parentVersionId, new Date().toISOString(), input.analystId, input.userId],
     );
     if (update.error) throw new Error(update.error.message);
     return ((update.data as MarketAnalyst[] | null) ?? [])[0] as MarketAnalyst;
   }
 
   async listAnalysts(
-    organizationSlug: string,
     userId: string,
   ): Promise<MarketAnalyst[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
       `
       select *
       from prediction.market_analysts
-      where (organization_slug = $1 or organization_slug = '__base__')
-      order by case when organization_slug = $1 then 0 else 1 end, created_at asc
+      where (user_id IS NULL OR user_id = $1)
+      order by case when user_id = $1 then 0 else 1 end, created_at asc
       `,
-      [organizationSlug],
+      [userId],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -652,12 +635,11 @@ export class MarketsService {
   }
 
   async listAnalystsForInstrument(
-    organizationSlug: string,
     userId: string,
     instrumentId: string,
   ): Promise<MarketAnalyst[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     // Per design: all base analysts cover every instrument. The assignments
     // table is not populated — base analysts apply universally.
@@ -666,11 +648,11 @@ export class MarketsService {
       `
       select *
       from prediction.market_analysts
-      where (organization_slug = $1 or organization_slug = '__base__')
+      where (user_id IS NULL OR user_id = $1)
         and is_enabled = true
-      order by case when organization_slug = $1 then 0 else 1 end, created_at asc
+      order by case when user_id = $1 then 0 else 1 end, created_at asc
       `,
-      [organizationSlug],
+      [userId],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -682,17 +664,17 @@ export class MarketsService {
     input: AssignAnalystInput,
   ): Promise<{ assigned: boolean }> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     const upsert = await this.db.rawQuery(
       `
       insert into prediction.market_instrument_analyst_assignments
-        (organization_slug, instrument_id, analyst_id, assigned_by)
-      values ($1, $2, $3, $4)
-      on conflict (organization_slug, instrument_id, analyst_id)
+        (instrument_id, analyst_id, assigned_by)
+      values ($1, $2, $3)
+      on conflict (instrument_id, analyst_id)
       do update set assigned_by = excluded.assigned_by
       `,
-      [input.organizationSlug, input.instrumentId, input.analystId, input.userId],
+      [input.instrumentId, input.analystId, input.userId],
     );
     if (upsert.error) {
       throw new Error(upsert.error.message);
@@ -701,11 +683,10 @@ export class MarketsService {
   }
 
   async listEntitledSources(
-    organizationSlug: string,
     userId: string,
   ): Promise<Array<MarketSource & { entitlement: SourceEntitlement | null }>> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const sources = await this.db.rawQuery(
       `
@@ -722,9 +703,7 @@ export class MarketsService {
       `
       select *
       from prediction.tenant_source_entitlements
-      where (organization_slug = $1 or organization_slug = '__base__')
       `,
-      [organizationSlug],
     );
     if (entitlements.error) {
       throw new Error(entitlements.error.message);
@@ -742,13 +721,12 @@ export class MarketsService {
   }
 
   async listSourceArticles(
-    organizationSlug: string,
     userId: string,
     sourceId: string,
     limit: number,
   ) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
       `select id, title, url, summary, author, published_at, created_at
@@ -762,9 +740,9 @@ export class MarketsService {
     return (result.data as Record<string, unknown>[] | null) ?? [];
   }
 
-  async listDataAdapters(organizationSlug: string, userId: string) {
+  async listDataAdapters(userId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const result = await this.db.rawQuery(`
       select dsr.id, dsr.name, dsr.provider_type, dsr.base_url, dsr.tier,
@@ -787,9 +765,9 @@ export class MarketsService {
 
   // ─── Prediction Provenance ─────────────────────────────────────
 
-  async getPredictionProvenance(organizationSlug: string, userId: string, predictionId: string) {
+  async getPredictionProvenance(userId: string, predictionId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     // Load prediction
     const predResult = await this.db.rawQuery(
@@ -883,21 +861,14 @@ export class MarketsService {
   // → public.llm_usage.run_id. Used by AnalystPredictionModal's "Reasoning" tab.
 
   async getPredictionLlmCalls(
-    organizationSlug: string,
     userId: string,
     predictionId: string,
   ): Promise<{ predictionId: string; calls: LlmCallRow[] }> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
-    // IDOR defense: even if requireRead is bypassed somehow, the
-    // organization_slug filter refuses to leak rows from other orgs.
-    // The OR `__base__` clause honors the shared-template convention used
-    // throughout the markets services (see risk-runner.service.ts and
-    // others) — every tenant's dashboard surfaces __base__ predictions as
-    // shared base data, so reasoning for those rows must be reachable
-    // from every authenticated tenant. Other tenants' rows (not __base__)
-    // remain blocked.
+    // IDOR defense: the user_id filter ensures only system predictions
+    // (user_id IS NULL) or the user's own predictions are accessible.
     //
     // The ::text cast on both sides of the join is required because
     // market_predictions.llm_usage_id is uuid and llm_usage.run_id is text.
@@ -917,10 +888,9 @@ export class MarketsService {
        from prediction.market_predictions mp
        join public.llm_usage lu on lu.run_id::text = mp.llm_usage_id::text
        where mp.id = $1
-         and (mp.organization_slug = $2 or mp.organization_slug = '__base__')
          and lu.reasoning_content is not null
        order by lu.created_at desc`,
-      [predictionId, organizationSlug],
+      [predictionId],
     );
     if (result.error) throw new Error(result.error.message);
 
@@ -970,20 +940,19 @@ export class MarketsService {
   private static readonly CALIBRATION_RESOLVED_LIMIT = 100;
 
   async getAnalystCalibration(
-    organizationSlug: string,
     userId: string,
     analystId: string,
   ): Promise<AnalystCalibrationPayload> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
-    // (a) analyst row — 404 if missing or wrong org (allow __base__).
+    // (a) analyst row — 404 if missing or not accessible (system + user's own).
     const analystResult = await this.db.rawQuery(
       `select id, display_name, persona_prompt, analyst_type
        from prediction.market_analysts
-       where id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+       where id = $1 and (user_id IS NULL OR user_id = $2)
        limit 1`,
-      [analystId, organizationSlug],
+      [analystId, userId],
     );
     if (analystResult.error) throw new Error(analystResult.error.message);
     const analystRows = (analystResult.data as Array<{
@@ -993,7 +962,7 @@ export class MarketsService {
       analyst_type: string | null;
     }> | null) ?? [];
     if (analystRows.length === 0) {
-      throw new NotFoundException(`Analyst ${analystId} not found in organization ${organizationSlug}`);
+      throw new NotFoundException(`Analyst ${analystId} not found`);
     }
     const analystRow = analystRows[0]!;
 
@@ -1017,12 +986,11 @@ export class MarketsService {
          from prediction.analyst_performance_profiles app
          left join prediction.instruments i on i.id = app.instrument_id
          where app.analyst_id = $1
-           and app.organization_slug = $2
            and app.period = '30d'
          order by app.instrument_id, app.computed_at desc
        ) latest
        order by sample_size desc`,
-      [analystId, organizationSlug],
+      [analystId],
     );
     if (profileResult.error) throw new Error(profileResult.error.message);
     const profileRows = (profileResult.data as Array<{
@@ -1083,8 +1051,8 @@ export class MarketsService {
 
     // (c) resolved evaluations joined to market_predictions for rationale +
     // llm_usage_id presence. Wrong-first sort, hard cap at 100.
-    // The IDOR filter applies on market_predictions.organization_slug;
-    // prediction_horizon_evaluations also carries organization_slug so we
+    // The IDOR filter applies on market_predictions.user_id;
+    // prediction_horizon_evaluations also carries user_id so we
     // belt-and-suspenders both.
     const evalResult = await this.db.rawQuery(
       `select e.id as evaluation_id,
@@ -1104,11 +1072,9 @@ export class MarketsService {
        join prediction.market_predictions mp on mp.id = e.prediction_id
        left join prediction.instruments i on i.id = e.instrument_id
        where e.analyst_id = $1
-         and (e.organization_slug = $2 or e.organization_slug = '__base__')
-         and (mp.organization_slug = $2 or mp.organization_slug = '__base__')
        order by e.was_correct asc, e.evaluation_date desc
-       limit $3`,
-      [analystId, organizationSlug, MarketsService.CALIBRATION_RESOLVED_LIMIT],
+       limit $2`,
+      [analystId, MarketsService.CALIBRATION_RESOLVED_LIMIT],
     );
     if (evalResult.error) throw new Error(evalResult.error.message);
     const evalRows = (evalResult.data as Array<{
@@ -1191,7 +1157,7 @@ export class MarketsService {
    */
   async getActiveContextForAnalyst(
     analystId: string,
-    organizationSlug: string,
+    userId: string,
   ): Promise<AnalystContract | null> {
     await this.schema.ensureSchema();
 
@@ -1199,9 +1165,9 @@ export class MarketsService {
       `SELECT acv.context_markdown
        FROM prediction.market_analysts ma
        JOIN prediction.analyst_config_versions acv ON acv.id = ma.current_config_version_id
-       WHERE ma.id = $1 AND (ma.organization_slug = $2 OR ma.organization_slug = '__base__')
+       WHERE ma.id = $1 AND (ma.user_id IS NULL OR ma.user_id = $2)
        LIMIT 1`,
-      [analystId, organizationSlug],
+      [analystId, userId],
     );
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Array<{ context_markdown: string | null }> | null) ?? [];
@@ -1218,21 +1184,19 @@ export class MarketsService {
    * Returns null if the version doesn't exist or has no context_markdown.
    */
   async getContextForConfigVersion(
-    organizationSlug: string,
     userId: string,
     configVersionId: string,
   ): Promise<AnalystContract | null> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
-    // IDOR defense: filter on organization_slug so a caller can't
-    // retrieve a contract from another tenant by guessing the version id.
+    // IDOR defense: filter on user_id so a caller can't
+    // retrieve a contract from another user by guessing the version id.
     const result = await this.db.rawQuery(
       `SELECT context_markdown
        FROM prediction.analyst_config_versions
-       WHERE id = $1
-         AND (organization_slug = $2 OR organization_slug = '__base__')`,
-      [configVersionId, organizationSlug],
+       WHERE id = $1`,
+      [configVersionId],
     );
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Array<{ context_markdown: string | null }> | null) ?? [];
@@ -1244,15 +1208,15 @@ export class MarketsService {
 
   // ─── Contract Editor ───────────────────────────────────────────
 
-  async getAnalystContract(analystId: string, organizationSlug: string) {
+  async getAnalystContract(analystId: string, userId: string) {
     await this.schema.ensureSchema();
 
     // Fetch analyst metadata
     const analystResult = await this.db.rawQuery(
       `SELECT id, display_name, current_config_version_id
        FROM prediction.market_analysts
-       WHERE id = $1 AND (organization_slug = $2 OR organization_slug = '__base__')`,
-      [analystId, organizationSlug],
+       WHERE id = $1 AND (user_id IS NULL OR user_id = $2)`,
+      [analystId, userId],
     );
     if (analystResult.error) throw new Error(analystResult.error.message);
     const analysts = (analystResult.data as Array<{ id: string; display_name: string; current_config_version_id: string | null }> | null) ?? [];
@@ -1263,9 +1227,9 @@ export class MarketsService {
     const versionsResult = await this.db.rawQuery(
       `SELECT id, version_number, source, change_reason, created_by, created_at, is_active, context_markdown
        FROM prediction.analyst_config_versions
-       WHERE analyst_id = $1 AND (organization_slug = $2 OR organization_slug = '__base__')
+       WHERE analyst_id = $1
        ORDER BY version_number DESC`,
-      [analystId, organizationSlug],
+      [analystId],
     );
     if (versionsResult.error) throw new Error(versionsResult.error.message);
     const versionRows = (versionsResult.data as Array<Record<string, unknown>> | null) ?? [];
@@ -1297,13 +1261,12 @@ export class MarketsService {
 
   async saveAnalystContract(input: {
     analystId: string;
-    organizationSlug: string;
     userId: string;
     markdown: string;
     changeReason?: string;
   }) {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     // Load current analyst + active version
     const analystResult = await this.db.rawQuery(
@@ -1311,8 +1274,8 @@ export class MarketsService {
               acv.persona_prompt, acv.tier_instructions, acv.default_weight, acv.version_number
        FROM prediction.market_analysts ma
        LEFT JOIN prediction.analyst_config_versions acv ON acv.id = ma.current_config_version_id
-       WHERE ma.id = $1 AND (ma.organization_slug = $2 OR ma.organization_slug = '__base__')`,
-      [input.analystId, input.organizationSlug],
+       WHERE ma.id = $1 AND (ma.user_id IS NULL OR ma.user_id = $2)`,
+      [input.analystId, input.userId],
     );
     if (analystResult.error) throw new Error(analystResult.error.message);
     const rows = (analystResult.data as Array<Record<string, unknown>> | null) ?? [];
@@ -1333,12 +1296,12 @@ export class MarketsService {
     const newVersionNumber = (Number(current.version_number) || 0) + 1;
     await this.db.rawQuery(
       `INSERT INTO prediction.analyst_config_versions
-        (id, analyst_id, organization_slug, version_number, persona_prompt,
+        (id, analyst_id, version_number, persona_prompt,
          tier_instructions, default_weight, context_markdown,
          source, change_reason, parent_version_id, is_active, created_by, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'manual', $9, $10, true, $11, $12)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'manual', $8, $9, true, $10, $11)`,
       [
-        newVersionId, input.analystId, input.organizationSlug, newVersionNumber,
+        newVersionId, input.analystId, newVersionNumber,
         current.persona_prompt ?? '', JSON.stringify(current.tier_instructions ?? null),
         current.default_weight ?? 1.0, input.markdown,
         input.changeReason || 'Manual contract edit',
@@ -1352,14 +1315,14 @@ export class MarketsService {
       [newVersionId, input.analystId],
     );
 
-    return this.getAnalystContract(input.analystId, input.organizationSlug);
+    return this.getAnalystContract(input.analystId, input.userId);
   }
 
   // ─── Prediction Challenges ─────────────────────────────────────
 
-  async challengePrediction(organizationSlug: string, userId: string, predictionId: string) {
+  async challengePrediction(userId: string, predictionId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     // Check for existing challenges
     const existingResult = await this.db.rawQuery(
@@ -1368,7 +1331,7 @@ export class MarketsService {
     );
     const existingCount = Number(((existingResult.data as Array<{ cnt: number }>) ?? [])[0]?.cnt ?? 0);
     if (existingCount > 0) {
-      return this.getChallenges(organizationSlug, userId, predictionId);
+      return this.getChallenges(userId, predictionId);
     }
 
     // Load the challenged prediction
@@ -1388,7 +1351,7 @@ export class MarketsService {
     const challResult = await this.db.rawQuery(
       `select id, slug, display_name, persona_prompt
        from prediction.market_analysts
-       where organization_slug = '__base__' and analyst_type = 'personality'
+       where user_id IS NULL and analyst_type = 'personality'
          and is_enabled = true and is_active = true and id != $1
        order by slug`,
       [pred.analyst_id],
@@ -1397,7 +1360,7 @@ export class MarketsService {
       id: string; slug: string; display_name: string; persona_prompt: string;
     }> | null) ?? [];
 
-    const context = this.marketsLlm.buildExecutionContext(organizationSlug, userId, 'challenge');
+    const context = this.marketsLlm.buildExecutionContext(userId, 'challenge');
     const challenges: Array<Record<string, unknown>> = [];
 
     // Run challenges in parallel
@@ -1437,10 +1400,10 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
         // Persist
         await this.db.rawQuery(
           `insert into prediction.prediction_challenges
-            (prediction_id, challenged_analyst_id, challenger_analyst_id, organization_slug, instrument_id,
+            (prediction_id, challenged_analyst_id, challenger_analyst_id, instrument_id,
              counter_argument, counter_direction, counter_confidence, evidence, llm_usage_id)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [predictionId, pred.analyst_id, challenger.id, organizationSlug, pred.instrument_id,
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [predictionId, pred.analyst_id, challenger.id, pred.instrument_id,
            counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence), llmUsageId],
         );
 
@@ -1461,9 +1424,9 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     return { challenges };
   }
 
-  async *challengePredictionStream(organizationSlug: string, userId: string, predictionId: string) {
+  async *challengePredictionStream(userId: string, predictionId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     // Check for existing challenges
     const existingResult = await this.db.rawQuery(
@@ -1472,7 +1435,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     );
     const existingCount = Number(((existingResult.data as Array<{ cnt: number }>) ?? [])[0]?.cnt ?? 0);
     if (existingCount > 0) {
-      const existing = await this.getChallenges(organizationSlug, userId, predictionId);
+      const existing = await this.getChallenges(userId, predictionId);
       for (const c of existing) yield c;
       return;
     }
@@ -1494,7 +1457,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     const challResult = await this.db.rawQuery(
       `select id, slug, display_name, persona_prompt
        from prediction.market_analysts
-       where organization_slug = '__base__' and analyst_type = 'personality'
+       where user_id IS NULL and analyst_type = 'personality'
          and is_enabled = true and is_active = true and id != $1
        order by slug`,
       [pred.analyst_id],
@@ -1503,7 +1466,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
       id: string; slug: string; display_name: string; persona_prompt: string;
     }> | null) ?? [];
 
-    const context = this.marketsLlm.buildExecutionContext(organizationSlug, userId, 'challenge');
+    const context = this.marketsLlm.buildExecutionContext(userId, 'challenge');
 
     // Yield each challenge as it completes, with progress updates
     for (let i = 0; i < challengers.length; i++) {
@@ -1544,10 +1507,10 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
         // Persist
         await this.db.rawQuery(
           `insert into prediction.prediction_challenges
-            (prediction_id, challenged_analyst_id, challenger_analyst_id, organization_slug, instrument_id,
+            (prediction_id, challenged_analyst_id, challenger_analyst_id, instrument_id,
              counter_argument, counter_direction, counter_confidence, evidence, llm_usage_id)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [predictionId, pred.analyst_id, challenger.id, organizationSlug, pred.instrument_id,
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [predictionId, pred.analyst_id, challenger.id, pred.instrument_id,
            counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence), llmUsageId],
         );
 
@@ -1564,9 +1527,9 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     }
   }
 
-  async getChallenges(organizationSlug: string, userId: string, predictionId: string) {
+  async getChallenges(userId: string, predictionId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
       `select pc.*, ma.display_name as challenger_name, ma.slug as challenger_slug
@@ -1588,41 +1551,40 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
 
   // ─── Trade Decisions ──────────────────────────────────────────
 
-  async acknowledgeDisclaimer(organizationSlug: string, userId: string) {
+  async acknowledgeDisclaimer(userId: string) {
     await this.schema.ensureSchema();
     // Ensure portfolio exists, then set disclaimer timestamp
     const result = await this.db.rawQuery(
       `update prediction.user_portfolios set disclaimer_acknowledged_at = now(), updated_at = now()
-       where user_id = $1 and organization_slug = $2
+       where user_id = $1
        returning disclaimer_acknowledged_at`,
-      [userId, organizationSlug],
+      [userId],
     );
     if ((result.data as unknown[] | null)?.length === 0) {
       // Portfolio doesn't exist yet — create it with disclaimer
       await this.db.rawQuery(
-        `insert into prediction.user_portfolios (id, user_id, organization_slug, disclaimer_acknowledged_at, created_at, updated_at)
-         values (gen_random_uuid()::text, $1, $2, now(), now(), now())
-         on conflict (user_id, organization_slug) do update set disclaimer_acknowledged_at = now(), updated_at = now()`,
-        [userId, organizationSlug],
+        `insert into prediction.user_portfolios (id, user_id, disclaimer_acknowledged_at, created_at, updated_at)
+         values (gen_random_uuid()::text, $1, now(), now(), now())
+         on conflict (user_id) do update set disclaimer_acknowledged_at = now(), updated_at = now()`,
+        [userId],
       );
     }
     return { acknowledged: true };
   }
 
   async confirmTrade(
-    organizationSlug: string,
     userId: string,
     input: { predictionId: string; analystId: string; direction: string },
   ) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     // Check disclaimer — ensure portfolio exists first
-    await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
+    await this.userPortfolio.ensurePortfolio(userId);
     const disclaimerResult = await this.db.rawQuery(
       `select disclaimer_acknowledged_at from prediction.user_portfolios
-       where user_id = $1 and organization_slug = $2`,
-      [userId, organizationSlug],
+       where user_id = $1`,
+      [userId],
     );
     const disclaimerRows = (disclaimerResult.data as Array<{ disclaimer_acknowledged_at: string | null }> | null) ?? [];
     if (disclaimerRows.length === 0 || !disclaimerRows[0].disclaimer_acknowledged_at) {
@@ -1646,12 +1608,11 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     const effectiveConfidence = await this.positionSizing.getEffectiveConfidence(
       rawConfidence,
       input.analystId || String(pred.analyst_id),
-      organizationSlug,
     );
 
     // Calculate position size
-    const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
-    const positionPercent = await this.positionSizing.getPositionPercent(effectiveConfidence, organizationSlug);
+    const portfolio = await this.userPortfolio.ensurePortfolio(userId);
+    const positionPercent = await this.positionSizing.getPositionPercent(effectiveConfidence);
     const currentPrice = (pred.current_state as Record<string, unknown>)?.price as number || 0;
     // Use instrument current_state price
     const priceResult = await this.db.rawQuery(
@@ -1671,7 +1632,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     // Queue trade
     const trade = await this.userPortfolio.queueTrade({
       userId,
-      organizationSlug,
       predictionId: input.predictionId,
       instrumentId: String(pred.instrument_id),
       symbol: String(pred.symbol),
@@ -1682,10 +1642,10 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     // Record decision
     await this.db.rawQuery(
       `insert into prediction.user_trade_decisions
-        (user_id, organization_slug, prediction_id, instrument_id, symbol, decision, based_on_analyst_id, trade_queue_id, confidence_at_decision)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        (user_id, prediction_id, instrument_id, symbol, decision, based_on_analyst_id, trade_queue_id, confidence_at_decision)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
        on conflict (user_id, prediction_id) do nothing`,
-      [userId, organizationSlug, input.predictionId, pred.instrument_id, pred.symbol,
+      [userId, input.predictionId, pred.instrument_id, pred.symbol,
        direction === 'long' ? 'buy' : 'sell', input.analystId, trade.id, effectiveConfidence],
     );
 
@@ -1699,7 +1659,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     };
   }
 
-  async skipTrade(organizationSlug: string, userId: string, predictionId: string) {
+  async skipTrade(userId: string, predictionId: string) {
     await this.schema.ensureSchema();
 
     // Load prediction for instrument info
@@ -1716,19 +1676,19 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
 
     const result = await this.db.rawQuery(
       `insert into prediction.user_trade_decisions
-        (user_id, organization_slug, prediction_id, instrument_id, symbol, decision)
-       values ($1, $2, $3, $4, $5, 'skip')
+        (user_id, prediction_id, instrument_id, symbol, decision)
+       values ($1, $2, $3, $4, 'skip')
        on conflict (user_id, prediction_id) do nothing
        returning id`,
-      [userId, organizationSlug, predictionId, instrumentId, symbol],
+      [userId, predictionId, instrumentId, symbol],
     );
     const rows = (result.data as Array<{ id: string }> | null) ?? [];
     return { decisionId: rows[0]?.id ?? null, decision: 'skip' };
   }
 
-  async getTradeDecisions(organizationSlug: string, userId: string) {
+  async getTradeDecisions(userId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
       `select utd.*, ma.display_name as analyst_name,
@@ -1744,10 +1704,10 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
         ), '[]'::json) as outcomes
        from prediction.user_trade_decisions utd
        left join prediction.market_analysts ma on ma.id = utd.based_on_analyst_id
-       where utd.user_id = $1 and utd.organization_slug = $2
+       where utd.user_id = $1
        order by utd.decided_at desc
        limit 50`,
-      [userId, organizationSlug],
+      [userId],
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as Record<string, unknown>[] | null) ?? [];
@@ -1757,10 +1717,9 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     input: UpsertSourceEntitlementInput,
   ): Promise<SourceEntitlement> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     const payload = {
-      organization_slug: input.organizationSlug,
       source_id: input.sourceId,
       is_enabled: input.isEnabled,
       override_notes: input.overrideNotes ?? null,
@@ -1770,9 +1729,9 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     const upsert = await this.db.rawQuery(
       `
       insert into prediction.tenant_source_entitlements
-        (organization_slug, source_id, is_enabled, override_notes, created_by, updated_at)
-      values ($1, $2, $3, $4, $5, $6)
-      on conflict (organization_slug, source_id)
+        (source_id, is_enabled, override_notes, created_by, updated_at)
+      values ($1, $2, $3, $4, $5)
+      on conflict (source_id)
       do update set
         is_enabled = excluded.is_enabled,
         override_notes = excluded.override_notes,
@@ -1781,7 +1740,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
       returning *
       `,
       [
-        payload.organization_slug,
         payload.source_id,
         payload.is_enabled,
         payload.override_notes,
@@ -1800,14 +1758,14 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     input: ExternalCrawlerSyncInput,
   ): Promise<ExternalCrawlerSyncResult> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     const enabled = this.isExternalCrawlerSyncEnabled(Boolean(input.force));
     const externalOrganizationSlug = this.getExternalCrawlerOrgSlug();
     if (!enabled || !externalOrganizationSlug) {
       return {
         enabled,
-        externalOrganizationSlug,
+        externalSourceSlug: externalOrganizationSlug,
         sourceRowsProcessed: 0,
         articleRowsProcessed: 0,
         totalSyncedSources: 0,
@@ -1892,7 +1850,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
         select
           a.id::text as external_article_id,
           a.source_id::text as external_source_id,
-          a.organization_slug as external_organization_slug,
+          a.organization_slug as external_source_slug,
           a.title,
           a.url,
           a.summary,
@@ -1926,7 +1884,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
             external_source_id,
             source_id,
             source_origin,
-            external_organization_slug,
+            external_source_slug,
             title,
             url,
             summary,
@@ -1944,7 +1902,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
           external_source_id,
           source_id,
           'orchestrator_crawler',
-          external_organization_slug,
+          external_source_slug,
           title,
           url,
           summary,
@@ -1961,7 +1919,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
           external_source_id = excluded.external_source_id,
           source_id = excluded.source_id,
           source_origin = excluded.source_origin,
-          external_organization_slug = excluded.external_organization_slug,
+          external_source_slug = excluded.external_source_slug,
           title = excluded.title,
           url = excluded.url,
           summary = excluded.summary,
@@ -2002,7 +1960,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
       select count(*)::int as total
       from prediction.market_articles
       where source_origin = 'orchestrator_crawler'
-        and external_organization_slug = $1
+        and external_source_slug = $1
       `,
       [externalOrganizationSlug],
     );
@@ -2012,7 +1970,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
 
     return {
       enabled,
-      externalOrganizationSlug,
+      externalSourceSlug: externalOrganizationSlug,
       sourceRowsProcessed,
       articleRowsProcessed,
       totalSyncedSources:
@@ -2027,7 +1985,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
 
   async listMarketArticles(input: ListMarketArticlesInput): Promise<MarketArticle[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(input.userId, input.organizationSlug);
+    await this.requireRead(input.userId);
 
     const limit =
       input.limit && Number.isFinite(input.limit)
@@ -2058,7 +2016,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
 
   async scoreArticleForInstrument(input: ScorePredictorInput): Promise<ScorePredictorResult> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     // 1. Validate article exists and tenant has source entitlement
     const articleResult = await this.db.rawQuery(
@@ -2066,9 +2024,9 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
        from prediction.market_articles ma
        join prediction.source_catalog sc on sc.id = ma.source_id
        join prediction.tenant_source_entitlements tse
-         on tse.source_id = sc.id and tse.organization_slug = $1 and tse.is_enabled = true
-       where ma.id = $2`,
-      [input.organizationSlug, input.articleId],
+         on tse.source_id = sc.id and tse.is_enabled = true
+       where ma.id = $1`,
+      [input.articleId],
     );
     if (articleResult.error) throw new Error(articleResult.error.message);
     const articles = (articleResult.data as Array<{ id: string; title: string | null; summary: string | null; content: string | null }> | null) ?? [];
@@ -2079,8 +2037,8 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
 
     // 2. Load instrument
     const instResult = await this.db.rawQuery(
-      `select symbol, name, asset_type from prediction.instruments where id = $1 and organization_slug = $2`,
-      [input.instrumentId, input.organizationSlug],
+      `select symbol, name, asset_type from prediction.instruments where id = $1 and (user_id IS NULL OR user_id = $2)`,
+      [input.instrumentId, input.userId],
     );
     if (instResult.error) throw new Error(instResult.error.message);
     const instruments = (instResult.data as Array<{ symbol: string; name: string; asset_type: string }> | null) ?? [];
@@ -2088,7 +2046,7 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     const instrument = instruments[0];
 
     // 3. LLM scoring
-    const context = this.marketsLlm.buildExecutionContext(input.organizationSlug, input.userId, 'predictor-scoring');
+    const context = this.marketsLlm.buildExecutionContext(input.userId, 'predictor-scoring');
     const articleText = [article.title, article.summary, article.content?.slice(0, 1000)].filter(Boolean).join('\n');
 
     let relevanceScore = 0.5;
@@ -2124,7 +2082,6 @@ Respond ONLY with valid JSON.`,
 
     // 4. Upsert predictor
     const predictor = await this.upsertPredictor({
-      organizationSlug: input.organizationSlug,
       userId: input.userId,
       instrumentId: input.instrumentId,
       articleId: input.articleId,
@@ -2138,7 +2095,7 @@ Respond ONLY with valid JSON.`,
 
   async scoreArticleBatch(input: ScorePredictorBatchInput): Promise<ScorePredictorBatchResult> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     const results: Array<ScorePredictorResult | { articleId: string; error: string }> = [];
     let scored = 0;
@@ -2147,7 +2104,6 @@ Respond ONLY with valid JSON.`,
     for (const articleId of input.articleIds) {
       try {
         const result = await this.scoreArticleForInstrument({
-          organizationSlug: input.organizationSlug,
           userId: input.userId,
           instrumentId: input.instrumentId,
           articleId,
@@ -2166,7 +2122,7 @@ Respond ONLY with valid JSON.`,
 
   async upsertPredictor(input: UpsertPredictorInput): Promise<MarketPredictor> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     const relevance = Math.min(
       1,
@@ -2184,33 +2140,24 @@ Respond ONLY with valid JSON.`,
       .from('prediction', 'instruments')
       .select('id')
       .eq('id', input.instrumentId)
-      .eq('organization_slug', input.organizationSlug)
       .maybeSingle();
     if (instrument.error) {
       throw new Error(instrument.error.message);
     }
     if (!instrument.data) {
-      throw new NotFoundException('Instrument not found for organization');
+      throw new NotFoundException('Instrument not found');
     }
 
     const article = await this.db
       .from('prediction', 'market_articles')
-      .select('id, external_organization_slug')
+      .select('id')
       .eq('id', input.articleId)
       .maybeSingle();
     if (article.error) {
       throw new Error(article.error.message);
     }
-    const articleRow = article.data as
-      | { id: string; external_organization_slug: string }
-      | null;
-    if (!articleRow) {
+    if (!article.data) {
       throw new NotFoundException('Article not found');
-    }
-    if (articleRow.external_organization_slug !== input.organizationSlug) {
-      throw new BadRequestException(
-        'Article tenant does not match organization (external_organization_slug)',
-      );
     }
 
     const id = randomUUID();
@@ -2218,9 +2165,9 @@ Respond ONLY with valid JSON.`,
     const insert = await this.db.rawQuery(
       `
       insert into prediction.market_predictors
-        (id, organization_slug, instrument_id, article_id, relevance_score, status, rationale, created_by, created_at, updated_at)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      on conflict (organization_slug, instrument_id, article_id)
+        (id, instrument_id, article_id, relevance_score, status, rationale, created_by, created_at, updated_at)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      on conflict (id)
       do update set
         relevance_score = excluded.relevance_score,
         status = excluded.status,
@@ -2230,7 +2177,6 @@ Respond ONLY with valid JSON.`,
       `,
       [
         id,
-        input.organizationSlug,
         input.instrumentId,
         input.articleId,
         relevance,
@@ -2254,11 +2200,10 @@ Respond ONLY with valid JSON.`,
 
   async listPredictors(input: ListPredictorsInput): Promise<MarketPredictor[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(input.userId, input.organizationSlug);
+    await this.requireRead(input.userId);
 
     const statusFilter = input.status ?? 'active';
     const values: Array<string> = [
-      input.organizationSlug,
       input.instrumentId,
     ];
     let statusClause = "and mp.status = 'active'";
@@ -2272,8 +2217,7 @@ Respond ONLY with valid JSON.`,
       `
       select mp.*
       from prediction.market_predictors mp
-      where (mp.organization_slug = $1 or mp.organization_slug = '__base__')
-        and mp.instrument_id = $2
+      where mp.instrument_id = $1
         ${statusClause}
       order by mp.relevance_score desc, mp.updated_at desc
       `,
@@ -2287,17 +2231,15 @@ Respond ONLY with valid JSON.`,
 
   async enqueueRun(input: CreateRunInput): Promise<{ runId: string; status: string }> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     const context = this.buildExecutionContext(
-      input.organizationSlug,
       input.userId,
       input.runType,
     );
     const existingQueued = await this.db
       .from('prediction', 'orchestration_runs')
       .select('*')
-      .eq('organization_slug', input.organizationSlug)
       .eq('instrument_id', input.instrumentId)
       .eq('run_type', input.runType)
       .eq('status', 'queued')
@@ -2321,7 +2263,6 @@ Respond ONLY with valid JSON.`,
     const runId = randomUUID();
     const insert = await this.db.from('prediction', 'orchestration_runs').insert({
       id: runId,
-      organization_slug: input.organizationSlug,
       instrument_id: input.instrumentId,
       run_type: input.runType,
       status: 'queued',
@@ -2333,7 +2274,6 @@ Respond ONLY with valid JSON.`,
         const duplicate = await this.db
           .from('prediction', 'orchestration_runs')
           .select('*')
-          .eq('organization_slug', input.organizationSlug)
           .eq('instrument_id', input.instrumentId)
           .eq('run_type', input.runType)
           .eq('status', 'queued')
@@ -2378,12 +2318,11 @@ Respond ONLY with valid JSON.`,
 
   async listRuns(input: ListRunsInput): Promise<MarketRun[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(input.userId, input.organizationSlug);
+    await this.requireRead(input.userId);
 
     let query = this.db
       .from('prediction', 'orchestration_runs')
       .select('*')
-      .eq('organization_slug', input.organizationSlug)
       .order('created_at', { ascending: false });
     if (input.status) {
       query = query.eq('status', input.status);
@@ -2397,18 +2336,16 @@ Respond ONLY with valid JSON.`,
   }
 
   async getRun(
-    organizationSlug: string,
     userId: string,
     runId: string,
   ): Promise<MarketRun> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const run = await this.db
       .from('prediction', 'orchestration_runs')
       .select('*')
       .eq('id', runId)
-      .eq('organization_slug', organizationSlug)
       .single();
     if (run.error || !run.data) {
       throw new NotFoundException('Run not found');
@@ -2420,7 +2357,7 @@ Respond ONLY with valid JSON.`,
     input: UpdateRunStatusInput,
   ): Promise<{ runId: string; previousStatus: string; status: string }> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
     if (
       input.status === 'failed' &&
       (!input.errorMessage || input.errorMessage.trim().length === 0)
@@ -2434,7 +2371,6 @@ Respond ONLY with valid JSON.`,
       .from('prediction', 'orchestration_runs')
       .select('*')
       .eq('id', input.runId)
-      .eq('organization_slug', input.organizationSlug)
       .single();
     if (existing.error || !existing.data) {
       throw new NotFoundException('Run not found');
@@ -2461,18 +2397,16 @@ Respond ONLY with valid JSON.`,
             else completed_at
           end,
           last_error = case
-            when $1 = 'failed' then nullif($5::text, '')
+            when $1 = 'failed' then nullif($4::text, '')
             else null
           end
       where id = $2
-        and organization_slug = $3
-        and status = $4
+        and status = $3
       returning id
       `,
       [
         input.status,
         input.runId,
-        input.organizationSlug,
         run.status,
         input.errorMessage ?? null,
       ],
@@ -2487,7 +2421,6 @@ Respond ONLY with valid JSON.`,
         .from('prediction', 'orchestration_runs')
         .select('status')
         .eq('id', input.runId)
-        .eq('organization_slug', input.organizationSlug)
         .single();
       if (latest.error || !latest.data) {
         throw new NotFoundException('Run not found');
@@ -2499,7 +2432,6 @@ Respond ONLY with valid JSON.`,
     }
 
     const context = this.buildExecutionContext(
-      input.organizationSlug,
       input.userId,
       run.run_type,
     );
@@ -2528,19 +2460,17 @@ Respond ONLY with valid JSON.`,
   }
 
   private async getPrimaryAnalystForRun(
-    organizationSlug: string,
     run: MarketRun,
   ): Promise<MarketAnalyst | null> {
     const assignment = await this.db.rawQuery(
       `
       select analyst_id
       from prediction.market_instrument_analyst_assignments
-      where organization_slug = $1
-        and instrument_id = $2
+      where instrument_id = $1
       order by created_at asc
       limit 1
       `,
-      [organizationSlug, run.instrument_id],
+      [run.instrument_id],
     );
     if (assignment.error) {
       throw new Error(assignment.error.message);
@@ -2556,10 +2486,9 @@ Respond ONLY with valid JSON.`,
       select *
       from prediction.market_analysts
       where id = $1
-        and organization_slug = $2
       limit 1
       `,
-      [analystId, organizationSlug],
+      [analystId],
     );
     if (analyst.error) {
       throw new Error(analyst.error.message);
@@ -2569,19 +2498,17 @@ Respond ONLY with valid JSON.`,
   }
 
   private async getLatestRiskAssessmentForInstrument(
-    organizationSlug: string,
     instrumentId: string,
   ): Promise<RiskAssessment | null> {
     const result = await this.db.rawQuery(
       `
       select *
       from prediction.market_risk_assessments
-      where organization_slug = $1
-        and instrument_id = $2
+      where instrument_id = $1
       order by created_at desc
       limit 1
       `,
-      [organizationSlug, instrumentId],
+      [instrumentId],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -2591,7 +2518,6 @@ Respond ONLY with valid JSON.`,
   }
 
   private async getActivePredictorContextLines(
-    organizationSlug: string,
     instrumentId: string,
   ): Promise<string[]> {
     const result = await this.db.rawQuery(
@@ -2599,13 +2525,12 @@ Respond ONLY with valid JSON.`,
       select mp.relevance_score, mp.rationale, ma.title
       from prediction.market_predictors mp
       join prediction.market_articles ma on ma.id = mp.article_id
-      where mp.organization_slug = $1
-        and mp.instrument_id = $2
+      where mp.instrument_id = $1
         and mp.status = 'active'
       order by mp.relevance_score desc
       limit 20
       `,
-      [organizationSlug, instrumentId],
+      [instrumentId],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -2655,7 +2580,6 @@ Respond ONLY with valid JSON.`,
     const artifact: RunArtifact = {
       id: randomUUID(),
       run_id: input.run.id,
-      organization_slug: input.run.organization_slug,
       run_type: input.run.run_type,
       analyst_id: input.analyst?.id ?? null,
       model_provider: input.modelProvider,
@@ -2667,14 +2591,13 @@ Respond ONLY with valid JSON.`,
     const insert = await this.db.rawQuery(
       `
       insert into prediction.market_run_artifacts
-        (id, run_id, organization_slug, run_type, analyst_id, model_provider, model_name, prompt, output_text, created_at)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        (id, run_id, run_type, analyst_id, model_provider, model_name, prompt, output_text, created_at)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       returning *
       `,
       [
         artifact.id,
         artifact.run_id,
-        artifact.organization_slug,
         artifact.run_type,
         artifact.analyst_id,
         artifact.model_provider,
@@ -2706,7 +2629,6 @@ Respond ONLY with valid JSON.`,
     const prediction: PredictionOutcome = {
       id: randomUUID(),
       run_id: run.id,
-      organization_slug: run.organization_slug,
       instrument_id: run.instrument_id,
       analyst_id: analyst?.id ?? null,
       predicted_direction: predictedDirection,
@@ -2718,14 +2640,13 @@ Respond ONLY with valid JSON.`,
     const insert = await this.db.rawQuery(
       `
       insert into prediction.market_predictions
-        (id, run_id, organization_slug, instrument_id, analyst_id, predicted_direction, confidence, horizon_minutes, rationale, created_at)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        (id, run_id, instrument_id, analyst_id, predicted_direction, confidence, horizon_minutes, rationale, created_at)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       returning *
       `,
       [
         prediction.id,
         prediction.run_id,
-        prediction.organization_slug,
         prediction.instrument_id,
         prediction.analyst_id,
         prediction.predicted_direction,
@@ -2756,7 +2677,6 @@ Respond ONLY with valid JSON.`,
     const assessment: RiskAssessment = {
       id: randomUUID(),
       run_id: run.id,
-      organization_slug: run.organization_slug,
       instrument_id: run.instrument_id,
       risk_score: riskScore,
       verdict,
@@ -2766,14 +2686,13 @@ Respond ONLY with valid JSON.`,
     const insert = await this.db.rawQuery(
       `
       insert into prediction.market_risk_assessments
-        (id, run_id, organization_slug, instrument_id, risk_score, verdict, rationale, created_at)
-      values ($1, $2, $3, $4, $5, $6, $7, $8)
+        (id, run_id, instrument_id, risk_score, verdict, rationale, created_at)
+      values ($1, $2, $3, $4, $5, $6, $7)
       returning *
       `,
       [
         assessment.id,
         assessment.run_id,
-        assessment.organization_slug,
         assessment.instrument_id,
         assessment.risk_score,
         assessment.verdict,
@@ -2792,15 +2711,14 @@ Respond ONLY with valid JSON.`,
     input: ProcessNextRunInput,
   ): Promise<ProcessNextRunResult> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
     const claimed = await this.db.rawQuery(
       `
       with next_run as (
         select id
         from prediction.orchestration_runs
-        where organization_slug = $1
-          and status = 'queued'
+        where status = 'queued'
         order by created_at asc
         for update skip locked
         limit 1
@@ -2814,7 +2732,6 @@ Respond ONLY with valid JSON.`,
       where r.id = next_run.id
       returning r.*
       `,
-      [input.organizationSlug],
     );
     if (claimed.error) {
       throw new Error(claimed.error.message);
@@ -2825,7 +2742,6 @@ Respond ONLY with valid JSON.`,
     }
 
     const context = this.buildExecutionContext(
-      input.organizationSlug,
       input.userId,
       run.run_type,
     );
@@ -2851,7 +2767,6 @@ Respond ONLY with valid JSON.`,
         .from('prediction', 'instruments')
         .select('*')
         .eq('id', run.instrument_id)
-        .eq('organization_slug', run.organization_slug)
         .single();
       if (instrument.error || !instrument.data) {
         throw new Error('Run instrument not found');
@@ -2872,7 +2787,6 @@ Respond ONLY with valid JSON.`,
       }
 
       await this.updateRunStatus({
-        organizationSlug: input.organizationSlug,
         userId: input.userId,
         runId: run.id,
         status: 'completed',
@@ -2904,7 +2818,6 @@ Respond ONLY with valid JSON.`,
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await this.updateRunStatus({
-        organizationSlug: input.organizationSlug,
         userId: input.userId,
         runId: run.id,
         status: 'failed',
@@ -2920,7 +2833,6 @@ Respond ONLY with valid JSON.`,
 
     for (let i = 0; i < requested; i += 1) {
       const result = await this.processNextQueuedRun({
-        organizationSlug: input.organizationSlug,
         userId: input.userId,
       });
       results.push(result);
@@ -2938,19 +2850,18 @@ Respond ONLY with valid JSON.`,
 
   async evaluateRun(input: EvaluateRunInput): Promise<RunEvaluation> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
-    const run = await this.getRun(input.organizationSlug, input.userId, input.runId);
+    const run = await this.getRun(input.userId, input.runId);
     const prediction = await this.db.rawQuery(
       `
       select *
       from prediction.market_predictions
       where run_id = $1
-        and organization_slug = $2
       order by created_at desc
       limit 1
       `,
-      [run.id, input.organizationSlug],
+      [run.id],
     );
     if (prediction.error) {
       throw new Error(prediction.error.message);
@@ -2961,7 +2872,6 @@ Respond ONLY with valid JSON.`,
     const evaluation: RunEvaluation = {
       id: randomUUID(),
       run_id: run.id,
-      organization_slug: input.organizationSlug,
       actual_direction: input.actualDirection,
       predicted_direction: predictedDirection ?? null,
       was_correct:
@@ -2975,14 +2885,13 @@ Respond ONLY with valid JSON.`,
     const insert = await this.db.rawQuery(
       `
       insert into prediction.market_run_evaluations
-        (id, run_id, organization_slug, actual_direction, predicted_direction, was_correct, notes, created_at)
-      values ($1, $2, $3, $4, $5, $6, $7, $8)
+        (id, run_id, actual_direction, predicted_direction, was_correct, notes, created_at)
+      values ($1, $2, $3, $4, $5, $6, $7)
       returning *
       `,
       [
         evaluation.id,
         evaluation.run_id,
-        evaluation.organization_slug,
         evaluation.actual_direction,
         evaluation.predicted_direction,
         evaluation.was_correct,
@@ -2999,17 +2908,16 @@ Respond ONLY with valid JSON.`,
 
   async listRunArtifacts(input: ListRunArtifactsInput): Promise<RunArtifact[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(input.userId, input.organizationSlug);
+    await this.requireRead(input.userId);
 
     const result = await this.db.rawQuery(
       `
       select *
       from prediction.market_run_artifacts
-      where organization_slug = $1
-        and run_id = $2
+      where run_id = $1
       order by created_at asc
       `,
-      [input.organizationSlug, input.runId],
+      [input.runId],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -3021,13 +2929,13 @@ Respond ONLY with valid JSON.`,
     input: ListPredictionOutcomesInput,
   ): Promise<PredictionOutcome[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(input.userId, input.organizationSlug);
+    await this.requireRead(input.userId);
     if (!input.runId && !input.instrumentId) {
       throw new BadRequestException('runId or instrumentId is required');
     }
 
-    const filters: string[] = [`(organization_slug = $1 or organization_slug = '__base__')`];
-    const values: unknown[] = [input.organizationSlug];
+    const filters: string[] = [];
+    const values: unknown[] = [];
     if (input.runId) {
       filters.push(`run_id = $${values.length + 1}`);
       values.push(input.runId);
@@ -3056,7 +2964,6 @@ Respond ONLY with valid JSON.`,
    * Used by the dashboard to show prediction cards.
    */
   async getDashboardPredictions(
-    organizationSlug: string,
     userId: string,
   ): Promise<Array<{
     instrument_id: string;
@@ -3078,7 +2985,7 @@ Respond ONLY with valid JSON.`,
     trade_recommendation: TradeRecommendation | null;
   }>> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     // Get latest unsettled prediction run per instrument. Predictions are
     // marked settled_at by the EOD settlement job — once settled they drop
@@ -3090,8 +2997,7 @@ Respond ONLY with valid JSON.`,
         i.symbol, i.name
       from prediction.orchestration_runs r
       join prediction.instruments i on i.id = r.instrument_id
-      where (r.organization_slug = $1 or r.organization_slug = '__base__')
-        and r.run_type = 'prediction'
+      where r.run_type = 'prediction'
         and r.status = 'completed'
         and exists (
           select 1 from prediction.market_predictions mp
@@ -3099,7 +3005,6 @@ Respond ONLY with valid JSON.`,
         )
       order by r.instrument_id, r.completed_at desc
       `,
-      [organizationSlug],
     );
     if (runsResult.error) throw new Error(runsResult.error.message);
     const runs = (runsResult.data as Array<{ run_id: string; instrument_id: string; created_at: string; symbol: string; name: string }>) ?? [];
@@ -3116,10 +3021,9 @@ Respond ONLY with valid JSON.`,
         from prediction.market_predictions mp
         left join prediction.market_analysts ma on ma.id = mp.analyst_id
         where mp.run_id = $1
-          and (mp.organization_slug = $2 or mp.organization_slug = '__base__')
         order by mp.role, mp.created_at
         `,
-        [run.run_id, organizationSlug],
+        [run.run_id],
       );
       if (predsResult.error) continue;
       const preds = (predsResult.data as Array<Record<string, unknown>>) ?? [];
@@ -3135,10 +3039,9 @@ Respond ONLY with valid JSON.`,
       try {
         const baseRec = await this.tradeRecommendation.generateForRun({
           runId: run.run_id,
-          organizationSlug,
         });
         if (baseRec) {
-          const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
+          const portfolio = await this.userPortfolio.ensurePortfolio(userId);
           tradeRec = TradeRecommendationService.sizeForUser(baseRec, Number(portfolio.current_balance));
         }
       } catch (err) {
@@ -3181,17 +3084,15 @@ Respond ONLY with valid JSON.`,
    */
   async getTradeRecommendation(
     runId: string,
-    organizationSlug: string,
     userId: string,
   ): Promise<TradeRecommendation | null> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
     const baseRec = await this.tradeRecommendation.generateForRun({
       runId,
-      organizationSlug,
     });
     if (!baseRec) return null;
-    const portfolio = await this.userPortfolio.ensurePortfolio(userId, organizationSlug);
+    const portfolio = await this.userPortfolio.ensurePortfolio(userId);
     return TradeRecommendationService.sizeForUser(baseRec, Number(portfolio.current_balance));
   }
 
@@ -3199,11 +3100,10 @@ Respond ONLY with valid JSON.`,
    * Dashboard risk summary — latest composite score per instrument.
    */
   async getDashboardRiskSummary(
-    organizationSlug: string,
     userId: string,
   ): Promise<Array<Record<string, unknown>>> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
       `
@@ -3219,10 +3119,8 @@ Respond ONLY with valid JSON.`,
         cs.created_at
       from prediction.risk_composite_scores cs
       join prediction.instruments i on i.id = cs.instrument_id
-      where (cs.organization_slug = $1 or cs.organization_slug = '__base__')
       order by cs.instrument_id, cs.created_at desc
       `,
-      [organizationSlug],
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as Array<Record<string, unknown>>) ?? [];
@@ -3232,13 +3130,13 @@ Respond ONLY with valid JSON.`,
     input: ListRiskAssessmentsInput,
   ): Promise<RiskAssessment[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(input.userId, input.organizationSlug);
+    await this.requireRead(input.userId);
     if (!input.runId && !input.instrumentId) {
       throw new BadRequestException('runId or instrumentId is required');
     }
 
-    const filters: string[] = [`(organization_slug = $1 or organization_slug = '__base__')`];
-    const values: unknown[] = [input.organizationSlug];
+    const filters: string[] = [];
+    const values: unknown[] = [];
     if (input.runId) {
       filters.push(`run_id = $${values.length + 1}`);
       values.push(input.runId);
@@ -3267,21 +3165,19 @@ Respond ONLY with valid JSON.`,
   }
 
   async listRunEvaluations(
-    organizationSlug: string,
     userId: string,
     runId: string,
   ): Promise<RunEvaluation[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
     const result = await this.db.rawQuery(
       `
       select *
       from prediction.market_run_evaluations
-      where organization_slug = $1
-        and run_id = $2
+      where run_id = $1
       order by created_at desc
       `,
-      [organizationSlug, runId],
+      [runId],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -3290,21 +3186,19 @@ Respond ONLY with valid JSON.`,
   }
 
   async listRunReplays(
-    organizationSlug: string,
     userId: string,
     runId: string,
   ): Promise<RunReplay[]> {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
     const result = await this.db.rawQuery(
       `
       select *
       from prediction.market_run_replays
-      where organization_slug = $1
-        and run_id = $2
+      where run_id = $1
       order by created_at desc
       `,
-      [organizationSlug, runId],
+      [runId],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -3314,10 +3208,9 @@ Respond ONLY with valid JSON.`,
 
   async replayRun(input: ReplayRunInput): Promise<RunReplay> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
-    const run = await this.getRun(input.organizationSlug, input.userId, input.runId);
+    await this.requireWrite(input.userId);
+    const run = await this.getRun(input.userId, input.runId);
     const context = this.buildExecutionContext(
-      input.organizationSlug,
       input.userId,
       run.run_type,
     );
@@ -3336,7 +3229,6 @@ Respond ONLY with valid JSON.`,
     const replay: RunReplay = {
       id: randomUUID(),
       run_id: run.id,
-      organization_slug: input.organizationSlug,
       scenario: input.scenario,
       replay_output: replayOutput,
       created_at: new Date().toISOString(),
@@ -3344,14 +3236,13 @@ Respond ONLY with valid JSON.`,
     const insert = await this.db.rawQuery(
       `
       insert into prediction.market_run_replays
-        (id, run_id, organization_slug, scenario, replay_output, created_at)
-      values ($1, $2, $3, $4, $5, $6)
+        (id, run_id, scenario, replay_output, created_at)
+      values ($1, $2, $3, $4, $5)
       returning *
       `,
       [
         replay.id,
         replay.run_id,
-        replay.organization_slug,
         replay.scenario,
         replay.replay_output,
         replay.created_at,
@@ -3366,20 +3257,20 @@ Respond ONLY with valid JSON.`,
 
   // ─── Enhanced API Methods (Sprint 4) ─────────────────────────
 
-  async getRunDetail(organizationSlug: string, userId: string, runId: string) {
+  async getRunDetail(userId: string, runId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
-    const run = await this.getRun(organizationSlug, userId, runId);
+    const run = await this.getRun(userId, runId);
 
     // Load analyst outcomes + arbitrator
     const predictions = await this.db.rawQuery(
       `select mp.*, ma.display_name as analyst_name, ma.default_weight as analyst_weight
        from prediction.market_predictions mp
        left join prediction.market_analysts ma on ma.id = mp.analyst_id
-       where mp.run_id = $1 and mp.organization_slug = $2
+       where mp.run_id = $1
        order by mp.role asc, mp.created_at asc`,
-      [runId, organizationSlug],
+      [runId],
     );
     const predRows = (predictions.data as Array<Record<string, unknown>> | null) ?? [];
     const analystOutcomes = predRows.filter((r) => r['role'] === 'analyst' || !r['role']);
@@ -3388,21 +3279,21 @@ Respond ONLY with valid JSON.`,
     // Load risk details if risk run
     let riskDetails = null;
     if (run.run_type === 'risk') {
-      riskDetails = await this.getRunRiskDetails(organizationSlug, userId, runId);
+      riskDetails = await this.getRunRiskDetails(userId, runId);
     }
 
     return { ...run, analystOutcomes, arbitratorOutcome, riskDetails };
   }
 
-  async getRunRiskDetails(organizationSlug: string, userId: string, runId: string) {
+  async getRunRiskDetails(userId: string, runId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const composite = await this.db.rawQuery(
       `select * from prediction.risk_composite_scores
-       where run_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+       where run_id = $1
        order by created_at desc limit 1`,
-      [runId, organizationSlug],
+      [runId],
     );
     const compositeRow = ((composite.data as Record<string, unknown>[] | null) ?? [])[0] ?? null;
 
@@ -3410,9 +3301,9 @@ Respond ONLY with valid JSON.`,
       `select rda.*, rd.slug as dimension_slug, rd.name as dimension_name
        from prediction.risk_dimension_assessments rda
        left join prediction.risk_dimensions rd on rd.id = rda.dimension_id
-       where rda.run_id = $1 and (rda.organization_slug = $2 or rda.organization_slug = '__base__')
+       where rda.run_id = $1
        order by rd.display_order asc`,
-      [runId, organizationSlug],
+      [runId],
     );
     const assessmentRows = (assessments.data as Record<string, unknown>[] | null) ?? [];
 
@@ -3421,9 +3312,9 @@ Respond ONLY with valid JSON.`,
       `select ara.*, ma.display_name as analyst_name, ma.slug as analyst_slug
        from prediction.analyst_risk_assessments ara
        left join prediction.market_analysts ma on ma.id = ara.analyst_id
-       where ara.run_id = $1 and (ara.organization_slug = $2 or ara.organization_slug = '__base__')
+       where ara.run_id = $1
        order by ara.score desc`,
-      [runId, organizationSlug],
+      [runId],
     );
     const analystRows = (analystAssessments.data as Record<string, unknown>[] | null) ?? [];
 
@@ -3439,9 +3330,9 @@ Respond ONLY with valid JSON.`,
 
     const debate = await this.db.rawQuery(
       `select * from prediction.risk_debates
-       where run_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+       where run_id = $1
        order by created_at desc limit 1`,
-      [runId, organizationSlug],
+      [runId],
     );
     const debateRow = ((debate.data as Record<string, unknown>[] | null) ?? [])[0] ?? null;
 
@@ -3450,14 +3341,14 @@ Respond ONLY with valid JSON.`,
 
   // ─── Debate Reasoning Drilldown ─────────────────────────────────
 
-  async getDebateReasoning(debateId: string, organizationSlug: string) {
+  async getDebateReasoning(debateId: string) {
     await this.schema.ensureSchema();
 
     // Load the debate row to get transcript
     const debateResult = await this.db.rawQuery(
       `SELECT id, transcript FROM prediction.risk_debates
-       WHERE id = $1 AND (organization_slug = $2 OR organization_slug = '__base__')`,
-      [debateId, organizationSlug],
+       WHERE id = $1`,
+      [debateId],
     );
     if (debateResult.error) throw new Error(debateResult.error.message);
     const debateRows = (debateResult.data as Array<{ id: string; transcript: unknown }> | null) ?? [];
@@ -3528,19 +3419,18 @@ Respond ONLY with valid JSON.`,
    * Loads the existing composite score and dimension assessments, then runs a fresh debate.
    */
   async rerunDebate(
-    organizationSlug: string,
     userId: string,
     runId: string,
   ): Promise<Record<string, unknown>> {
     await this.schema.ensureSchema();
-    await this.requireWrite(userId, organizationSlug);
+    await this.requireWrite(userId);
 
     // Load existing composite score
     const comp = await this.db.rawQuery(
       `select * from prediction.risk_composite_scores
-       where run_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+       where run_id = $1
        order by created_at desc limit 1`,
-      [runId, organizationSlug],
+      [runId],
     );
     const compositeRow = ((comp.data as Record<string, unknown>[] | null) ?? [])[0];
     if (!compositeRow) throw new BadRequestException('No composite score found for this run');
@@ -3548,9 +3438,9 @@ Respond ONLY with valid JSON.`,
     // Load dimension assessments
     const dims = await this.db.rawQuery(
       `select * from prediction.risk_dimension_assessments
-       where run_id = $1 and (organization_slug = $2 or organization_slug = '__base__')
+       where run_id = $1
        order by created_at asc`,
-      [runId, organizationSlug],
+      [runId],
     );
     const dimRows = (dims.data as Record<string, unknown>[] | null) ?? [];
 
@@ -3563,7 +3453,6 @@ Respond ONLY with valid JSON.`,
 
     // Run the debate via the risk runner's debate service
     const context = this.buildExecutionContext(
-      String(compositeRow.organization_slug),
       userId,
       'risk',
     );
@@ -3571,7 +3460,6 @@ Respond ONLY with valid JSON.`,
     return this.riskRunner.rerunDebate({
       context,
       runId,
-      organizationSlug: String(compositeRow.organization_slug),
       instrumentId: String(compositeRow.instrument_id),
       instrumentSymbol: symbol,
       compositeScoreId: String(compositeRow.id),
@@ -3580,25 +3468,24 @@ Respond ONLY with valid JSON.`,
     });
   }
 
-  async listRiskDimensions(organizationSlug: string, userId: string) {
+  async listRiskDimensions(userId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
       `select * from prediction.risk_dimensions
-       where (organization_slug = $1 or organization_slug = '__base__')
+       where (user_id IS NULL OR user_id = $1)
          and is_active = true
        order by
-         case when organization_slug = $1 then 0 else 1 end,
+         case when user_id = $1 then 0 else 1 end,
          display_order asc`,
-      [organizationSlug],
+      [userId],
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as Record<string, unknown>[] | null) ?? [];
   }
 
   async upsertRiskDimension(input: {
-    organizationSlug: string;
     userId: string;
     slug: string;
     name: string;
@@ -3609,15 +3496,15 @@ Respond ONLY with valid JSON.`,
     isActive?: boolean;
   }): Promise<Record<string, unknown>> {
     await this.schema.ensureSchema();
-    await this.requireWrite(input.userId, input.organizationSlug);
+    await this.requireWrite(input.userId);
 
-    const id = `${input.organizationSlug}_dim_${input.slug}`;
+    const id = `${input.userId}_dim_${input.slug}`;
     const result = await this.db.rawQuery(
       `insert into prediction.risk_dimensions
-        (id, organization_slug, domain_slug, slug, name, description, weight,
+        (id, user_id, domain_slug, slug, name, description, weight,
          display_order, is_active, system_prompt, updated_at)
        values ($1, $2, 'financial', $3, $4, $5, $6, $7, $8, $9, now())
-       on conflict (organization_slug, slug) do update set
+       on conflict (user_id, slug) do update set
          name = excluded.name,
          description = excluded.description,
          weight = excluded.weight,
@@ -3627,7 +3514,7 @@ Respond ONLY with valid JSON.`,
          updated_at = now()
        returning *`,
       [
-        id, input.organizationSlug, input.slug, input.name,
+        id, input.userId, input.slug, input.name,
         input.description ?? null, input.weight, input.displayOrder ?? 0,
         input.isActive ?? true, input.systemPrompt ?? null,
       ],
@@ -3636,18 +3523,18 @@ Respond ONLY with valid JSON.`,
     return ((result.data as Record<string, unknown>[] | null) ?? [])[0] ?? {};
   }
 
-  async getInstrumentCompositeScore(organizationSlug: string, userId: string, instrumentId: string) {
+  async getInstrumentCompositeScore(userId: string, instrumentId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     // Latest active composite
     const latest = await this.db.rawQuery(
       `select rcs.*, orr.created_at as run_created_at
        from prediction.risk_composite_scores rcs
        join prediction.orchestration_runs orr on orr.id = rcs.run_id
-       where (rcs.organization_slug = $1 or rcs.organization_slug = '__base__') and rcs.instrument_id = $2 and rcs.status = 'active'
+       where rcs.instrument_id = $1 and rcs.status = 'active'
        order by rcs.created_at desc limit 1`,
-      [organizationSlug, instrumentId],
+      [instrumentId],
     );
     const latestRow = ((latest.data as Record<string, unknown>[] | null) ?? [])[0] ?? null;
 
@@ -3655,9 +3542,9 @@ Respond ONLY with valid JSON.`,
     const trend = await this.db.rawQuery(
       `select overall_score, debate_adjustment, confidence, created_at
        from prediction.risk_composite_scores
-       where (organization_slug = $1 or organization_slug = '__base__') and instrument_id = $2
+       where instrument_id = $1
        order by created_at desc limit 10`,
-      [organizationSlug, instrumentId],
+      [instrumentId],
     );
     const trendRows = (trend.data as Record<string, unknown>[] | null) ?? [];
 
@@ -3665,21 +3552,20 @@ Respond ONLY with valid JSON.`,
   }
 
   async listPredictionsWithRole(input: {
-    organizationSlug: string;
     userId: string;
     runId?: string;
     instrumentId?: string;
     role?: 'analyst' | 'arbitrator' | 'all';
   }) {
     await this.schema.ensureSchema();
-    await this.requireRead(input.userId, input.organizationSlug);
+    await this.requireRead(input.userId);
 
     let query = `select mp.*, ma.display_name as analyst_name
       from prediction.market_predictions mp
       left join prediction.market_analysts ma on ma.id = mp.analyst_id
-      where mp.organization_slug = $1`;
-    const params: unknown[] = [input.organizationSlug];
-    let idx = 2;
+      where true`;
+    const params: unknown[] = [];
+    let idx = 1;
 
     if (input.runId) {
       query += ` and mp.run_id = $${idx}`;
@@ -3705,15 +3591,15 @@ Respond ONLY with valid JSON.`,
 
   // ─── Learning Proposal Management ─────────────────────────────
 
-  async listLearningProposals(organizationSlug: string, userId: string, status?: string, tier?: number) {
+  async listLearningProposals(userId: string, status?: string, tier?: number) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     let query = `select lp.*, ma.display_name as analyst_name
       from prediction.learning_proposals lp
       left join prediction.market_analysts ma on ma.id = lp.analyst_id
-      where lp.organization_slug = $1`;
-    const params: unknown[] = [organizationSlug];
+      where (lp.user_id IS NULL OR lp.user_id = $1)`;
+    const params: unknown[] = [userId];
     let paramIndex = 2;
 
     if (status) {
@@ -3733,16 +3619,16 @@ Respond ONLY with valid JSON.`,
     return (result.data as Record<string, unknown>[] | null) ?? [];
   }
 
-  async getProposalDetail(organizationSlug: string, userId: string, proposalId: string) {
+  async getProposalDetail(userId: string, proposalId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
       `select lp.*, ma.display_name as analyst_name
        from prediction.learning_proposals lp
        left join prediction.market_analysts ma on ma.id = lp.analyst_id
-       where lp.id = $1 and lp.organization_slug = $2`,
-      [proposalId, organizationSlug],
+       where lp.id = $1 and (lp.user_id IS NULL OR lp.user_id = $2)`,
+      [proposalId, userId],
     );
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Record<string, unknown>[] | null) ?? [];
@@ -3750,17 +3636,17 @@ Respond ONLY with valid JSON.`,
     return rows[0];
   }
 
-  async approveProposal(organizationSlug: string, userId: string, proposalId: string) {
+  async approveProposal(userId: string, proposalId: string) {
     await this.schema.ensureSchema();
-    await this.requireWrite(userId, organizationSlug);
+    await this.requireWrite(userId);
 
     // Update proposal status
     const result = await this.db.rawQuery(
       `update prediction.learning_proposals
        set status = 'approved', reviewed_by = $1, reviewed_at = now()
-       where id = $2 and organization_slug = $3 and status in ('passed', 'proposed')
+       where id = $2 and status in ('passed', 'proposed')
        returning *`,
-      [userId, proposalId, organizationSlug],
+      [userId, proposalId],
     );
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Record<string, unknown>[] | null) ?? [];
@@ -3774,9 +3660,9 @@ Respond ONLY with valid JSON.`,
       // Get current active config version
       const currentResult = await this.db.rawQuery(
         `select id, version_number from prediction.analyst_config_versions
-         where analyst_id = $1 and organization_slug = $2 and is_active = true
+         where analyst_id = $1 and is_active = true
          order by version_number desc limit 1`,
-        [analystId, organizationSlug],
+        [analystId],
       );
       if (currentResult.error) throw new Error(currentResult.error.message);
       const currentRows = (currentResult.data as Array<{ id: string; version_number: number }> | null) ?? [];
@@ -3795,11 +3681,11 @@ Respond ONLY with valid JSON.`,
         // Create new version with tier3_strategic source
         await this.db.rawQuery(
           `insert into prediction.analyst_config_versions (
-            id, analyst_id, organization_slug, version_number,
+            id, analyst_id, version_number,
             persona_prompt, context_markdown, source, change_reason,
             parent_version_id, is_active, created_by
           ) select
-            $1, analyst_id, organization_slug, $2,
+            $1, analyst_id, $2,
             persona_prompt, $3, 'tier3_strategic', $4,
             $5, true, $6
           from prediction.analyst_config_versions where id = $5`,
@@ -3826,17 +3712,17 @@ Respond ONLY with valid JSON.`,
     return proposal;
   }
 
-  async rejectProposal(organizationSlug: string, userId: string, proposalId: string, reason?: string) {
+  async rejectProposal(userId: string, proposalId: string, reason?: string) {
     await this.schema.ensureSchema();
-    await this.requireWrite(userId, organizationSlug);
+    await this.requireWrite(userId);
 
     const result = await this.db.rawQuery(
       `update prediction.learning_proposals
        set status = 'rejected', reviewed_by = $1, reviewed_at = now(),
-           rationale = case when $4 is not null then rationale || ' | Rejected: ' || $4 else rationale end
-       where id = $2 and organization_slug = $3 and status in ('passed', 'proposed', 'testing')
+           rationale = case when $3 is not null then rationale || ' | Rejected: ' || $3 else rationale end
+       where id = $2 and status in ('passed', 'proposed', 'testing')
        returning *`,
-      [userId, proposalId, organizationSlug, reason ?? null],
+      [userId, proposalId, reason ?? null],
     );
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Record<string, unknown>[] | null) ?? [];
@@ -3844,9 +3730,9 @@ Respond ONLY with valid JSON.`,
     return rows[0];
   }
 
-  async listLearningReports(organizationSlug: string, userId: string, limit = 10) {
+  async listLearningReports(userId: string, limit = 10) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
       `select * from prediction.learning_reports
@@ -3861,9 +3747,9 @@ Respond ONLY with valid JSON.`,
   /**
    * Daily report — aggregates predictions, risk scores, and outcomes for the last 24h.
    */
-  async getDailyReport(organizationSlug: string, userId: string) {
+  async getDailyReport(userId: string) {
     await this.schema.ensureSchema();
-    await this.requireRead(userId, organizationSlug);
+    await this.requireRead(userId);
 
     // Prediction runs completed today
     const runs = await this.db.rawQuery(
@@ -3871,10 +3757,8 @@ Respond ONLY with valid JSON.`,
               i.symbol, i.name
        from prediction.orchestration_runs r
        join prediction.instruments i on i.id = r.instrument_id
-       where (r.organization_slug = $1 or r.organization_slug = '__base__')
-         and r.created_at >= now() - interval '24 hours'
+       where r.created_at >= now() - interval '24 hours'
        order by r.created_at desc`,
-      [organizationSlug],
     );
     const runRows = (runs.data as Array<Record<string, unknown>>) ?? [];
 
@@ -3885,10 +3769,8 @@ Respond ONLY with valid JSON.`,
        from prediction.market_predictions mp
        left join prediction.market_analysts ma on ma.id = mp.analyst_id
        join prediction.instruments i on i.id = mp.instrument_id
-       where (mp.organization_slug = $1 or mp.organization_slug = '__base__')
-         and mp.created_at >= now() - interval '24 hours'
+       where mp.created_at >= now() - interval '24 hours'
        order by mp.created_at desc`,
-      [organizationSlug],
     );
     const predRows = (preds.data as Array<Record<string, unknown>>) ?? [];
 
@@ -3898,10 +3780,8 @@ Respond ONLY with valid JSON.`,
               cs.debate_adjustment, cs.confidence, i.symbol
        from prediction.risk_composite_scores cs
        join prediction.instruments i on i.id = cs.instrument_id
-       where (cs.organization_slug = $1 or cs.organization_slug = '__base__')
-         and cs.created_at >= now() - interval '24 hours'
+       where cs.created_at >= now() - interval '24 hours'
        order by cs.created_at desc`,
-      [organizationSlug],
     );
     const riskRows = (risks.data as Array<Record<string, unknown>>) ?? [];
 

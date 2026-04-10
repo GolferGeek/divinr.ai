@@ -125,7 +125,6 @@ export class ExternalOidcAuthService
       id: newUserId,
       email,
       display_name: displayName,
-      organization_slug: 'demo-org',
       status: 'active',
     });
 
@@ -179,8 +178,7 @@ export class ExternalOidcAuthService
           id: currentAuthUser.id,
           email,
           display_name: displayName,
-          organization_slug: 'demo-org',
-          status: 'active',
+              status: 'active',
         });
 
       if (insertError) {

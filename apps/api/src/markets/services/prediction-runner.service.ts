@@ -67,7 +67,6 @@ export class PredictionRunnerService {
     await this.schema.ensureSchema();
 
     const context = this.llmService.buildExecutionContext(
-      run.organization_slug,
       userId,
       'prediction',
     );
@@ -77,18 +76,18 @@ export class PredictionRunnerService {
     const planeContext = this.planeState.getPromptContext(instrument.symbol, instrument.name, instrumentState);
 
     // 2. Shared context: latest risk + active predictors
-    const latestRisk = await this.getLatestRiskComposite(run.organization_slug, run.instrument_id);
-    const predictorLines = await this.loadPredictorLines(run.organization_slug, run.instrument_id);
+    const latestRisk = await this.getLatestRiskComposite(run.instrument_id);
+    const predictorLines = await this.loadPredictorLines(run.instrument_id);
     const sharedContext = this.buildSharedContext(planeContext, latestRisk, predictorLines);
 
     // 3. Get all enabled personality analysts
-    const analysts = await this.getAnalystsForRun(run.organization_slug, run.instrument_id);
+    const analysts = await this.getAnalystsForRun(run.instrument_id);
     if (analysts.length === 0) {
       throw new Error('No enabled personality analysts available for this prediction run');
     }
 
     // 4. Load and execute context providers
-    const providers = await this.contextProviders.loadContextProviders(run.organization_slug, run.instrument_id);
+    const providers = await this.contextProviders.loadContextProviders(run.instrument_id);
     const providerOutputs = await this.contextProviders.executeContextProviders(
       context, providers, instrument.symbol, instrument.name, planeContext,
     );
@@ -111,7 +110,7 @@ export class PredictionRunnerService {
         analystOutcomes.push(outcome);
         artifactIds.push(artifactId);
         try {
-          await this.convictionTrader.evaluateAnalyst(outcome, run.organization_slug);
+          await this.convictionTrader.evaluateAnalyst(outcome);
         } catch (err) {
           this.logger.warn(`Conviction autotrade (analyst ${analyst.slug}) failed: ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -154,7 +153,7 @@ export class PredictionRunnerService {
       arbitratorOutcome = arbResult.outcome;
       artifactIds.push(arbResult.artifactId);
       try {
-        await this.convictionTrader.evaluateArbitrator(arbitratorOutcome, run.organization_slug);
+        await this.convictionTrader.evaluateArbitrator(arbitratorOutcome);
       } catch (err) {
         this.logger.warn(`Conviction autotrade (arbitrator) failed: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -171,7 +170,6 @@ export class PredictionRunnerService {
       try {
         await this.tradeRecommendation.generateForRun({
           runId: run.id,
-          organizationSlug: run.organization_slug,
         });
       } catch (err) {
         this.logger.warn(`Trade recommendation generation failed for run ${run.id}: ${err instanceof Error ? err.message : String(err)}`);
@@ -215,7 +213,7 @@ export class PredictionRunnerService {
     }
 
     // Load per-analyst predictor lines (articles this analyst scored as relevant)
-    const analystPredictorLines = await this.loadPredictorLines(run.organization_slug, run.instrument_id, analyst.id);
+    const analystPredictorLines = await this.loadPredictorLines(run.instrument_id, analyst.id);
     const analystPredictorContext = analystPredictorLines.length > 0
       ? `\nArticles you scored as relevant:\n${analystPredictorLines.join('\n')}`
       : '';
@@ -288,9 +286,9 @@ export class PredictionRunnerService {
     const artifactId = randomUUID();
     await this.db.rawQuery(
       `insert into prediction.market_run_artifacts
-        (id, run_id, organization_slug, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, created_at)
-       values ($1, $2, $3, 'prediction', $4, 'analyst', $5, $6, $7, $8, $9)`,
-      [artifactId, run.id, run.organization_slug, analyst.id, modelProvider, modelName, userPrompt, outputText, new Date().toISOString()],
+        (id, run_id, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, created_at)
+       values ($1, $2, 'prediction', $3, 'analyst', $4, $5, $6, $7, $8)`,
+      [artifactId, run.id, analyst.id, modelProvider, modelName, userPrompt, outputText, new Date().toISOString()],
     );
 
     // Parse output
@@ -303,12 +301,12 @@ export class PredictionRunnerService {
     const predictionId = randomUUID();
     await this.db.rawQuery(
       `insert into prediction.market_predictions
-        (id, run_id, organization_slug, instrument_id, analyst_id, role,
+        (id, run_id, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
          key_factors, risks, config_version_id, is_paper, source_context, llm_usage_id, created_at)
-       values ($1, $2, $3, $4, $5, 'analyst', $6, $7, 240, $8, $9, $10, $11, $12, $13, $14, $15)`,
+       values ($1, $2, $3, $4, 'analyst', $5, $6, 240, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
-        predictionId, run.id, run.organization_slug, run.instrument_id,
+        predictionId, run.id, run.instrument_id,
         analyst.id, parsed.direction, parsed.confidence, parsed.rationale,
         JSON.stringify(parsed.key_factors), JSON.stringify(parsed.risks),
         configVersionId, isPaper, JSON.stringify(sourceContext), llmUsageId, new Date().toISOString(),
@@ -318,7 +316,6 @@ export class PredictionRunnerService {
     const outcome: PredictionOutcome = {
       id: predictionId,
       run_id: run.id,
-      organization_slug: run.organization_slug,
       instrument_id: run.instrument_id,
       analyst_id: analyst.id,
       predicted_direction: parsed.direction,
@@ -356,7 +353,7 @@ Respond with valid JSON:
 Respond ONLY with valid JSON.`;
 
     // Build analyst summary for arbitrator
-    const analystSummary = await this.buildArbitratorContext(run.organization_slug, analystOutcomes);
+    const analystSummary = await this.buildArbitratorContext(analystOutcomes);
     const userPrompt = `Synthesize these analyst assessments for ${instrument.symbol} (${instrument.name}):\n\n${analystSummary}\n\nShared context:\n${sharedContext}`;
 
     let outputText: string;
@@ -390,9 +387,9 @@ Respond ONLY with valid JSON.`;
     const artifactId = randomUUID();
     await this.db.rawQuery(
       `insert into prediction.market_run_artifacts
-        (id, run_id, organization_slug, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, created_at)
-       values ($1, $2, $3, 'prediction', null, 'arbitrator', $4, $5, $6, $7, $8)`,
-      [artifactId, run.id, run.organization_slug, modelProvider, modelName, userPrompt, outputText, new Date().toISOString()],
+        (id, run_id, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, created_at)
+       values ($1, $2, 'prediction', null, 'arbitrator', $3, $4, $5, $6, $7)`,
+      [artifactId, run.id, modelProvider, modelName, userPrompt, outputText, new Date().toISOString()],
     );
 
     // Parse output
@@ -410,12 +407,12 @@ Respond ONLY with valid JSON.`;
     const predictionId = randomUUID();
     await this.db.rawQuery(
       `insert into prediction.market_predictions
-        (id, run_id, organization_slug, instrument_id, analyst_id, role,
+        (id, run_id, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
          key_factors, risks, lineage_json, llm_usage_id, created_at)
-       values ($1, $2, $3, $4, null, 'arbitrator', $5, $6, 240, $7, $8, $9, $10, $11, $12)`,
+       values ($1, $2, $3, null, 'arbitrator', $4, $5, 240, $6, $7, $8, $9, $10, $11)`,
       [
-        predictionId, run.id, run.organization_slug, run.instrument_id,
+        predictionId, run.id, run.instrument_id,
         parsed.direction, parsed.confidence, parsed.rationale,
         JSON.stringify(parsed.key_factors), JSON.stringify(parsed.risks),
         JSON.stringify(lineage), llmUsageId, new Date().toISOString(),
@@ -425,7 +422,6 @@ Respond ONLY with valid JSON.`;
     const outcome: PredictionOutcome = {
       id: predictionId,
       run_id: run.id,
-      organization_slug: run.organization_slug,
       instrument_id: run.instrument_id,
       analyst_id: null,
       predicted_direction: parsed.direction,
@@ -522,7 +518,6 @@ Respond ONLY with valid JSON.`;
   }
 
   private async buildArbitratorContext(
-    organizationSlug: string,
     outcomes: PredictionOutcome[],
   ): Promise<string> {
     // Load analyst names for display
@@ -532,9 +527,8 @@ Respond ONLY with valid JSON.`;
     if (analystIds.length > 0) {
       const result = await this.db.rawQuery(
         `select id, display_name, default_weight from prediction.market_analysts
-         where (organization_slug = $1 or organization_slug = '__base__')
-           and id = any($2::text[])`,
-        [organizationSlug, analystIds],
+         where id = any($1::text[])`,
+        [analystIds],
       );
       const rows = (result.data as Array<{ id: string; display_name: string; default_weight: number }> | null) ?? [];
       analystNames = Object.fromEntries(rows.map(r => [r.id, { name: r.display_name, weight: r.default_weight }]));
@@ -566,51 +560,46 @@ Respond ONLY with valid JSON.`;
   }
 
   private async getAnalystsForRun(
-    organizationSlug: string,
     instrumentId: string,
   ): Promise<MarketAnalyst[]> {
     // Check for explicit assignments first
     const assigned = await this.db.rawQuery(
       `select ma.* from prediction.market_analysts ma
        join prediction.market_instrument_analyst_assignments a
-         on a.analyst_id = ma.id and a.organization_slug = ma.organization_slug
-       where (a.organization_slug = $1 or a.organization_slug = '__base__')
-         and a.instrument_id = $2
+         on a.analyst_id = ma.id
+       where a.instrument_id = $1
          and ma.analyst_type = 'personality'
          and ma.is_enabled = true
          and ma.is_active = true
          and ma.workflow_scope in ('prediction', 'both')
        order by ma.default_weight desc, ma.created_at asc`,
-      [organizationSlug, instrumentId],
+      [instrumentId],
     );
     const assignedRows = (assigned.data as MarketAnalyst[] | null) ?? [];
     if (assignedRows.length > 0) return assignedRows;
 
-    // Fallback: all enabled personality analysts for the org
+    // Fallback: all enabled personality analysts
     const all = await this.db.rawQuery(
       `select * from prediction.market_analysts
-       where (organization_slug = $1 or organization_slug = '__base__')
-         and analyst_type = 'personality'
+       where analyst_type = 'personality'
          and is_enabled = true
          and is_active = true
          and workflow_scope in ('prediction', 'both')
-       order by case when organization_slug = $1 then 0 else 1 end, default_weight desc, created_at asc`,
-      [organizationSlug],
+       order by default_weight desc, created_at asc`,
     );
     return (all.data as MarketAnalyst[] | null) ?? [];
   }
 
   private async getLatestRiskComposite(
-    organizationSlug: string,
     instrumentId: string,
   ): Promise<{ overall_score: number; verdict: string; rationale: string } | null> {
     // Try composite score first (new system)
     const composite = await this.db.rawQuery(
       `select overall_score, confidence, dimension_scores
        from prediction.risk_composite_scores
-       where (organization_slug = $1 or organization_slug = '__base__') and instrument_id = $2 and status = 'active'
+       where instrument_id = $1 and status = 'active'
        order by created_at desc limit 1`,
-      [organizationSlug, instrumentId],
+      [instrumentId],
     );
     const compRows = (composite.data as Array<{ overall_score: number; confidence: number }> | null) ?? [];
     if (compRows.length > 0) {
@@ -622,9 +611,9 @@ Respond ONLY with valid JSON.`;
     // Fallback to legacy risk assessment
     const legacy = await this.db.rawQuery(
       `select * from prediction.market_risk_assessments
-       where (organization_slug = $1 or organization_slug = '__base__') and instrument_id = $2
+       where instrument_id = $1
        order by created_at desc limit 1`,
-      [organizationSlug, instrumentId],
+      [instrumentId],
     );
     const rows = (legacy.data as Array<{ risk_score: number; verdict: string; rationale: string }> | null) ?? [];
     if (rows.length > 0) {
@@ -633,22 +622,22 @@ Respond ONLY with valid JSON.`;
     return null;
   }
 
-  private async loadPredictorLines(organizationSlug: string, instrumentId: string, analystId?: string): Promise<string[]> {
+  private async loadPredictorLines(instrumentId: string, analystId?: string): Promise<string[]> {
     const query = analystId
       ? `select mp.relevance_score, mp.rationale, ma.title
          from prediction.market_predictors mp
          join prediction.market_articles ma on ma.id = mp.article_id
-         where (mp.organization_slug = $1 or mp.organization_slug = '__base__') and mp.instrument_id = $2 and mp.status = 'active'
-           and mp.scored_by_analyst_id = $3
+         where mp.instrument_id = $1 and mp.status = 'active'
+           and mp.scored_by_analyst_id = $2
          order by mp.relevance_score desc limit 20`
       : `select mp.relevance_score, mp.rationale, ma.title
          from prediction.market_predictors mp
          join prediction.market_articles ma on ma.id = mp.article_id
-         where (mp.organization_slug = $1 or mp.organization_slug = '__base__') and mp.instrument_id = $2 and mp.status = 'active'
+         where mp.instrument_id = $1 and mp.status = 'active'
          order by mp.relevance_score desc limit 20`;
     const params = analystId
-      ? [organizationSlug, instrumentId, analystId]
-      : [organizationSlug, instrumentId];
+      ? [instrumentId, analystId]
+      : [instrumentId];
     const result = await this.db.rawQuery(query, params);
     const rows = (result.data as Array<{ relevance_score: number; rationale: string | null; title: string | null }> | null) ?? [];
     return rows.map((r, i) => {

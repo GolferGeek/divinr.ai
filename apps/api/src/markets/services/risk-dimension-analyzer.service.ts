@@ -15,7 +15,6 @@ interface AnalyzeInput {
   dimension: RiskDimension;
   instrumentSymbol: string;
   instrumentName: string;
-  organizationSlug: string;
   instrumentId: string;
   runId: string;
   planeContext: string;
@@ -61,7 +60,7 @@ export class RiskDimensionAnalyzerService {
       return {
         id: randomUUID(),
         run_id: input.runId,
-        organization_slug: input.organizationSlug,
+  
         instrument_id: input.instrumentId,
         dimension_id: input.dimension.id,
         score: parsed.score,
@@ -169,7 +168,7 @@ Respond ONLY with valid JSON. No markdown, no explanation outside the JSON.`;
     return {
       id: randomUUID(),
       run_id: input.runId,
-      organization_slug: input.organizationSlug,
+
       instrument_id: input.instrumentId,
       dimension_id: input.dimension.id,
       score: baseScore,

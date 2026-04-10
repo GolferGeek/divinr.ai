@@ -3,7 +3,7 @@ import { onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useDomainStore } from '../stores/domain.store';
 import { useInstrumentsStore } from '../stores/instruments.store';
-import { useTenantStore } from '../stores/tenant.store';
+import { useAuthStore } from '../stores/auth.store';
 import {
   IonGrid, IonRow, IonCol, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonChip, IonNote,
@@ -12,7 +12,7 @@ import {
 const route = useRoute();
 const domain = useDomainStore();
 const instruments = useInstrumentsStore();
-const tenant = useTenantStore();
+const auth = useAuthStore();
 
 function sync() {
   const d = route.params.domain as string;
@@ -23,7 +23,7 @@ function sync() {
 
 onMounted(async () => {
   sync();
-  if (tenant.isConfigured()) await instruments.fetch();
+  if (auth.isConfigured()) await instruments.fetch();
 });
 
 watch(() => route.params.domain, sync);

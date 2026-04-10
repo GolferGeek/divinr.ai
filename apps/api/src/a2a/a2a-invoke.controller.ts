@@ -88,67 +88,67 @@ export class A2AInvokeController {
     switch (capability) {
       // ─── Already working ─────────────────────────────────────
       case 'markets/instruments':
-        return this.marketsService.listInstruments(organizationSlug, userId);
+        return this.marketsService.listInstruments(userId);
 
       case 'markets/analysts':
-        return this.marketsService.listAnalysts(organizationSlug, userId);
+        return this.marketsService.listAnalysts(userId);
 
       case 'markets/runs':
-        return this.marketsService.listRuns({ organizationSlug, userId });
+        return this.marketsService.listRuns({ userId });
 
       case 'markets/sources':
-        return this.marketsService.listEntitledSources(organizationSlug, userId);
+        return this.marketsService.listEntitledSources(userId);
 
       // ─── Predictions (with optional instrumentId deep-dive) ──
       case 'markets/predictions': {
         const runId = content.runId as string | undefined;
         if (runId) {
-          return this.marketsService.listPredictionOutcomes({ organizationSlug, userId, runId });
+          return this.marketsService.listPredictionOutcomes({ userId, runId });
         }
         if (instrumentId) {
           return this.marketsService.listPredictionsWithRole({
-            organizationSlug, userId, instrumentId, role: 'all',
+            userId, instrumentId, role: 'all',
           });
         }
-        return this.marketsService.getDashboardPredictions(organizationSlug, userId);
+        return this.marketsService.getDashboardPredictions(userId);
       }
 
       // ─── Risk assessments (unfiltered or by instrument) ──────
       case 'markets/risk-assessments':
         if (instrumentId) {
-          return this.marketsService.getInstrumentCompositeScore(organizationSlug, userId, instrumentId);
+          return this.marketsService.getInstrumentCompositeScore(userId, instrumentId);
         }
-        return this.marketsService.getDashboardRiskSummary(organizationSlug, userId);
+        return this.marketsService.getDashboardRiskSummary(userId);
 
       // ─── Trading: leaderboard + positions ────────────────────
       case 'markets/trading': {
-        const leaderboard = await this.analystPortfolio.getLeaderboard(organizationSlug);
+        const leaderboard = await this.analystPortfolio.getLeaderboard();
         const analystId = content.analystId as string | undefined;
         let positions: unknown[] = [];
         if (analystId) {
-          positions = await this.analystPortfolio.listPositions(analystId, organizationSlug);
+          positions = await this.analystPortfolio.listPositions(analystId);
         }
         return { leaderboard, positions };
       }
 
       // ─── Portfolios: analyst portfolios with leaderboard ─────
       case 'markets/portfolios': {
-        const portfolios = await this.analystPortfolio.listPortfolios(organizationSlug);
-        const leaderboard = await this.analystPortfolio.getLeaderboard(organizationSlug);
+        const portfolios = await this.analystPortfolio.listPortfolios();
+        const leaderboard = await this.analystPortfolio.getLeaderboard();
         return { portfolios, leaderboard };
       }
 
       // ─── Queue: pending learning proposals ───────────────────
       case 'markets/queue':
-        return this.marketsService.listLearningProposals(organizationSlug, userId, 'pending');
+        return this.marketsService.listLearningProposals(userId, 'pending');
 
       // ─── Context agents: analyst personas + configs ──────────
       case 'markets/context-agents':
-        return this.marketsService.listAnalysts(organizationSlug, userId);
+        return this.marketsService.listAnalysts(userId);
 
       // ─── Daily report: 24h aggregate ─────────────────────────
       case 'markets/daily-report':
-        return this.marketsService.getDailyReport(organizationSlug, userId);
+        return this.marketsService.getDailyReport(userId);
 
       default:
         throw new CapabilityNotFoundError(`Unknown capability: ${capability}`);

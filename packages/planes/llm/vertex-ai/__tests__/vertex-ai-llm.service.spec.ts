@@ -10,7 +10,6 @@ import { ExecutionContext } from '@orchestrator-ai/transport-types';
 jest.mock('@google-cloud/vertexai');
 
 const mockExecutionContext: ExecutionContext = {
-  orgSlug: 'test-org',
   userId: 'user-1',
   conversationId: 'conv-1',
   agentSlug: 'test-agent',

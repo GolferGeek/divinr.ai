@@ -129,7 +129,6 @@ export class LLMGenerationService {
           await this.dictionaryPseudonymizerService.pseudonymizeText(
             userMessage,
             {
-              organizationSlug: executionContext.orgSlug ?? null,
               agentSlug: executionContext.agentSlug ?? null,
             },
           );

@@ -49,11 +49,10 @@ export const router = createRouter({
   ],
 });
 
-// Auth guard: redirect to login if no tenant configured
+// Auth guard: redirect to login if no user configured
 router.beforeEach((to) => {
   if (to.meta.public) return true;
-  const orgSlug = localStorage.getItem('divinr_org');
   const userId = localStorage.getItem('divinr_user');
-  if (!orgSlug || !userId) return '/login';
+  if (!userId) return '/login';
   return true;
 });

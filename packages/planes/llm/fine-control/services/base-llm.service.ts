@@ -71,7 +71,7 @@ export abstract class BaseLLMService {
    * This method is optional because not all providers support image generation.
    * OpenAI (GPT Image, DALL-E) and Google (Imagen) implement this method.
    *
-   * @param context - ExecutionContext with orgSlug, userId, conversationId, taskId, etc.
+   * @param context - ExecutionContext with userId, conversationId, taskId, etc.
    * @param params - Image generation parameters (prompt, size, quality, etc.)
    * @returns ImageGenerationResponse with generated image bytes and metadata
    */
@@ -89,7 +89,7 @@ export abstract class BaseLLMService {
    * Video generation is typically async - the initial call returns an operationId,
    * and the caller must poll for completion using pollVideoStatus().
    *
-   * @param context - ExecutionContext with orgSlug, userId, conversationId, taskId, etc.
+   * @param context - ExecutionContext with userId, conversationId, taskId, etc.
    * @param params - Video generation parameters (prompt, duration, aspectRatio, etc.)
    * @returns VideoGenerationResponse with status and optional video data
    */

@@ -225,14 +225,12 @@ export class SupabaseAuthService
         throw new Error('Auth user creation returned no user data');
       }
 
-      const defaultOrg = createUserDto.organizationAccess?.[0] || 'demo-org';
       const { error: profileError } = await serviceClient
         .from(getTableName('users'))
         .insert({
           id: authUser.user.id,
           email: createUserDto.email,
           display_name: createUserDto.displayName || null,
-          organization_slug: defaultOrg,
           status: 'active',
         })
         .select()
@@ -246,9 +244,6 @@ export class SupabaseAuthService
       }
 
       const roles = createUserDto.roles || ['member'];
-      const orgs = createUserDto.organizationAccess?.length
-        ? createUserDto.organizationAccess
-        : ['demo-org'];
 
       const { data: roleData } = await serviceClient
         .from('rbac_roles')
@@ -257,15 +252,12 @@ export class SupabaseAuthService
 
       if (roleData) {
         const typedRoleData = roleData as Array<{ id: string; name: string }>;
-        for (const org of orgs) {
-          for (const role of typedRoleData) {
-            await serviceClient.from('rbac_user_org_roles').insert({
-              user_id: authUser.user.id,
-              organization_slug: org,
-              role_id: role.id,
-              assigned_by: adminUserId,
-            });
-          }
+        for (const role of typedRoleData) {
+          await serviceClient.from('rbac_user_roles').insert({
+            user_id: authUser.user.id,
+            role_id: role.id,
+            assigned_by: adminUserId,
+          });
         }
       }
 
@@ -276,7 +268,7 @@ export class SupabaseAuthService
         roles,
         emailConfirmationRequired: !authUser.user.email_confirmed_at,
         message: 'User created successfully',
-        organizationAccess: orgs,
+        organizationAccess: [],
       };
     } catch (error) {
       throw new Error(
@@ -327,12 +319,12 @@ export class SupabaseAuthService
         .or(`actor_id.eq.${userId},target_user_id.eq.${userId}`);
 
       await serviceClient
-        .from('rbac_user_org_roles')
+        .from('rbac_user_roles')
         .update({ assigned_by: null })
         .eq('assigned_by', userId);
 
       await serviceClient
-        .from('rbac_user_org_roles')
+        .from('rbac_user_roles')
         .delete()
         .eq('user_id', userId);
 

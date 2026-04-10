@@ -69,7 +69,6 @@ export class RiskRunnerService {
     await this.schema.ensureSchema();
 
     const context = this.llmService.buildExecutionContext(
-      run.organization_slug,
       userId,
       'risk',
     );
@@ -86,7 +85,7 @@ export class RiskRunnerService {
     );
 
     // 2. Load active dimensions for this org's domain
-    const dimensions = await this.loadDimensions(run.organization_slug);
+    const dimensions = await this.loadDimensions();
     if (dimensions.length === 0) {
       throw new Error('No active risk dimensions configured for this organization');
     }
@@ -94,7 +93,6 @@ export class RiskRunnerService {
 
     // 3. Load context providers
     const providers = await this.contextProviders.loadContextProviders(
-      run.organization_slug,
       run.instrument_id,
     );
     const providerOutputs = await this.contextProviders.executeContextProviders(
@@ -108,14 +106,11 @@ export class RiskRunnerService {
 
     // 4. Load active predictors
     const predictorLines = await this.loadPredictorLines(
-      run.organization_slug,
       run.instrument_id,
     );
 
     // 4b. Load personality analysts with risk workflow scope
-    const analystPerspectives = await this.loadRiskAnalystPerspectives(
-      run.organization_slug,
-    );
+    const analystPerspectives = await this.loadRiskAnalystPerspectives();
 
     // 5. Analyze each dimension
     this.logger.log(`Analyzing ${dimensions.length} risk dimensions for ${instrument.symbol}`);
@@ -129,7 +124,6 @@ export class RiskRunnerService {
         dimension,
         instrumentSymbol: instrument.symbol,
         instrumentName: instrument.name,
-        organizationSlug: run.organization_slug,
         instrumentId: run.instrument_id,
         runId: run.id,
         planeContext,
@@ -174,7 +168,6 @@ export class RiskRunnerService {
     let compositeScore = await this.persistCompositeScore({
       id: compositeId,
       runId: run.id,
-      organizationSlug: run.organization_slug,
       instrumentId: run.instrument_id,
       overallScore: aggregation.overallScore,
       dimensionScores: aggregation.dimensionScores,
@@ -200,7 +193,6 @@ export class RiskRunnerService {
         const debateResult = await this.debateService.runDebate({
           context,
           runId: run.id,
-          organizationSlug: run.organization_slug,
           instrumentId: run.instrument_id,
           instrumentSymbol: instrument.symbol,
           compositeScoreId: compositeId,
@@ -248,7 +240,6 @@ export class RiskRunnerService {
   async rerunDebate(input: {
     context: unknown;
     runId: string;
-    organizationSlug: string;
     instrumentId: string;
     instrumentSymbol: string;
     compositeScoreId: string;
@@ -258,7 +249,6 @@ export class RiskRunnerService {
     const debateResult = await this.debateService.runDebate({
       context: input.context as never,
       runId: input.runId,
-      organizationSlug: input.organizationSlug,
       instrumentId: input.instrumentId,
       instrumentSymbol: input.instrumentSymbol,
       compositeScoreId: input.compositeScoreId,
@@ -305,11 +295,9 @@ export class RiskRunnerService {
     const result = await this.db.rawQuery(
       `select id, slug, display_name, persona_prompt, default_weight
        from prediction.market_analysts
-       where (organization_slug = $1 or organization_slug = '__base__')
-         and analyst_type = 'personality' and is_enabled = true and is_active = true
+       where analyst_type = 'personality' and is_enabled = true and is_active = true
          and workflow_scope in ('risk', 'both')
        order by default_weight desc`,
-      [run.organization_slug],
     );
     const analysts = (result.data as Array<{
       id: string; slug: string; display_name: string; persona_prompt: string; default_weight: number;
@@ -368,9 +356,9 @@ Respond with valid JSON only:
         // Persist to analyst_risk_assessments table
         await this.db.rawQuery(
           `insert into prediction.analyst_risk_assessments
-            (id, run_id, organization_slug, instrument_id, analyst_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, llm_usage_id, created_at)
-           values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, '{}', null, null, $9, now())`,
-          [run.id, run.organization_slug, run.instrument_id, analyst.id, score, confidence, reasoning, JSON.stringify(evidence), llmUsageId],
+            (id, run_id, instrument_id, analyst_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, llm_usage_id, created_at)
+           values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, '{}', null, null, $8, now())`,
+          [run.id, run.instrument_id, analyst.id, score, confidence, reasoning, JSON.stringify(evidence), llmUsageId],
         );
 
         assessments.push({
@@ -392,25 +380,17 @@ Respond with valid JSON only:
     return assessments;
   }
 
-  private async loadDimensions(organizationSlug: string): Promise<RiskDimension[]> {
-    // First try org-specific dimensions, then fall back to base templates.
-    // Convention across the rest of the markets services is '__base__';
-    // this loader was the lone outlier using '__template__', which matched
-    // no rows in any environment seeded the standard way.
+  private async loadDimensions(): Promise<RiskDimension[]> {
     const result = await this.db.rawQuery(
       `select * from prediction.risk_dimensions
-       where (organization_slug = $1 or organization_slug = '__base__')
-         and is_active = true
-       order by
-         case when organization_slug = $1 then 0 else 1 end,
-         display_order asc`,
-      [organizationSlug],
+       where is_active = true
+       order by display_order asc`,
     );
     if (result.error) throw new Error(result.error.message);
 
     const rows = (result.data as RiskDimension[] | null) ?? [];
 
-    // Deduplicate: org-specific overrides template dimensions with same slug
+    // Deduplicate by slug
     const seen = new Set<string>();
     const unique: RiskDimension[] = [];
     for (const row of rows) {
@@ -423,19 +403,17 @@ Respond with valid JSON only:
   }
 
   private async loadPredictorLines(
-    organizationSlug: string,
     instrumentId: string,
   ): Promise<string[]> {
     const result = await this.db.rawQuery(
       `select mp.relevance_score, mp.rationale, ma.title
        from prediction.market_predictors mp
        join prediction.market_articles ma on ma.id = mp.article_id
-       where (mp.organization_slug = $1 or mp.organization_slug = '__base__')
-         and mp.instrument_id = $2
+       where mp.instrument_id = $1
          and mp.status = 'active'
        order by mp.relevance_score desc
        limit 20`,
-      [organizationSlug, instrumentId],
+      [instrumentId],
     );
     const rows = (result.data as Array<{ relevance_score: number; rationale: string | null; title: string | null }> | null) ?? [];
     return rows.map((r, i) => {
@@ -445,19 +423,15 @@ Respond with valid JSON only:
     });
   }
 
-  private async loadRiskAnalystPerspectives(
-    organizationSlug: string,
-  ): Promise<AnalystPerspective[]> {
+  private async loadRiskAnalystPerspectives(): Promise<AnalystPerspective[]> {
     const result = await this.db.rawQuery(
       `select display_name, default_weight, persona_prompt
        from prediction.market_analysts
-       where (organization_slug = $1 or organization_slug = '__base__')
-         and analyst_type = 'personality'
+       where analyst_type = 'personality'
          and is_enabled = true
          and is_active = true
          and workflow_scope in ('risk', 'both')
        order by default_weight desc, created_at asc`,
-      [organizationSlug],
     );
     const rows = (result.data as Array<{ display_name: string; default_weight: number; persona_prompt: string }> | null) ?? [];
     return rows.map((r) => ({
@@ -470,10 +444,10 @@ Respond with valid JSON only:
   private async persistDimensionAssessment(assessment: RiskDimensionAssessment): Promise<void> {
     const result = await this.db.rawQuery(
       `insert into prediction.risk_dimension_assessments
-        (id, run_id, organization_slug, instrument_id, dimension_id, score, confidence, reasoning, evidence, signals, model_provider, model_name, llm_usage_id, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        (id, run_id, instrument_id, dimension_id, score, confidence, reasoning, evidence, signals, model_provider, model_name, llm_usage_id, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
-        assessment.id, assessment.run_id, assessment.organization_slug,
+        assessment.id, assessment.run_id,
         assessment.instrument_id, assessment.dimension_id,
         assessment.score, assessment.confidence, assessment.reasoning,
         JSON.stringify(assessment.evidence), JSON.stringify(assessment.signals),
@@ -486,7 +460,6 @@ Respond with valid JSON only:
   private async persistCompositeScore(input: {
     id: string;
     runId: string;
-    organizationSlug: string;
     instrumentId: string;
     overallScore: number;
     dimensionScores: Record<string, number>;
@@ -495,11 +468,11 @@ Respond with valid JSON only:
     const now = new Date().toISOString();
     const result = await this.db.rawQuery(
       `insert into prediction.risk_composite_scores
-        (id, run_id, organization_slug, instrument_id, overall_score, dimension_scores, confidence, pre_debate_score, status, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9)
+        (id, run_id, instrument_id, overall_score, dimension_scores, confidence, pre_debate_score, status, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, 'active', $8)
        returning *`,
       [
-        input.id, input.runId, input.organizationSlug, input.instrumentId,
+        input.id, input.runId, input.instrumentId,
         input.overallScore, JSON.stringify(input.dimensionScores),
         input.confidence, input.overallScore, now,
       ],
@@ -535,7 +508,6 @@ Respond with valid JSON only:
     const assessment: RiskAssessment = {
       id: randomUUID(),
       run_id: run.id,
-      organization_slug: run.organization_slug,
       instrument_id: run.instrument_id,
       risk_score: compositeScore,
       verdict,
@@ -545,10 +517,10 @@ Respond with valid JSON only:
 
     const result = await this.db.rawQuery(
       `insert into prediction.market_risk_assessments
-        (id, run_id, organization_slug, instrument_id, risk_score, verdict, rationale, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+        (id, run_id, instrument_id, risk_score, verdict, rationale, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning *`,
-      [assessment.id, assessment.run_id, assessment.organization_slug, assessment.instrument_id, assessment.risk_score, assessment.verdict, assessment.rationale, assessment.created_at],
+      [assessment.id, assessment.run_id, assessment.instrument_id, assessment.risk_score, assessment.verdict, assessment.rationale, assessment.created_at],
     );
     if (result.error) throw new Error(result.error.message);
     return ((result.data as RiskAssessment[] | null) ?? [])[0] ?? assessment;

@@ -26,7 +26,7 @@ class MockDb {
 const portfolio = {
   id: 'pf-1',
   analyst_id: 'analyst-1',
-  organization_slug: 'acme',
+  user_id: null,
   current_balance: 1_000_000,
 };
 
@@ -41,7 +41,6 @@ function baseInput(overrides: Partial<any> = {}) {
     predictionId: 'pred-1',
     conviction: 80,
     triggerReason: 'signal_cross',
-    organizationSlug: 'acme',
     ...overrides,
   };
 }
@@ -66,8 +65,8 @@ async function main(): Promise<void> {
     assert(insert.sql.includes('high_water_mark'), 'INSERT explicitly references high_water_mark column');
     assert(insert.sql.includes('NULL'), 'INSERT writes NULL for high_water_mark');
     assert(insert.params[1] === 'pf-1', 'portfolio_id from input');
-    assert(insert.params[11] === 'signal_cross', 'trigger_reason passed through verbatim');
-    assert(insert.params[7] === 'long', 'direction long');
+    assert(insert.params[10] === 'signal_cross', 'trigger_reason passed through verbatim');
+    assert(insert.params[6] === 'long', 'direction long');
   }
 
   // 2. Idempotency hit
@@ -117,7 +116,7 @@ async function main(): Promise<void> {
     const helper = new AutotradeOpenHelper(db as any);
     await helper.openPosition(baseInput({ direction: 'short' }));
     const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'))!;
-    assert(insert.params[7] === 'short', 'direction short propagated');
+    assert(insert.params[6] === 'short', 'direction short propagated');
   }
 
   // 6. trigger_reason verbatim (eod_sweep)
@@ -130,7 +129,7 @@ async function main(): Promise<void> {
     const helper = new AutotradeOpenHelper(db as any);
     await helper.openPosition(baseInput({ triggerReason: 'eod_sweep' }));
     const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'))!;
-    assert(insert.params[11] === 'eod_sweep', 'trigger_reason eod_sweep passes through');
+    assert(insert.params[10] === 'eod_sweep', 'trigger_reason eod_sweep passes through');
   }
 
   // 7. trigger_strategy write-through
@@ -144,7 +143,7 @@ async function main(): Promise<void> {
     await helper.openPosition(baseInput({ triggerStrategy: 'momentum_breakout' }));
     const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'))!;
     assert(insert.sql.includes('trigger_strategy'), 'INSERT references trigger_strategy column');
-    assert(insert.params[12] === 'momentum_breakout', 'trigger_strategy passed through at param 12');
+    assert(insert.params[11] === 'momentum_breakout', 'trigger_strategy passed through at param 11');
   }
 
   // 8. trigger_strategy defaults to null when not provided
@@ -157,7 +156,7 @@ async function main(): Promise<void> {
     const helper = new AutotradeOpenHelper(db as any);
     await helper.openPosition(baseInput());
     const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'))!;
-    assert(insert.params[12] === null, 'trigger_strategy is null when omitted (backward compatible)');
+    assert(insert.params[11] === null, 'trigger_strategy is null when omitted (backward compatible)');
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

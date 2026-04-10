@@ -53,7 +53,6 @@ export class MarketsLlmService {
   }
 
   buildExecutionContext(
-    organizationSlug: string,
     userId: string,
     runType: RunType | string,
   ): ExecutionContext {
@@ -61,7 +60,6 @@ export class MarketsLlmService {
     return {
       conversationId: randomUUID(),
       userId,
-      orgSlug: organizationSlug,
       agentSlug: `markets-${runType}-orchestrator`,
       agentType: 'system',
       provider: config.provider,

@@ -47,7 +47,7 @@ async function main() {
       const { rows: analysts } = await client.query(
         `SELECT id, persona_prompt, tier_instructions, default_weight, current_config_version_id
          FROM prediction.market_analysts
-         WHERE slug = $1 AND organization_slug = '__base__'
+         WHERE slug = $1 AND user_id IS NULL
          LIMIT 1`,
         [slug],
       );
@@ -69,10 +69,10 @@ async function main() {
       // Create v1 config version
       await client.query(
         `INSERT INTO prediction.analyst_config_versions
-          (id, analyst_id, organization_slug, version_number, persona_prompt,
+          (id, analyst_id, user_id, version_number, persona_prompt,
            tier_instructions, default_weight, config_overrides,
            source, change_reason, is_active, created_by, created_at)
-         VALUES ($1, $2, '__base__', 1, $3, $4, $5, '{}'::jsonb,
+         VALUES ($1, $2, NULL, 1, $3, $4, $5, '{}'::jsonb,
                  'manual', 'Bootstrap initial config version', true, 'system', $6)`,
         [versionId, analyst.id, analyst.persona_prompt, JSON.stringify(analyst.tier_instructions), analyst.default_weight, now],
       );
@@ -91,7 +91,7 @@ async function main() {
       `SELECT ma.slug, acv.id, acv.version_number
        FROM prediction.market_analysts ma
        JOIN prediction.analyst_config_versions acv ON acv.id = ma.current_config_version_id
-       WHERE ma.organization_slug = '__base__' AND ma.slug = ANY($1)
+       WHERE ma.user_id IS NULL AND ma.slug = ANY($1)
        ORDER BY ma.slug`,
       [TARGET_SLUGS],
     );

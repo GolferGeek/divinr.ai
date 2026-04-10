@@ -10,16 +10,15 @@ import {
   IonCardContent, IonItem, IonInput, IonButton, IonIcon, IonText, IonSpinner,
 } from '@ionic/vue';
 import { analyticsOutline } from 'ionicons/icons';
-import { useTenantStore } from '../stores/tenant.store';
+import { useAuthStore } from '../stores/auth.store';
 
 const route = useRoute();
 const router = useRouter();
-const tenant = useTenantStore();
+const auth = useAuthStore();
 
 const inviteToken = route.params.token as string;
 const validating = ref(true);
 const valid = ref(false);
-const inviteOrg = ref('');
 const inviteEmail = ref('');
 const inviteError = ref('');
 
@@ -36,13 +35,12 @@ onMounted(async () => {
       inviteError.value = 'Unable to validate invite';
       return;
     }
-    const data = await res.json() as { valid: boolean; organizationSlug?: string; email?: string | null; reason?: string };
+    const data = await res.json() as { valid: boolean; email?: string | null; reason?: string };
     if (!data.valid) {
       inviteError.value = data.reason ?? 'This invite is no longer valid';
       return;
     }
     valid.value = true;
-    inviteOrg.value = data.organizationSlug ?? '';
     if (data.email) {
       inviteEmail.value = data.email;
       email.value = data.email;
@@ -77,15 +75,15 @@ async function signup() {
       error.value = data.message ?? `Signup failed (${res.status})`;
       return;
     }
-    const auth = await res.json() as { accessToken: string };
+    const signupData = await res.json() as { accessToken: string };
 
-    // Fetch profile to get user id and org role
+    // Fetch profile to get user id and role
     const meRes = await fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${auth.accessToken}`, 'x-org-slug': inviteOrg.value },
+      headers: { Authorization: `Bearer ${signupData.accessToken}` },
     });
     if (meRes.ok) {
-      const me = await meRes.json() as { id: string; orgRole?: string };
-      tenant.setTenant(inviteOrg.value, me.id, auth.accessToken, me.orgRole ?? 'beta_reader');
+      const me = await meRes.json() as { id: string; role?: string };
+      auth.setAuth(me.id, signupData.accessToken, me.role ?? 'beta_reader');
     }
 
     await router.push('/');

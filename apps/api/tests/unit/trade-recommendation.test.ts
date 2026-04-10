@@ -363,7 +363,7 @@ console.log('\nsizeForUser:');
   const baseRec = {
     id: 'pm_run1',
     run_id: 'run1',
-    organization_slug: '__base__',
+    user_id: null,
     instrument_id: 'inst1',
     symbol: 'MSFT',
     action: 'buy' as const,

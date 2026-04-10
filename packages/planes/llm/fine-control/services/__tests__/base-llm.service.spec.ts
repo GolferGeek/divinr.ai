@@ -140,7 +140,6 @@ describe('BaseLLMService', () => {
   };
 
   const mockExecutionContext: ExecutionContext = createMockExecutionContext({
-    orgSlug: 'test-org',
     userId: 'user-123',
     conversationId: 'conv-123',
   });
@@ -474,8 +473,7 @@ describe('BaseLLMService', () => {
     it('should not track usage when userId is missing', async () => {
       // Create a context with empty userId to simulate missing user
       const contextWithoutUser = createMockExecutionContext({
-        orgSlug: 'test-org',
-        userId: '', // Empty userId simulates missing user
+            userId: '', // Empty userId simulates missing user
         conversationId: 'conv-123',
       });
 

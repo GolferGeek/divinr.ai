@@ -8,7 +8,6 @@ describe('LLMVideoService', () => {
   let llmServiceFactory: jest.Mocked<LLMServiceFactory>;
 
   const mockExecutionContext: ExecutionContext = {
-    orgSlug: 'test-org',
     userId: 'user-123',
     conversationId: 'conv-123',
     agentSlug: 'test-agent',

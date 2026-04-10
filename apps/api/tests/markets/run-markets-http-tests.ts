@@ -53,19 +53,17 @@ async function main(): Promise<void> {
   const db = app.get<DatabaseService>(DATABASE_SERVICE);
   const tests: TestCase[] = [
     {
-      name: 'Header identity mismatch is rejected',
+      name: 'Missing user identity is rejected',
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const response = await request(app.getHttpServer())
           .post('/markets/instruments')
-          .set('x-org-slug', seed.orgA)
-          .set('x-user-id', seed.adminUserId)
           .send({
-            organizationSlug: seed.orgB,
             userId: seed.adminUserId,
             symbol: 'AMD',
           });
-        assert.equal(response.status, 400);
+        // Without x-user-id header and dev bypass, should fail
+        assert.ok([400, 401, 403].includes(response.status), `expected 4xx, got ${response.status}`);
       },
     },
     {
@@ -74,10 +72,9 @@ async function main(): Promise<void> {
         assert.ok(seed, 'seed data must be initialized');
         const create = await request(app.getHttpServer())
           .post('/markets/instruments')
-          .set('x-org-slug', seed.orgA)
           .set('x-user-id', seed.adminUserId)
           .send({
-            organizationSlug: seed.orgA,
+
             userId: seed.adminUserId,
             symbol: 'CRM',
           });
@@ -92,10 +89,9 @@ async function main(): Promise<void> {
 
         const enqueue = await request(app.getHttpServer())
           .post('/markets/runs')
-          .set('x-org-slug', seed.orgA)
           .set('x-user-id', seed.adminUserId)
           .send({
-            organizationSlug: seed.orgA,
+
             userId: seed.adminUserId,
             instrumentId,
             runType: 'prediction',
@@ -116,10 +112,9 @@ async function main(): Promise<void> {
         if (process.env.MARKETS_INTEGRATION_TESTS === 'true') {
           const processed = await request(app.getHttpServer())
             .post('/markets/runs/process')
-            .set('x-org-slug', seed.orgA)
             .set('x-user-id', seed.adminUserId)
             .send({
-              organizationSlug: seed.orgA,
+  
               userId: seed.adminUserId,
               maxRuns: 1,
             });

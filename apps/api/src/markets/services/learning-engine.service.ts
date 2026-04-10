@@ -65,7 +65,7 @@ export class LearningEngineService {
       analystsEvaluated++;
 
       // 2. Get performance profiles for this analyst
-      const profiles = await this.getAnalystProfiles(analyst.id, analyst.organization_slug);
+      const profiles = await this.getAnalystProfiles(analyst.id);
       if (profiles.length === 0) continue;
 
       // 3. Identify systematic patterns
@@ -73,7 +73,7 @@ export class LearningEngineService {
       if (patterns.length === 0) continue;
 
       // 4. For each pattern, propose a micro-adjustment
-      const boundaries = await this.getBoundaries(analyst.organization_slug);
+      const boundaries = await this.getBoundaries();
 
       for (const pattern of patterns) {
         const proposal = this.createProposal(analyst, pattern, boundaries);
@@ -84,7 +84,6 @@ export class LearningEngineService {
         // 5. Validate against canonical tests
         const testResult = await this.canonicalRunner.runCanonicalTests({
           analystId: analyst.id,
-          organizationSlug: analyst.organization_slug,
           proposedPrompt: proposal.proposedPrompt,
           proposedWeight: proposal.proposedWeight,
           proposedTierInstructions: {},
@@ -94,7 +93,6 @@ export class LearningEngineService {
         // 6. Persist proposal with test results
         const status = testResult.passed ? 'passed' : 'failed';
         await this.persistProposal({
-          organizationSlug: analyst.organization_slug,
           analystId: analyst.id,
           instrumentId: null,
           proposalType: pattern.type,
@@ -116,7 +114,7 @@ export class LearningEngineService {
         if (testResult.passed) {
           proposalsPassed++;
           // 7. Apply to paper mode (persona_prompt unchanged, adaptation in context_markdown)
-          await this.activatePaperMode(analyst.id, analyst.organization_slug, proposal, analyst.persona_prompt);
+          await this.activatePaperMode(analyst.id, proposal, analyst.persona_prompt);
           paperModeActivated++;
         } else {
           proposalsFailed++;
@@ -280,7 +278,6 @@ export class LearningEngineService {
 
   private async activatePaperMode(
     analystId: string,
-    organizationSlug: string,
     proposal: { proposedPrompt: string; proposedWeight: number; proposedContextMarkdown: string | null },
     originalPersonaPrompt: string,
   ): Promise<void> {
@@ -293,20 +290,20 @@ export class LearningEngineService {
       : 'Tier 1 autonomous learning';
     await this.db.rawQuery(
       `insert into prediction.analyst_config_versions
-        (id, analyst_id, organization_slug, version_number, persona_prompt,
+        (id, analyst_id, version_number, persona_prompt,
          default_weight, context_markdown,
          source, change_reason, is_active, created_by, created_at)
-       values ($1, $2, $3,
+       values ($1, $2,
          coalesce((select max(version_number) + 1 from prediction.analyst_config_versions where analyst_id = $2), 1),
-         $4, $5, $6,
-         'tier1_auto', $7, false, 'learning-engine', $8)`,
-      [versionId, analystId, organizationSlug, originalPersonaPrompt, proposal.proposedWeight, proposal.proposedContextMarkdown, changeReason, new Date().toISOString()],
+         $3, $4, $5,
+         'tier1_auto', $6, false, 'learning-engine', $7)`,
+      [versionId, analystId, originalPersonaPrompt, proposal.proposedWeight, proposal.proposedContextMarkdown, changeReason, new Date().toISOString()],
     );
 
     // Set as paper config version (not active — runs alongside production)
     await this.db.rawQuery(
-      `update prediction.market_analysts set paper_config_version_id = $1 where id = $2 and organization_slug = $3`,
-      [versionId, analystId, organizationSlug],
+      `update prediction.market_analysts set paper_config_version_id = $1 where id = $2`,
+      [versionId, analystId],
     );
   }
 
@@ -316,7 +313,7 @@ export class LearningEngineService {
 
     // Find analysts with active paper mode configs older than the paper mode duration
     const result = await this.db.rawQuery(`
-      select ma.id, ma.organization_slug, ma.paper_config_version_id, ma.current_config_version_id,
+      select ma.id, ma.paper_config_version_id, ma.current_config_version_id,
              acv.created_at as paper_started_at, acv.persona_prompt, acv.default_weight
       from prediction.market_analysts ma
       join prediction.analyst_config_versions acv on acv.id = ma.paper_config_version_id
@@ -324,7 +321,7 @@ export class LearningEngineService {
         and acv.created_at <= now() - interval '3 days'
     `);
     const candidates = (result.data as Array<{
-      id: string; organization_slug: string;
+      id: string;
       paper_config_version_id: string; current_config_version_id: string | null;
       persona_prompt: string; default_weight: number;
     }> | null) ?? [];
@@ -337,9 +334,9 @@ export class LearningEngineService {
           avg(case when phe.config_version_id = $2 and phe.was_correct then 1.0 else 0.0 end) as prod_accuracy,
           count(*) as sample_size
         from prediction.prediction_horizon_evaluations phe
-        where phe.analyst_id = $3 and phe.organization_slug = $4
+        where phe.analyst_id = $3
           and phe.created_at >= now() - interval '3 days'
-      `, [c.paper_config_version_id, c.current_config_version_id, c.id, c.organization_slug]);
+      `, [c.paper_config_version_id, c.current_config_version_id, c.id]);
 
       const rows = (comparison.data as Array<{ paper_accuracy: number | null; prod_accuracy: number | null; sample_size: number }> | null) ?? [];
       if (rows.length === 0 || rows[0].sample_size < 3) {
@@ -359,8 +356,8 @@ export class LearningEngineService {
               persona_prompt = $1,
               default_weight = $2,
               updated_at = now()
-          where id = $3 and organization_slug = $4
-        `, [c.persona_prompt, c.default_weight, c.id, c.organization_slug]);
+          where id = $3
+        `, [c.persona_prompt, c.default_weight, c.id]);
 
         // Mark the version as active
         await this.db.rawQuery(
@@ -379,8 +376,8 @@ export class LearningEngineService {
       } else {
         // Demote: discard paper config
         await this.db.rawQuery(
-          `update prediction.market_analysts set paper_config_version_id = null where id = $1 and organization_slug = $2`,
-          [c.id, c.organization_slug],
+          `update prediction.market_analysts set paper_config_version_id = null where id = $1`,
+          [c.id],
         );
         demoted++;
         this.logger.log(`Demoted paper config for analyst ${c.id}: paper=${(paperAcc * 100).toFixed(0)}% <= prod=${(prodAcc * 100).toFixed(0)}%`);
@@ -393,41 +390,39 @@ export class LearningEngineService {
   // ─── Helpers ─────────────────────────────────────────────────
 
   private async getLearningEnabledAnalysts(): Promise<Array<{
-    id: string; organization_slug: string; persona_prompt: string; default_weight: number;
+    id: string; persona_prompt: string; default_weight: number;
     context_markdown: string | null;
   }>> {
     const result = await this.db.rawQuery(`
-      select ma.id, ma.organization_slug, ma.persona_prompt, ma.default_weight,
+      select ma.id, ma.persona_prompt, ma.default_weight,
              acv.context_markdown
       from prediction.market_analysts ma
       left join prediction.analyst_config_versions acv
         on acv.id = ma.current_config_version_id
       where ma.is_active = true and ma.is_enabled = true and ma.learning_enabled = true
         and ma.analyst_type = 'personality'
-      order by ma.organization_slug, ma.created_at
+      order by ma.created_at
     `);
-    return (result.data as Array<{ id: string; organization_slug: string; persona_prompt: string; default_weight: number; context_markdown: string | null }> | null) ?? [];
+    return (result.data as Array<{ id: string; persona_prompt: string; default_weight: number; context_markdown: string | null }> | null) ?? [];
   }
 
   private async getAnalystProfiles(
     analystId: string,
-    organizationSlug: string,
   ): Promise<AnalystPerformanceProfile[]> {
     const result = await this.db.rawQuery(
       `select * from prediction.analyst_performance_profiles
-       where analyst_id = $1 and organization_slug = $2
+       where analyst_id = $1
        order by computed_at desc`,
-      [analystId, organizationSlug],
+      [analystId],
     );
     return (result.data as AnalystPerformanceProfile[] | null) ?? [];
   }
 
-  private async getBoundaries(organizationSlug: string): Promise<LearningBoundaries> {
+  private async getBoundaries(): Promise<LearningBoundaries> {
     try {
       const result = await this.db.rawQuery(
         `select max_confidence_shift, max_weight_shift, paper_mode_duration_days
-         from prediction.org_learning_config where organization_slug = $1`,
-        [organizationSlug],
+         from prediction.org_learning_config limit 1`,
       );
       const rows = (result.data as Array<{
         max_confidence_shift: number; max_weight_shift: number; paper_mode_duration_days: number;
@@ -460,7 +455,6 @@ export class LearningEngineService {
   }
 
   private async persistProposal(input: {
-    organizationSlug: string;
     analystId: string;
     instrumentId: string | null;
     proposalType: string;
@@ -475,12 +469,12 @@ export class LearningEngineService {
     const now = new Date().toISOString();
     await this.db.rawQuery(
       `insert into prediction.learning_proposals
-        (id, organization_slug, tier, analyst_id, instrument_id, proposal_type,
+        (id, tier, analyst_id, instrument_id, proposal_type,
          description, rationale, proposed_change, canonical_test_results,
          net_score, has_severity_regression, status, proposed_at, tested_at)
-       values ($1, $2, 1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+       values ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
-        randomUUID(), input.organizationSlug, input.analystId, input.instrumentId,
+        randomUUID(), input.analystId, input.instrumentId,
         input.proposalType, input.description, input.rationale,
         JSON.stringify(input.proposedChange), JSON.stringify(input.canonicalTestResults),
         input.netScore, input.hasSeverityRegression, input.status, now, now,

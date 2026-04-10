@@ -63,7 +63,6 @@ export class EodForcedBuyService {
     const result = await this.db.rawQuery(
       `select mp.id as prediction_id,
               mp.analyst_id,
-              mp.organization_slug,
               mp.instrument_id,
               mp.predicted_direction,
               mp.confidence,
@@ -82,7 +81,6 @@ export class EodForcedBuyService {
     const predictions = (result.data as Array<{
       prediction_id: string;
       analyst_id: string | null;
-      organization_slug: string;
       instrument_id: string;
       predicted_direction: 'up' | 'down' | 'flat';
       confidence: number;
@@ -104,7 +102,7 @@ export class EodForcedBuyService {
         // Resolve portfolio
         const portfolio = pred.role === 'arbitrator'
           ? await this.findArbitratorPortfolio()
-          : await this.findAnalystPortfolio(pred.analyst_id, pred.organization_slug);
+          : await this.findAnalystPortfolio(pred.analyst_id);
 
         if (!portfolio) {
           errors.push(`No portfolio for prediction ${pred.prediction_id} (role=${pred.role})`);
@@ -120,7 +118,7 @@ export class EodForcedBuyService {
         }
 
         // Sizing
-        const positionPercent = await this.sizing.getPositionPercent(pred.confidence, portfolio.organization_slug);
+        const positionPercent = await this.sizing.getPositionPercent(pred.confidence);
         if (positionPercent <= 0) {
           skipped++;
           continue;
@@ -136,7 +134,7 @@ export class EodForcedBuyService {
           portfolio: {
             id: portfolio.id,
             analyst_id: portfolio.analyst_id,
-            organization_slug: portfolio.organization_slug,
+            user_id: portfolio.user_id,
             current_balance: portfolio.current_balance,
           },
           instrumentId: pred.instrument_id,
@@ -147,7 +145,6 @@ export class EodForcedBuyService {
           predictionId: pred.prediction_id,
           conviction: pred.confidence,
           triggerReason: 'eod_sweep',
-          organizationSlug: portfolio.organization_slug,
         });
         if (result.reason === 'idempotent') {
           skipped++;
@@ -178,22 +175,15 @@ export class EodForcedBuyService {
 
   private async findAnalystPortfolio(
     analystId: string | null,
-    organizationSlug: string,
   ): Promise<PortfolioRow | null> {
     if (!analystId) return null;
     const result = await this.db.rawQuery(
-      `select id, analyst_id, organization_slug, current_balance, kind, status
+      `select id, analyst_id, user_id, current_balance, kind, status
          from prediction.analyst_portfolios
         where analyst_id = $1
           and kind = 'analyst'
-          and organization_slug in ($2, '__base__', '*')
-        order by case organization_slug
-                   when $2 then 0
-                   when '__base__' then 1
-                   else 2
-                 end
         limit 1`,
-      [analystId, organizationSlug],
+      [analystId],
     );
     const rows = (result.data as PortfolioRow[] | null) ?? [];
     return rows[0] ?? null;
@@ -201,7 +191,7 @@ export class EodForcedBuyService {
 
   private async findArbitratorPortfolio(): Promise<PortfolioRow | null> {
     const result = await this.db.rawQuery(
-      `select id, analyst_id, organization_slug, current_balance, kind, status
+      `select id, analyst_id, user_id, current_balance, kind, status
          from prediction.analyst_portfolios
         where id = $1`,
       [EodForcedBuyService.ARBITRATOR_PORTFOLIO_ID],
@@ -214,7 +204,7 @@ export class EodForcedBuyService {
 interface PortfolioRow {
   id: string;
   analyst_id: string;
-  organization_slug: string;
+  user_id: string | null;
   current_balance: number | string;
   kind: string;
   status: string;

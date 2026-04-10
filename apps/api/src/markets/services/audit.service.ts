@@ -256,7 +256,7 @@ Output ONLY the policy text. No preamble.`;
 
   // ─── Read + Review ──────────────────────────────────────────────
 
-  async getFindings(organizationSlug: string, userId: string): Promise<AuditFindingRow[]> {
+  async getFindings(userId: string): Promise<AuditFindingRow[]> {
     await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
@@ -274,17 +274,14 @@ Output ONLY the policy text. No preamble.`;
        JOIN prediction.market_predictions mp ON mp.id = af.prediction_id
        JOIN prediction.prediction_horizon_evaluations phe ON phe.prediction_id = af.prediction_id
        LEFT JOIN prediction.instruments i ON i.id = phe.instrument_id
-       WHERE (af.organization_slug = $1 OR af.organization_slug = '__base__')
-         AND af.status = 'pending_review'
+       WHERE af.status = 'pending_review'
        ORDER BY af.created_at DESC`,
-      [organizationSlug],
     );
     if (result.error) throw new Error(result.error.message);
     return ((result.data as RawFindingRow[] | null) ?? []).map(mapFindingRow);
   }
 
   async reviewFinding(
-    organizationSlug: string,
     userId: string,
     findingId: string,
     action: string,
@@ -301,9 +298,8 @@ Output ONLY the policy text. No preamble.`;
       `UPDATE prediction.audit_findings
        SET status = $1, review_text = $2, reviewed_by = $3, reviewed_at = now()
        WHERE id = $4
-         AND (organization_slug = $5 OR organization_slug = '__base__')
          AND status = 'pending_review'`,
-      [action, reviewText ?? null, userId, findingId, organizationSlug],
+      [action, reviewText ?? null, userId, findingId],
     );
     if (result.error) throw new Error(result.error.message);
     return { updated: true };
@@ -350,8 +346,7 @@ Output ONLY the policy text. No preamble.`;
        JOIN prediction.market_predictions mp ON mp.id = e.prediction_id
        JOIN prediction.instruments i ON i.id = e.instrument_id
        JOIN prediction.market_analysts ma ON ma.id = e.analyst_id
-       WHERE (e.organization_slug = '__base__' OR e.organization_slug = $2)
-         AND e.prediction_id NOT IN (
+       WHERE e.prediction_id NOT IN (
            SELECT prediction_id FROM prediction.audit_findings
            WHERE created_at > now() - interval '7 days'
          )
@@ -359,7 +354,7 @@ Output ONLY the policy text. No preamble.`;
          CASE WHEN e.was_correct THEN 1 ELSE 0 END ASC,
          random()
        LIMIT $1`,
-      [count, '__base__'],
+      [count],
     );
     if (candidateResult.error) throw new Error(candidateResult.error.message);
     const candidates = (candidateResult.data as CandidateRow[] | null) ?? [];
@@ -429,10 +424,10 @@ Output ONLY the policy text. No preamble.`;
     const findingId = randomUUID();
     await this.db.rawQuery(
       `INSERT INTO prediction.audit_findings
-        (id, organization_slug, analyst_id, prediction_id, config_version_id,
+        (id, analyst_id, prediction_id, config_version_id,
          contract_excerpt, output_excerpt, discrepancy, hypothesis, severity,
          status, audit_model, created_at)
-       VALUES ($1, '__base__', $2, $3, $4, $5, $6, $7, $8, $9,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
                'pending_review', $10, now())`,
       [
         findingId, candidate.analyst_id, candidate.prediction_id,

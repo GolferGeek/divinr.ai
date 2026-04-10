@@ -965,7 +965,6 @@ describe('DictionaryPseudonymizerService — Security Edge Cases', () => {
   describe('Scoped Dictionary Priority', () => {
     const mockScopedQueries = (
       agentData: unknown[],
-      orgData: unknown[],
       globalData: unknown[],
     ) => {
       mockSupabaseClient.not = jest
@@ -973,12 +972,10 @@ describe('DictionaryPseudonymizerService — Security Edge Cases', () => {
         .mockReturnValueOnce(mockSupabaseClient)
         .mockReturnValueOnce({ data: agentData, error: null })
         .mockReturnValueOnce(mockSupabaseClient)
-        .mockReturnValueOnce({ data: orgData, error: null })
-        .mockReturnValueOnce(mockSupabaseClient)
         .mockReturnValue({ data: globalData, error: null });
     };
 
-    it('should prefer agent-scoped entry over org-scoped when same original_value', async () => {
+    it('should prefer agent-scoped entry over global when same original_value', async () => {
       mockScopedQueries(
         [
           {
@@ -986,64 +983,28 @@ describe('DictionaryPseudonymizerService — Security Edge Cases', () => {
             pseudonym: 'AGENT_COMPANY',
             data_type: 'organization',
             category: 'company',
-            organization_slug: 'acme',
+            organization_slug: null,
             agent_slug: 'my-agent',
           },
         ],
         [
           {
             original_value: 'Acme Corp',
-            pseudonym: 'ORG_COMPANY',
+            pseudonym: 'GLOBAL_COMPANY',
             data_type: 'organization',
             category: 'company',
-            organization_slug: 'acme',
-            agent_slug: null,
-          },
-        ],
-        [],
-      );
-
-      const result = await service.pseudonymizeText('Acme Corp is the client', {
-        organizationSlug: 'acme',
-        agentSlug: 'my-agent',
-      });
-
-      // Agent-scoped wins
-      expect(result.pseudonymizedText).toBe('AGENT_COMPANY is the client');
-    });
-
-    it('should prefer org-scoped entry over global when same original_value', async () => {
-      mockScopedQueries(
-        [],
-        [
-          {
-            original_value: 'John Smith',
-            pseudonym: 'ORG_PERSON',
-            data_type: 'name',
-            category: 'person',
-            organization_slug: 'acme',
-            agent_slug: null,
-          },
-        ],
-        [
-          {
-            original_value: 'John Smith',
-            pseudonym: 'GLOBAL_PERSON',
-            data_type: 'name',
-            category: 'person',
             organization_slug: null,
             agent_slug: null,
           },
         ],
       );
 
-      const result = await service.pseudonymizeText('John Smith met us', {
-        organizationSlug: 'acme',
+      const result = await service.pseudonymizeText('Acme Corp is the client', {
         agentSlug: 'my-agent',
       });
 
-      // Org-scoped wins over global
-      expect(result.pseudonymizedText).toBe('ORG_PERSON met us');
+      // Agent-scoped wins
+      expect(result.pseudonymizedText).toBe('AGENT_COMPANY is the client');
     });
   });
 

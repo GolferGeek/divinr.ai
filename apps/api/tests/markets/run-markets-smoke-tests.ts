@@ -34,7 +34,7 @@ function fail(name: string, error: unknown): void {
 
 async function waitForDedupEvidence(
   app: { db: { rawQuery: (sql: string, params: unknown[]) => Promise<{ error: { message: string } | null; data: unknown }> } },
-  organizationSlug: string,
+  _organizationSlug: string,
   runId: string,
 ): Promise<number> {
   for (let i = 0; i < 20; i += 1) {
@@ -44,12 +44,11 @@ async function waitForDedupEvidence(
       from public.observability_events
       where source_app = 'divinr-api'
         and hook_event_type = 'markets.orchestration.deduplicated'
-        and organization_slug = $1
-        and payload->>'runId' = $2
+        and payload->>'runId' = $1
       order by id desc
       limit 1
       `,
-      [organizationSlug, runId],
+      [runId],
     );
     if (result.error) {
       throw new Error(result.error.message);
@@ -200,29 +199,29 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'AAPL',
           name: 'Apple Inc.',
           assetType: 'stock',
         });
         assert.equal(instrument.symbol, 'AAPL');
-        assert.equal(instrument.organization_slug, seed.orgA);
+
 
         const queued = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'risk',
         });
         assert.equal(queued.status, 'queued');
 
-        const run = await service.getRun(seed.orgA, seed.adminUserId, queued.runId);
+        const run = await service.getRun(seed.adminUserId, queued.runId);
         assert.equal(run.run_type, 'risk');
         assert.equal(run.status, 'queued');
 
         const deduped = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'risk',
@@ -237,7 +236,7 @@ async function main(): Promise<void> {
         assert.ok(dedupEvidenceId > 0);
 
         const queuedRuns = await service.listRuns({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           status: 'queued',
         });
@@ -255,21 +254,21 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'MSFT',
           name: 'Microsoft',
           assetType: 'stock',
         });
         const queued = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'prediction',
         });
 
         const running = await service.updateRunStatus({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: queued.runId,
           status: 'running',
@@ -278,7 +277,7 @@ async function main(): Promise<void> {
         assert.equal(running.status, 'running');
 
         const completed = await service.updateRunStatus({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: queued.runId,
           status: 'completed',
@@ -289,7 +288,7 @@ async function main(): Promise<void> {
         await assert.rejects(
           () =>
             service.updateRunStatus({
-              organizationSlug: seed.orgA,
+    
               userId: seed.adminUserId,
               runId: queued.runId,
               status: 'running',
@@ -297,7 +296,7 @@ async function main(): Promise<void> {
           BadRequestException,
         );
 
-        const finalRun = await service.getRun(seed.orgA, seed.adminUserId, queued.runId);
+        const finalRun = await service.getRun(seed.adminUserId, queued.runId);
         assert.ok(finalRun.started_at);
         assert.ok(finalRun.completed_at);
         assert.equal(finalRun.last_error, null);
@@ -308,32 +307,32 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'IBM',
           name: 'IBM',
         });
         const queued = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'prediction',
         });
         await service.updateRunStatus({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: queued.runId,
           status: 'failed',
           errorMessage: 'model provider timeout',
         });
 
-        const failedRun = await service.getRun(seed.orgA, seed.adminUserId, queued.runId);
+        const failedRun = await service.getRun(seed.adminUserId, queued.runId);
         assert.equal(failedRun.status, 'failed');
         assert.equal(failedRun.last_error, 'model provider timeout');
         assert.ok(failedRun.completed_at);
 
         const another = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'risk',
@@ -341,7 +340,7 @@ async function main(): Promise<void> {
         await assert.rejects(
           () =>
             service.updateRunStatus({
-              organizationSlug: seed.orgA,
+    
               userId: seed.adminUserId,
               runId: another.runId,
               status: 'failed',
@@ -351,55 +350,56 @@ async function main(): Promise<void> {
       },
     },
     {
-      name: 'Run listing is tenant-scoped and status-filtered',
+      name: 'Run listing is status-filtered',
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrumentA = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'NVDA',
           name: 'NVIDIA',
         });
         const runA = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrumentA.id,
           runType: 'risk',
         });
         const runB = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrumentA.id,
           runType: 'prediction',
         });
 
         await service.updateRunStatus({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: runB.runId,
           status: 'running',
         });
 
         const orgARuns = await service.listRuns({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
         });
         assert.ok(orgARuns.some((r) => r.id === runA.runId));
         assert.ok(orgARuns.some((r) => r.id === runB.runId));
 
         const orgARunning = await service.listRuns({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           status: 'running',
         });
         assert.ok(orgARunning.some((r) => r.id === runB.runId));
         assert.ok(!orgARunning.some((r) => r.id === runA.runId));
 
-        const orgBRuns = await service.listRuns({
-          organizationSlug: seed.orgB,
+        // Runs are derived from instruments — all authenticated users with read permission can list runs
+        const otherUserRuns = await service.listRuns({
           userId: seed.analystBUserId,
         });
-        assert.ok(!orgBRuns.some((r) => r.organization_slug === seed.orgA));
+        // In user-scoped model, runs are globally visible to authenticated users
+        assert.ok(otherUserRuns.some((r) => r.id === runA.runId));
       },
     },
     {
@@ -407,43 +407,41 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'SHOP',
           name: 'Shopify',
         });
         const analyst = await service.createAnalyst({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           slug: 'momentum-analyst',
           displayName: 'Momentum Analyst',
           personaPrompt: 'Focus on momentum and trend persistence.',
         });
         await service.assignAnalystToInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           analystId: analyst.id,
         });
 
-        const analysts = await service.listAnalysts(seed.orgA, seed.adminUserId);
+        const analysts = await service.listAnalysts(seed.adminUserId);
         assert.ok(analysts.some((a) => a.id === analyst.id));
 
         const sources = await service.listEntitledSources(
-          seed.orgA,
           seed.adminUserId,
         );
         assert.ok(sources.length > 0);
         const source = sources[0];
         const entitlement = await service.upsertSourceEntitlement({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           sourceId: source.id,
           isEnabled: false,
           overrideNotes: 'Tenant-specific override',
         });
         assert.equal(entitlement.is_enabled, false);
-        assert.equal(entitlement.organization_slug, seed.orgA);
       },
     },
     {
@@ -464,18 +462,18 @@ async function main(): Promise<void> {
           process.env.MARKETS_EXTERNAL_ARTICLE_LOOKBACK_DAYS = '30';
 
           const syncResult = await service.syncExternalCrawlerData({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
           });
           assert.equal(syncResult.enabled, true);
           assert.equal(
-            syncResult.externalOrganizationSlug,
+            syncResult.externalSourceSlug,
             externalSeed.externalOrganizationSlug,
           );
           assert.ok(syncResult.sourceRowsProcessed >= 1);
           assert.ok(syncResult.articleRowsProcessed >= 1);
 
-          const sources = await service.listEntitledSources(seed.orgA, seed.adminUserId);
+          const sources = await service.listEntitledSources(seed.adminUserId);
           assert.ok(
             sources.some(
               (source) =>
@@ -485,7 +483,7 @@ async function main(): Promise<void> {
           );
 
           const articles = await service.listMarketArticles({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
             limit: 10,
           });
@@ -494,7 +492,7 @@ async function main(): Promise<void> {
             articles.some(
               (article) =>
                 article.source_origin === 'orchestrator_crawler' &&
-                article.external_organization_slug === externalSeed.externalOrganizationSlug,
+                article.external_source_slug === externalSeed.externalOrganizationSlug,
             ),
           );
         } finally {
@@ -533,7 +531,7 @@ async function main(): Promise<void> {
         await assert.rejects(
           () =>
             service.createInstrument({
-              organizationSlug: seed.orgB,
+    
               userId: seed.analystAUserId,
               symbol: 'TSLA',
             }),
@@ -542,7 +540,7 @@ async function main(): Promise<void> {
         await assert.rejects(
           () =>
             service.processNextQueuedRun({
-              organizationSlug: seed.orgA,
+    
               userId: seed.analystAUserId,
             }),
           ForbiddenException,
@@ -554,20 +552,20 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'META',
           name: 'Meta',
         });
         const queued = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'risk',
         });
 
         const processed = await service.processNextQueuedRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
         });
         assert.equal(processed.processed, true);
@@ -576,18 +574,18 @@ async function main(): Promise<void> {
         // Previous tests may leave queued runs in orgA.
         // Keep processing deterministically until our new run is completed.
         for (let i = 0; i < 10; i += 1) {
-          const after = await service.getRun(seed.orgA, seed.adminUserId, queued.runId);
+          const after = await service.getRun(seed.adminUserId, queued.runId);
           if (after.status === 'completed') {
             break;
           }
           const next = await service.processNextQueuedRun({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
           });
           assert.equal(next.processed, true);
         }
 
-        const after = await service.getRun(seed.orgA, seed.adminUserId, queued.runId);
+        const after = await service.getRun(seed.adminUserId, queued.runId);
         assert.equal(after.status, 'completed');
 
         const evidence = await app.db.rawQuery(
@@ -611,12 +609,12 @@ async function main(): Promise<void> {
         assert.equal(evidenceRows.length, 1);
 
         let noWork = await service.processNextQueuedRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
         });
         while (noWork.processed) {
           noWork = await service.processNextQueuedRun({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
           });
         }
@@ -628,63 +626,59 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'ADBE',
           name: 'Adobe',
         });
         const run = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'prediction',
         });
         await service.processNextQueuedRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
         });
 
         const evaluation = await service.evaluateRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: run.runId,
           actualDirection: 'up',
         });
-        assert.equal(evaluation.organization_slug, seed.orgA);
         assert.equal(evaluation.run_id, run.runId);
 
         const replay = await service.replayRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: run.runId,
           scenario: 'macro shock scenario',
         });
-        assert.equal(replay.organization_slug, seed.orgA);
         assert.equal(replay.run_id, run.runId);
 
         const artifacts = await service.listRunArtifacts({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: run.runId,
         });
         assert.ok(artifacts.length >= 1);
 
         const predictions = await service.listPredictionOutcomes({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: run.runId,
         });
         assert.ok(predictions.length >= 1);
 
         const evaluations = await service.listRunEvaluations(
-          seed.orgA,
           seed.adminUserId,
           run.runId,
         );
         assert.ok(evaluations.length >= 1);
 
         const replays = await service.listRunReplays(
-          seed.orgA,
           seed.adminUserId,
           run.runId,
         );
@@ -693,7 +687,7 @@ async function main(): Promise<void> {
         await assert.rejects(
           () =>
             service.evaluateRun({
-              organizationSlug: seed.orgB,
+    
               userId: seed.analystBUserId,
               runId: run.runId,
               actualDirection: 'down',
@@ -707,19 +701,19 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'GOOGL',
           name: 'Alphabet',
         });
         await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'risk',
         });
         await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'prediction',
@@ -727,11 +721,11 @@ async function main(): Promise<void> {
 
         const [first, second] = await Promise.all([
           service.processNextQueuedRun({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
           }),
           service.processNextQueuedRun({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
           }),
         ]);
@@ -742,7 +736,7 @@ async function main(): Promise<void> {
         assert.notEqual(first.runId, second.runId);
 
         const pending = await service.listRuns({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           status: 'queued',
         });
@@ -754,20 +748,20 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'INTC',
           name: 'Intel',
         });
         const [first, second] = await Promise.all([
           service.enqueueRun({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
             instrumentId: instrument.id,
             runType: 'prediction',
           }),
           service.enqueueRun({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
             instrumentId: instrument.id,
             runType: 'prediction',
@@ -776,7 +770,7 @@ async function main(): Promise<void> {
         assert.equal(first.runId, second.runId);
 
         const queued = await service.listRuns({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           status: 'queued',
         });
@@ -794,32 +788,32 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'NFLX',
           name: 'Netflix',
         });
         await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'risk',
         });
         await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'prediction',
         });
         await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'risk',
         });
 
         const batch = await service.processQueuedRuns({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           maxRuns: 2,
         });
@@ -829,7 +823,7 @@ async function main(): Promise<void> {
         assert.ok(batch.results.every((r) => r.processed));
 
         const remaining = await service.listRuns({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           status: 'queued',
         });
@@ -841,13 +835,13 @@ async function main(): Promise<void> {
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'ORCL',
           name: 'Oracle',
         });
         const queued = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'risk',
@@ -855,13 +849,13 @@ async function main(): Promise<void> {
 
         const outcomes = await Promise.allSettled([
           service.updateRunStatus({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
             runId: queued.runId,
             status: 'running',
           }),
           service.updateRunStatus({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
             runId: queued.runId,
             status: 'running',
@@ -873,7 +867,7 @@ async function main(): Promise<void> {
         assert.equal(fulfilled.length, 1);
         assert.equal(rejected.length, 1);
 
-        const run = await service.getRun(seed.orgA, seed.adminUserId, queued.runId);
+        const run = await service.getRun(seed.adminUserId, queued.runId);
         assert.equal(run.status, 'running');
       },
     },
@@ -881,7 +875,7 @@ async function main(): Promise<void> {
       name: 'Predictors and risk context feed prediction prompts',
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
-        await service.listInstruments(seed.orgA, seed.adminUserId);
+        await service.listInstruments(seed.adminUserId);
 
         const articleId = randomUUID();
         const externalArticleId = `ext-${randomUUID()}`;
@@ -889,7 +883,7 @@ async function main(): Promise<void> {
         const articleInsert = await app.db.rawQuery(
           `
           insert into prediction.market_articles
-            (id, external_article_id, external_source_id, source_id, source_origin, external_organization_slug, title, url, summary, published_at, content_hash, first_seen_at, metadata, created_at, updated_at)
+            (id, external_article_id, external_source_id, source_id, source_origin, external_source_slug, title, url, summary, published_at, content_hash, first_seen_at, metadata, created_at, updated_at)
           values
             ($1, $2, $3, 'source_marketwatch', 'divinr', $4, 'Test predictor article', 'https://example.test/predictor-article', 'Brief summary', now(), 'hash-predictor', now(), '{}'::jsonb, now(), now())
           `,
@@ -900,14 +894,14 @@ async function main(): Promise<void> {
         }
 
         const instrument = await service.createInstrument({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           symbol: 'PLTR',
           name: 'Palantir',
         });
 
         const predictor = await service.upsertPredictor({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           articleId,
@@ -918,54 +912,54 @@ async function main(): Promise<void> {
         assert.equal(predictor.status, 'active');
 
         const listed = await service.listPredictors({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
         });
         assert.ok(listed.some((p) => p.id === predictor.id));
 
         let drain = await service.processNextQueuedRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
         });
         let guard = 0;
         while (drain.processed && guard < 40) {
           guard += 1;
           drain = await service.processNextQueuedRun({
-            organizationSlug: seed.orgA,
+  
             userId: seed.adminUserId,
           });
         }
 
         const riskRun = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'risk',
         });
         const predRun = await service.enqueueRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           instrumentId: instrument.id,
           runType: 'prediction',
         });
 
         const pr1 = await service.processNextQueuedRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
         });
         assert.equal(pr1.processed, true);
         assert.equal(pr1.runId, riskRun.runId);
 
         const pr2 = await service.processNextQueuedRun({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
         });
         assert.equal(pr2.processed, true);
         assert.equal(pr2.runId, predRun.runId);
 
         const artifacts = await service.listRunArtifacts({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: predRun.runId,
         });
@@ -976,7 +970,7 @@ async function main(): Promise<void> {
         assert.ok(prompt.includes('Test predictor article'));
 
         const predictions = await service.listPredictionOutcomes({
-          organizationSlug: seed.orgA,
+
           userId: seed.adminUserId,
           runId: predRun.runId,
         });

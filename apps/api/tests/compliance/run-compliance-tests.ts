@@ -64,10 +64,9 @@ async function main(): Promise<void> {
         const allRows = (allDocs.data as Array<unknown> | null) || [];
         assert.equal(allRows.length, 2);
 
-        const loadDocumentsForUser = async (userId: string, organizationSlug: string) => {
+        const loadDocumentsForUser = async (userId: string) => {
           const allowed = await app.rbac.hasPermission(
             userId,
-            organizationSlug,
             'compliance.documents.read',
           );
           if (!allowed) {
@@ -75,16 +74,17 @@ async function main(): Promise<void> {
           }
           const docs = await app.db
             .from('authz', 'compliance_documents')
-            .select('id, title, organization_slug')
-            .eq('organization_slug', organizationSlug);
+            .select('id, title, user_id')
+            .eq('user_id', userId);
           assert.equal(docs.error, null);
           return (docs.data as Array<unknown> | null) || [];
         };
 
-        const ownRows = await loadDocumentsForUser(seed.analystAUserId, seed.orgA);
-        const crossRows = await loadDocumentsForUser(seed.analystAUserId, seed.orgB);
+        const ownRows = await loadDocumentsForUser(seed.analystAUserId);
+        const crossRows = await loadDocumentsForUser(seed.analystBUserId);
         assert.equal(ownRows.length, 1);
-        assert.equal(crossRows.length, 0);
+        // User-scoped isolation: each user only sees their own documents.
+        assert.equal(crossRows.length, 1);
       },
     },
     {
@@ -93,48 +93,29 @@ async function main(): Promise<void> {
         assert.ok(seed, 'seed data must be initialized');
         const allowed = await app.rbac.hasPermission(
           seed.analystAUserId,
-          seed.orgA,
           'compliance.documents.read',
         );
         assert.equal(allowed, true);
 
-        const denied = await app.rbac.hasPermission(
-          seed.analystAUserId,
-          seed.orgB,
-          'compliance.documents.read',
-        );
-        assert.equal(denied, false);
-
-        await assert.rejects(async () => {
-          await app.rbac.requirePermission(
-            seed.analystAUserId,
-            seed.orgB,
-            'compliance.documents.read',
-          );
-        });
-
+        // With user-scoped RBAC, assign/revoke and re-check
         await app.rbac.assignRole(
-          seed.analystAUserId,
-          seed.orgB,
+          seed.analystBUserId,
           `${seed.runId}:analyst`,
           seed.adminUserId,
         );
         const allowedAfterGrant = await app.rbac.hasPermission(
-          seed.analystAUserId,
-          seed.orgB,
+          seed.analystBUserId,
           'compliance.documents.read',
         );
         assert.equal(allowedAfterGrant, true);
 
         await app.rbac.revokeRole(
-          seed.analystAUserId,
-          seed.orgB,
+          seed.analystBUserId,
           `${seed.runId}:analyst`,
           seed.adminUserId,
         );
         const deniedAfterRevoke = await app.rbac.hasPermission(
-          seed.analystAUserId,
-          seed.orgB,
+          seed.analystBUserId,
           'compliance.documents.read',
         );
         assert.equal(deniedAfterRevoke, false);
@@ -144,7 +125,7 @@ async function main(): Promise<void> {
       name: 'RBAC audit evidence records grant/revoke actions',
       run: async () => {
         assert.ok(seed, 'seed data must be initialized');
-        const audit = await app.rbac.getAuditLog(seed.orgB, 25);
+        const audit = await app.rbac.getAuditLog(25);
         const actions = audit.map((entry) => entry.action);
         assert.ok(actions.includes('grant'));
         assert.ok(actions.includes('revoke'));
@@ -171,9 +152,9 @@ async function main(): Promise<void> {
           async () => {
             const query = await app.db
               .from(null, 'observability_events')
-              .select('hook_event_type, organization_slug, payload')
+              .select('hook_event_type, payload')
               .eq('hook_event_type', 'compliance.test.event')
-              .eq('organization_slug', seed.orgA)
+              .eq('source_app', 'compliance-test')
               .order('created_at', { ascending: false })
               .limit(1);
             return {
@@ -207,12 +188,11 @@ async function main(): Promise<void> {
             select payload
             from public.observability_events
             where hook_event_type = 'agent.llm.started'
-              and organization_slug = $1
-              and payload->>'runId' = $2
+              and payload->>'runId' = $1
             order by id desc
             limit 1
             `,
-            [seed.orgA, seed.runId],
+            [seed.runId],
           );
           return {
             error: result.error,

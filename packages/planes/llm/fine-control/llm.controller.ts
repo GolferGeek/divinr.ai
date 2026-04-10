@@ -56,7 +56,6 @@ export class LLMController {
         userId?: string;
         conversationId?: string;
         taskId?: string;
-        organizationSlug?: string;
         dataClassification?: string;
       };
     },
@@ -100,7 +99,7 @@ export class LLMController {
       // Require ExecutionContext - callers must pass it
       if (!ctx) {
         throw new BadRequestException(
-          'ExecutionContext is required. Pass "context" in the request body with conversationId, taskId, userId, orgSlug, agentSlug, provider, and model.',
+          'ExecutionContext is required. Pass "context" in the request body with conversationId, taskId, userId, agentSlug, provider, and model.',
         );
       }
 
@@ -302,7 +301,6 @@ export class LLMController {
       // Create a minimal execution context for the LLM service
       // This is a lightweight context for utility operations
       const minimalContext: ExecutionContext = {
-        orgSlug: 'utility',
         userId: 'system',
         conversationId: '00000000-0000-0000-0000-000000000000',
         agentSlug: 'quick-generate',

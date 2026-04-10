@@ -65,7 +65,7 @@ export class MarketsSchemaService {
     await this.seedDataSources();
     await this.seedPortfolioManagerAnalyst();
     await this.seedPortfolioFoundation();
-    await this.backfillUserId();
+    await this.dropOrganizationSlugColumns();
     this.schemaReady = true;
     this.logger.log('Prediction schema ready');
   }
@@ -101,15 +101,13 @@ export class MarketsSchemaService {
     return `
       create table if not exists prediction.instruments (
         id text primary key,
-        organization_slug text not null,
         symbol text not null,
         name text not null,
         asset_type text not null default 'stock',
         universe_slug text not null default 'stocks',
         current_state jsonb not null default '{}'::jsonb,
         is_active boolean not null default true,
-        created_at timestamptz not null default now(),
-        unique (organization_slug, symbol)
+        created_at timestamptz not null default now()
       );
       alter table prediction.instruments add column if not exists universe_slug text not null default 'stocks';
       alter table prediction.instruments add column if not exists current_state jsonb not null default '{}'::jsonb;
@@ -120,7 +118,6 @@ export class MarketsSchemaService {
     return `
       create table if not exists prediction.orchestration_runs (
         id text primary key,
-        organization_slug text not null,
         instrument_id text not null references prediction.instruments(id) on delete cascade,
         run_type text not null check (run_type in ('risk', 'prediction')),
         status text not null check (status in ('queued', 'running', 'completed', 'failed')) default 'queued',
@@ -135,8 +132,10 @@ export class MarketsSchemaService {
       alter table prediction.orchestration_runs add column if not exists completed_at timestamptz;
       alter table prediction.orchestration_runs add column if not exists last_error text;
 
+      -- Replace old org-scoped dedup index with user-scoped version
+      drop index if exists prediction.prediction_one_queued_run_per_key_idx;
       create unique index if not exists prediction_one_queued_run_per_key_idx
-      on prediction.orchestration_runs (organization_slug, instrument_id, run_type)
+      on prediction.orchestration_runs (instrument_id, run_type)
       where status = 'queued';
     `;
   }
@@ -145,16 +144,13 @@ export class MarketsSchemaService {
     return `
       create table if not exists prediction.market_analysts (
         id text primary key,
-        organization_slug text not null,
         slug text not null,
         display_name text not null,
         persona_prompt text not null,
         is_active boolean not null default true,
         created_by text not null,
-        created_at timestamptz not null default now(),
-        unique (organization_slug, slug)
+        created_at timestamptz not null default now()
       );
-      alter table prediction.market_analysts add column if not exists organization_slug text;
       alter table prediction.market_analysts add column if not exists slug text;
       alter table prediction.market_analysts add column if not exists display_name text;
       alter table prediction.market_analysts add column if not exists name text;
@@ -162,8 +158,8 @@ export class MarketsSchemaService {
       alter table prediction.market_analysts add column if not exists is_active boolean not null default true;
       alter table prediction.market_analysts add column if not exists created_by text;
       alter table prediction.market_analysts add column if not exists created_at timestamptz not null default now();
-      create unique index if not exists prediction_analysts_org_slug_unique_idx
-      on prediction.market_analysts (organization_slug, slug);
+      -- Drop legacy org-scoped unique indexes
+      drop index if exists prediction.prediction_analysts_org_slug_unique_idx;
 
       -- Expanded analyst model (Sprint 0)
       alter table prediction.market_analysts add column if not exists analyst_type text not null default 'personality';
@@ -188,15 +184,13 @@ export class MarketsSchemaService {
   private assignmentsDdl(): string {
     return `
       create table if not exists prediction.market_instrument_analyst_assignments (
-        organization_slug text not null,
         instrument_id text not null references prediction.instruments(id) on delete cascade,
         analyst_id text not null,
         assigned_by text not null,
         created_at timestamptz not null default now(),
-        primary key (organization_slug, instrument_id, analyst_id)
+        primary key (instrument_id, analyst_id)
       );
       alter table prediction.market_instrument_analyst_assignments add column if not exists weight_override numeric;
-      alter table prediction.market_instrument_analyst_assignments add column if not exists organization_slug text;
       alter table prediction.market_instrument_analyst_assignments add column if not exists instrument_id text;
       alter table prediction.market_instrument_analyst_assignments add column if not exists analyst_id text;
       alter table prediction.market_instrument_analyst_assignments add column if not exists assigned_by text;
@@ -243,7 +237,7 @@ export class MarketsSchemaService {
         external_source_id text not null,
         source_id text not null references prediction.source_catalog(id) on delete cascade,
         source_origin text not null default 'orchestrator_crawler',
-        external_organization_slug text not null,
+        external_source_slug text not null,
         title text,
         url text not null,
         summary text,
@@ -258,10 +252,10 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_market_articles_source_id_idx on prediction.market_articles(source_id);
       create index if not exists prediction_market_articles_published_idx on prediction.market_articles(published_at desc);
-      create index if not exists prediction_market_articles_external_org_idx on prediction.market_articles(external_organization_slug);
+      create index if not exists prediction_market_articles_external_org_idx on prediction.market_articles(external_source_slug);
 
-      -- Allow null external_organization_slug for Divinr-native articles
-      alter table prediction.market_articles alter column external_organization_slug drop not null;
+      -- Allow null external_source_slug for Divinr-native articles
+      alter table prediction.market_articles alter column external_source_slug drop not null;
     `;
   }
 
@@ -269,7 +263,6 @@ export class MarketsSchemaService {
     return `
       create table if not exists prediction.market_predictors (
         id text primary key,
-        organization_slug text not null,
         instrument_id text not null references prediction.instruments(id) on delete cascade,
         article_id text not null references prediction.market_articles(id) on delete cascade,
         relevance_score numeric not null check (relevance_score >= 0 and relevance_score <= 1),
@@ -277,11 +270,12 @@ export class MarketsSchemaService {
         rationale text,
         created_by text not null,
         created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now(),
-        unique (organization_slug, instrument_id, article_id)
+        updated_at timestamptz not null default now()
       );
+      -- Replace old org-scoped index with instrument-only version
+      drop index if exists prediction.prediction_market_predictors_instrument_status_idx;
       create index if not exists prediction_market_predictors_instrument_status_idx
-      on prediction.market_predictors (organization_slug, instrument_id, status);
+      on prediction.market_predictors (instrument_id, status);
 
       -- Allow 'expired' status for predictor TTL expiration
       alter table prediction.market_predictors drop constraint if exists market_predictors_status_check;
@@ -291,11 +285,12 @@ export class MarketsSchemaService {
       -- Per-analyst article scoring: add scored_by_analyst_id and update unique constraint
       alter table prediction.market_predictors add column if not exists scored_by_analyst_id text;
 
-      -- Replace original unique constraint with per-analyst version
+      -- Replace original unique constraints with per-analyst version (no org_slug)
       alter table prediction.market_predictors
         drop constraint if exists market_predictors_organization_slug_instrument_id_article_i_key;
-      create unique index if not exists market_predictors_org_instrument_article_analyst_key
-        on prediction.market_predictors (organization_slug, instrument_id, article_id, scored_by_analyst_id);
+      drop index if exists prediction.market_predictors_org_instrument_article_analyst_key;
+      create unique index if not exists market_predictors_instrument_article_analyst_key
+        on prediction.market_predictors (instrument_id, article_id, scored_by_analyst_id);
       alter table prediction.market_predictors add column if not exists llm_usage_id uuid;
       create index if not exists prediction_market_predictors_llm_usage_idx
         on prediction.market_predictors (llm_usage_id) where llm_usage_id is not null;
@@ -307,7 +302,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.market_run_artifacts (
         id text primary key,
         run_id text not null references prediction.orchestration_runs(id) on delete cascade,
-        organization_slug text not null,
         run_type text not null check (run_type in ('risk', 'prediction')),
         analyst_id text,
         model_provider text not null,
@@ -325,7 +319,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.market_predictions (
         id text primary key,
         run_id text not null references prediction.orchestration_runs(id) on delete cascade,
-        organization_slug text not null,
         instrument_id text not null references prediction.instruments(id) on delete cascade,
         predicted_direction text not null check (predicted_direction in ('up', 'down', 'flat')),
         confidence numeric not null,
@@ -367,7 +360,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.market_risk_assessments (
         id text primary key,
         run_id text not null references prediction.orchestration_runs(id) on delete cascade,
-        organization_slug text not null,
         instrument_id text not null references prediction.instruments(id) on delete cascade,
         risk_score numeric not null,
         verdict text not null check (verdict in ('low', 'medium', 'high')),
@@ -384,7 +376,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.market_run_evaluations (
         id text primary key,
         run_id text not null references prediction.orchestration_runs(id) on delete cascade,
-        organization_slug text not null,
         actual_direction text not null check (actual_direction in ('up', 'down', 'flat')),
         predicted_direction text check (predicted_direction in ('up', 'down', 'flat')),
         was_correct boolean,
@@ -399,7 +390,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.market_run_replays (
         id text primary key,
         run_id text not null references prediction.orchestration_runs(id) on delete cascade,
-        organization_slug text not null,
         scenario text not null,
         replay_output text not null,
         created_at timestamptz not null default now()
@@ -414,7 +404,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.analyst_config_versions (
         id text primary key,
         analyst_id text not null,
-        organization_slug text not null,
         version_number integer not null default 1,
         persona_prompt text not null,
         tier_instructions jsonb not null default '{}'::jsonb,
@@ -444,7 +433,6 @@ export class MarketsSchemaService {
     return `
       create table if not exists prediction.risk_dimensions (
         id text primary key,
-        organization_slug text not null,
         domain_slug text not null default 'financial',
         slug text not null,
         name text not null,
@@ -455,14 +443,12 @@ export class MarketsSchemaService {
         system_prompt text,
         output_schema jsonb not null default '{"type":"object","properties":{"score":{"type":"integer","minimum":0,"maximum":100},"confidence":{"type":"number","minimum":0,"maximum":1},"reasoning":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["score","confidence","reasoning"]}'::jsonb,
         created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now(),
-        unique (organization_slug, slug)
+        updated_at timestamptz not null default now()
       );
 
       create table if not exists prediction.risk_dimension_assessments (
         id text primary key,
         run_id text not null references prediction.orchestration_runs(id) on delete cascade,
-        organization_slug text not null,
         instrument_id text not null references prediction.instruments(id) on delete cascade,
         dimension_id text not null,
         score integer not null check (score >= 0 and score <= 100),
@@ -475,7 +461,8 @@ export class MarketsSchemaService {
         created_at timestamptz not null default now()
       );
       create index if not exists prediction_risk_dim_assessments_run_idx on prediction.risk_dimension_assessments (run_id);
-      create index if not exists prediction_risk_dim_assessments_instrument_idx on prediction.risk_dimension_assessments (organization_slug, instrument_id);
+      drop index if exists prediction.prediction_risk_dim_assessments_instrument_idx;
+      create index if not exists prediction_risk_dim_assessments_instrument_idx on prediction.risk_dimension_assessments (instrument_id);
       alter table prediction.risk_dimension_assessments add column if not exists llm_usage_id uuid;
       create index if not exists prediction_risk_dim_assessments_llm_usage_idx
         on prediction.risk_dimension_assessments (llm_usage_id) where llm_usage_id is not null;
@@ -483,7 +470,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.risk_composite_scores (
         id text primary key,
         run_id text not null references prediction.orchestration_runs(id) on delete cascade,
-        organization_slug text not null,
         instrument_id text not null references prediction.instruments(id) on delete cascade,
         overall_score integer not null check (overall_score >= 0 and overall_score <= 100),
         dimension_scores jsonb not null default '{}'::jsonb,
@@ -494,8 +480,9 @@ export class MarketsSchemaService {
         status text not null default 'active' check (status in ('active', 'superseded')),
         created_at timestamptz not null default now()
       );
+      drop index if exists prediction.prediction_risk_composite_instrument_idx;
       create index if not exists prediction_risk_composite_instrument_idx
-      on prediction.risk_composite_scores (organization_slug, instrument_id, status)
+      on prediction.risk_composite_scores (instrument_id, status)
       where status = 'active';
       create index if not exists prediction_risk_composite_run_idx on prediction.risk_composite_scores (run_id);
     `;
@@ -506,7 +493,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.risk_debates (
         id text primary key,
         run_id text not null references prediction.orchestration_runs(id) on delete cascade,
-        organization_slug text not null,
         instrument_id text not null references prediction.instruments(id) on delete cascade,
         composite_score_id text,
         blue_assessment jsonb not null default '{}'::jsonb,
@@ -527,15 +513,13 @@ export class MarketsSchemaService {
 
       create table if not exists prediction.risk_debate_contexts (
         id text primary key,
-        organization_slug text not null,
         domain_slug text not null default 'financial',
         role text not null check (role in ('blue', 'red', 'arbiter')),
         version integer not null default 1,
         system_prompt text not null,
         is_active boolean not null default true,
         created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now(),
-        unique (organization_slug, role, version)
+        updated_at timestamptz not null default now()
       );
     `;
   }
@@ -548,7 +532,6 @@ export class MarketsSchemaService {
         id text primary key,
         prediction_id text not null,
         run_id text not null,
-        organization_slug text not null,
         instrument_id text not null,
         analyst_id text,
         horizon_window integer not null,
@@ -562,12 +545,12 @@ export class MarketsSchemaService {
         created_at timestamptz not null default now()
       );
       create index if not exists prediction_horizon_evals_prediction_idx on prediction.prediction_horizon_evaluations (prediction_id);
-      create index if not exists prediction_horizon_evals_analyst_idx on prediction.prediction_horizon_evaluations (analyst_id, organization_slug);
+      drop index if exists prediction.prediction_horizon_evals_analyst_idx;
+      create index if not exists prediction_horizon_evals_analyst_idx on prediction.prediction_horizon_evaluations (analyst_id);
 
       create table if not exists prediction.analyst_performance_profiles (
         id text primary key,
         analyst_id text not null,
-        organization_slug text not null,
         instrument_id text,
         horizon_window integer not null,
         period text not null check (period in ('7d', '30d', 'all')),
@@ -578,12 +561,12 @@ export class MarketsSchemaService {
         sample_size integer not null default 0,
         computed_at timestamptz not null default now()
       );
-      create index if not exists prediction_perf_profiles_analyst_idx on prediction.analyst_performance_profiles (analyst_id, organization_slug);
+      drop index if exists prediction.prediction_perf_profiles_analyst_idx;
+      create index if not exists prediction_perf_profiles_analyst_idx on prediction.analyst_performance_profiles (analyst_id);
 
       create table if not exists prediction.canonical_test_days (
         id text primary key,
         instrument_id text not null,
-        organization_slug text not null,
         universe_slug text not null default 'stocks',
         canonical_date date not null,
         failure_classification text not null,
@@ -601,13 +584,13 @@ export class MarketsSchemaService {
         retired_at timestamptz,
         added_by text not null
       );
+      drop index if exists prediction.prediction_canonical_days_instrument_idx;
       create index if not exists prediction_canonical_days_instrument_idx
-      on prediction.canonical_test_days (organization_slug, instrument_id, is_active)
+      on prediction.canonical_test_days (instrument_id, is_active)
       where is_active = true;
 
       create table if not exists prediction.learning_proposals (
         id text primary key,
-        organization_slug text not null,
         tier integer not null check (tier in (1, 2, 3)),
         analyst_id text,
         instrument_id text,
@@ -625,7 +608,8 @@ export class MarketsSchemaService {
         reviewed_at timestamptz,
         applied_at timestamptz
       );
-      create index if not exists prediction_learning_proposals_org_idx on prediction.learning_proposals (organization_slug, status);
+      drop index if exists prediction.prediction_learning_proposals_org_idx;
+      create index if not exists prediction_learning_proposals_status_idx on prediction.learning_proposals (status);
       alter table prediction.learning_proposals add column if not exists llm_usage_id uuid;
       create index if not exists prediction_learning_proposals_llm_usage_idx
         on prediction.learning_proposals (llm_usage_id) where llm_usage_id is not null;
@@ -657,14 +641,7 @@ export class MarketsSchemaService {
           check (report_type in ('nightly_evaluation', 'learning_cycle', 'audit_policy'));
       exception when others then null; end $$;
 
-      create table if not exists prediction.org_learning_config (
-        organization_slug text primary key,
-        max_confidence_shift numeric not null default 15,
-        max_weight_shift numeric not null default 0.2,
-        paper_mode_duration_days integer not null default 3,
-        locked_persona_aspects jsonb not null default '[]'::jsonb,
-        updated_at timestamptz not null default now()
-      );
+      -- org_learning_config renamed to learning_config in user-scoping migration DDL
     `;
   }
 
@@ -720,18 +697,18 @@ export class MarketsSchemaService {
     // These serve as templates.
     const seedSql = `
       insert into prediction.risk_dimensions
-        (id, organization_slug, domain_slug, slug, name, description, weight, display_order, system_prompt)
+        (id, domain_slug, slug, name, description, weight, display_order, system_prompt)
       values
-        ('dim_market_template', '__template__', 'financial', 'market', 'Market Risk',
+        ('dim_market_template', 'financial', 'market', 'Market Risk',
          'Overall market conditions, sector rotation, volatility regime', 0.30, 1,
          'Analyze the market risk for this instrument. Consider: overall market conditions, sector performance, volatility indicators, and correlation with major indices. Score 0 (no risk) to 100 (extreme risk).'),
-        ('dim_fundamental_template', '__template__', 'financial', 'fundamental', 'Fundamental Risk',
+        ('dim_fundamental_template', 'financial', 'fundamental', 'Fundamental Risk',
          'Balance sheet, earnings quality, valuation risk', 0.30, 2,
          'Analyze the fundamental risk for this instrument. Consider: earnings quality, revenue sustainability, debt levels, valuation relative to peers, and competitive position. Score 0 (no risk) to 100 (extreme risk).'),
-        ('dim_technical_template', '__template__', 'financial', 'technical', 'Technical Risk',
+        ('dim_technical_template', 'financial', 'technical', 'Technical Risk',
          'Chart breakdown risk, support/resistance, momentum exhaustion', 0.20, 3,
          'Analyze the technical risk for this instrument. Consider: proximity to support/resistance, trend exhaustion signals, volume divergence, and pattern breakdown risk. Score 0 (no risk) to 100 (extreme risk).'),
-        ('dim_macro_template', '__template__', 'financial', 'macro', 'Macro Risk',
+        ('dim_macro_template', 'financial', 'macro', 'Macro Risk',
          'Interest rates, inflation, geopolitical, central bank policy', 0.20, 4,
          'Analyze the macro risk for this instrument. Consider: interest rate trajectory, inflation trends, geopolitical risks, central bank policy signals, and currency impacts. Score 0 (no risk) to 100 (extreme risk).')
       on conflict (id) do nothing;
@@ -743,11 +720,11 @@ export class MarketsSchemaService {
   private async seedDefaultPositionSizing(): Promise<void> {
     const seedSql = `
       insert into prediction.position_sizing_config
-        (id, organization_slug, tier_name, min_confidence, max_confidence, position_percent)
+        (id, tier_name, min_confidence, max_confidence, position_percent)
       values
-        ('sizing_global_low', '*', 'low', 60, 70, 0.05),
-        ('sizing_global_medium', '*', 'medium', 70, 80, 0.10),
-        ('sizing_global_high', '*', 'high', 80, 100, 0.15)
+        ('sizing_global_low', 'low', 60, 70, 0.05),
+        ('sizing_global_medium', 'medium', 70, 80, 0.10),
+        ('sizing_global_high', 'high', 80, 100, 0.15)
       on conflict (id) do nothing;
     `;
     const result = await this.db.rawQuery(seedSql);
@@ -761,7 +738,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.analyst_portfolios (
         id text primary key,
         analyst_id text not null,
-        organization_slug text not null,
         initial_balance numeric not null default 1000000,
         current_balance numeric not null default 1000000,
         total_realized_pnl numeric not null default 0,
@@ -773,7 +749,6 @@ export class MarketsSchemaService {
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now()
       );
-      alter table prediction.analyst_portfolios add column if not exists organization_slug text not null default '*';
       alter table prediction.analyst_portfolios add column if not exists initial_balance numeric not null default 1000000;
       alter table prediction.analyst_portfolios add column if not exists current_balance numeric not null default 1000000;
       alter table prediction.analyst_portfolios add column if not exists total_realized_pnl numeric not null default 0;
@@ -782,14 +757,14 @@ export class MarketsSchemaService {
       alter table prediction.analyst_portfolios add column if not exists loss_count integer not null default 0;
       alter table prediction.analyst_portfolios add column if not exists status text not null default 'active';
       alter table prediction.analyst_portfolios add column if not exists status_changed_at timestamptz;
+      drop index if exists prediction.prediction_analyst_portfolios_analyst_idx;
       create index if not exists prediction_analyst_portfolios_analyst_idx
-      on prediction.analyst_portfolios (analyst_id, organization_slug);
+      on prediction.analyst_portfolios (analyst_id);
 
       create table if not exists prediction.analyst_positions (
         id text primary key,
         portfolio_id text not null,
         analyst_id text not null,
-        organization_slug text not null,
         prediction_id text,
         instrument_id text not null,
         symbol text not null,
@@ -807,7 +782,6 @@ export class MarketsSchemaService {
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now()
       );
-      alter table prediction.analyst_positions add column if not exists organization_slug text not null default '*';
       alter table prediction.analyst_positions add column if not exists direction text not null default 'long';
       alter table prediction.analyst_positions add column if not exists quantity integer not null default 0;
       alter table prediction.analyst_positions add column if not exists entry_price numeric not null default 0;
@@ -824,16 +798,13 @@ export class MarketsSchemaService {
       create table if not exists prediction.user_portfolios (
         id text primary key,
         user_id text not null,
-        organization_slug text not null,
         initial_balance numeric not null default 1000000,
         current_balance numeric not null default 1000000,
         total_realized_pnl numeric not null default 0,
         total_unrealized_pnl numeric not null default 0,
         created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now(),
-        unique (user_id, organization_slug)
+        updated_at timestamptz not null default now()
       );
-      alter table prediction.user_portfolios add column if not exists organization_slug text not null default '*';
       alter table prediction.user_portfolios add column if not exists initial_balance numeric not null default 1000000;
       alter table prediction.user_portfolios add column if not exists current_balance numeric not null default 1000000;
       alter table prediction.user_portfolios add column if not exists total_realized_pnl numeric not null default 0;
@@ -843,7 +814,6 @@ export class MarketsSchemaService {
         id text primary key,
         portfolio_id text not null,
         user_id text not null,
-        organization_slug text not null,
         prediction_id text,
         instrument_id text not null,
         symbol text not null,
@@ -862,7 +832,6 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_user_positions_portfolio_idx
       on prediction.user_positions (portfolio_id, status);
-      alter table prediction.user_positions add column if not exists organization_slug text not null default '*';
       alter table prediction.user_positions add column if not exists direction text not null default 'long';
       alter table prediction.user_positions add column if not exists quantity integer not null default 0;
       alter table prediction.user_positions add column if not exists entry_price numeric not null default 0;
@@ -871,7 +840,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.user_trade_queue (
         id text primary key,
         user_id text not null,
-        organization_slug text not null,
         portfolio_id text not null,
         prediction_id text not null,
         instrument_id text not null,
@@ -886,14 +854,13 @@ export class MarketsSchemaService {
         created_at timestamptz not null default now(),
         updated_at timestamptz not null default now()
       );
+      drop index if exists prediction.prediction_user_trade_queue_status_idx;
       create index if not exists prediction_user_trade_queue_status_idx
-      on prediction.user_trade_queue (user_id, organization_slug, status)
+      on prediction.user_trade_queue (user_id, status)
       where status = 'queued';
-      alter table prediction.user_trade_queue add column if not exists organization_slug text not null default '*';
 
       create table if not exists prediction.eod_settlement_log (
         id text primary key,
-        organization_slug text,
         settlement_date date not null default current_date,
         queued_trades_executed integer not null default 0,
         analyst_positions_created integer not null default 0,
@@ -909,14 +876,12 @@ export class MarketsSchemaService {
 
       create table if not exists prediction.position_sizing_config (
         id text primary key,
-        organization_slug text not null default '*',
         tier_name text not null,
         min_confidence numeric not null,
         max_confidence numeric not null,
         position_percent numeric not null,
         created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now(),
-        unique (organization_slug, tier_name)
+        updated_at timestamptz not null default now()
       );
     `;
   }
@@ -954,7 +919,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.analyst_risk_assessments (
         id text primary key default gen_random_uuid()::text,
         run_id text not null,
-        organization_slug text not null,
         instrument_id text not null,
         analyst_id text not null,
         score int not null check (score >= 0 and score <= 100),
@@ -968,8 +932,9 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_analyst_risk_assessments_run_idx
         on prediction.analyst_risk_assessments (run_id);
+      drop index if exists prediction.prediction_analyst_risk_assessments_instrument_idx;
       create index if not exists prediction_analyst_risk_assessments_instrument_idx
-        on prediction.analyst_risk_assessments (organization_slug, instrument_id);
+        on prediction.analyst_risk_assessments (instrument_id);
       alter table prediction.analyst_risk_assessments add column if not exists llm_usage_id uuid;
       create index if not exists prediction_analyst_risk_assessments_llm_usage_idx
         on prediction.analyst_risk_assessments (llm_usage_id) where llm_usage_id is not null;
@@ -1008,12 +973,11 @@ export class MarketsSchemaService {
     // recommendation. Idempotent.
     const sql = `
       insert into prediction.market_analysts (
-        id, organization_slug, slug, display_name, persona_prompt,
+        id, slug, display_name, persona_prompt,
         analyst_type, default_weight, workflow_scope, is_system_default,
         is_enabled, is_active, learning_enabled, created_by, created_at, updated_at
       ) values (
         'pm-base-portfolio-manager',
-        '__base__',
         'portfolio-manager',
         'Portfolio Manager',
         'You are the Portfolio Manager. You do not make directional predictions. You take the arbitrator''s composite prediction, the composite risk score, the analyst consensus, and the current portfolio state, and convert them into a sized trade signal: BUY, SELL, or HOLD with position size, entry price, and stop-loss. You apply the Kelly criterion adjusted by calibration accuracy and respect sane bounds (max position percent, no negative sizes, no concentration above limits).',
@@ -1028,7 +992,7 @@ export class MarketsSchemaService {
         now(),
         now()
       )
-      on conflict (organization_slug, slug) do nothing;
+      on conflict (id) do nothing;
     `;
     const result = await this.db.rawQuery(sql);
     if (result.error) {
@@ -1078,7 +1042,7 @@ export class MarketsSchemaService {
         ('momentum-analyst', 'ds-fmp', ARRAY['earnings-surprise','sector-performance'], 2),
         ('momentum-analyst', 'ds-polygon', ARRAY['volume','ohlcv'], 3)
       ) as v(analyst_slug, source_id, data_types, priority)
-      join prediction.market_analysts ma on ma.slug = v.analyst_slug and ma.organization_slug = '__base__'
+      join prediction.market_analysts ma on ma.slug = v.analyst_slug and ma.user_id is null
       join prediction.data_source_registry ds on ds.id = v.source_id
       on conflict (analyst_id, source_id) do nothing;
     `;
@@ -1095,7 +1059,6 @@ export class MarketsSchemaService {
       create table if not exists prediction.user_trade_decisions (
         id text primary key default gen_random_uuid()::text,
         user_id text not null,
-        organization_slug text not null,
         prediction_id text not null,
         instrument_id text not null,
         symbol text not null,
@@ -1106,8 +1069,9 @@ export class MarketsSchemaService {
         decided_at timestamptz not null default now(),
         unique(user_id, prediction_id)
       );
+      drop index if exists prediction.prediction_user_decisions_user_idx;
       create index if not exists prediction_user_decisions_user_idx
-        on prediction.user_trade_decisions (user_id, organization_slug);
+        on prediction.user_trade_decisions (user_id);
 
       create table if not exists prediction.user_decision_outcomes (
         id text primary key default gen_random_uuid()::text,
@@ -1129,7 +1093,6 @@ export class MarketsSchemaService {
         prediction_id text not null,
         challenged_analyst_id text not null,
         challenger_analyst_id text not null,
-        organization_slug text not null,
         instrument_id text not null,
         counter_argument text not null,
         counter_direction text check (counter_direction in ('up', 'down', 'flat')),
@@ -1264,13 +1227,12 @@ export class MarketsSchemaService {
     //    we add one so analyst_portfolios.analyst_id has something to point at.
     const analystSeedSql = `
       insert into prediction.market_analysts (
-        id, organization_slug, slug, display_name, persona_prompt,
+        id, slug, display_name, persona_prompt,
         analyst_type, default_weight, workflow_scope, is_system_default,
         is_enabled, is_active, learning_enabled, created_by, created_at, updated_at
       ) values
         (
           'pf-base-arbitrator',
-          '__base__',
           'arbitrator',
           'Arbitrator (Mini-Me)',
           'You are the Arbitrator. You synthesize all analyst predictions into a single composite conviction and trade your own conviction when it crosses threshold. Implementation lives in the agent-autotrading effort; this row exists so the foundation effort can give you a $1M portfolio.',
@@ -1287,7 +1249,6 @@ export class MarketsSchemaService {
         ),
         (
           'pf-base-day-trader-momentum',
-          '__base__',
           'momentum-breakout',
           'Day Trader — Momentum Breakout',
           'Day trader strategy: buy on N-bar high breakout, sell on first lower-high. Implementation lives in the day-traders-and-leaderboard effort; this row exists so the foundation effort can give you a $1M portfolio.',
@@ -1304,7 +1265,6 @@ export class MarketsSchemaService {
         ),
         (
           'pf-base-day-trader-mean-reversion',
-          '__base__',
           'mean-reversion',
           'Day Trader — Mean Reversion',
           'Day trader strategy: buy when price drops below SMA - k*stdev, sell on cross back to mean. Implementation lives in the day-traders-and-leaderboard effort; this row exists so the foundation effort can give you a $1M portfolio.',
@@ -1321,7 +1281,6 @@ export class MarketsSchemaService {
         ),
         (
           'pf-base-day-trader-gap-and-go',
-          '__base__',
           'gap-and-go',
           'Day Trader — Gap and Go',
           'Day trader strategy: at first tick of session check gap vs prior close, buy on gap-up + continuation tick, sell on first reversal tick. Implementation lives in the day-traders-and-leaderboard effort; this row exists so the foundation effort can give you a $1M portfolio.',
@@ -1336,7 +1295,7 @@ export class MarketsSchemaService {
           now(),
           now()
         )
-      on conflict (organization_slug, slug) do nothing;
+      on conflict (id) do nothing;
     `;
     const analystResult = await this.db.rawQuery(analystSeedSql);
     if (analystResult.error) {
@@ -1348,13 +1307,12 @@ export class MarketsSchemaService {
     //    where applicable. Idempotent via ON CONFLICT on the primary key.
     const portfolioSeedSql = `
       insert into prediction.analyst_portfolios (
-        id, analyst_id, organization_slug, kind, strategy_name, strategy_state,
+        id, analyst_id, kind, strategy_name, strategy_state,
         initial_balance, current_balance, status, created_at, updated_at
       ) values
         (
           'pf-portfolio-arbitrator',
           'pf-base-arbitrator',
-          '__base__',
           'arbitrator',
           null,
           '{}'::jsonb,
@@ -1367,7 +1325,6 @@ export class MarketsSchemaService {
         (
           'pf-portfolio-momentum-breakout',
           'pf-base-day-trader-momentum',
-          '__base__',
           'day_trader',
           'momentum_breakout',
           '{}'::jsonb,
@@ -1380,7 +1337,6 @@ export class MarketsSchemaService {
         (
           'pf-portfolio-mean-reversion',
           'pf-base-day-trader-mean-reversion',
-          '__base__',
           'day_trader',
           'mean_reversion',
           '{}'::jsonb,
@@ -1393,7 +1349,6 @@ export class MarketsSchemaService {
         (
           'pf-portfolio-gap-and-go',
           'pf-base-day-trader-gap-and-go',
-          '__base__',
           'day_trader',
           'gap_and_go',
           '{}'::jsonb,
@@ -1417,7 +1372,6 @@ export class MarketsSchemaService {
     return `
       create table if not exists prediction.audit_findings (
         id                text primary key,
-        organization_slug text not null,
         analyst_id        text not null,
         prediction_id     text not null,
         config_version_id text,
@@ -1435,8 +1389,9 @@ export class MarketsSchemaService {
         audit_model       text,
         created_at        timestamptz not null default now()
       );
+      drop index if exists prediction.audit_findings_status_idx;
       create index if not exists audit_findings_status_idx
-        on prediction.audit_findings (organization_slug, status);
+        on prediction.audit_findings (status);
       create index if not exists audit_findings_analyst_idx
         on prediction.audit_findings (analyst_id);
       create index if not exists audit_findings_prediction_idx
@@ -1503,8 +1458,20 @@ export class MarketsSchemaService {
         on prediction.analyst_risk_assessments (user_id, instrument_id);
 
       -- Step 1.3: Rename org_learning_config → learning_config with user_id
-      alter table if exists prediction.org_learning_config
-        rename to learning_config;
+      do $$ begin
+        if exists (select 1 from information_schema.tables where table_schema = 'prediction' and table_name = 'org_learning_config')
+           and not exists (select 1 from information_schema.tables where table_schema = 'prediction' and table_name = 'learning_config')
+        then
+          alter table prediction.org_learning_config rename to learning_config;
+        end if;
+      end $$;
+      -- Create table if it doesn't exist yet (fresh install)
+      create table if not exists prediction.learning_config (
+        id text primary key default gen_random_uuid()::text,
+        user_id text,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
       alter table prediction.learning_config
         add column if not exists user_id text;
 
@@ -1526,47 +1493,153 @@ export class MarketsSchemaService {
       drop index if exists prediction.prediction_market_articles_external_org_idx;
       create index if not exists prediction_market_articles_external_source_idx
         on prediction.market_articles (external_source_slug);
+
+      -- Phase 2 prep: drop PKs that include organization_slug, recreate without it
+      -- Use conditional logic: only drop+recreate if org_slug is still in the PK
+      do $$ begin
+        if exists (
+          select 1 from information_schema.key_column_usage
+          where table_schema = 'prediction' and table_name = 'market_instrument_analyst_assignments'
+            and column_name = 'organization_slug'
+            and constraint_name in (select constraint_name from information_schema.table_constraints where constraint_type = 'PRIMARY KEY' and table_schema = 'prediction' and table_name = 'market_instrument_analyst_assignments')
+        ) then
+          alter table prediction.market_instrument_analyst_assignments drop constraint market_instrument_analyst_assignments_pkey;
+          delete from prediction.market_instrument_analyst_assignments where ctid not in (select min(ctid) from prediction.market_instrument_analyst_assignments group by instrument_id, analyst_id);
+          alter table prediction.market_instrument_analyst_assignments add primary key (instrument_id, analyst_id);
+        end if;
+      end $$;
+      do $$ begin
+        if exists (
+          select 1 from information_schema.key_column_usage
+          where table_schema = 'prediction' and table_name = 'instrument_analyst_assignments'
+            and column_name = 'organization_slug'
+            and constraint_name in (select constraint_name from information_schema.table_constraints where constraint_type = 'PRIMARY KEY' and table_schema = 'prediction' and table_name = 'instrument_analyst_assignments')
+        ) then
+          alter table prediction.instrument_analyst_assignments drop constraint instrument_analyst_assignments_pkey;
+          delete from prediction.instrument_analyst_assignments where ctid not in (select min(ctid) from prediction.instrument_analyst_assignments group by instrument_id, analyst_id);
+          alter table prediction.instrument_analyst_assignments add primary key (instrument_id, analyst_id);
+        end if;
+      end $$;
+      do $$ begin
+        if exists (
+          select 1 from information_schema.key_column_usage
+          where table_schema = 'prediction' and table_name = 'tenant_source_entitlements'
+            and column_name = 'organization_slug'
+            and constraint_name in (select constraint_name from information_schema.table_constraints where constraint_type = 'PRIMARY KEY' and table_schema = 'prediction' and table_name = 'tenant_source_entitlements')
+        ) then
+          alter table prediction.tenant_source_entitlements drop constraint tenant_source_entitlements_pkey;
+          delete from prediction.tenant_source_entitlements where ctid not in (select min(ctid) from prediction.tenant_source_entitlements group by source_id);
+          alter table prediction.tenant_source_entitlements add primary key (source_id);
+        end if;
+      end $$;
+      -- learning_config: drop PK if it includes organization_slug
+      do $$ begin
+        perform 1 from pg_constraint c
+          join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey)
+          where c.conrelid = 'prediction.learning_config'::regclass
+            and c.contype = 'p' and a.attname = 'organization_slug';
+        if found then
+          execute 'alter table prediction.learning_config drop constraint ' ||
+            (select conname from pg_constraint where conrelid = 'prediction.learning_config'::regclass and contype = 'p');
+        end if;
+      exception when undefined_table then null;
+      end $$;
+
+      -- Phase 2 prep: make organization_slug nullable on all prediction tables
+      -- (dual-column period — services now write user_id, organization_slug becomes optional)
+      -- Use a dynamic loop to handle all tables at once
+      do $$ declare r record; begin
+        for r in
+          select c.table_name from information_schema.columns c
+          where c.table_schema = 'prediction' and c.column_name = 'organization_slug' and c.is_nullable = 'NO'
+            -- Skip columns that are in a PK (handled above)
+            and not exists (
+              select 1 from information_schema.key_column_usage kcu
+              join information_schema.table_constraints tc on tc.constraint_name = kcu.constraint_name and tc.table_schema = kcu.table_schema
+              where tc.constraint_type = 'PRIMARY KEY' and kcu.table_schema = 'prediction'
+                and kcu.table_name = c.table_name and kcu.column_name = 'organization_slug'
+            )
+        loop
+          execute 'alter table prediction.' || r.table_name || ' alter column organization_slug drop not null';
+        end loop;
+      end $$;
+      alter table prediction.market_articles alter column external_source_slug drop not null;
     `;
   }
 
   /**
-   * Step 1.8: Backfill user_id from organization_slug → authz.users lookup.
-   * Maps existing org-scoped data to user-scoped ownership.
-   * System/base resources (organization_slug = '__base__' or '__template__')
-   * get user_id = NULL. User resources get the user's ID.
+   * Phase 5 cleanup: drop organization_slug from all prediction tables
+   * and authz.users. Also drops stale unique constraints and indexes
+   * that referenced organization_slug.
    */
-  private async backfillUserId(): Promise<void> {
-    const tables = [
+  private async dropOrganizationSlugColumns(): Promise<void> {
+    const predictionTables = [
       'instruments',
       'market_analysts',
-      'risk_dimensions',
-      'risk_debate_contexts',
-      'learning_proposals',
+      'orchestration_runs',
+      'market_predictions',
+      'market_predictors',
+      'market_risk_assessments',
+      'risk_dimension_assessments',
+      'risk_composite_scores',
+      'risk_debates',
+      'market_run_evaluations',
+      'market_run_replays',
+      'market_run_artifacts',
+      'analyst_config_versions',
+      'prediction_horizon_evaluations',
+      'analyst_performance_profiles',
       'canonical_test_days',
+      'learning_proposals',
       'analyst_portfolios',
+      'analyst_positions',
+      'user_portfolios',
+      'user_positions',
+      'user_trade_decisions',
+      'user_trade_queue',
       'audit_findings',
       'prediction_challenges',
       'analyst_risk_assessments',
+      'market_instrument_analyst_assignments',
+      'instrument_analyst_assignments',
+      'position_sizing_config',
+      'tenant_source_entitlements',
+      'risk_dimensions',
+      'risk_debate_contexts',
+      'learning_config',
+      'eod_settlement_log',
     ];
 
-    for (const table of tables) {
-      const sql = `
-        update prediction.${table}
-        set user_id = u.id
-        from authz.users u
-        where prediction.${table}.organization_slug = u.organization_slug
-          and prediction.${table}.user_id is null
-          and prediction.${table}.organization_slug not in ('__base__', '__template__', '*')
-      `;
+    // Drop unique constraints that reference organization_slug before dropping the column
+    const constraintDrops = `
+      alter table prediction.instruments drop constraint if exists instruments_organization_slug_symbol_key;
+      alter table prediction.market_analysts drop constraint if exists market_analysts_organization_slug_slug_key;
+      alter table prediction.risk_dimensions drop constraint if exists risk_dimensions_organization_slug_slug_key;
+      alter table prediction.risk_debate_contexts drop constraint if exists risk_debate_contexts_organization_slug_role_version_key;
+      alter table prediction.user_portfolios drop constraint if exists user_portfolios_user_id_organization_slug_key;
+      alter table prediction.position_sizing_config drop constraint if exists position_sizing_config_organization_slug_tier_name_key;
+    `;
+    const cResult = await this.db.rawQuery(constraintDrops);
+    if (cResult.error) {
+      this.logger.warn(`Drop constraints: ${cResult.error.message}`);
+    }
+
+    for (const table of predictionTables) {
+      const sql = `alter table prediction.${table} drop column if exists organization_slug`;
       const result = await this.db.rawQuery(sql);
       if (result.error) {
-        this.logger.warn(`Backfill user_id for ${table}: ${result.error.message}`);
+        this.logger.warn(`Drop organization_slug from ${table}: ${result.error.message}`);
       }
     }
 
-    // user_trade_decisions, user_trade_queue, and user_portfolios already
-    // have user_id as the owner — no backfill needed for those.
+    // Also drop from authz.users
+    const authzResult = await this.db.rawQuery(
+      `alter table authz.users drop column if exists organization_slug`,
+    );
+    if (authzResult.error) {
+      this.logger.warn(`Drop organization_slug from authz.users: ${authzResult.error.message}`);
+    }
 
-    this.logger.log('User ID backfill complete');
+    this.logger.log('Phase 5: organization_slug columns dropped');
   }
 }

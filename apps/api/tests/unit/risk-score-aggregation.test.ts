@@ -9,7 +9,7 @@ const service = new RiskScoreAggregationService();
 
 function makeDimension(id: string, slug: string, weight: number): RiskDimension {
   return {
-    id, organization_slug: 'test-org', domain_slug: 'financial', slug, name: slug,
+    id, user_id: 'test-user-id', domain_slug: 'financial', slug, name: slug,
     description: null, weight, display_order: 0, is_active: true,
     system_prompt: null, output_schema: {}, created_at: '', updated_at: '',
   };
@@ -17,10 +17,10 @@ function makeDimension(id: string, slug: string, weight: number): RiskDimension 
 
 function makeAssessment(dimensionId: string, score: number, confidence: number): RiskDimensionAssessment {
   return {
-    id: `a-${dimensionId}`, run_id: 'run-1', organization_slug: 'test-org',
+    id: `a-${dimensionId}`, run_id: 'run-1',
     instrument_id: 'inst-1', dimension_id: dimensionId, score, confidence,
     reasoning: 'test', evidence: [], signals: [],
-    model_provider: null, model_name: null, created_at: '',
+    model_provider: null, model_name: null, llm_usage_id: null, created_at: '',
   };
 }
 

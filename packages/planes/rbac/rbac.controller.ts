@@ -23,7 +23,6 @@ interface AuthenticatedUser {
 
 // DTOs
 class AssignRoleDto {
-  organizationSlug!: string;
   roleName!: string;
   expiresAt?: string;
 }
@@ -111,39 +110,25 @@ export class RbacController {
   // ==================== CURRENT USER ====================
 
   /**
-   * Get current user's roles in an organization
+   * Get current user's roles
    */
   @Get('me/roles')
   async getMyRoles(
-    @Query('organizationSlug') orgSlug: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const roles = await this.rbacService.getUserRoles(user.id, orgSlug);
+    const roles = await this.rbacService.getUserRoles(user.id);
     return { roles };
   }
 
   /**
-   * Get current user's permissions in an organization
+   * Get current user's permissions
    */
   @Get('me/permissions')
   async getMyPermissions(
-    @Query('organizationSlug') orgSlug: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const permissions = await this.rbacService.getUserPermissions(
-      user.id,
-      orgSlug,
-    );
+    const permissions = await this.rbacService.getUserPermissions(user.id);
     return { permissions };
-  }
-
-  /**
-   * Get current user's organizations
-   */
-  @Get('me/organizations')
-  async getMyOrganizations(@CurrentUser() user: AuthenticatedUser) {
-    const organizations = await this.rbacService.getUserOrganizations(user.id);
-    return { organizations };
   }
 
   /**
@@ -161,7 +146,6 @@ export class RbacController {
   @Get('check')
   async checkPermission(
     @Query('permission') permission: string,
-    @Query('organizationSlug') orgSlug: string,
     @Query('resourceType') resourceType?: string,
     @Query('resourceId') resourceId?: string,
     @CurrentUser() user?: AuthenticatedUser,
@@ -171,7 +155,6 @@ export class RbacController {
     }
     const hasAccess = await this.rbacService.hasPermission(
       user.id,
-      orgSlug,
       permission,
       resourceType,
       resourceId,
@@ -182,31 +165,26 @@ export class RbacController {
   // ==================== USER ROLE MANAGEMENT ====================
 
   /**
-   * Get a user's roles in an organization (admin only)
+   * Get a user's roles (admin only)
    */
   @Get('users/:userId/roles')
   @RequirePermission('admin:users')
   async getUserRoles(
     @Param('userId') userId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
-    const roles = await this.rbacService.getUserRoles(userId, orgSlug);
+    const roles = await this.rbacService.getUserRoles(userId);
     return { roles };
   }
 
   /**
-   * Get a user's permissions in an organization (admin only)
+   * Get a user's permissions (admin only)
    */
   @Get('users/:userId/permissions')
   @RequirePermission('admin:users')
   async getUserPermissions(
     @Param('userId') userId: string,
-    @Query('organizationSlug') orgSlug: string,
   ) {
-    const permissions = await this.rbacService.getUserPermissions(
-      userId,
-      orgSlug,
-    );
+    const permissions = await this.rbacService.getUserPermissions(userId);
     return { permissions };
   }
 
@@ -223,7 +201,6 @@ export class RbacController {
   ) {
     await this.rbacService.assignRole(
       userId,
-      dto.organizationSlug,
       dto.roleName,
       currentUser.id,
       dto.expiresAt ? new Date(dto.expiresAt) : undefined,
@@ -242,28 +219,14 @@ export class RbacController {
   async revokeRole(
     @Param('userId') userId: string,
     @Param('roleName') roleName: string,
-    @Query('organizationSlug') orgSlug: string,
     @CurrentUser() currentUser: AuthenticatedUser,
   ) {
     await this.rbacService.revokeRole(
       userId,
-      orgSlug,
       roleName,
       currentUser.id,
     );
     return { success: true, message: `Role '${roleName}' revoked from user` };
-  }
-
-  // ==================== ORGANIZATION USER MANAGEMENT ====================
-
-  /**
-   * Get all users in an organization with their roles (admin only)
-   */
-  @Get('organizations/:orgSlug/users')
-  @RequirePermission('admin:users')
-  async getOrganizationUsers(@Param('orgSlug') orgSlug: string) {
-    const users = await this.rbacService.getOrganizationUsers(orgSlug);
-    return { users };
   }
 
   // ==================== AUDIT LOG ====================
@@ -274,10 +237,9 @@ export class RbacController {
   @Get('audit')
   @RequirePermission('admin:audit')
   async getAuditLog(
-    @Query('organizationSlug') orgSlug?: string,
     @Query('limit') limit = 100,
   ) {
-    const entries = await this.rbacService.getAuditLog(orgSlug, limit);
+    const entries = await this.rbacService.getAuditLog(limit);
     return { entries };
   }
 }

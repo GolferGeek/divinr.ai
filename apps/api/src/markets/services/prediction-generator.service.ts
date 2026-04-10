@@ -9,7 +9,6 @@ import { PredictionRunnerService } from './prediction-runner.service';
 
 interface InstrumentWithPredictors {
   instrument_id: string;
-  organization_slug: string;
   symbol: string;
   name: string;
   active_predictor_count: number;
@@ -148,7 +147,6 @@ export class PredictionGeneratorService {
 
           // Check if a recent run already exists
           const hasRecentRun = await this.hasRecentRun(
-            inst.organization_slug,
             inst.instrument_id,
             config.maxRunAgeMinutes,
           );
@@ -160,10 +158,10 @@ export class PredictionGeneratorService {
           }
 
           // Enqueue and process a prediction run
-          const runId = await this.enqueueRun(inst.organization_slug, inst.instrument_id);
+          const runId = await this.enqueueRun(inst.instrument_id);
           if (runId) {
             this.emit('run.started', `Prediction run for ${inst.symbol} (${inst.active_predictor_count} predictors, relevance: ${inst.avg_relevance.toFixed(2)})`, { symbol: inst.symbol, predictorCount: inst.active_predictor_count, avgRelevance: inst.avg_relevance });
-            await this.processRun(runId, inst.organization_slug);
+            await this.processRun(runId);
             runsTriggered++;
             this.emit('run.complete', `${inst.symbol} prediction complete`, { symbol: inst.symbol, runId });
             this.logger.log(
@@ -206,7 +204,6 @@ export class PredictionGeneratorService {
       `
       select
         i.id as instrument_id,
-        i.organization_slug,
         i.symbol,
         i.name,
         count(mp.id)::int as active_predictor_count,
@@ -216,11 +213,9 @@ export class PredictionGeneratorService {
       from prediction.instruments i
       left join prediction.market_predictors mp
         on mp.instrument_id = i.id
-        and mp.organization_slug = '__base__'
         and mp.status = 'active'
       where i.is_active = true
-        and i.organization_slug = '__base__'
-      group by i.id, i.organization_slug, i.symbol, i.name
+      group by i.id, i.symbol, i.name
       order by count(mp.id) desc
       `,
     );
@@ -235,21 +230,19 @@ export class PredictionGeneratorService {
    * Check if a recent prediction run already exists for this instrument.
    */
   private async hasRecentRun(
-    organizationSlug: string,
     instrumentId: string,
     maxAgeMinutes: number,
   ): Promise<boolean> {
     const result = await this.db.rawQuery(
       `
       select 1 from prediction.orchestration_runs
-      where organization_slug = $1
-        and instrument_id = $2
+      where instrument_id = $1
         and run_type = 'prediction'
         and status in ('queued', 'running', 'completed')
-        and created_at > now() - ($3 || ' minutes')::interval
+        and created_at > now() - ($2 || ' minutes')::interval
       limit 1
       `,
-      [organizationSlug, instrumentId, String(maxAgeMinutes)],
+      [instrumentId, String(maxAgeMinutes)],
     );
     if (result.error) return false;
     return ((result.data as unknown[] | null) ?? []).length > 0;
@@ -259,18 +252,17 @@ export class PredictionGeneratorService {
    * Enqueue a new prediction run.
    */
   private async enqueueRun(
-    organizationSlug: string,
     instrumentId: string,
   ): Promise<string | null> {
     const runId = crypto.randomUUID();
     const result = await this.db.rawQuery(
       `
       insert into prediction.orchestration_runs
-        (id, organization_slug, instrument_id, run_type, status, requested_by, updated_at)
-      values ($1, $2, $3, 'prediction', 'queued', 'pipeline', now())
+        (id, instrument_id, run_type, status, requested_by, updated_at)
+      values ($1, $2, 'prediction', 'queued', 'pipeline', now())
       returning id
       `,
-      [runId, organizationSlug, instrumentId],
+      [runId, instrumentId],
     );
     if (result.error) {
       this.logger.error(`Failed to enqueue run for ${instrumentId}: ${result.error.message}`);
@@ -283,11 +275,11 @@ export class PredictionGeneratorService {
   /**
    * Process a queued run by transitioning it to running and executing.
    */
-  private async processRun(runId: string, organizationSlug: string): Promise<void> {
+  private async processRun(runId: string): Promise<void> {
     // Get the run
     const runResult = await this.db.rawQuery(
-      `select * from prediction.orchestration_runs where id = $1 and organization_slug = $2`,
-      [runId, organizationSlug],
+      `select * from prediction.orchestration_runs where id = $1`,
+      [runId],
     );
     if (runResult.error) throw new Error(runResult.error.message);
     const runs = (runResult.data as Array<Record<string, unknown>> | null) ?? [];
@@ -296,8 +288,8 @@ export class PredictionGeneratorService {
 
     // Get the instrument
     const instResult = await this.db.rawQuery(
-      `select * from prediction.instruments where id = $1 and organization_slug = $2`,
-      [run.instrument_id, organizationSlug],
+      `select * from prediction.instruments where id = $1`,
+      [run.instrument_id],
     );
     if (instResult.error) throw new Error(instResult.error.message);
     const instruments = (instResult.data as Array<Record<string, unknown>> | null) ?? [];

@@ -19,12 +19,12 @@ export class UserPortfolioService {
     @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
   ) {}
 
-  async ensurePortfolio(userId: string, organizationSlug: string, initialBalance = 1000000): Promise<UserPortfolio> {
+  async ensurePortfolio(userId: string, initialBalance = 1000000): Promise<UserPortfolio> {
     await this.schema.ensureSchema();
 
     const existing = await this.db.rawQuery(
-      `select * from prediction.user_portfolios where user_id = $1 and organization_slug = $2`,
-      [userId, organizationSlug],
+      `select * from prediction.user_portfolios where user_id = $1`,
+      [userId],
     );
     const rows = (existing.data as UserPortfolio[] | null) ?? [];
     if (rows.length > 0) return rows[0];
@@ -32,11 +32,11 @@ export class UserPortfolioService {
     const id = randomUUID();
     const result = await this.db.rawQuery(
       `insert into prediction.user_portfolios
-        (id, user_id, organization_slug, initial_balance, current_balance)
-       values ($1, $2, $3, $4, $5)
-       on conflict (user_id, organization_slug) do update set updated_at = now()
+        (id, user_id, initial_balance, current_balance)
+       values ($1, $2, $3, $4)
+       on conflict (user_id) do update set updated_at = now()
        returning *`,
-      [id, userId, organizationSlug, initialBalance, initialBalance],
+      [id, userId, initialBalance, initialBalance],
     );
     if (result.error) throw new Error(result.error.message);
     return ((result.data as UserPortfolio[] | null) ?? [])[0]!;
@@ -44,24 +44,23 @@ export class UserPortfolioService {
 
   async queueTrade(input: {
     userId: string;
-    organizationSlug: string;
     predictionId: string;
     instrumentId: string;
     symbol: string;
     direction: 'long' | 'short';
     quantity: number;
   }): Promise<UserTradeQueueEntry> {
-    const portfolio = await this.ensurePortfolio(input.userId, input.organizationSlug);
+    const portfolio = await this.ensurePortfolio(input.userId);
     const id = randomUUID();
 
     const result = await this.db.rawQuery(
       `insert into prediction.user_trade_queue
-        (id, user_id, organization_slug, portfolio_id, prediction_id,
+        (id, user_id, portfolio_id, prediction_id,
          instrument_id, symbol, direction, quantity, status, queued_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', now())
+       values ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', now())
        returning *`,
       [
-        id, input.userId, input.organizationSlug, portfolio.id,
+        id, input.userId, portfolio.id,
         input.predictionId, input.instrumentId, input.symbol,
         input.direction, input.quantity,
       ],
@@ -70,35 +69,34 @@ export class UserPortfolioService {
     return ((result.data as UserTradeQueueEntry[] | null) ?? [])[0]!;
   }
 
-  async cancelTrade(tradeId: string, userId: string, organizationSlug: string): Promise<void> {
+  async cancelTrade(tradeId: string, userId: string): Promise<void> {
     const result = await this.db.rawQuery(
       `update prediction.user_trade_queue
        set status = 'cancelled', updated_at = now()
-       where id = $1 and user_id = $2 and organization_slug = $3 and status = 'queued'`,
-      [tradeId, userId, organizationSlug],
+       where id = $1 and user_id = $2 and status = 'queued'`,
+      [tradeId, userId],
     );
     if (result.error) throw new Error(result.error.message);
   }
 
-  async getQueuedTrades(userId: string, organizationSlug: string): Promise<UserTradeQueueEntry[]> {
+  async getQueuedTrades(userId: string): Promise<UserTradeQueueEntry[]> {
     const result = await this.db.rawQuery(
       `select * from prediction.user_trade_queue
-       where user_id = $1 and organization_slug = $2 and status = 'queued'
+       where user_id = $1 and status = 'queued'
        order by queued_at desc`,
-      [userId, organizationSlug],
+      [userId],
     );
     return (result.data as UserTradeQueueEntry[] | null) ?? [];
   }
 
-  async executeQueuedTrades(organizationSlug: string, closingPrices: Map<string, number>): Promise<{
+  async executeQueuedTrades(closingPrices: Map<string, number>): Promise<{
     executed: number;
     errors: string[];
   }> {
     const queued = await this.db.rawQuery(
       `select * from prediction.user_trade_queue
-       where organization_slug = $1 and status = 'queued'
+       where status = 'queued'
        order by queued_at asc`,
-      [organizationSlug],
     );
     const trades = (queued.data as UserTradeQueueEntry[] | null) ?? [];
     let executed = 0;
@@ -116,12 +114,12 @@ export class UserPortfolioService {
         const posId = randomUUID();
         await this.db.rawQuery(
           `insert into prediction.user_positions
-            (id, portfolio_id, user_id, organization_slug, prediction_id,
+            (id, portfolio_id, user_id, prediction_id,
              instrument_id, symbol, direction, quantity, entry_price, current_price,
              status, opened_at)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'open', now())`,
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'open', now())`,
           [
-            posId, trade.portfolio_id, trade.user_id, trade.organization_slug,
+            posId, trade.portfolio_id, trade.user_id,
             trade.prediction_id, trade.instrument_id, trade.symbol,
             trade.direction, trade.quantity, closingPrice, closingPrice,
           ],
@@ -145,19 +143,19 @@ export class UserPortfolioService {
     return { executed, errors };
   }
 
-  async getPortfolio(userId: string, organizationSlug: string): Promise<UserPortfolio | null> {
+  async getPortfolio(userId: string): Promise<UserPortfolio | null> {
     const result = await this.db.rawQuery(
-      `select * from prediction.user_portfolios where user_id = $1 and organization_slug = $2`,
-      [userId, organizationSlug],
+      `select * from prediction.user_portfolios where user_id = $1`,
+      [userId],
     );
     return ((result.data as UserPortfolio[] | null) ?? [])[0] ?? null;
   }
 
-  async isDisclaimerAcknowledged(userId: string, organizationSlug: string): Promise<boolean> {
+  async isDisclaimerAcknowledged(userId: string): Promise<boolean> {
     const result = await this.db.rawQuery(
       `select disclaimer_acknowledged_at from prediction.user_portfolios
-        where user_id = $1 and organization_slug = $2 limit 1`,
-      [userId, organizationSlug],
+        where user_id = $1 limit 1`,
+      [userId],
     );
     const rows = (result.data as Array<{ disclaimer_acknowledged_at: string | null }> | null) ?? [];
     return rows.length > 0 && rows[0].disclaimer_acknowledged_at !== null;
@@ -170,7 +168,6 @@ export class UserPortfolioService {
    */
   async executeImmediate(input: {
     userId: string;
-    organizationSlug: string;
     predictionId: string;
     instrumentId: string;
     direction: 'long' | 'short';
@@ -180,7 +177,7 @@ export class UserPortfolioService {
       throw new Error('quantity must be > 0');
     }
 
-    const portfolio = await this.ensurePortfolio(input.userId, input.organizationSlug);
+    const portfolio = await this.ensurePortfolio(input.userId);
 
     // Resolve symbol + cached price.
     const instrumentResult = await this.db.rawQuery(
@@ -214,13 +211,13 @@ export class UserPortfolioService {
     const cost = input.quantity * entryPrice;
     const insertResult = await this.db.rawQuery(
       `insert into prediction.user_positions
-         (id, portfolio_id, user_id, organization_slug, prediction_id,
+         (id, portfolio_id, user_id, prediction_id,
           instrument_id, symbol, direction, quantity, entry_price, current_price,
           status, opened_at, trigger_reason, trigger_prediction_id)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, 'open', now(), 'manual', $5)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, 'open', now(), 'manual', $4)
        returning *`,
       [
-        id, portfolio.id, input.userId, input.organizationSlug, input.predictionId,
+        id, portfolio.id, input.userId, input.predictionId,
         input.instrumentId, symbol, input.direction, input.quantity, entryPrice,
       ],
     );
@@ -298,10 +295,10 @@ export class UserPortfolioService {
     return ((updateResult.data as Record<string, unknown>[] | null) ?? [])[0]!;
   }
 
-  async listPositions(userId: string, organizationSlug: string, status?: string): Promise<Record<string, unknown>[]> {
-    let query = `select * from prediction.user_positions where user_id = $1 and organization_slug = $2`;
-    const params: unknown[] = [userId, organizationSlug];
-    if (status) { query += ` and status = $3`; params.push(status); }
+  async listPositions(userId: string, status?: string): Promise<Record<string, unknown>[]> {
+    let query = `select * from prediction.user_positions where user_id = $1`;
+    const params: unknown[] = [userId];
+    if (status) { query += ` and status = $2`; params.push(status); }
     query += ' order by opened_at desc';
     const result = await this.db.rawQuery(query, params);
     return (result.data as Record<string, unknown>[] | null) ?? [];

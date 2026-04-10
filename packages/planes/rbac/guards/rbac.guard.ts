@@ -30,7 +30,6 @@ interface TypedRequest {
   query: Record<string, string | undefined>;
   body: Record<string, string | undefined>;
   params: Record<string, string | undefined>;
-  organizationSlug?: string;
 }
 
 /**
@@ -38,11 +37,6 @@ interface TypedRequest {
  *
  * This guard works in conjunction with the @RequirePermission() decorator
  * to ensure users have the required permissions to access protected endpoints.
- *
- * The organization slug is read from:
- * 1. x-organization-slug header
- * 2. organizationSlug query parameter
- * 3. organizationSlug in request body
  *
  * @example
  * ```typescript
@@ -87,37 +81,25 @@ export class RbacGuard implements CanActivate {
 
     // Check if user is super admin via RBAC service
     // Super admins bypass all permission checks
-    // Wrap in try-catch to handle potential database errors gracefully
     try {
       const isSuperAdmin = await this.rbacService.isSuperAdmin(user.id);
       if (isSuperAdmin) {
-        // Still set organization slug for use in controllers
-        const orgSlug = this.getOrganizationSlug(request) || '*';
-        request.organizationSlug = orgSlug;
         return true;
       }
     } catch (error) {
-      // Log error but continue with normal permission check
-      // This prevents 500 errors if super admin check fails
       this.logger.warn(
         `[RbacGuard] Super admin check failed, continuing with normal permission check: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
 
-    // Get organization slug from request (use '*' for global/admin endpoints)
-    const orgSlug = this.getOrganizationSlug(request) || '*';
-
-    // For admin permissions (admin:*), also check if user is admin for the organization
-    // This allows org admins to access admin endpoints without needing explicit permission grants
+    // For admin permissions (admin:*), also check if user is admin
     if (permission.startsWith('admin:')) {
       try {
-        const isAdmin = await this.rbacService.isAdmin(user.id, orgSlug);
+        const isAdmin = await this.rbacService.isAdmin(user.id);
         if (isAdmin) {
-          request.organizationSlug = orgSlug;
           return true;
         }
       } catch (error) {
-        // Log error but continue with normal permission check
         this.logger.warn(
           `[RbacGuard] Admin check failed, continuing with normal permission check: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -136,7 +118,6 @@ export class RbacGuard implements CanActivate {
     // Check permission
     const hasAccess = await this.rbacService.hasPermission(
       user.id,
-      orgSlug,
       permission,
       undefined,
       resourceId,
@@ -144,28 +125,11 @@ export class RbacGuard implements CanActivate {
 
     if (!hasAccess) {
       this.logger.warn(
-        `Permission denied: user=${user.id}, org=${orgSlug}, permission=${permission}`,
+        `Permission denied: user=${user.id}, permission=${permission}`,
       );
       throw new ForbiddenException(`Permission denied: ${permission}`);
     }
 
-    // Add organization slug to request for use in controllers
-    request.organizationSlug = orgSlug;
-
     return true;
-  }
-
-  /**
-   * Extract organization slug from request
-   * Priority: header > query > body
-   * Safely handles SSE and other request types that may not have all properties
-   */
-  private getOrganizationSlug(request: TypedRequest): string | undefined {
-    return (
-      request.headers?.['x-organization-slug'] ||
-      request.query?.organizationSlug ||
-      request.body?.organizationSlug ||
-      undefined
-    );
   }
 }

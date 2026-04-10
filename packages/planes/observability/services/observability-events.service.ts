@@ -41,7 +41,6 @@ interface ObservabilityDbRow {
   task_id: string | null;
   user_id: string | null;
   agent_slug: string | null;
-  organization_slug: string | null;
   source_app: string;
   hook_event_type: string;
   status: string | null;
@@ -254,7 +253,7 @@ export class ObservabilityEventsService {
           conversation_id: conversationId,
           task_id: taskId,
           agent_slug: event.context.agentSlug || null,
-          organization_slug: event.context.orgSlug || null,
+          organization_slug: null,
           mode: (event.payload?.mode as string) || null,
           status: event.status,
           message: event.message,
@@ -347,7 +346,6 @@ export class ObservabilityEventsService {
           conversationId: row.conversation_id,
           userId: row.user_id,
           agentSlug: row.agent_slug,
-          orgSlug: row.organization_slug,
           agentType: '',
           provider: '',
           model: '',

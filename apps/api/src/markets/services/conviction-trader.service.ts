@@ -47,14 +47,14 @@ export class ConvictionTraderService {
    * Called from prediction-runner.service.ts after each analyst publish.
    * Routes to the analyst's own portfolio (kind='analyst').
    */
-  async evaluateAnalyst(outcome: PredictionOutcome, organizationSlug: string): Promise<void> {
+  async evaluateAnalyst(outcome: PredictionOutcome): Promise<void> {
     if (outcome.confidence < this.threshold()) return;
     if (!outcome.analyst_id) return; // arbitrator predictions have null analyst_id; routed via evaluateArbitrator
 
-    const portfolioRow = await this.findAnalystPortfolio(outcome.analyst_id, organizationSlug);
+    const portfolioRow = await this.findAnalystPortfolio(outcome.analyst_id);
     if (!portfolioRow) {
       this.logger.warn(
-        `evaluateAnalyst: no analyst_portfolios row for analyst_id=${outcome.analyst_id} org=${organizationSlug}; skipping autotrade`,
+        `evaluateAnalyst: no analyst_portfolios row for analyst_id=${outcome.analyst_id}; skipping autotrade`,
       );
       return;
     }
@@ -62,7 +62,6 @@ export class ConvictionTraderService {
     await this.openPositionWithProvenance({
       portfolio: portfolioRow,
       analystId: outcome.analyst_id,
-      organizationSlug,
       predictionId: outcome.id,
       instrumentId: outcome.instrument_id,
       direction: outcome.predicted_direction === 'down' ? 'short' : 'long',
@@ -75,7 +74,7 @@ export class ConvictionTraderService {
    * Called from prediction-runner.service.ts after the arbitrator synthesis
    * step. Routes to the seeded arbitrator portfolio (id='pf-portfolio-arbitrator').
    */
-  async evaluateArbitrator(outcome: PredictionOutcome, _organizationSlug: string): Promise<void> {
+  async evaluateArbitrator(outcome: PredictionOutcome): Promise<void> {
     if (outcome.confidence < this.threshold()) return;
 
     const portfolioRow = await this.findArbitratorPortfolio();
@@ -89,7 +88,6 @@ export class ConvictionTraderService {
     await this.openPositionWithProvenance({
       portfolio: portfolioRow,
       analystId: portfolioRow.analyst_id,
-      organizationSlug: portfolioRow.organization_slug,
       predictionId: outcome.id,
       instrumentId: outcome.instrument_id,
       direction: outcome.predicted_direction === 'down' ? 'short' : 'long',
@@ -102,23 +100,14 @@ export class ConvictionTraderService {
 
   private async findAnalystPortfolio(
     analystId: string,
-    organizationSlug: string,
   ): Promise<PortfolioRow | null> {
-    // Look up an active analyst portfolio for this analyst. Try the
-    // requested org first, then __base__ (where the seeded analysts live).
     const result = await this.db.rawQuery(
-      `select id, analyst_id, organization_slug, current_balance, kind, status
+      `select id, analyst_id, user_id, current_balance, kind, status
          from prediction.analyst_portfolios
         where analyst_id = $1
           and kind = 'analyst'
-          and organization_slug in ($2, '__base__', '*')
-        order by case organization_slug
-                   when $2 then 0
-                   when '__base__' then 1
-                   else 2
-                 end
         limit 1`,
-      [analystId, organizationSlug],
+      [analystId],
     );
     const rows = (result.data as PortfolioRow[] | null) ?? [];
     return rows[0] ?? null;
@@ -126,7 +115,7 @@ export class ConvictionTraderService {
 
   private async findArbitratorPortfolio(): Promise<PortfolioRow | null> {
     const result = await this.db.rawQuery(
-      `select id, analyst_id, organization_slug, current_balance, kind, status
+      `select id, analyst_id, user_id, current_balance, kind, status
          from prediction.analyst_portfolios
         where id = $1`,
       [ConvictionTraderService.ARBITRATOR_PORTFOLIO_ID],
@@ -138,7 +127,6 @@ export class ConvictionTraderService {
   private async openPositionWithProvenance(input: {
     portfolio: PortfolioRow;
     analystId: string;
-    organizationSlug: string;
     predictionId: string;
     instrumentId: string;
     direction: 'long' | 'short';
@@ -173,7 +161,7 @@ export class ConvictionTraderService {
     }
 
     // Kelly sizing — reuses the existing Phase 6 calculator.
-    const positionPercent = await this.sizing.getPositionPercent(input.confidence, input.organizationSlug);
+    const positionPercent = await this.sizing.getPositionPercent(input.confidence);
     if (positionPercent <= 0) return;
     const quantity = this.sizing.calculatePositionSize(
       Number(input.portfolio.current_balance),
@@ -186,7 +174,7 @@ export class ConvictionTraderService {
       portfolio: {
         id: input.portfolio.id,
         analyst_id: input.analystId,
-        organization_slug: input.portfolio.organization_slug,
+        user_id: input.portfolio.user_id,
         current_balance: input.portfolio.current_balance,
       },
       instrumentId: input.instrumentId,
@@ -197,7 +185,6 @@ export class ConvictionTraderService {
       predictionId: input.predictionId,
       conviction: input.confidence,
       triggerReason: input.triggerReason,
-      organizationSlug: input.organizationSlug,
     });
     if (result.reason !== 'inserted') return;
 
@@ -210,7 +197,7 @@ export class ConvictionTraderService {
 interface PortfolioRow {
   id: string;
   analyst_id: string;
-  organization_slug: string;
+  user_id: string | null;
   current_balance: number | string;
   kind: string;
   status: string;

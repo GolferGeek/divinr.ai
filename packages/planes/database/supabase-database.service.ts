@@ -26,7 +26,13 @@ export class SupabaseDatabaseService implements DatabaseService, OnModuleDestroy
 
   async onModuleDestroy() {
     if (this.pool) {
-      await this.pool.end();
+      const p = this.pool;
+      this.pool = null;
+      try {
+        await p.end();
+      } catch {
+        // Pool may already be ended by another module teardown — safe to ignore
+      }
     }
   }
 

@@ -42,7 +42,7 @@ class MockDb {
 }
 
 const stubSizing = {
-  getPositionPercent: async (_conf: number, _org: string) => 0.1,
+  getPositionPercent: async (_conf: number) => 0.1,
   calculatePositionSize: (_balance: number, entryPrice: number, percent: number) =>
     Math.max(1, Math.floor((1_000_000 * percent) / entryPrice)),
 } as any;
@@ -51,7 +51,6 @@ function makePrediction(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     prediction_id: 'pred-1',
     analyst_id: 'analyst-1',
-    organization_slug: 'acme',
     instrument_id: 'inst-1',
     predicted_direction: 'up',
     confidence: 80,
@@ -66,7 +65,7 @@ function makeAnalystPortfolio() {
   return {
     id: 'pf-portfolio-analyst-1',
     analyst_id: 'analyst-1',
-    organization_slug: 'acme',
+    user_id: null,
     current_balance: 1_000_000,
     kind: 'analyst',
     status: 'active',
@@ -77,7 +76,7 @@ function makeArbitratorPortfolio() {
   return {
     id: 'pf-portfolio-arbitrator',
     analyst_id: 'pf-base-arbitrator',
-    organization_slug: '__base__',
+    user_id: null,
     current_balance: 1_000_000,
     kind: 'arbitrator',
     status: 'active',
@@ -147,14 +146,14 @@ delete process.env.CONVICTION_TRADE_THRESHOLD;
   assert(result.rowsWritten === 1, 'confidence 85 → 1 row written');
   const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(insert !== undefined, 'INSERT issued');
-  // Param positions (helper INSERT): id=0, portfolio_id=1, analyst_id=2, org=3,
-  // prediction_id=4, instrument_id=5, symbol=6, direction=7, qty=8, entry=9, current=10,
-  // trigger_reason=11, trigger_strategy=12, trigger_prediction_id=13, trigger_conviction=14
-  assert(insert!.params[11] === 'eod_sweep', 'INSERT writes trigger_reason=eod_sweep');
+  // Param positions (helper INSERT): id=0, portfolio_id=1, analyst_id=2,
+  // prediction_id=3, instrument_id=4, symbol=5, direction=6, qty=7, entry=8, current=9,
+  // trigger_reason=10, trigger_strategy=11, trigger_prediction_id=12, trigger_conviction=13
+  assert(insert!.params[10] === 'eod_sweep', 'INSERT writes trigger_reason=eod_sweep');
   assert(insert!.params[1] === 'pf-portfolio-analyst-1', 'routed to analyst portfolio');
-  assert(insert!.params[7] === 'long', 'direction up → long');
-  assert(insert!.params[14] === 85, 'trigger_conviction = 85');
-  assert(insert!.params[13] === 'pred-1', 'trigger_prediction_id = pred-1');
+  assert(insert!.params[6] === 'long', 'direction up → long');
+  assert(insert!.params[13] === 85, 'trigger_conviction = 85');
+  assert(insert!.params[12] === 'pred-1', 'trigger_prediction_id = pred-1');
 }
 
 // ─── Idempotency ────────────────────────────────────────────────
@@ -185,8 +184,7 @@ console.log('\nArbitrator routing:');
   assert(result.rowsWritten === 1, 'arbitrator role → 1 row');
   const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(insert!.params[1] === 'pf-portfolio-arbitrator', 'routed to pf-portfolio-arbitrator');
-  assert(insert!.params[3] === '__base__', 'organization_slug from arbitrator portfolio row');
-  assert(insert!.params[7] === 'short', 'direction down → short');
+  assert(insert!.params[6] === 'short', 'direction down → short');
   // Confirm the arbitrator-specific portfolio lookup query was issued
   const arbLookup = db.calls.find(c => c.sql.includes('from prediction.analyst_portfolios') && c.sql.includes('where id = $1'));
   assert(arbLookup !== undefined, 'arbitrator portfolio looked up by id');

@@ -186,7 +186,7 @@ async function main() {
         `SELECT ma.id, ma.slug, ma.analyst_type, ma.persona_prompt, ma.tier_instructions,
                 ma.current_config_version_id
          FROM prediction.market_analysts ma
-         WHERE ma.slug = $1 AND ma.organization_slug = '__base__'
+         WHERE ma.slug = $1 AND ma.user_id IS NULL
          LIMIT 1`,
         [slug],
       );
@@ -215,7 +215,7 @@ async function main() {
                   (phe.actual_outcome_data->>'changePercent')::numeric as change_percent
            FROM prediction.prediction_horizon_evaluations phe
            JOIN prediction.market_predictions mp ON mp.id = phe.prediction_id
-           WHERE phe.analyst_id = $1 AND phe.organization_slug = '__base__'
+           WHERE phe.analyst_id = $1 AND phe.user_id IS NULL
            ORDER BY phe.evaluation_date DESC LIMIT 10`,
           [analyst.id],
         );
@@ -285,10 +285,10 @@ async function main() {
       const now = new Date().toISOString();
       await client.query(
         `INSERT INTO prediction.analyst_config_versions
-          (id, analyst_id, organization_slug, version_number, persona_prompt,
+          (id, analyst_id, user_id, version_number, persona_prompt,
            tier_instructions, default_weight, config_overrides, context_markdown,
            source, change_reason, parent_version_id, is_active, created_by, created_at)
-         VALUES ($1, $2, '__base__',
+         VALUES ($1, $2, NULL,
            (SELECT COALESCE(MAX(version_number), 0) + 1 FROM prediction.analyst_config_versions WHERE analyst_id = $2),
            $3, $4, $5, '{}'::jsonb, $6,
            'manual', 'AI-scaffolded structured contract', $7, true, 'system', $8)`,
@@ -318,7 +318,7 @@ async function main() {
       `SELECT ma.slug, acv.version_number, length(acv.context_markdown) as md_len
        FROM prediction.market_analysts ma
        JOIN prediction.analyst_config_versions acv ON acv.id = ma.current_config_version_id
-       WHERE ma.organization_slug = '__base__' AND ma.slug = ANY($1)
+       WHERE ma.user_id IS NULL AND ma.slug = ANY($1)
        ORDER BY ma.slug`,
       [TARGET_SLUGS],
     );

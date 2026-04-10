@@ -21,18 +21,17 @@ function test(name: string, fn: () => void) {
 
 interface InviteRow {
   id: string;
-  organization_slug: string;
+  created_by: string;
   email: string | null;
   token: string;
   role_name: string;
-  created_by: string;
   expires_at: string;
   accepted_at: string | null;
   revoked_at: string | null;
   created_at: string;
 }
 
-function validateInvite(invite: InviteRow | null, email?: string): { valid: boolean; reason?: string; organizationSlug?: string } {
+function validateInvite(invite: InviteRow | null, email?: string): { valid: boolean; reason?: string } {
   if (!invite) return { valid: false, reason: 'Invite not found' };
   if (invite.revoked_at) return { valid: false, reason: 'Invite has been revoked' };
   if (invite.accepted_at) return { valid: false, reason: 'Invite has already been used' };
@@ -40,7 +39,7 @@ function validateInvite(invite: InviteRow | null, email?: string): { valid: bool
   if (email && invite.email && invite.email.toLowerCase() !== email.toLowerCase()) {
     return { valid: false, reason: 'Email mismatch' };
   }
-  return { valid: true, organizationSlug: invite.organization_slug };
+  return { valid: true };
 }
 
 const now = new Date().toISOString();
@@ -48,8 +47,8 @@ const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 const past = new Date(Date.now() - 1000).toISOString();
 
 const freshInvite: InviteRow = {
-  id: 'inv-1', organization_slug: 'personal-golfergeek', email: null,
-  token: 'tok-fresh', role_name: 'beta_reader', created_by: 'admin-1',
+  id: 'inv-1', created_by: 'admin-1', email: null,
+  token: 'tok-fresh', role_name: 'beta_reader',
   expires_at: future, accepted_at: null, revoked_at: null, created_at: now,
 };
 
@@ -58,7 +57,7 @@ const freshInvite: InviteRow = {
 test('fresh invite validates as valid', () => {
   const result = validateInvite(freshInvite);
   assert.equal(result.valid, true);
-  assert.equal(result.organizationSlug, 'personal-golfergeek');
+  assert.equal(result.valid, true);
 });
 
 test('expired invite is invalid', () => {

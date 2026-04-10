@@ -59,7 +59,6 @@ export class EodSettlementService {
 
     const log: EodSettlementLog = {
       id: randomUUID(),
-      organization_slug: null,
       settlement_date: new Date().toISOString().slice(0, 10),
       queued_trades_executed: 0,
       analyst_positions_created: 0,
@@ -78,12 +77,9 @@ export class EodSettlementService {
       const closingPrices = await this.captureClosingPrices();
 
       // Step 1: Execute queued user trades
-      const orgs = await this.getActiveOrgs();
-      for (const org of orgs) {
-        const queueResult = await this.userPortfolio.executeQueuedTrades(org, closingPrices);
-        log.queued_trades_executed += queueResult.executed;
-        log.errors.push(...queueResult.errors);
-      }
+      const queueResult = await this.userPortfolio.executeQueuedTrades(closingPrices);
+      log.queued_trades_executed += queueResult.executed;
+      log.errors.push(...queueResult.errors);
 
       // Step 1.5: EOD forced-buy backstop sweep — opens positions for any
       // above-conviction-threshold analyst or arbitrator predictions that
@@ -194,7 +190,7 @@ export class EodSettlementService {
   }> {
     // Find today's completed predictions that don't have positions yet
     const result = await this.db.rawQuery(
-      `select mp.id as prediction_id, mp.analyst_id, mp.organization_slug,
+      `select mp.id as prediction_id, mp.analyst_id,
               mp.instrument_id, mp.predicted_direction, mp.confidence, mp.role,
               i.symbol
        from prediction.market_predictions mp
@@ -209,7 +205,7 @@ export class EodSettlementService {
          )`,
     );
     const predictions = (result.data as Array<{
-      prediction_id: string; analyst_id: string; organization_slug: string;
+      prediction_id: string; analyst_id: string;
       instrument_id: string; predicted_direction: string; confidence: number; symbol: string;
     }> | null) ?? [];
 
@@ -222,11 +218,10 @@ export class EodSettlementService {
         if (!entryPrice) continue;
 
         // Paper trading gate: analyst portfolios start in paper mode for 3 days
-        const isPaperOnly = await this.isInPaperTradingPeriod(pred.analyst_id, pred.organization_slug);
+        const isPaperOnly = await this.isInPaperTradingPeriod(pred.analyst_id);
 
         const position = await this.analystPortfolio.createPositionFromPrediction({
           analystId: pred.analyst_id,
-          organizationSlug: pred.organization_slug,
           predictionId: pred.prediction_id,
           instrumentId: pred.instrument_id,
           symbol: pred.symbol,
@@ -458,23 +453,16 @@ export class EodSettlementService {
 
   // ─── Helpers ─────────────────────────────────────────────────
 
-  private async getActiveOrgs(): Promise<string[]> {
-    const result = await this.db.rawQuery(
-      `select distinct organization_slug from prediction.instruments where is_active = true`,
-    );
-    return ((result.data as Array<{ organization_slug: string }> | null) ?? []).map(r => r.organization_slug);
-  }
-
   private async persistSettlementLog(log: EodSettlementLog): Promise<void> {
     await this.db.rawQuery(
       `insert into prediction.eod_settlement_log
-        (id, organization_slug, settlement_date, queued_trades_executed,
+        (id, settlement_date, queued_trades_executed,
          analyst_positions_created, predictions_resolved, positions_closed,
          unrealized_pnl_updated, total_realized_pnl, errors,
          started_at, completed_at, duration_ms)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
-        log.id, log.organization_slug, log.settlement_date,
+        log.id, log.settlement_date,
         log.queued_trades_executed, log.analyst_positions_created,
         log.predictions_resolved, log.positions_closed,
         log.unrealized_pnl_updated, log.total_realized_pnl,
@@ -496,12 +484,12 @@ export class EodSettlementService {
    * Paper trading gate: analyst portfolios start in paper mode for 3 days.
    * After 3 days, if portfolio drawdown < 20%, positions transition to live.
    */
-  private async isInPaperTradingPeriod(analystId: string, organizationSlug: string): Promise<boolean> {
+  private async isInPaperTradingPeriod(analystId: string): Promise<boolean> {
     const result = await this.db.rawQuery(
       `select created_at, current_balance, initial_balance
        from prediction.analyst_portfolios
-       where analyst_id = $1 and organization_slug = $2`,
-      [analystId, organizationSlug],
+       where analyst_id = $1`,
+      [analystId],
     );
     const rows = (result.data as Array<{ created_at: string; current_balance: number; initial_balance: number }> | null) ?? [];
     if (rows.length === 0) return true; // New portfolio → paper mode

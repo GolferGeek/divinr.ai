@@ -19,7 +19,7 @@ async function start() {
   // router.isReady(); if the token isn't in place yet, the guard redirects
   // to /login and the user lands on the manual login page even though
   // bootstrapAuth would have logged them in a moment later.
-  // Pinia is installed above so useTenantStore() works inside bootstrapAuth.
+  // Pinia is installed above so useAuthStore() works inside bootstrapAuth.
   await bootstrapAuth();
 
   app.use(router);

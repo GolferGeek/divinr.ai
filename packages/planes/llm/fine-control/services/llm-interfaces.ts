@@ -51,7 +51,6 @@ export interface LLMRequestOptions extends Record<string, unknown> {
   currentUser?: LLMCurrentUserContext;
   callerType?: string;
   callerName?: string;
-  organizationSlug?: string | null;
   organizationId?: string;
   agentSlug?: string | null;
   conversationId?: string;

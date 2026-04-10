@@ -36,7 +36,7 @@ async function main() {
                 acv.tier_instructions, acv.default_weight, acv.version_number
          FROM prediction.market_analysts ma
          JOIN prediction.analyst_config_versions acv ON acv.id = ma.current_config_version_id
-         WHERE ma.slug = $1 AND ma.organization_slug = '__base__'`,
+         WHERE ma.slug = $1 AND ma.user_id IS NULL`,
         [slug],
       );
       if (analysts.length === 0) { console.log(`SKIP ${slug} — not found`); continue; }
@@ -46,10 +46,10 @@ async function main() {
       const nextVersion = (a.version_number ?? 2) + 1;
       await client.query(
         `INSERT INTO prediction.analyst_config_versions
-          (id, analyst_id, organization_slug, version_number, persona_prompt,
+          (id, analyst_id, user_id, version_number, persona_prompt,
            tier_instructions, default_weight, config_overrides, context_markdown,
            source, change_reason, parent_version_id, is_active, created_by, created_at)
-         VALUES ($1, $2, '__base__', $3, $4, $5, $6, '{}'::jsonb, $7,
+         VALUES ($1, $2, NULL, $3, $4, $5, $6, '{}'::jsonb, $7,
                  'manual', 'Opus 4.6 authored contract (quality upgrade from local model)', $8, true, 'claude-opus-4.6', now())`,
         [v3Id, a.id, nextVersion, a.persona_prompt,
          JSON.stringify(a.tier_instructions), a.default_weight, contract, a.current_config_version_id],
@@ -63,7 +63,7 @@ async function main() {
       `SELECT ma.slug, acv.version_number, length(acv.context_markdown) as md_len, acv.created_by
        FROM prediction.market_analysts ma
        JOIN prediction.analyst_config_versions acv ON acv.id = ma.current_config_version_id
-       WHERE ma.organization_slug = '__base__' ORDER BY ma.slug`,
+       WHERE ma.user_id IS NULL ORDER BY ma.slug`,
     );
     console.log(`\nVerification: ${check.length}/10`);
     for (const r of check) {

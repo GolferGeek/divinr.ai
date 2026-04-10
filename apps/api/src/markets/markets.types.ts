@@ -9,7 +9,6 @@ export type TradeAction = 'buy' | 'sell' | 'hold';
 export interface TradeRecommendation {
   id: string;
   run_id: string;
-  organization_slug: string;
   instrument_id: string;
   symbol: string;
   // The action the portfolio manager recommends.
@@ -39,7 +38,7 @@ export interface TradeRecommendation {
 
 export interface MarketInstrument {
   id: string;
-  organization_slug: string;
+  user_id: string | null;
   symbol: string;
   name: string;
   asset_type: string;
@@ -64,7 +63,7 @@ export interface TierInstructions {
 
 export interface MarketAnalyst {
   id: string;
-  organization_slug: string;
+  user_id: string | null;
   slug: string;
   display_name: string;
   analyst_type: AnalystType;
@@ -116,7 +115,6 @@ export interface MarketSource {
 
 export interface SourceEntitlement {
   source_id: string;
-  organization_slug: string;
   is_enabled: boolean;
   override_notes: string | null;
   created_by: string;
@@ -139,7 +137,6 @@ export interface CreateRunInput {
 
 export interface MarketRun {
   id: string;
-  organization_slug: string;
   instrument_id: string;
   run_type: RunType;
   status: RunStatus;
@@ -188,7 +185,6 @@ export interface ProcessRunsResult {
 export interface RunArtifact {
   id: string;
   run_id: string;
-  organization_slug: string;
   run_type: RunType;
   analyst_id: string | null;
   model_provider: string;
@@ -201,7 +197,6 @@ export interface RunArtifact {
 export interface PredictionOutcome {
   id: string;
   run_id: string;
-  organization_slug: string;
   instrument_id: string;
   analyst_id: string | null;
   predicted_direction: 'up' | 'down' | 'flat';
@@ -215,7 +210,6 @@ export type PredictorStatus = 'active' | 'dismissed';
 
 export interface MarketPredictor {
   id: string;
-  organization_slug: string;
   instrument_id: string;
   article_id: string;
   relevance_score: number;
@@ -244,7 +238,6 @@ export interface ListPredictorsInput {
 export interface RiskAssessment {
   id: string;
   run_id: string;
-  organization_slug: string;
   instrument_id: string;
   risk_score: number;
   verdict: 'low' | 'medium' | 'high';
@@ -267,7 +260,6 @@ export interface ReplayRunInput {
 export interface RunEvaluation {
   id: string;
   run_id: string;
-  organization_slug: string;
   actual_direction: 'up' | 'down' | 'flat';
   predicted_direction: 'up' | 'down' | 'flat' | null;
   was_correct: boolean | null;
@@ -278,7 +270,6 @@ export interface RunEvaluation {
 export interface RunReplay {
   id: string;
   run_id: string;
-  organization_slug: string;
   scenario: string;
   replay_output: string;
   created_at: string;
@@ -374,7 +365,6 @@ export type ConfigVersionSource = 'manual' | 'tier1_auto' | 'tier2_approved' | '
 export interface AnalystConfigVersion {
   id: string;
   analyst_id: string;
-  organization_slug: string;
   version_number: number;
   persona_prompt: string;
   tier_instructions: TierInstructions;
@@ -393,7 +383,7 @@ export interface AnalystConfigVersion {
 
 export interface RiskDimension {
   id: string;
-  organization_slug: string;
+  user_id: string | null;
   domain_slug: string;
   slug: string;
   name: string;
@@ -410,7 +400,6 @@ export interface RiskDimension {
 export interface RiskDimensionAssessment {
   id: string;
   run_id: string;
-  organization_slug: string;
   instrument_id: string;
   dimension_id: string;
   score: number;
@@ -427,7 +416,6 @@ export interface RiskDimensionAssessment {
 export interface RiskCompositeScore {
   id: string;
   run_id: string;
-  organization_slug: string;
   instrument_id: string;
   overall_score: number;
   dimension_scores: Record<string, number>;
@@ -469,7 +457,6 @@ export interface ArbiterSynthesis {
 export interface RiskDebate {
   id: string;
   run_id: string;
-  organization_slug: string;
   instrument_id: string;
   composite_score_id: string | null;
   blue_assessment: BlueAssessment;
@@ -486,7 +473,7 @@ export interface RiskDebate {
 
 export interface RiskDebateContext {
   id: string;
-  organization_slug: string;
+  user_id: string | null;
   domain_slug: string;
   role: DebateRole;
   version: number;
@@ -502,7 +489,6 @@ export interface PredictionHorizonEvaluation {
   id: string;
   prediction_id: string;
   run_id: string;
-  organization_slug: string;
   instrument_id: string;
   analyst_id: string | null;
   horizon_window: number;
@@ -519,7 +505,6 @@ export interface PredictionHorizonEvaluation {
 export interface AnalystPerformanceProfile {
   id: string;
   analyst_id: string;
-  organization_slug: string;
   instrument_id: string | null;
   horizon_window: number;
   period: '7d' | '30d' | 'all';
@@ -536,7 +521,7 @@ export type CanonicalTestScope = 'prediction' | 'risk' | 'both';
 export interface CanonicalTestDay {
   id: string;
   instrument_id: string;
-  organization_slug: string;
+  user_id: string | null;
   universe_slug: string;
   canonical_date: string;
   failure_classification: string;
@@ -561,7 +546,7 @@ export type LearningProposalStatus =
 
 export interface LearningProposal {
   id: string;
-  organization_slug: string;
+  user_id: string | null;
   tier: 1 | 2 | 3;
   analyst_id: string | null;
   instrument_id: string | null;
@@ -638,7 +623,7 @@ export type TradeQueueStatus = 'queued' | 'executed' | 'cancelled';
 export interface AnalystPortfolio {
   id: string;
   analyst_id: string;
-  organization_slug: string;
+  user_id: string | null;
   initial_balance: number;
   current_balance: number;
   total_realized_pnl: number;
@@ -655,7 +640,6 @@ export interface AnalystPosition {
   id: string;
   portfolio_id: string;
   analyst_id: string;
-  organization_slug: string;
   prediction_id: string | null;
   instrument_id: string;
   symbol: string;
@@ -677,7 +661,6 @@ export interface AnalystPosition {
 export interface UserPortfolio {
   id: string;
   user_id: string;
-  organization_slug: string;
   initial_balance: number;
   current_balance: number;
   total_realized_pnl: number;
@@ -689,7 +672,6 @@ export interface UserPortfolio {
 export interface UserTradeQueueEntry {
   id: string;
   user_id: string;
-  organization_slug: string;
   portfolio_id: string;
   prediction_id: string;
   instrument_id: string;
@@ -706,7 +688,6 @@ export interface UserTradeQueueEntry {
 
 export interface EodSettlementLog {
   id: string;
-  organization_slug: string | null;
   settlement_date: string;
   queued_trades_executed: number;
   analyst_positions_created: number;
@@ -722,7 +703,6 @@ export interface EodSettlementLog {
 
 export interface PositionSizingTier {
   id: string;
-  organization_slug: string;
   tier_name: string;
   min_confidence: number;
   max_confidence: number;

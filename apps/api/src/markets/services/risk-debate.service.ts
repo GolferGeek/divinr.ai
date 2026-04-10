@@ -14,7 +14,6 @@ import type {
 interface DebateInput {
   context: ExecutionContext;
   runId: string;
-  organizationSlug: string;
   instrumentId: string;
   instrumentSymbol: string;
   compositeScoreId: string;
@@ -83,17 +82,17 @@ export class RiskDebateService {
     // Create pending debate record
     await this.db.rawQuery(
       `insert into prediction.risk_debates
-        (id, run_id, organization_slug, instrument_id, composite_score_id, original_score, status, created_at)
-       values ($1, $2, $3, $4, $5, $6, 'in_progress', $7)`,
-      [debateId, input.runId, input.organizationSlug, input.instrumentId, input.compositeScoreId, input.overallScore, now],
+        (id, run_id, instrument_id, composite_score_id, original_score, status, created_at)
+       values ($1, $2, $3, $4, $5, 'in_progress', $6)`,
+      [debateId, input.runId, input.instrumentId, input.compositeScoreId, input.overallScore, now],
     );
 
     const assessmentSummary = this.formatAssessmentsForDebate(input.dimensionAssessments, input.overallScore);
 
     // Load org-specific debate prompts from DB, fall back to built-in defaults
-    const bluePrompt = await this.loadDebatePrompt(input.organizationSlug, 'blue', DEFAULT_BLUE_PROMPT);
-    const redPrompt = await this.loadDebatePrompt(input.organizationSlug, 'red', DEFAULT_RED_PROMPT);
-    const arbiterPrompt = await this.loadDebatePrompt(input.organizationSlug, 'arbiter', DEFAULT_ARBITER_PROMPT);
+    const bluePrompt = await this.loadDebatePrompt('blue', DEFAULT_BLUE_PROMPT);
+    const redPrompt = await this.loadDebatePrompt('red', DEFAULT_RED_PROMPT);
+    const arbiterPrompt = await this.loadDebatePrompt('arbiter', DEFAULT_ARBITER_PROMPT);
 
     let blueAssessment: BlueAssessment;
     let redChallenges: RedChallenges;
@@ -141,7 +140,6 @@ export class RiskDebateService {
       const debate: RiskDebate = {
         id: debateId,
         run_id: input.runId,
-        organization_slug: input.organizationSlug,
         instrument_id: input.instrumentId,
         composite_score_id: input.compositeScoreId,
         blue_assessment: { summary: '', key_findings: [], evidence_cited: [], confidence_explanation: '' },
@@ -186,7 +184,6 @@ export class RiskDebateService {
     const debate: RiskDebate = {
       id: debateId,
       run_id: input.runId,
-      organization_slug: input.organizationSlug,
       instrument_id: input.instrumentId,
       composite_score_id: input.compositeScoreId,
       blue_assessment: blueAssessment,
@@ -205,16 +202,15 @@ export class RiskDebateService {
   }
 
   private async loadDebatePrompt(
-    organizationSlug: string,
     role: 'blue' | 'red' | 'arbiter',
     fallback: string,
   ): Promise<string> {
     try {
       const result = await this.db.rawQuery(
         `select system_prompt from prediction.risk_debate_contexts
-         where organization_slug = $1 and role = $2 and is_active = true
+         where role = $1 and is_active = true
          order by version desc limit 1`,
-        [organizationSlug, role],
+        [role],
       );
       const rows = (result.data as Array<{ system_prompt: string }> | null) ?? [];
       if (rows.length > 0 && rows[0].system_prompt) {

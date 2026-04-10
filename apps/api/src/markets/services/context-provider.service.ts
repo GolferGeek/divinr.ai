@@ -25,7 +25,6 @@ export class ContextProviderService {
   ) {}
 
   async loadContextProviders(
-    organizationSlug: string,
     instrumentId: string,
   ): Promise<MarketAnalyst[]> {
     // Load context_provider analysts that are enabled and match the instrument's universe
@@ -33,19 +32,18 @@ export class ContextProviderService {
       `
       select ma.*
       from prediction.market_analysts ma
-      where ma.organization_slug = $1
-        and ma.analyst_type = 'context_provider'
+      where ma.analyst_type = 'context_provider'
         and ma.is_enabled = true
         and ma.is_active = true
         and (
           ma.universe_slug is null
           or ma.universe_slug = (
-            select i.universe_slug from prediction.instruments i where i.id = $2
+            select i.universe_slug from prediction.instruments i where i.id = $1
           )
         )
       order by ma.created_at asc
       `,
-      [organizationSlug, instrumentId],
+      [instrumentId],
     );
     if (result.error) {
       this.logger.warn(`Failed to load context providers: ${result.error.message}`);

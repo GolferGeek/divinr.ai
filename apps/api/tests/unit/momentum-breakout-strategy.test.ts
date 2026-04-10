@@ -17,7 +17,7 @@ function assert(c: boolean, label: string): void {
 }
 
 const PORTFOLIO: DayTraderPortfolioRow = {
-  id: 'pf', analyst_id: 'a', organization_slug: '__base__',
+  id: 'pf', analyst_id: 'a',
   current_balance: 1_000_000, strategy_name: 'momentum_breakout', strategy_state: {},
 };
 

@@ -40,7 +40,7 @@ const PORTFOLIOS: DayTraderPortfolioRow[] = [
   {
     id: 'pf-portfolio-momentum-breakout',
     analyst_id: 'pf-base-day-trader-momentum',
-    organization_slug: '__base__',
+    user_id: null,
     current_balance: 1_000_000,
     strategy_name: 'momentum_breakout',
     strategy_state: { momentum_breakout: { last_seen: 'prior-tick' } },
@@ -48,7 +48,7 @@ const PORTFOLIOS: DayTraderPortfolioRow[] = [
   {
     id: 'pf-portfolio-mean-reversion',
     analyst_id: 'pf-base-day-trader-mean_reversion',
-    organization_slug: '__base__',
+    user_id: null,
     current_balance: 1_000_000,
     strategy_name: 'mean_reversion',
     strategy_state: {},
@@ -56,7 +56,7 @@ const PORTFOLIOS: DayTraderPortfolioRow[] = [
   {
     id: 'pf-portfolio-gap-and-go',
     analyst_id: 'pf-base-day-trader-gap_and_go',
-    organization_slug: '__base__',
+    user_id: null,
     current_balance: 1_000_000,
     strategy_name: 'gap_and_go',
     strategy_state: {},
@@ -207,28 +207,28 @@ async function main(): Promise<void> {
     assert(inserts.length === 3, '3 INSERT calls');
 
     // Param order from helper:
-    // id, portfolio_id, analyst_id, org, prediction_id, instrument_id, symbol, direction, qty, entry, current,
-    // trigger_reason(11), trigger_strategy(12), trigger_prediction_id(13), trigger_conviction(14)
+    // id, portfolio_id, analyst_id, prediction_id, instrument_id, symbol, direction, qty, entry, current,
+    // trigger_reason(10), trigger_strategy(11), trigger_prediction_id(12), trigger_conviction(13)
     const byInstrument = new Map<string, unknown[]>();
-    for (const ins of inserts) byInstrument.set(ins.params[5] as string, ins.params);
+    for (const ins of inserts) byInstrument.set(ins.params[4] as string, ins.params);
 
     const mom = byInstrument.get('inst-mom')!;
     assert(mom[1] === 'pf-portfolio-momentum-breakout', 'momentum insert → momentum portfolio');
-    assert(mom[4] === null, 'prediction_id is NULL for strategy open');
-    assert(mom[11] === 'strategy', 'trigger_reason=strategy');
-    assert(mom[12] === 'momentum_breakout', 'trigger_strategy=momentum_breakout');
-    assert(mom[7] === 'long', 'momentum direction long');
+    assert(mom[3] === null, 'prediction_id is NULL for strategy open');
+    assert(mom[10] === 'strategy', 'trigger_reason=strategy');
+    assert(mom[11] === 'momentum_breakout', 'trigger_strategy=momentum_breakout');
+    assert(mom[6] === 'long', 'momentum direction long');
     // qty = floor(1_000_000 * 0.05 * 1 / 100) = 500
-    assert(mom[8] === 500, 'momentum quantity computed from balance × BASE_SIZE_PCT × multiplier / price');
+    assert(mom[7] === 500, 'momentum quantity computed from balance × BASE_SIZE_PCT × multiplier / price');
 
     const mr = byInstrument.get('inst-mr')!;
-    assert(mr[12] === 'mean_reversion', 'mean_reversion trigger_strategy');
-    assert(mr[7] === 'short', 'mean_reversion direction short');
+    assert(mr[11] === 'mean_reversion', 'mean_reversion trigger_strategy');
+    assert(mr[6] === 'short', 'mean_reversion direction short');
 
     const gap = byInstrument.get('inst-gap')!;
-    assert(gap[12] === 'gap_and_go', 'gap_and_go trigger_strategy');
+    assert(gap[11] === 'gap_and_go', 'gap_and_go trigger_strategy');
     // qty = floor(1_000_000 * 0.05 * 2 / 100) = 1000
-    assert(gap[8] === 1000, 'gap_and_go sizing multiplier 2 doubled qty');
+    assert(gap[7] === 1000, 'gap_and_go sizing multiplier 2 doubled qty');
 
     // helper idempotency SELECT must NOT have happened (predictionId=null skips it).
     const idempotencySelects = db.calls.filter(
@@ -420,7 +420,7 @@ async function main(): Promise<void> {
     assert(inserts.length >= 2, `at least 2 real strategies opened (got ${inserts.length})`);
     assert(result.opensRequested >= 2, 'opensRequested >= 2');
 
-    const triggerStrategies = inserts.map(i => i.params[12]);
+    const triggerStrategies = inserts.map(i => i.params[11]);
     assert(triggerStrategies.includes('momentum_breakout'), 'momentum_breakout opened');
     assert(triggerStrategies.includes('mean_reversion'), 'mean_reversion opened');
   }
@@ -442,7 +442,7 @@ async function main(): Promise<void> {
               {
                 id: 'pf-portfolio-momentum-breakout',
                 analyst_id: 'pf-base-day-trader-momentum',
-                organization_slug: '__base__',
+                user_id: null,
                 current_balance: 1_000_000,
                 strategy_name: 'momentum_breakout',
                 strategy_state: this.momState,

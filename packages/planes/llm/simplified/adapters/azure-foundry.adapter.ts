@@ -49,7 +49,6 @@ export class AzureFoundryAdapter implements LLMClient {
         temperature: params.temperature,
         max_tokens: params.max_tokens,
         executionContext: {
-          orgSlug: 'system',
           userId: '00000000-0000-0000-0000-000000000000',
           conversationId: '00000000-0000-0000-0000-000000000000',
           agentSlug: 'system',

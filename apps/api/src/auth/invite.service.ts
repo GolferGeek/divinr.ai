@@ -15,7 +15,6 @@ import {
 
 interface InviteRow {
   id: string;
-  organization_slug: string;
   email: string | null;
   token: string;
   role_name: string;
@@ -35,7 +34,6 @@ interface CreateInviteResult {
 
 interface ValidateResult {
   valid: boolean;
-  organizationSlug?: string;
   email?: string | null;
   expiresAt?: string;
   reason?: string;
@@ -56,7 +54,6 @@ export class InviteService {
     await this.db.rawQuery(`
       CREATE TABLE IF NOT EXISTS authz.invites (
         id text PRIMARY KEY,
-        organization_slug text NOT NULL,
         email text,
         token text UNIQUE NOT NULL,
         role_name text NOT NULL DEFAULT 'beta_reader',
@@ -77,7 +74,6 @@ export class InviteService {
   }
 
   async createInvite(
-    organizationSlug: string,
     createdBy: string,
     email?: string,
   ): Promise<CreateInviteResult> {
@@ -88,9 +84,9 @@ export class InviteService {
     const appUrl = process.env.APP_URL || 'http://localhost:7101';
 
     await this.db.rawQuery(
-      `INSERT INTO authz.invites (id, organization_slug, email, token, role_name, created_by, expires_at)
-       VALUES ($1, $2, $3, $4, 'beta_reader', $5, $6)`,
-      [id, organizationSlug, email ?? null, token, createdBy, expiresAt],
+      `INSERT INTO authz.invites (id, email, token, role_name, created_by, expires_at)
+       VALUES ($1, $2, $3, 'beta_reader', $4, $5)`,
+      [id, email ?? null, token, createdBy, expiresAt],
     );
 
     return {
@@ -101,23 +97,27 @@ export class InviteService {
     };
   }
 
-  async listInvites(organizationSlug: string): Promise<InviteRow[]> {
+  async listInvites(createdBy?: string): Promise<InviteRow[]> {
     await this.ensureSchema();
-    const result = await this.db.rawQuery(
-      `SELECT * FROM authz.invites
-       WHERE organization_slug = $1
-       ORDER BY created_at DESC`,
-      [organizationSlug],
-    );
+    const result = createdBy
+      ? await this.db.rawQuery(
+          `SELECT * FROM authz.invites
+           WHERE created_by = $1
+           ORDER BY created_at DESC`,
+          [createdBy],
+        )
+      : await this.db.rawQuery(
+          `SELECT * FROM authz.invites ORDER BY created_at DESC`,
+        );
     return (result.data as InviteRow[] | null) ?? [];
   }
 
-  async revokeInvite(id: string, organizationSlug: string): Promise<{ revoked: boolean }> {
+  async revokeInvite(id: string): Promise<{ revoked: boolean }> {
     await this.ensureSchema();
-    const result = await this.db.rawQuery(
+    await this.db.rawQuery(
       `UPDATE authz.invites SET revoked_at = now()
-       WHERE id = $1 AND organization_slug = $2 AND revoked_at IS NULL`,
-      [id, organizationSlug],
+       WHERE id = $1 AND revoked_at IS NULL`,
+      [id],
     );
     return { revoked: true };
   }
@@ -142,12 +142,8 @@ export class InviteService {
     if (new Date(invite.expires_at) < new Date()) {
       return { valid: false, reason: 'Invite has expired' };
     }
-    // Note: organizationSlug is exposed to the public validate endpoint. This is
-    // acceptable because invite tokens are UUIDs (unguessable), and the frontend
-    // needs the slug for tenant store setup after signup.
     return {
       valid: true,
-      organizationSlug: invite.organization_slug,
       email: invite.email,
       expiresAt: invite.expires_at,
     };
@@ -197,7 +193,6 @@ export class InviteService {
           password,
           displayName: displayName ?? email.split('@')[0],
           roles: [invite.role_name],
-          organizationAccess: [invite.organization_slug],
           emailConfirm: false,
         },
         invite.created_by,
@@ -219,15 +214,15 @@ export class InviteService {
   }
 
   /**
-   * Get the user's org role from rbac_user_org_roles.
+   * Get the user's role from rbac_user_roles.
    * Returns the highest-priority role name, or null if no role found.
    */
-  async getOrgRole(userId: string, organizationSlug: string): Promise<string | null> {
+  async getUserRole(userId: string): Promise<string | null> {
     const result = await this.db.rawQuery(
       `SELECT rr.name
-       FROM authz.rbac_user_org_roles r
+       FROM authz.rbac_user_roles r
        JOIN authz.rbac_roles rr ON rr.id = r.role_id
-       WHERE r.user_id = $1 AND r.organization_slug = $2
+       WHERE r.user_id = $1
        ORDER BY CASE rr.name
          WHEN 'super-admin' THEN 1
          WHEN 'owner' THEN 2
@@ -236,7 +231,7 @@ export class InviteService {
          ELSE 5
        END
        LIMIT 1`,
-      [userId, organizationSlug],
+      [userId],
     );
     const rows = (result.data as Array<{ name: string }> | null) ?? [];
     return rows.length > 0 ? rows[0].name : null;

@@ -68,7 +68,6 @@ export interface HookEvent {
   conversationId?: string;
   taskId?: string;
   agentSlug?: string;
-  organizationSlug?: string;
   mode?: string;
 
   // Optional HITL data

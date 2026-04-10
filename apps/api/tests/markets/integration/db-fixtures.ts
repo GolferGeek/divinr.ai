@@ -1,9 +1,7 @@
 /**
  * Per-scenario seed/cleanup helpers for the markets integration test runner.
  *
- * Each scenario has its own org_slug so cleanup is a single
- * `delete where organization_slug = $1` per markets table — there is no
- * cross-scenario state to untangle.
+ * Each scenario has its own user_id so cleanup is scoped per test user.
  *
  * The seed creates: instrument, three personality analysts (Macro Strategist,
  * Technical Analyst, Sentiment Analyst — display names match the LLM stub
@@ -32,7 +30,6 @@ export const SCENARIOS: ScenarioSpec[] = [
 ];
 
 export interface SeedResult {
-  organizationSlug: string;
   userId: string;
   instrumentId: string;
   analystIds: { macro: string; technical: string; sentiment: string };
@@ -79,14 +76,13 @@ export async function seedScenario(
   db: DatabaseService,
   scenario: ScenarioSpec,
 ): Promise<SeedResult> {
-  const organizationSlug = `integration-test-${scenario.name}`;
+  const scenarioSlug = `integration-test-${scenario.name}`;
   const userId = TEST_USER_ID;
 
   // Wipe any leftover state from a previous interrupted run for this scenario.
-  await cleanupScenario(db, organizationSlug);
+  await cleanupScenario(db, scenarioSlug);
 
   const instrument = await service.createInstrument({
-    organizationSlug,
     userId,
     symbol: scenario.symbol,
     name: scenario.symbol,
@@ -97,14 +93,12 @@ export async function seedScenario(
 
   for (const plan of ANALYST_SOURCE_PLAN) {
     const analyst = await service.createAnalyst({
-      organizationSlug,
       userId,
       slug: plan.slug,
       displayName: plan.displayName,
       personaPrompt: plan.persona,
     });
     await service.assignAnalystToInstrument({
-      organizationSlug,
       userId,
       instrumentId: instrument.id,
       analystId: analyst.id,
@@ -130,14 +124,15 @@ export async function seedScenario(
     if (plan.slug === 'sentiment-analyst') analystIds.sentiment = analyst.id;
   }
 
-  return { organizationSlug, userId, instrumentId: instrument.id, analystIds };
+  return { userId, instrumentId: instrument.id, analystIds };
 }
 
 /**
- * Delete every markets row owned by this scenario org. Order matches FK
+ * Delete every markets row owned by this scenario user. Order matches FK
  * dependencies — children first.
  */
-export async function cleanupScenario(db: DatabaseService, organizationSlug: string): Promise<void> {
+export async function cleanupScenario(db: DatabaseService, _scenarioSlug: string): Promise<void> {
+  const userId = '00000000-0000-4000-8000-00000000beef';
   const tables = [
     'prediction.trade_recommendations',
     'prediction.market_predictions',
@@ -147,11 +142,10 @@ export async function cleanupScenario(db: DatabaseService, organizationSlug: str
     'prediction.analyst_config_versions',
     'prediction.market_analysts',
     'prediction.instruments',
-    'public.observability_events',
   ];
   for (const table of tables) {
-    const result = await db.rawQuery(`delete from ${table} where organization_slug = $1`, [organizationSlug]);
-    if (result.error && !/does not exist/.test(result.error.message)) {
+    const result = await db.rawQuery(`delete from ${table} where user_id = $1`, [userId]);
+    if (result.error && !/does not exist/.test(result.error.message) && !/column "user_id" does not exist/.test(result.error.message)) {
       throw new Error(`cleanup ${table}: ${result.error.message}`);
     }
   }

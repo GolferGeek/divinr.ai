@@ -45,21 +45,20 @@ export class TradeRecommendationService {
    */
   async generateForRun(input: {
     runId: string;
-    organizationSlug: string;
   }): Promise<TradeRecommendation | null> {
     await this.schema.ensureSchema();
 
-    const existing = await this.fetchExisting(input.runId, input.organizationSlug);
+    const existing = await this.fetchExisting(input.runId);
     if (existing) return existing;
 
-    const context = await this.loadRunContext(input.runId, input.organizationSlug);
+    const context = await this.loadRunContext(input.runId);
     if (!context) {
       this.logger.warn(`No arbitrator prediction for run ${input.runId} — cannot generate recommendation`);
       return null;
     }
 
-    const calibrationAccuracy = await this.loadArbitratorCalibrationAccuracy(input.organizationSlug);
-    const isCalibrating = await this.checkCalibratingStatus(input.organizationSlug);
+    const calibrationAccuracy = await this.loadArbitratorCalibrationAccuracy();
+    const isCalibrating = await this.checkCalibratingStatus();
 
     // Compute with portfolioBalance = 0; quantity will be 0 in the persisted
     // row. Real per-user quantity is computed by sizeForUser() at read time.
@@ -77,7 +76,6 @@ export class TradeRecommendationService {
 
     return await this.persist({
       runId: input.runId,
-      organizationSlug: input.organizationSlug,
       instrumentId: context.instrumentId,
       symbol: context.symbol,
       arbitratorDirection: context.direction,
@@ -115,18 +113,17 @@ export class TradeRecommendationService {
     return { ...recommendation, quantity };
   }
 
-  async fetchExisting(runId: string, organizationSlug: string): Promise<TradeRecommendation | null> {
+  async fetchExisting(runId: string): Promise<TradeRecommendation | null> {
     const result = await this.db.rawQuery(
-      `select mp.id, mp.run_id, mp.organization_slug, mp.instrument_id,
+      `select mp.id, mp.run_id, mp.instrument_id,
               mp.predicted_direction, mp.confidence, mp.rationale, mp.trade_metadata,
               mp.created_at, i.symbol
        from prediction.market_predictions mp
        join prediction.instruments i on i.id = mp.instrument_id
        where mp.run_id = $1
-         and (mp.organization_slug = $2 or mp.organization_slug = '__base__')
          and mp.role = 'portfolio_manager'
        limit 1`,
-      [runId, organizationSlug],
+      [runId],
     );
     if (result.error) return null;
     const rows = (result.data as Array<Record<string, unknown>>) ?? [];
@@ -352,7 +349,7 @@ export class TradeRecommendationService {
 
   // ─── DB I/O ─────────────────────────────────────────────────────
 
-  private async loadRunContext(runId: string, organizationSlug: string): Promise<{
+  private async loadRunContext(runId: string): Promise<{
     instrumentId: string;
     symbol: string;
     direction: 'up' | 'down' | 'flat';
@@ -370,10 +367,9 @@ export class TradeRecommendationService {
        from prediction.market_predictions mp
        join prediction.instruments i on i.id = mp.instrument_id
        where mp.run_id = $1
-         and (mp.organization_slug = $2 or mp.organization_slug = '__base__')
          and mp.role = 'arbitrator'
        limit 1`,
-      [runId, organizationSlug],
+      [runId],
     );
     if (arbResult.error) return null;
     const arbRows = (arbResult.data as Array<Record<string, unknown>>) ?? [];
@@ -425,15 +421,13 @@ export class TradeRecommendationService {
    * Compute the arbitrator's historical accuracy from resolved evaluations.
    * Falls back to DEFAULT_CALIBRATION_ACCURACY if there isn't enough history.
    */
-  private async loadArbitratorCalibrationAccuracy(organizationSlug: string): Promise<number> {
+  private async loadArbitratorCalibrationAccuracy(): Promise<number> {
     try {
       const result = await this.db.rawQuery(
         `select
            count(*) as total,
            count(*) filter (where was_correct = true) as correct
-         from prediction.market_run_evaluations
-         where (organization_slug = $1 or organization_slug = '__base__')`,
-        [organizationSlug],
+         from prediction.market_run_evaluations`,
       );
       const rows = (result.data as Array<{ total: string; correct: string }> | null) ?? [];
       const total = Number(rows[0]?.total ?? 0);
@@ -447,11 +441,9 @@ export class TradeRecommendationService {
     return TradeRecommendationService.DEFAULT_CALIBRATION_ACCURACY;
   }
 
-  private async checkCalibratingStatus(organizationSlug: string): Promise<boolean> {
+  private async checkCalibratingStatus(): Promise<boolean> {
     const result = await this.db.rawQuery(
-      `select count(*) as total from prediction.market_run_evaluations
-       where (organization_slug = $1 or organization_slug = '__base__')`,
-      [organizationSlug],
+      `select count(*) as total from prediction.market_run_evaluations`,
     );
     const rows = (result.data as Array<{ total: string }> | null) ?? [];
     const total = Number(rows[0]?.total ?? 0);
@@ -460,7 +452,6 @@ export class TradeRecommendationService {
 
   private async persist(input: {
     runId: string;
-    organizationSlug: string;
     instrumentId: string;
     symbol: string;
     arbitratorDirection: 'up' | 'down' | 'flat';
@@ -495,16 +486,15 @@ export class TradeRecommendationService {
     // the arbitrator's direction (CHECK constraint allows up/down/flat only).
     const sql = `
       insert into prediction.market_predictions (
-        id, run_id, organization_slug, instrument_id,
+        id, run_id, instrument_id,
         predicted_direction, confidence, horizon_minutes, rationale,
         analyst_id, role, trade_metadata, created_at
-      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'portfolio_manager', $10::jsonb, now())
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8, 'portfolio_manager', $9::jsonb, now())
       on conflict do nothing
     `;
     await this.db.rawQuery(sql, [
       id,
       input.runId,
-      input.organizationSlug,
       input.instrumentId,
       input.arbitratorDirection,
       input.arbitratorConfidence,
@@ -517,7 +507,6 @@ export class TradeRecommendationService {
     return {
       id,
       run_id: input.runId,
-      organization_slug: input.organizationSlug,
       instrument_id: input.instrumentId,
       symbol: input.symbol,
       action: input.computed.action,
@@ -546,7 +535,6 @@ export class TradeRecommendationService {
     return {
       id: String(row.id),
       run_id: String(row.run_id),
-      organization_slug: String(row.organization_slug),
       instrument_id: String(row.instrument_id),
       symbol: String(row.symbol ?? ''),
       action: String(meta.action ?? 'hold') as TradeAction,

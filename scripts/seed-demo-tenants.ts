@@ -46,25 +46,19 @@ async function sql(query: string, params: unknown[] = []) {
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-async function upsertOrg(slug: string, name: string) {
-  const { error } = await db
-    .schema('authz')
-    .from('organizations')
-    .upsert({ slug, name }, { onConflict: 'slug' });
-  if (error) console.warn(`  org ${slug}: ${error.message}`);
-  else console.log(`  org: ${slug}`);
-}
+// organizations table has been dropped (user-scoped-platform Phase 3)
+// upsertOrg is no longer needed
 
-async function upsertUser(id: string, email: string, displayName: string, orgSlug: string) {
+async function upsertUser(id: string, email: string, displayName: string) {
   const { error } = await db
     .schema('authz')
     .from('users')
     .upsert(
-      { id, email, display_name: displayName, organization_slug: orgSlug, status: 'active' },
+      { id, email, display_name: displayName, status: 'active' },
       { onConflict: 'id' },
     );
   if (error) console.warn(`  user ${email}: ${error.message}`);
-  else console.log(`  user: ${email} (${orgSlug})`);
+  else console.log(`  user: ${email}`);
 }
 
 async function upsertPermission(name: string, displayName: string, category: string) {
@@ -103,47 +97,45 @@ async function linkRolePermission(roleId: string, permissionId: string) {
   }
 }
 
-async function assignUserRole(userId: string, orgSlug: string, roleId: string) {
+async function assignUserRole(userId: string, roleId: string) {
   const { error } = await db
     .schema('authz')
-    .from('rbac_user_org_roles')
+    .from('rbac_user_roles')
     .upsert(
-      { user_id: userId, organization_slug: orgSlug, role_id: roleId, assigned_by: 'seed-script' },
-      { onConflict: 'user_id,organization_slug,role_id' },
+      { user_id: userId, role_id: roleId, assigned_by: 'seed-script' },
+      { onConflict: 'user_id,role_id' },
     );
   if (error && !error.message.includes('duplicate')) {
     console.warn(`  user-role: ${error.message}`);
   }
 }
 
-async function upsertInstrument(orgSlug: string, symbol: string, name: string, userId?: string) {
-  const id = `${orgSlug}_${symbol.toLowerCase()}`;
+async function upsertInstrument(symbol: string, name: string, userId?: string) {
+  const id = `${symbol.toLowerCase()}_${userId ?? 'base'}`;
   const { error } = await db
     .schema('prediction')
     .from('instruments')
     .upsert(
-      { id, organization_slug: orgSlug, symbol, name, asset_type: 'stock', universe_slug: 'stocks', is_active: true, user_id: userId ?? null },
+      { id, symbol, name, asset_type: 'stock', universe_slug: 'stocks', is_active: true, user_id: userId ?? null },
       { onConflict: 'id' },
     );
-  if (error) console.warn(`  instrument ${symbol} (${orgSlug}): ${error.message}`);
+  if (error) console.warn(`  instrument ${symbol}: ${error.message}`);
   return id;
 }
 
 async function upsertAnalyst(
-  orgSlug: string,
   slug: string,
   displayName: string,
   personaPrompt: string,
   opts: { weight?: number; isSystemDefault?: boolean; isEnabled?: boolean; workflowScope?: string; tierInstructions?: Record<string, string>; userId?: string },
 ) {
-  const id = `${orgSlug}_${slug}`;
+  const id = `${opts.userId ?? 'base'}_${slug}`;
   const { error } = await db
     .schema('prediction')
     .from('market_analysts')
     .upsert(
       {
         id,
-        organization_slug: orgSlug,
         slug,
         display_name: displayName,
         name: displayName,
@@ -161,17 +153,17 @@ async function upsertAnalyst(
       },
       { onConflict: 'id' },
     );
-  if (error) console.warn(`  analyst ${slug} (${orgSlug}): ${error.message}`);
+  if (error) console.warn(`  analyst ${slug}: ${error.message}`);
   return id;
 }
 
-async function assignAnalyst(orgSlug: string, instrumentId: string, analystId: string) {
+async function assignAnalyst(instrumentId: string, analystId: string) {
   const { error } = await db
     .schema('prediction')
     .from('market_instrument_analyst_assignments')
     .upsert(
-      { organization_slug: orgSlug, instrument_id: instrumentId, analyst_id: analystId, assigned_by: 'seed-script' },
-      { onConflict: 'organization_slug,instrument_id,analyst_id' },
+      { instrument_id: instrumentId, analyst_id: analystId, assigned_by: 'seed-script' },
+      { onConflict: 'instrument_id,analyst_id' },
     );
   if (error && !error.message.includes('duplicate')) {
     console.warn(`  assignment: ${error.message}`);
@@ -359,23 +351,23 @@ async function main() {
   for (const org of ORGS) {
     console.log(`\n── ${org.name} (${org.slug}) ──`);
 
-    await upsertOrg(org.slug, org.name);
+    // organizations table dropped — no org row needed
 
     const adminId = randomUUID();
     const analystUserId = randomUUID();
-    await upsertUser(adminId, org.adminEmail, `Admin - ${org.name}`, org.slug);
-    await upsertUser(analystUserId, org.analystEmail, `Analyst - ${org.name}`, org.slug);
-    await assignUserRole(adminId, org.slug, adminRoleId);
-    await assignUserRole(analystUserId, org.slug, analystRoleId);
+    await upsertUser(adminId, org.adminEmail, `Admin - ${org.name}`);
+    await upsertUser(analystUserId, org.analystEmail, `Analyst - ${org.name}`);
+    await assignUserRole(adminId, adminRoleId);
+    await assignUserRole(analystUserId, analystRoleId);
 
-    // Use adminId as the owner for org-level resources
+    // Use adminId as the owner for user-scoped resources
     const ownerId = adminId;
 
     // Instruments
     console.log('  Instruments:');
     const instrumentIds: string[] = [];
     for (const inst of INSTRUMENTS) {
-      const iId = await upsertInstrument(org.slug, inst.symbol, inst.name, ownerId);
+      const iId = await upsertInstrument(inst.symbol, inst.name, ownerId);
       instrumentIds.push(iId);
     }
 
@@ -385,7 +377,7 @@ async function main() {
     for (const def of DEFAULT_ANALYSTS) {
       const isDisabled = org.disabledAnalysts.includes(def.slug);
       const weightOverride = org.weightOverrides[def.slug];
-      const aId = await upsertAnalyst(org.slug, def.slug, def.name, def.prompt, {
+      const aId = await upsertAnalyst(def.slug, def.name, def.prompt, {
         weight: weightOverride ?? def.weight,
         isSystemDefault: true,
         isEnabled: !isDisabled,
@@ -398,7 +390,7 @@ async function main() {
     // Custom analysts
     console.log('  Custom analysts:');
     for (const custom of org.customAnalysts) {
-      const aId = await upsertAnalyst(org.slug, custom.slug, custom.name, custom.prompt, {
+      const aId = await upsertAnalyst(custom.slug, custom.name, custom.prompt, {
         weight: custom.weight,
         isSystemDefault: false,
         isEnabled: true,
@@ -411,7 +403,7 @@ async function main() {
     console.log('  Assignments:');
     for (const iId of instrumentIds) {
       for (const aId of analystIds) {
-        await assignAnalyst(org.slug, iId, aId);
+        await assignAnalyst(iId, aId);
       }
     }
 

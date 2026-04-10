@@ -50,21 +50,17 @@ describe('DictionaryPseudonymizerService', () => {
       .mockReturnValue({ data: globalData, error: null }); // global: pseudonym -> result
   };
 
-  // Helper for full queries (when orgSlug + agentSlug passed)
+  // Helper for full queries (when agentSlug passed)
   const mockDictionaryQueries = (
     agentData: any[],
-    orgData: any[],
     globalData: any[],
   ) => {
-    // Set up mock to handle all 3 queries (agent, org, global)
+    // Set up mock to handle 2 queries (agent, global)
     mockSupabaseClient.not = jest
       .fn()
       // Agent query
       .mockReturnValueOnce(mockSupabaseClient)
       .mockReturnValueOnce({ data: agentData, error: null })
-      // Org query
-      .mockReturnValueOnce(mockSupabaseClient)
-      .mockReturnValueOnce({ data: orgData, error: null })
       // Global query
       .mockReturnValueOnce(mockSupabaseClient)
       .mockReturnValue({ data: globalData, error: null });
@@ -201,27 +197,26 @@ describe('DictionaryPseudonymizerService', () => {
       expect(result.pseudonymizedText).toBe('Contact: EMAIL_1');
     });
 
-    it('should handle organization-scoped dictionaries', async () => {
-      const orgDictionary = [
+    it('should handle agent-scoped dictionaries', async () => {
+      const agentDictionary = [
         {
-          original_value: 'OrgSpecific',
-          pseudonym: 'ORG_ITEM',
+          original_value: 'AgentSpecific',
+          pseudonym: 'AGENT_ITEM',
           data_type: 'custom',
-          category: 'org',
-          organization_slug: 'test-org',
-          agent_slug: null,
+          category: 'agent',
+          organization_slug: null,
+          agent_slug: 'test-agent',
         },
       ];
 
-      mockDictionaryQueries([], orgDictionary, []);
+      mockDictionaryQueries(agentDictionary, []);
 
-      const text = 'OrgSpecific item here';
+      const text = 'AgentSpecific item here';
       const result = await service.pseudonymizeText(text, {
-        organizationSlug: 'test-org',
         agentSlug: 'test-agent',
       });
 
-      expect(result.pseudonymizedText).toBe('ORG_ITEM item here');
+      expect(result.pseudonymizedText).toBe('AGENT_ITEM item here');
     });
 
     it('should throw error on database failure', async () => {

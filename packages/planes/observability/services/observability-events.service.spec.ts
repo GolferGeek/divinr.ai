@@ -17,7 +17,6 @@ describe('ObservabilityEventsService', () => {
   const TEST_USER_ID_2 = '10000000-0000-4000-a000-000000000456';
 
   const mockContext = createMockExecutionContext({
-    orgSlug: 'test-org',
     userId: TEST_USER_ID,
     conversationId: TEST_CONV_ID,
     agentSlug: 'test-agent',
@@ -182,7 +181,6 @@ describe('ObservabilityEventsService', () => {
     it('should cache username from payload', async () => {
       const event = createMockEvent({
         context: createMockExecutionContext({
-          orgSlug: 'test-org',
           userId: TEST_USER_ID_2,
         }),
         payload: {
@@ -217,7 +215,7 @@ describe('ObservabilityEventsService', () => {
           conversation_id: TEST_CONV_ID,
           task_id: TEST_CONV_ID, // task_id falls back to conversationId since taskId removed from EC
           agent_slug: 'test-agent',
-          organization_slug: 'test-org',
+          organization_slug: null,
           status: 'started',
           message: 'Test event',
           progress: null,
@@ -456,7 +454,7 @@ describe('ObservabilityEventsService', () => {
           task_id: 'task-123',
           user_id: 'user-123',
           agent_slug: 'test-agent',
-          organization_slug: 'test-org',
+          organization_slug: null,
           source_app: 'orchestrator-ai',
           hook_event_type: 'agent.started',
           status: 'started',
@@ -531,7 +529,7 @@ describe('ObservabilityEventsService', () => {
         task_id: 'task-123',
         user_id: 'user-123',
         agent_slug: 'test-agent',
-        organization_slug: 'test-org',
+        organization_slug: null,
         source_app: 'orchestrator-ai',
         hook_event_type: 'agent.progress',
         status: 'in_progress',
@@ -559,7 +557,6 @@ describe('ObservabilityEventsService', () => {
           conversationId: 'conv-123',
           userId: 'user-123',
           agentSlug: 'test-agent',
-          orgSlug: 'test-org',
         },
         source_app: 'orchestrator-ai',
         hook_event_type: 'agent.progress',

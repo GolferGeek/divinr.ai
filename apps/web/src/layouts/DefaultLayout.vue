@@ -12,12 +12,12 @@ import {
   menuOutline, constructOutline,
 } from 'ionicons/icons';
 import { ref } from 'vue';
-import { useTenantStore } from '../stores/tenant.store';
+import { useAuthStore } from '../stores/auth.store';
 import { useDomainStore } from '../stores/domain.store';
 import { useActivityStore } from '../stores/activity.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
 
-const tenant = useTenantStore();
+const auth = useAuthStore();
 const domain = useDomainStore();
 const activity = useActivityStore();
 const router = useRouter();
@@ -37,17 +37,8 @@ const navItems = [
 ];
 
 function logout() {
-  tenant.clear();
+  auth.clear();
   router.push('/login');
-}
-
-function orgLabel(): string {
-  const orgs: Record<string, string> = {
-    'alpha-capital': 'Alpha Capital',
-    'steadfast-advisors': 'Steadfast Advisors',
-    'apex-quant': 'Apex Quant',
-  };
-  return orgs[tenant.orgSlug] ?? tenant.orgSlug;
 }
 </script>
 
@@ -97,14 +88,11 @@ function orgLabel(): string {
                 <ion-icon :icon="earthOutline" />
                 <ion-label>{{ domain.activeUniverse }}</ion-label>
               </ion-chip>
-              <ion-chip color="primary" outline>
-                <ion-label>{{ orgLabel() }}</ion-label>
-              </ion-chip>
-              <ion-chip v-if="tenant.isBetaReader" color="warning" outline>
+              <ion-chip v-if="auth.isBetaReader" color="warning" outline>
                 <ion-label>Read Only</ion-label>
               </ion-chip>
               <ion-chip color="medium">
-                <ion-label>{{ tenant.userId }}</ion-label>
+                <ion-label>{{ auth.userId }}</ion-label>
               </ion-chip>
               <ion-button fill="clear" @click="logout">
                 <ion-icon :icon="logOutOutline" />

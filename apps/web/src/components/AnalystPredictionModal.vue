@@ -11,7 +11,7 @@ import {
 import { useApi } from '../composables/useApi';
 import { useProvenanceStore } from '../stores/provenance.store';
 import { usePortfolioStore } from '../stores/portfolio.store';
-import { useTenantStore } from '../stores/tenant.store';
+import { useAuthStore } from '../stores/auth.store';
 
 interface AnalystStance {
   prediction_id: string;
@@ -207,13 +207,11 @@ async function takeTrade() {
   if (!a) return;
 
   try {
-    const tenant = useTenantStore();
     const direction = a.direction === 'down' ? 'short' : 'long';
     const result = await api.post<Record<string, unknown>>('/trades/confirm', {
       predictionId: a.prediction_id,
       analystId: a.analyst_id,
       direction,
-      organizationSlug: tenant.orgSlug,
     });
 
     if (result.requiresDisclaimer) {
@@ -236,10 +234,8 @@ async function skipTrade() {
   const a = analyst.value;
   if (!a) return;
   try {
-    const tenant = useTenantStore();
     await api.post('/trades/skip', {
       predictionId: a.prediction_id,
-      organizationSlug: tenant.orgSlug,
     });
     tradeResult.value = { skipped: true };
   } catch { /* silent */ }
@@ -247,10 +243,7 @@ async function skipTrade() {
 
 async function acknowledgeDisclaimer() {
   try {
-    const tenant = useTenantStore();
-    await api.post('/trades/acknowledge-disclaimer', {
-      organizationSlug: tenant.orgSlug,
-    });
+    await api.post('/trades/acknowledge-disclaimer', {});
     disclaimerAcknowledged.value = true;
     showDisclaimer.value = false;
     // Retry the appropriate trade flow now that disclaimer is acknowledged
@@ -280,13 +273,13 @@ async function loadChallenges() {
   challengeLoading.value = true;
   challenges.value = [];
   try {
-    const tenant = useTenantStore();
+    const authStore = useAuthStore();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (tenant.token) headers['Authorization'] = `Bearer ${tenant.token}`;
+    if (authStore.token) headers['Authorization'] = `Bearer ${authStore.token}`;
     const res = await fetch(`/api/markets/predictions/${a.prediction_id}/challenge`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ organizationSlug: tenant.orgSlug }),
+      body: JSON.stringify({}),
     });
     const reader = res.body?.getReader();
     const decoder = new TextDecoder();

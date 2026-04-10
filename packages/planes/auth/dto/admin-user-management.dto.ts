@@ -48,15 +48,6 @@ export class UpdateUserRolesDto {
   roles!: string[];
 
   @ApiProperty({
-    description: 'Organization slug for role assignment',
-    required: false,
-    example: 'demo-org',
-  })
-  @IsOptional()
-  @IsString()
-  organizationSlug?: string;
-
-  @ApiProperty({
     description: 'Optional reason for role change',
     required: false,
     example: 'Promoting user to admin for system maintenance',
@@ -78,15 +69,6 @@ export class AddUserRoleDto {
   role!: string;
 
   @ApiProperty({
-    description: 'Organization slug for role assignment',
-    required: false,
-    example: 'demo-org',
-  })
-  @IsOptional()
-  @IsString()
-  organizationSlug?: string;
-
-  @ApiProperty({
     description: 'Optional reason for adding role',
     required: false,
     example: 'Granting admin access for project management',
@@ -100,15 +82,6 @@ export class AddUserRoleDto {
  * @deprecated Use RBAC endpoints instead (/api/rbac/users/:userId/roles)
  */
 export class RemoveUserRoleDto {
-  @ApiProperty({
-    description: 'Organization slug for role removal',
-    required: false,
-    example: 'demo-org',
-  })
-  @IsOptional()
-  @IsString()
-  organizationSlug?: string;
-
   @ApiProperty({
     description: 'Optional reason for removing role',
     required: false,

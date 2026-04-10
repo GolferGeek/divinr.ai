@@ -36,9 +36,6 @@ export function isNilUuid(uuid: string): boolean {
  * deliverableId) is no longer part of the shared core.
  */
 export interface ExecutionContext {
-  /** Organization slug — tenant identity, routing, policy */
-  orgSlug: string;
-
   /** User ID (from auth) — attribution, auditability */
   userId: string;
 
@@ -65,7 +62,6 @@ export interface ExecutionContext {
  * Create a complete execution context with all required fields.
  */
 export function createExecutionContext(params: {
-  orgSlug: string;
   userId: string;
   conversationId: string;
   agentSlug: string;
@@ -84,7 +80,6 @@ export function createMockExecutionContext(
   overrides?: Partial<ExecutionContext>,
 ): ExecutionContext {
   return {
-    orgSlug: 'test-org',
     userId: 'test-user-id',
     conversationId: 'test-conversation-id',
     agentSlug: 'test-agent',
@@ -106,7 +101,6 @@ export function isExecutionContext(obj: unknown): obj is ExecutionContext {
   const candidate = obj as Record<string, unknown>;
 
   return (
-    typeof candidate.orgSlug === 'string' &&
     typeof candidate.userId === 'string' &&
     typeof candidate.conversationId === 'string' &&
     typeof candidate.agentSlug === 'string' &&

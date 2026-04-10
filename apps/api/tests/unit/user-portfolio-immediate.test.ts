@@ -24,7 +24,7 @@ function basePortfolio() {
   return {
     id: 'pf-user-1',
     user_id: 'user-1',
-    organization_slug: 'acme',
+    user_id: 'user-1',
     current_balance: 1_000_000,
     initial_balance: 1_000_000,
   };
@@ -52,7 +52,7 @@ async function main() {
     });
     const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
     const pos = await svc.executeImmediate({
-      userId: 'user-1', organizationSlug: 'acme', predictionId: 'pred-1',
+      userId: 'user-1', predictionId: 'pred-1',
       instrumentId: 'inst-1', direction: 'long', quantity: 10,
     });
     assert(inserted, 'INSERT into user_positions issued');
@@ -78,7 +78,7 @@ async function main() {
     });
     const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
     const pos = await svc.executeImmediate({
-      userId: 'user-1', organizationSlug: 'acme', predictionId: 'pred-1',
+      userId: 'user-1', predictionId: 'pred-1',
       instrumentId: 'inst-1', direction: 'long', quantity: 10,
     });
     assert((pos as any).id === 'pos-existing', 'returns existing position id');
@@ -159,7 +159,7 @@ async function main() {
       return { data: [], error: null };
     });
     const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
-    assert(await svc.isDisclaimerAcknowledged('user-1', 'acme'), 'returns true when ack timestamp present');
+    assert(await svc.isDisclaimerAcknowledged('user-1'), 'returns true when ack timestamp present');
   }
   {
     const db = new MockDb((sql) => {
@@ -167,7 +167,7 @@ async function main() {
       return { data: [], error: null };
     });
     const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
-    assert((await svc.isDisclaimerAcknowledged('user-1', 'acme')) === false, 'returns false when ack null');
+    assert((await svc.isDisclaimerAcknowledged('user-1')) === false, 'returns false when ack null');
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

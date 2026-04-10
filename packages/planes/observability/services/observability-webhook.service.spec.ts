@@ -13,7 +13,6 @@ describe('ObservabilityWebhookService', () => {
   let authService: any;
 
   const mockContext = createMockExecutionContext({
-    orgSlug: 'test-org',
     userId: 'user-123',
     conversationId: 'conv-123',
     agentSlug: 'test-agent',
@@ -305,7 +304,6 @@ describe('ObservabilityWebhookService', () => {
             userId: 'user-123',
             conversationId: 'conv-123',
             agentSlug: 'test-agent',
-            organizationSlug: 'test-org',
             mode: 'build',
           }),
           expect.any(Object),
@@ -314,7 +312,6 @@ describe('ObservabilityWebhookService', () => {
 
       it('should handle missing optional fields in ExecutionContext', async () => {
         const minimalContext = createMockExecutionContext({
-          orgSlug: 'test-org',
           userId: 'user-123',
           conversationId: undefined as any, // Simulate missing conversationId
           agentSlug: undefined as any, // Simulate missing agentSlug
@@ -420,7 +417,6 @@ describe('ObservabilityWebhookService', () => {
           userId: 'user-123',
           conversationId: 'conv-123',
           agentSlug: 'test-agent',
-          organizationSlug: 'test-org',
           mode: 'build',
         });
 
@@ -434,7 +430,6 @@ describe('ObservabilityWebhookService', () => {
           userId: 'user-123',
           conversationId: 'conv-123',
           agentSlug: 'test-agent',
-          organizationSlug: 'test-org',
           mode: 'build',
           success: true,
         });
@@ -449,7 +444,6 @@ describe('ObservabilityWebhookService', () => {
           userId: 'user-123',
           conversationId: 'conv-123',
           agentSlug: 'test-agent',
-          organizationSlug: 'test-org',
           mode: 'build',
           message: 'Processing...',
           progress: 50,
@@ -495,7 +489,6 @@ describe('ObservabilityWebhookService', () => {
         userId: 'user-123',
         conversationId: 'conv-123',
         agentSlug: 'test-agent',
-        organizationSlug: 'test-org',
         mode: 'build',
         message: 'Test message',
         progress: 75,
@@ -514,7 +507,6 @@ describe('ObservabilityWebhookService', () => {
           status: 'agent.progress',
           userId: 'user-123',
           agentSlug: 'test-agent',
-          organizationSlug: 'test-org',
           mode: 'build',
           message: 'Test message',
           percent: 75,

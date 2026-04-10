@@ -20,7 +20,7 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
 export interface AutotradeOpenPortfolio {
   id: string;
   analyst_id: string;
-  organization_slug: string;
+  user_id: string | null;
   current_balance: number | string;
 }
 
@@ -36,7 +36,6 @@ export interface AutotradeOpenInput {
   conviction: number;
   triggerReason: string;
   triggerStrategy?: string;
-  organizationSlug: string;
 }
 
 export type AutotradeOpenReason =
@@ -90,18 +89,17 @@ export class AutotradeOpenHelper {
     const id = randomUUID();
     const insertResult = await db.rawQuery(
       `insert into prediction.analyst_positions
-         (id, portfolio_id, analyst_id, organization_slug, prediction_id,
+         (id, portfolio_id, analyst_id, prediction_id,
           instrument_id, symbol, direction, quantity,
           entry_price, current_price, is_paper_only, status, opened_at,
           trigger_reason, trigger_strategy, trigger_prediction_id, trigger_conviction,
           high_water_mark)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, 'open', now(),
-               $12, $13, $14, $15, NULL)`,
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, 'open', now(),
+               $11, $12, $13, $14, NULL)`,
       [
         id,
         input.portfolio.id,
         input.portfolio.analyst_id,
-        input.portfolio.organization_slug,
         input.predictionId,
         input.instrumentId,
         input.symbol,

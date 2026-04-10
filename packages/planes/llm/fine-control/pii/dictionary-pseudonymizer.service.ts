@@ -63,7 +63,6 @@ export class DictionaryPseudonymizerService {
    * Load active dictionary entries from database, scoped by organization/agent when provided
    */
   private async loadDictionary(options?: {
-    organizationSlug?: string | null;
     agentSlug?: string | null;
   }): Promise<DictionaryPseudonymMapping[]> {
     const now = Date.now();
@@ -74,30 +73,18 @@ export class DictionaryPseudonymizerService {
     }
 
     try {
-      const { organizationSlug = null, agentSlug = null } = options || {};
+      const { agentSlug = null } = options || {};
 
-      // Prefer agent-scoped -> org-scoped -> global
+      // Prefer agent-scoped -> global
       const resultSets: unknown[][] = [];
 
-      if (organizationSlug && agentSlug) {
+      if (agentSlug) {
         const { data } = (await this.db
           .from(null, 'pseudonym_dictionaries')
           .select('original_value, pseudonym, data_type, category')
           .eq('is_active', true)
-          .eq('organization_slug', organizationSlug)
+          .is('organization_slug', null)
           .eq('agent_slug', agentSlug)
-          .not('original_value', 'is', null)
-          .not('pseudonym', 'is', null)) as QueryResult<unknown>;
-        if (data) resultSets.push(data as unknown[]);
-      }
-
-      if (organizationSlug) {
-        const { data } = (await this.db
-          .from(null, 'pseudonym_dictionaries')
-          .select('original_value, pseudonym, data_type, category')
-          .eq('is_active', true)
-          .eq('organization_slug', organizationSlug)
-          .is('agent_slug', null)
           .not('original_value', 'is', null)
           .not('pseudonym', 'is', null)) as QueryResult<unknown>;
         if (data) resultSets.push(data as unknown[]);
@@ -119,23 +106,21 @@ export class DictionaryPseudonymizerService {
 
       if (globalData) resultSets.push(globalData as unknown[]);
 
-      // Merge with priority: agent > org > global, detect overrides/conflicts
+      // Merge with priority: agent > global, detect overrides/conflicts
       const merged = ([] as unknown[]).concat(...resultSets);
       const byOriginal: Record<
         string,
         {
           pseudonym: string;
-          src: 'agent' | 'org' | 'global';
+          src: 'agent' | 'global';
           row: Record<string, unknown>;
         }
       > = {};
       for (const row of merged) {
         const r = row as Record<string, unknown>;
-        const src: 'agent' | 'org' | 'global' = r.agent_slug
+        const src: 'agent' | 'global' = r.agent_slug
           ? 'agent'
-          : r.organization_slug
-            ? 'org'
-            : 'global';
+          : 'global';
         const key = `${String((r.original_value as string | null | undefined) || '').toLowerCase()}::${String(r.data_type) || 'unknown'}`;
         if (!key.trim()) continue;
         const existing = byOriginal[key];
@@ -148,8 +133,8 @@ export class DictionaryPseudonymizerService {
           continue;
         }
         // Only override when new source has higher priority
-        const rank = (s: 'agent' | 'org' | 'global') =>
-          s === 'agent' ? 3 : s === 'org' ? 2 : 1;
+        const rank = (s: 'agent' | 'global') =>
+          s === 'agent' ? 2 : 1;
         if (rank(src) > rank(existing.src)) {
           if (existing.pseudonym !== r.pseudonym) {
             this.logger.warn(
@@ -195,7 +180,7 @@ export class DictionaryPseudonymizerService {
    */
   async pseudonymizeText(
     text: string,
-    options?: { organizationSlug?: string | null; agentSlug?: string | null },
+    options?: { agentSlug?: string | null },
   ): Promise<DictionaryPseudonymizationResult> {
     const startTime = Date.now();
     let processedText = text;

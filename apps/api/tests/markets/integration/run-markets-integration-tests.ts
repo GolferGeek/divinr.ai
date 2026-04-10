@@ -88,13 +88,11 @@ async function runScenario(
   const seeded: SeedResult = await seedScenario(service, db, scenario);
   try {
     const queued = await service.enqueueRun({
-      organizationSlug: seeded.organizationSlug,
       userId: seeded.userId,
       instrumentId: seeded.instrumentId,
       runType: 'prediction',
     });
     const processed = await service.processNextQueuedRun({
-      organizationSlug: seeded.organizationSlug,
       userId: seeded.userId,
     });
     assert.equal(processed.processed, true, 'processNextQueuedRun did not process a run');
@@ -172,7 +170,7 @@ async function runScenario(
     assert.equal(analystArtifacts, expectedAnalystPreds, `${scenario.name}: analyst artifact count`);
     assert.equal(arbitratorArtifacts, 1, `${scenario.name}: arbitrator artifact count`);
   } finally {
-    await cleanupScenario(db, seeded.organizationSlug);
+    await cleanupScenario(db, `integration-test-${scenario.name}`);
   }
 }
 

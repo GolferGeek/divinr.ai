@@ -7,8 +7,6 @@
 --   * 3 RBAC roles: super-admin, owner, member
 --     (note hyphen — RbacService.isSuperAdmin() hard-codes name='super-admin')
 --   * Both existing markets permissions granted to all 3 roles
---   * '*' sentinel organization for global super-admin grants
---   * personal-golfergeek and personal-demo-user organizations
 --   * authz.users rows linking the 2 real Supabase auth uuids to email
 --   * Role grants:
 --       golfergeek: owner of personal-golfergeek + super-admin globally ('*')
@@ -43,56 +41,57 @@ insert into authz.rbac_role_permissions (role_id, permission_id) values
   ('role-subscriber',  'markets-instruments-write')
 on conflict (role_id, permission_id) do nothing;
 
--- 3. Sentinel organization for global super-admin grants.
---    rbac_user_org_roles.organization_slug has an FK to authz.organizations(slug),
---    so the wildcard '*' must exist as an actual row.
-insert into authz.organizations (slug, name) values
-  ('*',                   'Global'),
-  ('personal-golfergeek', 'GolferGeek (Personal)'),
-  ('personal-demo-user',  'Demo User (Personal)')
-on conflict (slug) do nothing;
+-- 3. (organizations table dropped — no longer needed)
 
 -- 4. Insert authz.users rows whose id is the Supabase auth.users uuid.
---    This is the FK target for rbac_user_org_roles.user_id.
---    organization_slug maps to the user's personal org (used for backfill).
-insert into authz.users (id, email, display_name, organization_slug)
-select id::text, email, split_part(email, '@', 1),
-  case
-    when email = 'golfergeek@orchestratorai.io' then 'personal-golfergeek'
-    when email = 'demo-user@orchestratorai.io' then 'personal-demo-user'
-    else null
-  end
+insert into authz.users (id, email, display_name)
+select id::text, email, split_part(email, '@', 1)
 from auth.users
 where email in ('golfergeek@orchestratorai.io', 'demo-user@orchestratorai.io')
-on conflict (id) do update
-  set organization_slug = excluded.organization_slug
-  where authz.users.organization_slug is null;
+on conflict (id) do nothing;
 
 -- 5. Role grants — golfergeek
 --
 -- Notes on super-admin:
---   * The '*' grant is forward-prep. The current authz.rbac_has_permission()
---     function joins strictly on organization_slug, so it does not honor the
---     wildcard. isSuperAdmin() does, but markets does not call it.
---   * To actually have super-admin access on a concrete org, you must grant
---     the role on that org explicitly. New orgs need the grant added manually.
+--   * Org-scoping removed in Phase 5 of user-scoped-platform effort.
+--     rbac_has_permission() now checks (user_id, role_id) only.
 with gg as (
   select id::text as user_id from auth.users where email = 'golfergeek@orchestratorai.io'
 )
-insert into authz.rbac_user_org_roles (user_id, organization_slug, role_id, assigned_by)
-select gg.user_id, 'personal-golfergeek', 'role-owner',       'bootstrap' from gg
+insert into authz.rbac_user_roles (user_id, role_id, assigned_by)
+select gg.user_id, 'role-owner',       'bootstrap' from gg
 union all
-select gg.user_id, 'personal-golfergeek', 'role-super-admin', 'bootstrap' from gg
-union all
-select gg.user_id, 'personal-demo-user',  'role-super-admin', 'bootstrap' from gg
-union all
-select gg.user_id, '*',                   'role-super-admin', 'bootstrap' from gg
-on conflict (user_id, organization_slug, role_id) do nothing;
+select gg.user_id, 'role-super-admin', 'bootstrap' from gg
+on conflict (user_id, role_id) do nothing;
 
--- 6. Role grants — demo user
+-- 6. rbac_has_permission RPC — user-scoped only (no org_slug parameter).
+CREATE OR REPLACE FUNCTION authz.rbac_has_permission(
+  p_user_id text,
+  p_permission text,
+  p_resource_type text DEFAULT NULL,
+  p_resource_id text DEFAULT NULL
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM authz.rbac_user_roles ur
+    JOIN authz.rbac_role_permissions rp ON rp.role_id = ur.role_id
+    JOIN authz.rbac_permissions p ON p.id = rp.permission_id
+    WHERE ur.user_id = p_user_id
+      AND p.name = p_permission
+      AND (ur.expires_at IS NULL OR ur.expires_at > now())
+  );
+END;
+$$;
+
+-- 7. Role grants — demo user
 with du as (
   select id::text as user_id from auth.users where email = 'demo-user@orchestratorai.io'
 )
-insert into authz.rbac_user_org_roles (user_id, organization_slug, role_id, assigned_by)
-select du.user_id, 'personal-demo-user', 'role-owner', 'bootstrap' from du
-on conflict (user_id, organization_slug, role_id) do nothing;
+insert into authz.rbac_user_roles (user_id, role_id, assigned_by)
+select du.user_id, 'role-owner', 'bootstrap' from du
+on conflict (user_id, role_id) do nothing;

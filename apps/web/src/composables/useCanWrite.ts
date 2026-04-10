@@ -3,11 +3,11 @@
  * Effort: beta-user-share-path.
  */
 import { computed } from 'vue';
-import { useTenantStore } from '../stores/tenant.store';
+import { useAuthStore } from '../stores/auth.store';
 
 export function useCanWrite() {
-  const tenant = useTenantStore();
-  const canWrite = computed(() => !tenant.isBetaReader);
-  const isBetaReader = computed(() => tenant.isBetaReader);
+  const auth = useAuthStore();
+  const canWrite = computed(() => !auth.isBetaReader);
+  const isBetaReader = computed(() => auth.isBetaReader);
   return { canWrite, isBetaReader };
 }

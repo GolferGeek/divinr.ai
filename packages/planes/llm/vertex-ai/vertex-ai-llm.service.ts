@@ -557,7 +557,7 @@ export class VertexAILLMService implements LLMServiceProvider {
         caller_type: 'agent',
         caller_name: params.executionContext.agentSlug,
         conversation_id: params.executionContext.conversationId,
-        organization_slug: params.executionContext.orgSlug,
+        organization_slug: null,
       });
     } catch (error) {
       this.logger.warn(

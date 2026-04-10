@@ -6,9 +6,9 @@ import {
   IonCardContent, IonItem, IonInput, IonButton, IonIcon, IonText, IonSpinner,
 } from '@ionic/vue';
 import { analyticsOutline } from 'ionicons/icons';
-import { useTenantStore } from '../stores/tenant.store';
+import { useAuthStore } from '../stores/auth.store';
 
-const tenant = useTenantStore();
+const auth = useAuthStore();
 const router = useRouter();
 
 const email = ref('');
@@ -52,10 +52,10 @@ async function login() {
       }
       return;
     }
-    const auth = (await loginRes.json()) as LoginResponse;
+    const loginData = (await loginRes.json()) as LoginResponse;
 
     const meRes = await fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${auth.accessToken}` },
+      headers: { Authorization: `Bearer ${loginData.accessToken}` },
     });
     if (!meRes.ok) {
       error.value = `Could not fetch profile (${meRes.status})`;
@@ -63,11 +63,7 @@ async function login() {
     }
     const me = (await meRes.json()) as MeResponse;
 
-    // Pick a default org slug. Personal orgs follow the convention
-    // `personal-<email-handle>`. Once a real org switcher exists, this becomes
-    // a per-user preference.
-    const handle = (me.email ?? email.value.trim()).split('@')[0];
-    tenant.setTenant(`personal-${handle}`, me.id, auth.accessToken);
+    auth.setAuth(me.id, loginData.accessToken, me.role);
     await router.push('/');
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);

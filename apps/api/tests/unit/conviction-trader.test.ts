@@ -41,7 +41,7 @@ class MockDb {
 }
 
 const stubSizing = {
-  getPositionPercent: async (_conf: number, _org: string) => 0.1,
+  getPositionPercent: async (_conf: number) => 0.1,
   calculatePositionSize: (_balance: number, entryPrice: number, percent: number) =>
     Math.max(1, Math.floor((1_000_000 * percent) / entryPrice)),
 } as any;
@@ -50,7 +50,6 @@ function makeOutcome(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'pred-1',
     run_id: 'run-1',
-    organization_slug: 'acme',
     instrument_id: 'inst-1',
     analyst_id: 'analyst-1',
     predicted_direction: 'up' as 'up',
@@ -71,7 +70,7 @@ function buildHappyPathScript(opts: {
     portfolio = {
       id: 'pf-portfolio-analyst-1',
       analyst_id: 'analyst-1',
-      organization_slug: 'acme',
+      user_id: null,
       current_balance: 1_000_000,
       kind: 'analyst',
       status: 'active',
@@ -106,36 +105,36 @@ delete process.env.CONVICTION_TRADE_THRESHOLD;
 {
   const db = new MockDb(buildHappyPathScript());
   const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
-  await service.evaluateAnalyst(makeOutcome({ confidence: 69 }), 'acme');
+  await service.evaluateAnalyst(makeOutcome({ confidence: 69 }));
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'confidence 69 → no insert');
 }
 {
   const db = new MockDb(buildHappyPathScript());
   const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
-  await service.evaluateAnalyst(makeOutcome({ confidence: 70 }), 'acme');
+  await service.evaluateAnalyst(makeOutcome({ confidence: 70 }));
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 1, 'confidence 70 → insert (>= is inclusive)');
 }
 {
   const db = new MockDb(buildHappyPathScript());
   const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
-  await service.evaluateAnalyst(makeOutcome({ confidence: 75 }), 'acme');
+  await service.evaluateAnalyst(makeOutcome({ confidence: 75 }));
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 1, 'confidence 75 → insert');
-  // params: id, portfolio_id, analyst_id, organization_slug, prediction_id,
+  // params: id, portfolio_id, analyst_id, prediction_id,
   //         instrument_id, symbol, direction, quantity, entry_price, current_price,
   //         trigger_reason, trigger_prediction_id, trigger_conviction
   const params = inserts[0].params;
   assert(params[1] === 'pf-portfolio-analyst-1', 'insert routed to analyst portfolio');
-  assert(params[4] === 'pred-1', 'prediction_id captured');
-  assert(params[5] === 'inst-1', 'instrument_id captured');
-  assert(params[6] === 'NVDA', 'symbol resolved from instruments.current_state');
-  assert(params[7] === 'long', 'direction up → long');
-  assert(Number(params[9]) === 100, 'entry price from current_state');
-  assert(params[11] === 'signal_cross', 'trigger_reason=signal_cross');
-  assert(params[13] === 'pred-1', 'trigger_prediction_id matches prediction id');
-  assert(Number(params[14]) === 75, 'trigger_conviction=75');
+  assert(params[3] === 'pred-1', 'prediction_id captured');
+  assert(params[4] === 'inst-1', 'instrument_id captured');
+  assert(params[5] === 'NVDA', 'symbol resolved from instruments.current_state');
+  assert(params[6] === 'long', 'direction up → long');
+  assert(Number(params[8]) === 100, 'entry price from current_state');
+  assert(params[10] === 'signal_cross', 'trigger_reason=signal_cross');
+  assert(params[12] === 'pred-1', 'trigger_prediction_id matches prediction id');
+  assert(Number(params[13]) === 75, 'trigger_conviction=75');
 }
 
 // ─── Threshold env var override ─────────────────────────────────
@@ -144,7 +143,7 @@ console.log('\nThreshold env var override:');
   process.env.CONVICTION_TRADE_THRESHOLD = '90';
   const db = new MockDb(buildHappyPathScript());
   const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
-  await service.evaluateAnalyst(makeOutcome({ confidence: 85 }), 'acme');
+  await service.evaluateAnalyst(makeOutcome({ confidence: 85 }));
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'override 90, conf 85 → no insert');
   delete process.env.CONVICTION_TRADE_THRESHOLD;
@@ -155,7 +154,7 @@ console.log('\nIdempotency:');
 {
   const db = new MockDb(buildHappyPathScript({ existingOpenPosition: true }));
   const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
-  await service.evaluateAnalyst(makeOutcome({ confidence: 80 }), 'acme');
+  await service.evaluateAnalyst(makeOutcome({ confidence: 80 }));
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'existing open position on (portfolio,instrument,prediction) → no insert');
 }
@@ -165,7 +164,7 @@ console.log('\nMissing portfolio:');
 {
   const db = new MockDb(buildHappyPathScript({ portfolio: null }));
   const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
-  await service.evaluateAnalyst(makeOutcome({ confidence: 80 }), 'acme');
+  await service.evaluateAnalyst(makeOutcome({ confidence: 80 }));
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'no portfolio row → no insert (warn logged)');
 }
@@ -176,7 +175,7 @@ console.log('\nArbitrator routing:');
   const arbPortfolio = {
     id: 'pf-portfolio-arbitrator',
     analyst_id: 'pf-base-arbitrator',
-    organization_slug: '__base__',
+    user_id: null,
     current_balance: 1_000_000,
     kind: 'arbitrator',
     status: 'active',
@@ -196,12 +195,11 @@ console.log('\nArbitrator routing:');
     return { data: [], error: null };
   });
   const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
-  await service.evaluateArbitrator(makeOutcome({ confidence: 80, predicted_direction: 'down' }), 'acme');
+  await service.evaluateArbitrator(makeOutcome({ confidence: 80, predicted_direction: 'down' }));
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 1, 'arbitrator >= threshold → insert');
   assert(inserts[0].params[1] === 'pf-portfolio-arbitrator', 'insert routed to pf-portfolio-arbitrator');
-  assert(inserts[0].params[3] === '__base__', 'organization_slug from arbitrator portfolio row');
-  assert(inserts[0].params[7] === 'short', 'direction down → short');
+  assert(inserts[0].params[6] === 'short', 'direction down → short');
 }
 
 // ─── Missing instrument price ───────────────────────────────────
@@ -213,7 +211,7 @@ console.log('\nMissing price guard:');
         data: [{
           id: 'pf-portfolio-analyst-1',
           analyst_id: 'analyst-1',
-          organization_slug: 'acme',
+          user_id: null,
           current_balance: 1_000_000,
           kind: 'analyst',
           status: 'active',
@@ -230,7 +228,7 @@ console.log('\nMissing price guard:');
     return { data: [], error: null };
   });
   const service = new ConvictionTraderService(db as any, stubSizing, new AutotradeOpenHelper(db as any));
-  await service.evaluateAnalyst(makeOutcome({ confidence: 80 }), 'acme');
+  await service.evaluateAnalyst(makeOutcome({ confidence: 80 }));
   const inserts = db.calls.filter(c => c.sql.startsWith('insert into prediction.analyst_positions'));
   assert(inserts.length === 0, 'no current price → skip with warn (no insert)');
 }

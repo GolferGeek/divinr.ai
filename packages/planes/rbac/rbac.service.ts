@@ -19,25 +19,6 @@ interface RpcRoleRow {
   expires_at?: string;
 }
 
-interface RpcOrganizationRow {
-  organization_slug: string;
-  organization_name: string;
-  role_name: string;
-  is_global: boolean;
-}
-
-interface RpcOrganizationUserRow {
-  user_id: string;
-  email: string;
-  display_name?: string;
-  role_id: string;
-  role_name: string;
-  role_display_name: string;
-  is_global: boolean;
-  assigned_at: string;
-  expires_at?: string;
-}
-
 interface RbacRoleDbRow {
   id: string;
   name: string;
@@ -86,27 +67,6 @@ export interface UserPermission {
   resourceId?: string;
 }
 
-export interface UserOrganization {
-  organizationSlug: string;
-  organizationName: string;
-  roleName: string;
-  isGlobal: boolean;
-}
-
-export interface OrganizationUser {
-  userId: string;
-  email: string;
-  displayName?: string;
-  roles: Array<{
-    id: string;
-    name: string;
-    displayName: string;
-    isGlobal: boolean;
-    assignedAt: Date;
-    expiresAt?: Date;
-  }>;
-}
-
 export interface RbacRole {
   id: string;
   name: string;
@@ -130,11 +90,10 @@ export class RbacService {
   constructor(@Inject(DATABASE_SERVICE) private readonly db: DatabaseService) {}
 
   /**
-   * Check if user has permission in organization
+   * Check if user has permission (global, no org scoping)
    */
   async hasPermission(
     userId: string,
-    organizationSlug: string,
     permission: string,
     resourceType?: string,
     resourceId?: string,
@@ -143,7 +102,6 @@ export class RbacService {
       'rbac_has_permission',
       {
         p_user_id: userId,
-        p_organization_slug: organizationSlug,
         p_permission: permission,
         p_resource_type: resourceType || null,
         p_resource_id: resourceId || null,
@@ -164,14 +122,12 @@ export class RbacService {
    */
   async requirePermission(
     userId: string,
-    organizationSlug: string,
     permission: string,
     resourceType?: string,
     resourceId?: string,
   ): Promise<void> {
     const hasAccess = await this.hasPermission(
       userId,
-      organizationSlug,
       permission,
       resourceType,
       resourceId,
@@ -185,17 +141,15 @@ export class RbacService {
   }
 
   /**
-   * Get all permissions for user in organization
+   * Get all permissions for user
    */
   async getUserPermissions(
     userId: string,
-    organizationSlug: string,
   ): Promise<UserPermission[]> {
     const { data, error } = (await this.db.rpc(
       'rbac_get_user_permissions',
       {
         p_user_id: userId,
-        p_organization_slug: organizationSlug,
       },
       'authz',
     )) as {
@@ -219,17 +173,15 @@ export class RbacService {
   }
 
   /**
-   * Get user's roles in organization
+   * Get user's roles
    */
   async getUserRoles(
     userId: string,
-    organizationSlug: string,
   ): Promise<UserRole[]> {
     const { data, error } = (await this.db.rpc(
       'rbac_get_user_roles',
       {
         p_user_id: userId,
-        p_organization_slug: organizationSlug,
       },
       'authz',
     )) as {
@@ -250,110 +202,6 @@ export class RbacService {
       assignedAt: new Date(row.assigned_at),
       expiresAt: row.expires_at ? new Date(row.expires_at) : undefined,
     }));
-  }
-
-  /**
-   * Get all organizations user has access to
-   */
-  async getUserOrganizations(userId: string): Promise<UserOrganization[]> {
-    const { data, error } = (await this.db.rpc(
-      'rbac_get_user_organizations',
-      {
-        p_user_id: userId,
-      },
-      'authz',
-    )) as {
-      data: RpcOrganizationRow[] | null;
-      error: { message: string } | null;
-    };
-
-    if (error) {
-      this.logger.error(
-        `Failed to get user organizations: ${error.message}`,
-        error,
-      );
-      return [];
-    }
-
-    return (data || []).map((row) => ({
-      organizationSlug: row.organization_slug,
-      organizationName: row.organization_name,
-      roleName: row.role_name,
-      isGlobal: row.is_global,
-    }));
-  }
-
-  /**
-   * Get all users in an organization with their roles
-   */
-  async getOrganizationUsers(
-    organizationSlug: string,
-  ): Promise<OrganizationUser[]> {
-    const { data, error } = (await this.db.rpc(
-      'rbac_get_organization_users',
-      {
-        p_organization_slug: organizationSlug,
-      },
-      'authz',
-    )) as {
-      data: RpcOrganizationUserRow[] | null;
-      error: { message: string } | null;
-    };
-
-    if (error) {
-      this.logger.error(
-        `Failed to get organization users: ${error.message}`,
-        error,
-      );
-      return [];
-    }
-
-    // Group roles by user and deduplicate
-    const userMap = new Map<string, OrganizationUser>();
-
-    (data || []).forEach((row) => {
-      if (!userMap.has(row.user_id)) {
-        userMap.set(row.user_id, {
-          userId: row.user_id,
-          email: row.email,
-          displayName: row.display_name,
-          roles: [],
-        });
-      }
-
-      const user = userMap.get(row.user_id)!;
-
-      // Check if this role already exists for this user
-      // Prefer org-specific role over global role for this org
-      const existingRoleIndex = user.roles.findIndex(
-        (r) => r.name === row.role_name,
-      );
-
-      if (existingRoleIndex === -1) {
-        // Role doesn't exist, add it
-        user.roles.push({
-          id: row.role_id,
-          name: row.role_name,
-          displayName: row.role_display_name,
-          isGlobal: row.is_global,
-          assignedAt: new Date(row.assigned_at),
-          expiresAt: row.expires_at ? new Date(row.expires_at) : undefined,
-        });
-      } else if (!row.is_global) {
-        // Role exists but this one is org-specific, prefer it over global
-        user.roles[existingRoleIndex] = {
-          id: row.role_id,
-          name: row.role_name,
-          displayName: row.role_display_name,
-          isGlobal: row.is_global,
-          assignedAt: new Date(row.assigned_at),
-          expiresAt: row.expires_at ? new Date(row.expires_at) : undefined,
-        };
-      }
-      // If role exists and new one is global, skip it (keep org-specific)
-    });
-
-    return Array.from(userMap.values());
   }
 
   /**
@@ -512,11 +360,10 @@ export class RbacService {
   }
 
   /**
-   * Assign role to user in organization
+   * Assign role to user
    */
   async assignRole(
     targetUserId: string,
-    organizationSlug: string,
     roleName: string,
     assignedBy: string,
     expiresAt?: Date,
@@ -537,17 +384,16 @@ export class RbacService {
 
     const typedRole = role as { id: string };
 
-    // Insert assignment
-    const { error } = await this.db.from('authz', 'rbac_user_org_roles').upsert(
+    // Insert assignment (table rename to rbac_user_roles happens in Phase 3)
+    const { error } = await this.db.from('authz', 'rbac_user_roles').upsert(
       {
         user_id: targetUserId,
-        organization_slug: organizationSlug,
         role_id: typedRole.id,
         assigned_by: assignedBy,
         expires_at: expiresAt?.toISOString() || null,
       },
       {
-        onConflict: 'user_id,organization_slug,role_id',
+        onConflict: 'user_id,role_id',
       },
     );
 
@@ -561,7 +407,7 @@ export class RbacService {
       assignedBy,
       targetUserId,
       typedRole.id,
-      organizationSlug,
+      null,
       {
         role_name: roleName,
         expires_at: expiresAt?.toISOString(),
@@ -570,11 +416,10 @@ export class RbacService {
   }
 
   /**
-   * Revoke role from user in organization
+   * Revoke role from user
    */
   async revokeRole(
     targetUserId: string,
-    organizationSlug: string,
     roleName: string,
     revokedBy: string,
   ): Promise<void> {
@@ -594,12 +439,11 @@ export class RbacService {
 
     const typedRole = role as { id: string };
 
-    // Delete assignment
+    // Delete assignment (table rename to rbac_user_roles happens in Phase 3)
     const { error } = (await this.db
-      .from('authz', 'rbac_user_org_roles')
+      .from('authz', 'rbac_user_roles')
       .delete()
       .eq('user_id', targetUserId)
-      .eq('organization_slug', organizationSlug)
       .eq('role_id', typedRole.id)) as {
       data: Record<string, unknown> | Record<string, unknown>[] | null;
       error: { message: string; code?: string } | null;
@@ -615,7 +459,7 @@ export class RbacService {
       revokedBy,
       targetUserId,
       typedRole.id,
-      organizationSlug,
+      null,
       {
         role_name: roleName,
       },
@@ -631,7 +475,7 @@ export class RbacService {
   async isSuperAdmin(userId: string): Promise<boolean> {
     // Check if user has super-admin role by joining user_org_roles with roles
     const { data, error } = (await this.db
-      .from('authz', 'rbac_user_org_roles')
+      .from('authz', 'rbac_user_roles')
       .select('id, role_id, organization_slug')
       .eq('user_id', userId)
       .limit(100)) as {
@@ -674,12 +518,9 @@ export class RbacService {
   }
 
   /**
-   * Check if user is admin for a specific organization
-   * Admin is determined by having the 'admin' role for the organization
-   * Also returns true if user is super-admin (global access)
-   * If organizationSlug is '*', checks if user is admin for any organization
+   * Check if user has admin role
    */
-  async isAdmin(userId: string, organizationSlug: string): Promise<boolean> {
+  async isAdmin(userId: string): Promise<boolean> {
     // Super admins are admins everywhere
     const isSuperAdmin = await this.isSuperAdmin(userId);
     if (isSuperAdmin) {
@@ -702,34 +543,10 @@ export class RbacService {
 
     const adminRoleId = (adminRole as { id: string }).id;
 
-    // If organizationSlug is '*', check if user is admin for any organization
-    if (organizationSlug === '*') {
-      const { data, error } = (await this.db
-        .from('authz', 'rbac_user_org_roles')
-        .select('id, role_id')
-        .eq('user_id', userId)
-        .eq('role_id', adminRoleId)
-        .limit(1)) as {
-        data: Record<string, unknown> | Record<string, unknown>[] | null;
-        error: { message: string; code?: string } | null;
-      };
-
-      if (error) {
-        this.logger.error(
-          `[RbacService] Error checking admin (any org): ${error.message}`,
-        );
-        return false;
-      }
-
-      return !!data && (data as unknown[]).length > 0;
-    }
-
-    // Check if user has admin role for the specific organization
     const { data, error } = (await this.db
-      .from('authz', 'rbac_user_org_roles')
+      .from('authz', 'rbac_user_roles')
       .select('id, role_id')
       .eq('user_id', userId)
-      .eq('organization_slug', organizationSlug)
       .eq('role_id', adminRoleId)
       .limit(1)) as {
       data: Record<string, unknown> | Record<string, unknown>[] | null;
@@ -748,7 +565,6 @@ export class RbacService {
    * Get audit log entries
    */
   async getAuditLog(
-    organizationSlug?: string,
     limit = 100,
   ): Promise<
     Array<{
@@ -757,20 +573,15 @@ export class RbacService {
       actorId: string;
       targetUserId: string;
       targetRoleId: string;
-      organizationSlug: string;
       details: Record<string, unknown>;
       createdAt: Date;
     }>
   > {
-    let query = this.db
+    const query = this.db
       .from('authz', 'rbac_audit_log')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
-
-    if (organizationSlug) {
-      query = query.eq('organization_slug', organizationSlug);
-    }
 
     const { data, error } = (await query) as {
       data: RbacAuditLogDbRow[] | null;
@@ -788,7 +599,6 @@ export class RbacService {
       actorId: row.actor_id,
       targetUserId: row.target_user_id,
       targetRoleId: row.target_role_id,
-      organizationSlug: row.organization_slug,
       details: row.details,
       createdAt: new Date(row.created_at),
     }));
