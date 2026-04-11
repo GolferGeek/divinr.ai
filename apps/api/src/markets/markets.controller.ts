@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
@@ -42,6 +43,8 @@ import { NotificationService } from './services/notification.service';
 import { FearGreedAlertService } from './services/fear-greed-alert.service';
 import { CoordinationService } from './services/coordination.service';
 import { PerformanceService } from './services/performance.service';
+import { MessagingService } from '../messaging/messaging.service';
+import type { ChannelScope } from '../messaging/messaging.types';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -93,6 +96,7 @@ export class MarketsController {
     @Inject(FearGreedAlertService) private readonly fearGreedAlertService: FearGreedAlertService,
     @Inject(CoordinationService) private readonly coordination: CoordinationService,
     @Inject(PerformanceService) private readonly performance: PerformanceService,
+    @Inject(MessagingService) private readonly messaging: MessagingService,
   ) {
     this.markets = markets;
   }
@@ -1551,5 +1555,197 @@ export class MarketsController {
     const user = this.getUser(req);
     const days = Math.max(1, Math.min(365, Number(daysParam) || 30));
     return this.performance.getDashboardData(user.id, days);
+  }
+
+  // ─── Messaging ──────────────────────────────────────────────
+
+  @Post('messaging/channels')
+  async createChannel(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { scope: ChannelScope; scope_id?: string; name?: string },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    const channel = await this.messaging.createChannel(body.scope, body.scope_id, body.name);
+    await this.messaging.addChannelMember(channel.id, user.id, 'admin');
+    return { data: channel };
+  }
+
+  @Get('messaging/channels')
+  async listChannels(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    const channels = await this.messaging.listChannels(user.id);
+    return { data: channels };
+  }
+
+  @Get('messaging/channels/:channelId')
+  async getChannel(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('channelId') channelId: string,
+  ) {
+    const user = this.getUser(req);
+    const channel = await this.messaging.getChannel(channelId, user.id);
+    return { data: channel };
+  }
+
+  @Post('messaging/channels/:channelId/messages')
+  async sendMessage(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('channelId') channelId: string,
+    @Body() body: {
+      body: string;
+      parent_message_id?: string;
+      attached_entity_type?: string;
+      attached_entity_id?: string;
+    },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    const message = await this.messaging.sendMessage(channelId, user.id, body.body, {
+      parent_message_id: body.parent_message_id,
+      attached_entity_type: body.attached_entity_type as any,
+      attached_entity_id: body.attached_entity_id,
+    });
+    return { data: message };
+  }
+
+  @Get('messaging/channels/:channelId/messages')
+  async listMessages(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('channelId') channelId: string,
+    @Query('before') before?: string,
+    @Query('limit') limitParam?: string,
+  ) {
+    const user = this.getUser(req);
+    const limit = limitParam ? Math.max(1, Math.min(100, Number(limitParam))) : undefined;
+    return this.messaging.listMessages(channelId, user.id, { before, limit });
+  }
+
+  @Post('messaging/channels/dm')
+  async createDmChannel(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { target_user_id: string },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    const channel = await this.messaging.getOrCreateDmChannel(user.id, body.target_user_id);
+    return { data: channel };
+  }
+
+  @Patch('messaging/channels/:channelId/read')
+  async markChannelRead(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('channelId') channelId: string,
+  ) {
+    const user = this.getUser(req);
+    await this.messaging.updateLastRead(channelId, user.id);
+    return { success: true };
+  }
+
+  @Get('messaging/unread-counts')
+  async getUnreadCounts(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    const counts = await this.messaging.getUnreadCounts(user.id);
+    return { data: counts };
+  }
+
+  @Post('messaging/blocks')
+  async blockUser(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { blocked_id: string },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.messaging.blockUser(user.id, body.blocked_id);
+    return { success: true };
+  }
+
+  @Delete('messaging/blocks/:blockedId')
+  async unblockUser(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('blockedId') blockedId: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.messaging.unblockUser(user.id, blockedId);
+    return { success: true };
+  }
+
+  @Get('messaging/channels/:channelId/threads/:messageId')
+  async getThreadReplies(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('channelId') channelId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    const user = this.getUser(req);
+    const replies = await this.messaging.getThreadReplies(channelId, messageId, user.id);
+    return { data: replies };
+  }
+
+  @Post('messaging/messages/:messageId/reactions')
+  async addReaction(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('messageId') messageId: string,
+    @Body() body: { emoji: string },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.messaging.addReaction(messageId, user.id, body.emoji);
+    return { success: true };
+  }
+
+  @Delete('messaging/messages/:messageId/reactions/:emoji')
+  async removeReaction(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('messageId') messageId: string,
+    @Param('emoji') emoji: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.messaging.removeReaction(messageId, user.id, decodeURIComponent(emoji));
+    return { success: true };
+  }
+
+  @Patch('messaging/messages/:messageId/pin')
+  async togglePin(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('messageId') messageId: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    const result = await this.messaging.togglePin(messageId, user.id);
+    return { data: result };
+  }
+
+  @Get('messaging/channels/:channelId/pinned')
+  async getPinnedMessages(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('channelId') channelId: string,
+  ) {
+    const user = this.getUser(req);
+    const messages = await this.messaging.getPinnedMessages(channelId, user.id);
+    return { data: messages };
+  }
+
+  @Delete('messaging/channels/:channelId/messages/:messageId')
+  async deleteMessage(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('channelId') channelId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.messaging.deleteMessage(messageId, channelId, user.id, user.role);
+    return { success: true };
+  }
+
+  @Get('messaging/users')
+  async searchMessagingUsers(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('q') query?: string,
+  ) {
+    this.getUser(req);
+    const users = await this.messaging.searchUsers(query || '');
+    return { data: users };
   }
 }

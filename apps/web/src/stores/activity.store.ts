@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useNotificationStore } from './notification.store';
 import { useFearGreedStore } from './fear-greed.store';
+import { useMessagingStore } from './messaging.store';
 export interface ActivityEvent {
   id?: string;
   hook_event_type: string;
@@ -53,6 +54,10 @@ export const useActivityStore = defineStore('activity', () => {
           // Also refresh fear/greed count — fear_greed_alert creates notifications too
           const fearGreedStore = useFearGreedStore();
           fearGreedStore.fetchUnreadCount();
+        }
+        if (event.hook_event_type === 'message_created') {
+          const messagingStore = useMessagingStore();
+          messagingStore.handleSseMessage(event as any);
         }
         events.value.push(event);
         // Keep buffer at 500 max

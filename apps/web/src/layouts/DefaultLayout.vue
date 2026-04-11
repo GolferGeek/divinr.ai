@@ -11,6 +11,7 @@ import {
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
   menuOutline, constructOutline, heartOutline, notificationsOutline,
   warningOutline, gitNetworkOutline, trendingUpOutline,
+  chatbubblesOutline,
 } from 'ionicons/icons';
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -19,6 +20,7 @@ import { useActivityStore } from '../stores/activity.store';
 import { useAffinityStore } from '../stores/affinity.store';
 import { useNotificationStore } from '../stores/notification.store';
 import { useFearGreedStore } from '../stores/fear-greed.store';
+import { useMessagingStore } from '../stores/messaging.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
 
 const auth = useAuthStore();
@@ -27,6 +29,7 @@ const activity = useActivityStore();
 const affinityStore = useAffinityStore();
 const notificationStore = useNotificationStore();
 const fearGreedStore = useFearGreedStore();
+const messagingStore = useMessagingStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
@@ -44,6 +47,7 @@ const navItems = [
   { title: 'Learning', icon: bulbOutline, to: '/learning' },
   { title: 'Proposals', icon: constructOutline, to: '/proposals' },
   { title: 'Affinity', icon: heartOutline, to: '/affinity' },
+  { title: 'Messages', icon: chatbubblesOutline, to: '/messages' },
   { title: 'Notifications', icon: notificationsOutline, to: '/notifications' },
 ];
 
@@ -51,6 +55,7 @@ const navItems = [
 affinityStore.fetchContrarianAlerts(true);
 notificationStore.fetchUnreadCount();
 fearGreedStore.fetchUnreadCount();
+messagingStore.fetchUnreadCounts();
 
 function logout() {
   auth.clear();
@@ -107,6 +112,10 @@ function logout() {
               <ion-button fill="clear" class="notification-bell fear-greed-bell" @click="router.push('/fear-greed-alerts')" v-if="fearGreedStore.unreadCount > 0">
                 <ion-icon :icon="warningOutline" />
                 <span class="notification-badge fear-greed-badge">{{ fearGreedStore.unreadCount }}</span>
+              </ion-button>
+              <ion-button fill="clear" class="notification-bell" @click="router.push('/messages')">
+                <ion-icon :icon="chatbubblesOutline" />
+                <span v-if="messagingStore.totalUnread > 0" class="notification-badge">{{ messagingStore.totalUnread }}</span>
               </ion-button>
               <ion-button fill="clear" class="notification-bell" @click="router.push('/notifications')">
                 <ion-icon :icon="notificationsOutline" />

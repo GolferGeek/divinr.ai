@@ -83,7 +83,7 @@
     "@nestjs/core": "latest",
     "@nestjs/swagger": "latest",
     "@orchestrator-ai/transport-types": "workspace:*",
-    "@supabase/supabase-js": "latest",
+    "@supabase/supabase-js": "^2.103.0",
     "class-transformer": "latest",
     "class-validator": "latest",
     "dotenv": "latest",

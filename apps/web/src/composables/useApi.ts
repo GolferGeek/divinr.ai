@@ -116,5 +116,27 @@ export function useApi() {
     }
   }
 
-  return { get, post, put, patch, loading, error };
+  async function del<T = unknown>(path: string): Promise<T> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const res = await fetch(`${BASE_URL}${path}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text}`);
+      }
+      if (res.status === 204) return undefined as T;
+      return await res.json() as T;
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err);
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  return { get, post, put, patch, delete: del, loading, error };
 }

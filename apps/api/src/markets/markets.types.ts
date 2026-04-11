@@ -760,7 +760,8 @@ export type NotificationEventType =
   | 'tier3_proposal'
   | 'nightly_eval'
   | 'contrarian_alert'
-  | 'fear_greed_alert';
+  | 'fear_greed_alert'
+  | 'mention';
 
 export type NotificationUrgency = 'immediate' | 'actionable' | 'informational';
 

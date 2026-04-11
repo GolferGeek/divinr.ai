@@ -44,6 +44,8 @@ export const router = createRouter({
         { path: 'notifications', name: 'notifications', component: () => import('../views/NotificationsView.vue') },
         { path: 'fear-greed-alerts', name: 'fearGreedAlerts', component: () => import('../views/FearGreedAlertsView.vue') },
         { path: 'coordination', name: 'coordination', component: () => import('../views/CoordinationView.vue') },
+        { path: 'messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
+        { path: 'messages/:channelId', name: 'messages-channel', component: () => import('../views/MessagesView.vue') },
       ],
     },
     {

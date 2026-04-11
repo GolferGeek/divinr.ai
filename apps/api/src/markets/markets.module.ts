@@ -39,6 +39,8 @@ import { NotificationService } from './services/notification.service';
 import { FearGreedAlertService } from './services/fear-greed-alert.service';
 import { CoordinationService } from './services/coordination.service';
 import { PerformanceService } from './services/performance.service';
+import { MessagingSchemaService } from '../messaging/messaging-schema.service';
+import { MessagingService } from '../messaging/messaging.service';
 import { PolygonAdapter } from './adapters/polygon.adapter';
 import { FmpAdapter } from './adapters/fmp.adapter';
 import { TwelveDataAdapter } from './adapters/twelve-data.adapter';
@@ -96,6 +98,8 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     CoordinationService,
     PerformanceService,
     MarketsService,
+    MessagingSchemaService,
+    MessagingService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],
 })
