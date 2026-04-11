@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-10
+**Last updated:** 2026-04-11
 **Maintained by:** `/roadmap` skill
 
 ## Vision
@@ -47,12 +47,13 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `user-analyst-affinity` | Affinity Agent learns user preferences from trade decisions, challenges, and browsing. Exponential decay scoring, contrarian alerts, dashboard personalization. 74 new tests. | `docs/efforts/user-analyst-affinity/` |
 | `notification-system` | Unified in-app notification bell + list page. 5 event producers wired (stop-loss, trade recs, nightly eval, Tier 3 proposals, contrarian alerts). SSE real-time updates. 24 new tests. | `docs/efforts/notification-system/` |
 | `fear-greed-alerting` | Sentiment Analyst predicts crowd reaction (fear/greed/noise). Immediate alerts on high-conviction triggers with trade rec context. 5-alert cap, dedup, legal-safe language. 44 new tests. | `docs/efforts/fear-greed-alerting/` |
+| `multi-analyst-coordination` | Cross-analyst correlation analysis, coverage gap detection, leave-one-out contribution scoring. Admin dashboard with heatmap matrix, coverage table, contribution scores. Weekly cron + on-demand compute. 42 new tests. | `docs/efforts/multi-analyst-coordination/` |
 
 ---
 
 ## Current Effort
 
-**Multi-Analyst Coordination** (`docs/efforts/current/multi-analyst-coordination/`) — Correlation analysis, coverage gaps, contribution scoring across the analyst panel. Read-only admin dashboard. Weekly scheduled computation from existing evaluation data.
+*No current effort.* `docs/efforts/current/` is empty. Next in queue: **Performance Dashboard**.
 
 ---
 
@@ -122,7 +123,7 @@ see-your-reasoning────┤
   │  user-analyst-affinity ✅          │
   │  notification-system ✅            │
   │  fear-greed-alerting ✅            │
-  │  multi-analyst-coordination       │
+  │  multi-analyst-coordination ✅    │
   │  performance-dashboard            │
   │  mobile-polish                    │
   │  testing-marketing-readiness      │
