@@ -12,7 +12,10 @@ Build a tournament system where users compete on paper-trading performance using
 
 ### Tournament Entity
 - Create, configure, and manage tournaments
-- Tournament types: open (anyone joins), invite-only (club tournaments)
+- Three tournament scopes:
+  - **System** — created and run by Divinr. Official competitions visible to all users. Weekly sprints, seasonal events, special challenges. Only platform admin can create these.
+  - **Club** — created by a club admin for their club members only. Private to the club. (Depends on learning-clubs effort for club infrastructure, but tournament entity supports the scope from day one.)
+  - **Invitation** — created by any user, who invites specific people. No club needed. Casual head-to-head or small group competitions.
 - Configurable: start/end dates, starting balance, allowed instruments (all or sector-restricted)
 - Tournament statuses: upcoming, active, completed, archived
 
@@ -49,6 +52,6 @@ Build a tournament system where users compete on paper-trading performance using
 
 ## Out of Scope
 - Real money or prizes
-- Club-based team tournaments (that's learning-clubs effort)
+- Club entity/membership management (that's learning-clubs effort — but club scope is supported in tournament entity)
 - Chat or messaging between players (future)
 - Badges and achievements (future, after tournaments prove out)
