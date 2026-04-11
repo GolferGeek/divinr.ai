@@ -53,7 +53,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 ## Current Effort
 
-*No current effort.* `docs/efforts/current/` is empty. Next in queue: **Performance Dashboard**.
+**Performance Dashboard** (`docs/efforts/current/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
 
 ---
 
@@ -61,7 +61,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/intention.md`. When promoted to current, the folder moves into `docs/efforts/current/`. Order reflects priority.
 
-1. **Performance Dashboard** (`docs/efforts/next/performance-dashboard/`) — At-a-glance equity curve with benchmark overlay, PnL summary, analyst leaderboard. The "is this worth my $20/mo" view.
+*(Empty — performance-dashboard promoted to current)*
 
 ---
 
