@@ -59,11 +59,26 @@ No current effort.
 
 ---
 
-## Next Efforts
+## Phase 1 Status: DEVELOPMENT COMPLETE
 
-Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/intention.md`. When promoted to current, the folder moves into `docs/efforts/current/`. Order reflects priority.
+All Phase 1 (Professional Polish) development efforts are shipped. What remains is a systematic testing and marketing pass across every feature area before moving to Phase 2 (SaaS Power Tier).
 
-1. **Testing & Marketing Readiness** (`docs/efforts/future/testing-marketing-readiness/`) — Comprehensive E2E testing, demo scenarios, marketing copy. Scheduled for manual effort week (not automated pipeline).
+## Next Efforts — Testing & Marketing Readiness
+
+Each effort covers Chrome-based testing, API verification, and a marketing blurb for that feature area. The final effort compiles all marketing blurbs into cohesive materials. Order is foundation-first (auth before features that depend on it).
+
+1. **Test: Auth & User Management** (`docs/efforts/next/test-auth-user-management/`) — Login, invite signup, RBAC, beta readers, user scoping
+2. **Test: Prediction Pipeline** (`docs/efforts/next/test-prediction-pipeline/`) — Queue analysis, analyst stances, arbitrator synthesis, reasoning capture
+3. **Test: Analyst Contracts & Editor** (`docs/efforts/next/test-analyst-contracts/`) — Contracts, versioning, diff view, editor, rollback
+4. **Test: Calibration & Performance** (`docs/efforts/next/test-calibration-performance/`) — Performance dashboard, equity curve, leaderboard, analyst drilldown, scatter
+5. **Test: Risk Analysis & Debate** (`docs/efforts/next/test-risk-analysis/`) — Risk dimensions, composite score, bull/bear debate, reasoning panels
+6. **Test: Three-Tier Learning Loop** (`docs/efforts/next/test-learning-loop/`) — Tier 1 autonomous, Tier 2 audit/findings, Tier 3 proposals
+7. **Test: Trading & Portfolios** (`docs/efforts/next/test-trading-portfolios/`) — Portfolio dashboard, positions, trade queue, PnL, recommendations
+8. **Test: User Analyst Affinity** (`docs/efforts/next/test-user-intelligence/`) — Affinity scores, contrarian alerts, dashboard personalization
+9. **Test: Notifications & Alerts** (`docs/efforts/next/test-notifications-alerts/`) — Notification bell, alert list, fear/greed alerts, SSE real-time
+10. **Test: Multi-Analyst Coordination** (`docs/efforts/next/test-coordination/`) — Correlation matrix, coverage gaps, contribution scores
+11. **Test: Mobile & Desktop** (`docs/efforts/next/test-mobile-desktop/`) — Responsive layouts at all viewports, Electron app, iOS/Capacitor
+12. **Marketing Compilation** (`docs/efforts/next/marketing-compilation/`) — Compile all marketing blurbs into landing page copy, feature inventory, differentiation narrative
 
 ---
 
@@ -72,7 +87,6 @@ Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/int
 Efforts with intentions at `docs/efforts/future/[name]/intention.md`. Not yet ready to schedule.
 
 - **Power User Expansion** (`docs/efforts/future/power-user-expansion/`) — Three-level pricing model ($20 base, $10/resource, $150-200 early-adopter for new resources with crowd-funded price drops). Custom instruments, sources, and analysts. Local hybrid desktop tier. Subsumes the former premium-data-sources effort — premium feeds are funded by the crowd-funded pricing model.
-- **Testing & Marketing Readiness** (`docs/efforts/future/testing-marketing-readiness/`) — Comprehensive E2E testing, demo scenarios, marketing copy that communicates the explainability story. Will be a hands-on week rather than automated pipeline.
 
 ---
 
@@ -126,8 +140,12 @@ see-your-reasoning────┤
   │  fear-greed-alerting ✅            │
   │  multi-analyst-coordination ✅    │
   │  performance-dashboard ✅         │
-  │  mobile-polish                    │
-  │  testing-marketing-readiness      │
+  │  mobile-polish ✅                  │
+  │  DEVELOPMENT COMPLETE             │
+  │                                   │
+  │  ── Testing & Marketing Pass ──   │
+  │  12 test/marketing efforts        │
+  │  (see Next Efforts above)         │
   │                                   │
   └───────────┬───────────────────────┘
               ▼
