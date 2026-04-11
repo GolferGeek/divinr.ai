@@ -193,7 +193,7 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
         type="text"
         placeholder="Search by name…"
         data-testid="portfolio-search"
-        style="padding:6px 10px;border:1px solid var(--ion-color-step-200);border-radius:4px;font-size:0.85rem;min-width:200px"
+        style="padding:6px 10px;border:1px solid var(--ion-color-step-200);border-radius:4px;font-size:0.85rem;min-width:140px;max-width:100%"
       />
       <span style="font-size:0.75rem;opacity:0.7;margin-left:8px">Kinds:</span>
       <ion-chip

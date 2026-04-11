@@ -27,8 +27,8 @@ async function handleCreate() {
 
 <template>
   <div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h1>Analysts</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <h1 style="margin:0">Analysts</h1>
       <ion-button v-if="canWrite" color="primary" @click="dialog = true">
         <ion-icon slot="start" :icon="addOutline" />
         Create Analyst

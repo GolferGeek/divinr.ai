@@ -450,4 +450,25 @@ function filterRuns() {
     width: 100%;
   }
 }
+
+@media (max-width: 414px) {
+  .stat-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .stat-tile {
+    padding: 12px;
+  }
+  .stat-tile__num {
+    font-size: 1.3rem;
+  }
+  .page-header h1 {
+    font-size: 1.3rem;
+  }
+  .page-header p {
+    font-size: 0.8rem;
+  }
+  .page-header__actions {
+    flex-wrap: wrap;
+  }
+}
 </style>

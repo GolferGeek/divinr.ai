@@ -46,8 +46,8 @@ function formatField(value: unknown, type: string): string {
 
 <template>
   <div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h1>Instruments</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <h1 style="margin:0">Instruments</h1>
       <ion-button color="primary" @click="dialog = true">
         <ion-icon slot="start" :icon="addOutline" />
         Add Instrument

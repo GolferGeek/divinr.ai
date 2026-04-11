@@ -129,6 +129,8 @@ async function markAllRead() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .fear-greed-header h2 {

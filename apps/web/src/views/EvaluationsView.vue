@@ -479,4 +479,13 @@ const horizonScenarios: HorizonScenario[] = [
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+@media (max-width: 414px) {
+  .stat-row {
+    grid-template-columns: 1fr;
+  }
+  .stat-tile__num {
+    font-size: 1.3rem;
+  }
+}
 </style>

@@ -258,10 +258,11 @@ const sortedPredictions = computed<ResolvedPrediction[]>(() => calibration.value
         <ion-card v-if="calibration.metrics.perInstrument.length > 0" style="margin-top:8px">
           <ion-card-header><ion-card-title style="font-size:0.95rem">Per-Instrument Breakdown</ion-card-title></ion-card-header>
           <ion-card-content>
+            <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
             <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
               <thead>
                 <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,0.1)">
-                  <th style="padding:6px 4px">Symbol</th>
+                  <th style="padding:6px 4px;white-space:nowrap">Symbol</th>
                   <th style="padding:6px 4px;text-align:right">Samples</th>
                   <th style="padding:6px 4px;text-align:right">Accuracy</th>
                   <th style="padding:6px 4px;text-align:right">Avg Conf</th>
@@ -282,6 +283,7 @@ const sortedPredictions = computed<ResolvedPrediction[]>(() => calibration.value
                 </tr>
               </tbody>
             </table>
+            </div>
           </ion-card-content>
         </ion-card>
 

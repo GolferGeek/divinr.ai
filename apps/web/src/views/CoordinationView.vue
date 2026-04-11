@@ -236,6 +236,7 @@ function marginalClass(n: number): string {
 
 .controls ion-segment {
   width: 200px;
+  max-width: 100%;
 }
 
 .loading-state, .empty-state {

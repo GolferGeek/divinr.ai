@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { IonicVue } from '@ionic/vue';
+import { Capacitor } from '@capacitor/core';
 
 /* Ionic CSS */
 import '@ionic/vue/css/ionic.bundle.css';
@@ -8,6 +9,14 @@ import '@ionic/vue/css/ionic.bundle.css';
 import App from './App.vue';
 import { router } from './router';
 import { bootstrapAuth } from './auth/bootstrap-auth';
+
+async function configureNativePlugins() {
+  if (!Capacitor.isNativePlatform()) return;
+
+  const { StatusBar, Style } = await import('@capacitor/status-bar');
+  await StatusBar.setStyle({ style: Style.Dark });
+  await StatusBar.setOverlaysWebView({ overlay: true });
+}
 
 async function start() {
   const app = createApp(App);
@@ -25,6 +34,13 @@ async function start() {
   app.use(router);
   await router.isReady();
   app.mount('#app');
+
+  // Configure native plugins and hide splash screen after mount
+  await configureNativePlugins();
+  if (Capacitor.isNativePlatform()) {
+    const { SplashScreen } = await import('@capacitor/splash-screen');
+    await SplashScreen.hide();
+  }
 }
 
 start().catch((err) => {

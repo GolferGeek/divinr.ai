@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle,
   IonContent, IonIcon, IonLabel, IonChip, IonButton,
-  IonButtons,
+  IonButtons, IonRouterOutlet,
 } from '@ionic/vue';
 import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
@@ -102,7 +102,7 @@ function logout() {
             <ion-buttons slot="end">
               <ion-chip color="medium" outline>
                 <ion-icon :icon="earthOutline" />
-                <ion-label>{{ domain.activeUniverse }}</ion-label>
+                <ion-label class="header-universe-label">{{ domain.activeUniverse }}</ion-label>
               </ion-chip>
               <ion-button fill="clear" class="notification-bell fear-greed-bell" @click="router.push('/fear-greed-alerts')" v-if="fearGreedStore.unreadCount > 0">
                 <ion-icon :icon="warningOutline" />
@@ -115,7 +115,7 @@ function logout() {
               <ion-chip v-if="auth.isBetaReader" color="warning" outline>
                 <ion-label>Read Only</ion-label>
               </ion-chip>
-              <ion-chip color="medium">
+              <ion-chip color="medium" class="header-user-chip">
                 <ion-label>{{ auth.userId }}</ion-label>
               </ion-chip>
               <ion-button fill="clear" @click="logout">
@@ -157,6 +157,7 @@ function logout() {
 
 .sidebar-header {
   padding: 16px 20px;
+  padding-top: calc(16px + env(safe-area-inset-top, 0px));
   font-size: 1.2rem;
   font-weight: 700;
   color: #fff;
@@ -174,7 +175,8 @@ function logout() {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 20px;
+  padding: 14px 20px;
+  min-height: 44px;
   cursor: pointer;
   color: #333;
   font-size: 0.95rem;
@@ -206,7 +208,8 @@ function logout() {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 10px 8px;
+  padding: 12px 8px;
+  min-height: 44px;
   border: none;
   border-radius: 6px;
   background: #1a1a2e;
@@ -249,6 +252,8 @@ function logout() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 .hamburger-btn {
@@ -287,6 +292,8 @@ function logout() {
 
 .notification-bell {
   position: relative;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .notification-badge {
@@ -320,6 +327,35 @@ function logout() {
   font-size: 0.7rem;
   opacity: 0.4;
   padding: 24px 16px 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   margin-top: 40px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+ion-toolbar {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@media (max-width: 414px) {
+  .header-universe-label {
+    display: none;
+  }
+
+  .header-user-chip ion-label {
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  ion-toolbar ion-buttons[slot="end"] {
+    gap: 0;
+  }
+
+  ion-toolbar ion-buttons[slot="end"] ion-chip {
+    padding: 0 4px;
+    font-size: 0.75rem;
+  }
 }
 </style>

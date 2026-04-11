@@ -11,17 +11,22 @@
     "build:electron": "vite build && electron-builder --mac --config electron-builder.json",
     "lint": "eslint src --ext .ts",
     "test": "echo \"web tests planned in next phase\"",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "cap:sync": "cap sync ios",
+    "cap:open": "cap open ios"
   },
   "dependencies": {
     "@capacitor/cli": "^8.3.0",
     "@capacitor/core": "^8.3.0",
     "@capacitor/ios": "^8.3.0",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@divinr/prediction-planes": "workspace:*",
     "@ionic/vue": "^8.8.3",
     "@ionic/vue-router": "^8.8.3",
     "chart.js": "^4",
     "chartjs-plugin-annotation": "^3",
+    "electron-window-state": "^5.0.3",
     "ionicons": "^8.0.13",
     "pinia": "^3.0.4",
     "vue": "^3.5.31",

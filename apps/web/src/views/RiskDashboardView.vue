@@ -110,26 +110,28 @@ function verdictColor(verdict: string): string {
   <div>
     <!-- Detail View -->
     <template v-if="selectedInstrument">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <ion-button fill="clear" size="small" @click="goBack">
           <ion-icon :icon="arrowBackOutline" slot="start" />
           Back
         </ion-button>
-        <h1 style="margin:0">
+        <h1 style="margin:0;font-size:clamp(1rem, 4vw, 1.5rem)">
           {{ selectedInstrument['symbol'] }} — {{ selectedInstrument['name'] }}
         </h1>
         <ion-chip :color="verdictColor(String(selectedInstrument['verdict']))">
           {{ String(selectedInstrument['verdict']).toUpperCase() }} RISK
         </ion-chip>
-        <span style="flex:1" />
-        <ion-button size="small" fill="outline" color="warning" @click="rerunDebate" :disabled="debateRerunning || rerunning">
-          <ion-icon :icon="chatbubblesOutline" slot="start" />
-          {{ debateRerunning ? 'Re-running Debate...' : 'Re-run Debate' }}
-        </ion-button>
-        <ion-button size="small" fill="outline" color="danger" @click="rerunRisk" :disabled="rerunning || debateRerunning">
-          <ion-icon :icon="refreshOutline" slot="start" />
-          {{ rerunning ? 'Re-running Risk...' : 'Re-run Full Risk' }}
-        </ion-button>
+        <span style="flex:1;min-width:0" />
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <ion-button size="small" fill="outline" color="warning" @click="rerunDebate" :disabled="debateRerunning || rerunning">
+            <ion-icon :icon="chatbubblesOutline" slot="start" />
+            {{ debateRerunning ? 'Re-running...' : 'Re-run Debate' }}
+          </ion-button>
+          <ion-button size="small" fill="outline" color="danger" @click="rerunRisk" :disabled="rerunning || debateRerunning">
+            <ion-icon :icon="refreshOutline" slot="start" />
+            {{ rerunning ? 'Re-running...' : 'Re-run Risk' }}
+          </ion-button>
+        </div>
       </div>
 
       <ion-spinner v-if="loading" />

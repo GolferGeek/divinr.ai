@@ -393,12 +393,32 @@ function nextEvalLabel(): string {
 
 .chart-header ion-segment {
   width: 220px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .chart-header ion-segment {
+    width: 100%;
+  }
+
+  .chart-container {
+    min-height: 220px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .metric-value {
+    font-size: 1.2rem;
+  }
 }
 
 .chart-container {
   position: relative;
   min-height: 300px;
   width: 100%;
+  overflow: hidden;
 }
 
 .no-data {

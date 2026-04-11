@@ -417,7 +417,8 @@ function timeAgo(dateStr: string): string {
 
 .stance-row.clickable {
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 6px 4px;
+  min-height: 44px;
   border-radius: 4px;
   transition: background 0.15s;
 }
@@ -466,6 +467,25 @@ function timeAgo(dateStr: string): string {
 .action-buttons {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 375px) {
+  .card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .prediction-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .trade-rec-row {
+    flex-direction: column;
+    gap: 2px;
+  }
 }
 
 /* Phase 6: Trade recommendation block */
