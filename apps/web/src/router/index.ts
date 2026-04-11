@@ -20,6 +20,7 @@ export const router = createRouter({
       component: () => import('../layouts/DefaultLayout.vue'),
       children: [
         { path: '', name: 'dashboard', component: () => import('../views/DashboardView.vue') },
+        { path: 'performance', name: 'performance', component: () => import('../views/PerformanceDashboardView.vue') },
         { path: 'domain/:domain', name: 'domain-dashboard', component: () => import('../views/DomainDashboardView.vue') },
         { path: 'instruments', name: 'instruments', component: () => import('../views/InstrumentsView.vue') },
         { path: 'instruments/:id', name: 'instrument-detail', component: () => import('../views/InstrumentDetailView.vue') },

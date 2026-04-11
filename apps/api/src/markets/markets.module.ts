@@ -38,6 +38,7 @@ import { AffinityService } from './services/affinity.service';
 import { NotificationService } from './services/notification.service';
 import { FearGreedAlertService } from './services/fear-greed-alert.service';
 import { CoordinationService } from './services/coordination.service';
+import { PerformanceService } from './services/performance.service';
 import { PolygonAdapter } from './adapters/polygon.adapter';
 import { FmpAdapter } from './adapters/fmp.adapter';
 import { TwelveDataAdapter } from './adapters/twelve-data.adapter';
@@ -93,6 +94,7 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     NotificationService,
     FearGreedAlertService,
     CoordinationService,
+    PerformanceService,
     MarketsService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],

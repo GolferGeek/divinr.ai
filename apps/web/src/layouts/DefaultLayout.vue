@@ -10,7 +10,7 @@ import {
   shieldOutline, briefcaseOutline, newspaperOutline,
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
   menuOutline, constructOutline, heartOutline, notificationsOutline,
-  warningOutline, gitNetworkOutline,
+  warningOutline, gitNetworkOutline, trendingUpOutline,
 } from 'ionicons/icons';
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -32,6 +32,7 @@ const sidebarOpen = ref(false);
 
 const navItems = [
   { title: 'Dashboard', icon: gridOutline, to: '/' },
+  { title: 'Performance', icon: trendingUpOutline, to: '/performance' },
   { title: 'Instruments', icon: statsChartOutline, to: '/instruments' },
   { title: 'Analysts', icon: peopleOutline, to: '/analysts' },
   { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination' },

@@ -41,6 +41,7 @@ import { AffinityService } from './services/affinity.service';
 import { NotificationService } from './services/notification.service';
 import { FearGreedAlertService } from './services/fear-greed-alert.service';
 import { CoordinationService } from './services/coordination.service';
+import { PerformanceService } from './services/performance.service';
 import type {
   CreateAnalystInput,
   ExternalCrawlerSyncInput,
@@ -91,6 +92,7 @@ export class MarketsController {
     @Inject(NotificationService) private readonly notificationService: NotificationService,
     @Inject(FearGreedAlertService) private readonly fearGreedAlertService: FearGreedAlertService,
     @Inject(CoordinationService) private readonly coordination: CoordinationService,
+    @Inject(PerformanceService) private readonly performance: PerformanceService,
   ) {
     this.markets = markets;
   }
@@ -1537,5 +1539,17 @@ export class MarketsController {
       period || '30d',
       instrumentId || undefined,
     );
+  }
+
+  // ─── Performance Dashboard ──────────────────────────────────
+
+  @Get('performance')
+  async getPerformanceDashboard(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('days') daysParam?: string,
+  ) {
+    const user = this.getUser(req);
+    const days = Math.max(1, Math.min(365, Number(daysParam) || 30));
+    return this.performance.getDashboardData(user.id, days);
   }
 }
