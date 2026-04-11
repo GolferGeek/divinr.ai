@@ -49,12 +49,13 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `fear-greed-alerting` | Sentiment Analyst predicts crowd reaction (fear/greed/noise). Immediate alerts on high-conviction triggers with trade rec context. 5-alert cap, dedup, legal-safe language. 44 new tests. | `docs/efforts/fear-greed-alerting/` |
 | `multi-analyst-coordination` | Cross-analyst correlation analysis, coverage gap detection, leave-one-out contribution scoring. Admin dashboard with heatmap matrix, coverage table, contribution scores. Weekly cron + on-demand compute. 42 new tests. | `docs/efforts/multi-analyst-coordination/` |
 | `performance-dashboard` | Subscriber-facing performance view: equity curve with SPY benchmark overlay, PnL summary, analyst leaderboard with trend indicators, key metrics cards. Single aggregation endpoint (6 parallel queries, no new tables). 33 new tests. | `docs/efforts/performance-dashboard/` |
+| `mobile-polish` | Responsive layouts across 22+ views (375px–1024px), iOS safe-area handling, Capacitor status-bar/splash-screen, touch targets ≥44px, Electron menu bar + window state persistence. | `docs/efforts/mobile-polish/` |
 
 ---
 
 ## Current Effort
 
-**Mobile Polish** (`docs/efforts/current/mobile-polish/`) — Capacitor/iOS app refinement, responsive layout audit, Electron desktop polish. Table stakes for a stock app.
+No current effort.
 
 ---
 
