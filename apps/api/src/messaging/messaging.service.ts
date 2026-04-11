@@ -108,6 +108,17 @@ export class MessagingService {
     );
     if (!channelResult.error) {
       const chRows = channelResult.data as Array<{ scope: string }> | null;
+      if (chRows?.[0]?.scope === 'system') {
+        // System channels are read-only for non-admin users
+        const memberResult = await this.db.rawQuery(
+          `SELECT role FROM messaging.channel_members WHERE channel_id = $1 AND user_id = $2`,
+          [channelId, senderId],
+        );
+        const memberRows = memberResult.data as Array<{ role: string }> | null;
+        if (!memberRows?.[0] || memberRows[0].role !== 'admin') {
+          throw new ForbiddenException('System channels are read-only');
+        }
+      }
       if (chRows?.[0]?.scope === 'dm') {
         await this.checkDmBlocked(channelId, senderId);
       }
@@ -216,12 +227,22 @@ export class MessagingService {
       params,
     );
     if (result.error) throw new Error(result.error.message);
-    const rows = (result.data as (Message & { reply_count: number })[] | null) ?? [];
+    const rows = (result.data as (Message & { reply_count: number; attachment?: Record<string, unknown> })[] | null) ?? [];
     const hasMore = rows.length > limit;
-    return {
-      data: hasMore ? rows.slice(0, limit) : rows,
-      has_more: hasMore,
-    };
+    const data = hasMore ? rows.slice(0, limit) : rows;
+
+    // Resolve attachments for messages that have them
+    for (const msg of data) {
+      if (msg.attached_entity_type && msg.attached_entity_id) {
+        try {
+          msg.attachment = await this.resolveAttachment(msg.attached_entity_type, msg.attached_entity_id, userId) ?? undefined;
+        } catch {
+          // Attachment resolution failure is non-critical
+        }
+      }
+    }
+
+    return { data, has_more: hasMore };
   }
 
   // ─── Threading ──────────────────────────────────────────────
@@ -246,6 +267,15 @@ export class MessagingService {
 
   async addReaction(messageId: string, userId: string, emoji: string): Promise<void> {
     await this.schema.ensureSchema();
+    // Verify user is a member of the message's channel
+    const msgCheck = await this.db.rawQuery(
+      `SELECT channel_id FROM messaging.messages WHERE id = $1`, [messageId],
+    );
+    if (msgCheck.error) throw new Error(msgCheck.error.message);
+    const msgRows = msgCheck.data as Array<{ channel_id: string }> | null;
+    if (!msgRows || msgRows.length === 0) throw new BadRequestException('Message not found');
+    await this.verifyMembership(msgRows[0].channel_id, userId);
+
     const result = await this.db.rawQuery(
       `INSERT INTO messaging.message_reactions (message_id, user_id, emoji)
        VALUES ($1, $2, $3)
@@ -271,6 +301,15 @@ export class MessagingService {
 
   async removeReaction(messageId: string, userId: string, emoji: string): Promise<void> {
     await this.schema.ensureSchema();
+    // Verify user is a member of the message's channel
+    const msgCheck = await this.db.rawQuery(
+      `SELECT channel_id FROM messaging.messages WHERE id = $1`, [messageId],
+    );
+    if (msgCheck.error) throw new Error(msgCheck.error.message);
+    const msgRows = msgCheck.data as Array<{ channel_id: string }> | null;
+    if (!msgRows || msgRows.length === 0) throw new BadRequestException('Message not found');
+    await this.verifyMembership(msgRows[0].channel_id, userId);
+
     const result = await this.db.rawQuery(
       `DELETE FROM messaging.message_reactions
        WHERE message_id = $1 AND user_id = $2 AND emoji = $3`,
@@ -318,7 +357,14 @@ export class MessagingService {
     if (!msgRows || msgRows.length === 0) throw new BadRequestException('Message not found');
 
     const channelId = msgRows[0].channel_id;
-    await this.verifyAdmin(channelId, userId);
+    // In DM channels, any member can pin. In other channels, only admins.
+    const chResult = await this.db.rawQuery(`SELECT scope FROM messaging.channels WHERE id = $1`, [channelId]);
+    const chScope = (chResult.data as Array<{ scope: string }> | null)?.[0]?.scope;
+    if (chScope !== 'dm') {
+      await this.verifyAdmin(channelId, userId);
+    } else {
+      await this.verifyMembership(channelId, userId);
+    }
 
     const newPinned = !msgRows[0].is_pinned;
     const updateResult = await this.db.rawQuery(

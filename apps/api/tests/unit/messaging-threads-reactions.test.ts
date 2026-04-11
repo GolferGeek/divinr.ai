@@ -60,6 +60,12 @@ function stubRawQuery(sql: string, params?: unknown[]) {
     return { data: ch ? [{ scope: ch.scope }] : [], error: null };
   }
 
+  // Get message channel_id (for reaction membership check)
+  if (t.includes('SELECT channel_id FROM messaging.messages WHERE id')) {
+    const msg = messages.find(m => m.id === p[0]);
+    return { data: msg ? [{ channel_id: msg.channel_id }] : [], error: null };
+  }
+
   // Get message for pin toggle
   if (t.includes('SELECT m.channel_id, m.is_pinned FROM messaging.messages')) {
     const msg = messages.find(m => m.id === p[0]);

@@ -88,14 +88,19 @@ export const useMessagingStore = defineStore('messaging', () => {
     attached_entity_id?: string;
   }) {
     const api = useApi();
-    const result = await api.post<{ data: Message }>(
-      `/messaging/channels/${channelId}/messages`,
-      { body, ...opts }
-    );
-    // Optimistically add to local state
-    const msgs = messagesByChannel.value[channelId] ?? [];
-    messagesByChannel.value[channelId] = [result.data, ...msgs];
-    return result.data;
+    try {
+      const result = await api.post<{ data: Message }>(
+        `/messaging/channels/${channelId}/messages`,
+        { body, ...opts }
+      );
+      const msgs = messagesByChannel.value[channelId] ?? [];
+      messagesByChannel.value[channelId] = [result.data, ...msgs];
+      return result.data;
+    } catch (err) {
+      // Re-fetch to ensure state is consistent
+      await fetchMessages(channelId);
+      throw err;
+    }
   }
 
   async function markRead(channelId: string) {

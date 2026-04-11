@@ -199,11 +199,13 @@ watch(() => route.params.channelId, (id) => {
               <span class="message-sender">{{ msg.sender_id.slice(0, 8) }}</span>
               <span class="message-time">{{ formatTime(msg.created_at) }}</span>
             </div>
-            <div class="message-body">{{ msg.body }}</div>
+            <div v-if="msg.is_deleted" class="message-body message-deleted">[message deleted]</div>
+            <div v-else class="message-body">{{ msg.body }}</div>
             <EntityAttachmentCard
               v-if="msg.attached_entity_type && msg.attached_entity_id"
               :entity-type="msg.attached_entity_type"
               :entity-id="msg.attached_entity_id"
+              :attachment="(msg as any).attachment"
             />
             <div class="message-actions">
               <button v-if="msg.reply_count" class="action-btn reply-count" @click="openThread(msg)">
@@ -497,6 +499,11 @@ watch(() => route.params.channelId, (id) => {
   font-size: 0.8rem;
   padding: 4px 0;
   color: #555;
+}
+
+.message-deleted {
+  color: #aaa;
+  font-style: italic;
 }
 
 .thread-empty {

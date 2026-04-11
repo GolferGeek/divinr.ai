@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { IonButton, IonIcon } from '@ionic/vue';
 import { closeOutline } from 'ionicons/icons';
 import { useMessagingStore, type Message } from '../../stores/messaging.store';
@@ -31,6 +31,11 @@ function formatTime(iso: string): string {
 }
 
 onMounted(loadReplies);
+
+// Reload replies when new messages arrive for this channel via SSE
+watch(() => store.messagesByChannel[props.channelId]?.length, () => {
+  loadReplies();
+});
 </script>
 
 <template>
