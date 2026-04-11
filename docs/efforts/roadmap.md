@@ -55,7 +55,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 ## Current Effort
 
-No current effort.
+**Messaging System** (`docs/efforts/current/messaging-system/`) — DMs, club/tournament channels, system announcements. Contextual entity attachments, threaded replies, @mentions, emoji reactions, pinned messages. Real-time via existing SSE.
 
 ---
 
@@ -67,26 +67,25 @@ All Phase 1 core analysis/trading features are shipped. Three feature efforts re
 
 ### Feature Development
 
-1. **Messaging System** (`docs/efforts/next/messaging-system/`) — DMs, club channels, tournament chat, system announcements. Contextual entity attachments (predictions, instruments, analysts as rich cards). Threaded replies, @mentions, emoji reactions, pinned messages. Real-time via existing SSE.
-2. **Tournament System** (`docs/efforts/next/tournament-system/`) — Paper-trading competitions using AI analyst signals. Three scopes: system (official), club (private), invitation (friends). Weekly sprints, sector challenges, analyst drafts. Virtual money only — explicitly a game, not investment advice.
-3. **Learning Clubs** (`docs/efforts/next/learning-clubs/`) — Groups of users learning together. Club analysts (custom AI analysts scoped to the club), club tournaments, prediction challenges, consensus polls, post-mortems, strategy journals. Multiple admin roles. For university courses, Discord communities, friend groups.
+1. **Tournament System** (`docs/efforts/next/tournament-system/`) — Paper-trading competitions using AI analyst signals. Three scopes: system (official), club (private), invitation (friends). Weekly sprints, sector challenges, analyst drafts. Virtual money only — explicitly a game, not investment advice.
+2. **Learning Clubs** (`docs/efforts/next/learning-clubs/`) — Groups of users learning together. Club analysts (custom AI analysts scoped to the club), club tournaments, prediction challenges, consensus polls, post-mortems, strategy journals. Multiple admin roles. For university courses, Discord communities, friend groups.
 
 ### Testing & Marketing Readiness
 
 Each effort covers Chrome-based testing, API verification, and a marketing blurb for that feature area. The final effort compiles all blurbs into cohesive materials. Order is foundation-first.
 
-4. **Test: Auth & User Management** (`docs/efforts/next/test-auth-user-management/`) — Login, invite signup, RBAC, beta readers, user scoping
-5. **Test: Prediction Pipeline** (`docs/efforts/next/test-prediction-pipeline/`) — Queue analysis, analyst stances, arbitrator synthesis, reasoning capture
-6. **Test: Analyst Contracts & Editor** (`docs/efforts/next/test-analyst-contracts/`) — Contracts, versioning, diff view, editor, rollback
-7. **Test: Calibration & Performance** (`docs/efforts/next/test-calibration-performance/`) — Performance dashboard, equity curve, leaderboard, analyst drilldown, scatter
-8. **Test: Risk Analysis & Debate** (`docs/efforts/next/test-risk-analysis/`) — Risk dimensions, composite score, bull/bear debate, reasoning panels
-9. **Test: Three-Tier Learning Loop** (`docs/efforts/next/test-learning-loop/`) — Tier 1 autonomous, Tier 2 audit/findings, Tier 3 proposals
-10. **Test: Trading & Portfolios** (`docs/efforts/next/test-trading-portfolios/`) — Portfolio dashboard, positions, trade queue, PnL, recommendations
-11. **Test: User Analyst Affinity** (`docs/efforts/next/test-user-intelligence/`) — Affinity scores, contrarian alerts, dashboard personalization
-12. **Test: Notifications & Alerts** (`docs/efforts/next/test-notifications-alerts/`) — Notification bell, alert list, fear/greed alerts, SSE real-time
-13. **Test: Multi-Analyst Coordination** (`docs/efforts/next/test-coordination/`) — Correlation matrix, coverage gaps, contribution scores
-14. **Test: Mobile & Desktop** (`docs/efforts/next/test-mobile-desktop/`) — Responsive layouts at all viewports, Electron app, iOS/Capacitor
-15. **Marketing Compilation** (`docs/efforts/next/marketing-compilation/`) — Compile all marketing blurbs into landing page copy, feature inventory, differentiation narrative
+3. **Test: Auth & User Management** (`docs/efforts/next/test-auth-user-management/`) — Login, invite signup, RBAC, beta readers, user scoping
+4. **Test: Prediction Pipeline** (`docs/efforts/next/test-prediction-pipeline/`) — Queue analysis, analyst stances, arbitrator synthesis, reasoning capture
+5. **Test: Analyst Contracts & Editor** (`docs/efforts/next/test-analyst-contracts/`) — Contracts, versioning, diff view, editor, rollback
+6. **Test: Calibration & Performance** (`docs/efforts/next/test-calibration-performance/`) — Performance dashboard, equity curve, leaderboard, analyst drilldown, scatter
+7. **Test: Risk Analysis & Debate** (`docs/efforts/next/test-risk-analysis/`) — Risk dimensions, composite score, bull/bear debate, reasoning panels
+8. **Test: Three-Tier Learning Loop** (`docs/efforts/next/test-learning-loop/`) — Tier 1 autonomous, Tier 2 audit/findings, Tier 3 proposals
+9. **Test: Trading & Portfolios** (`docs/efforts/next/test-trading-portfolios/`) — Portfolio dashboard, positions, trade queue, PnL, recommendations
+10. **Test: User Analyst Affinity** (`docs/efforts/next/test-user-intelligence/`) — Affinity scores, contrarian alerts, dashboard personalization
+11. **Test: Notifications & Alerts** (`docs/efforts/next/test-notifications-alerts/`) — Notification bell, alert list, fear/greed alerts, SSE real-time
+12. **Test: Multi-Analyst Coordination** (`docs/efforts/next/test-coordination/`) — Correlation matrix, coverage gaps, contribution scores
+13. **Test: Mobile & Desktop** (`docs/efforts/next/test-mobile-desktop/`) — Responsive layouts at all viewports, Electron app, iOS/Capacitor
+14. **Marketing Compilation** (`docs/efforts/next/marketing-compilation/`) — Compile all marketing blurbs into landing page copy, feature inventory, differentiation narrative
 
 ---
 
