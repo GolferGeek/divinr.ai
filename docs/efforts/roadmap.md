@@ -54,7 +54,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 ## Current Effort
 
-*No current effort.* `docs/efforts/current/` is empty.
+**Mobile Polish** (`docs/efforts/current/mobile-polish/`) — Capacitor/iOS app refinement, responsive layout audit, Electron desktop polish. Table stakes for a stock app.
 
 ---
 
@@ -62,7 +62,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/intention.md`. When promoted to current, the folder moves into `docs/efforts/current/`. Order reflects priority.
 
-*(Empty — performance-dashboard promoted to current)*
+1. **Testing & Marketing Readiness** (`docs/efforts/future/testing-marketing-readiness/`) — Comprehensive E2E testing, demo scenarios, marketing copy. Scheduled for manual effort week (not automated pipeline).
 
 ---
 
@@ -71,8 +71,7 @@ Efforts ready to work on. Each has an intention at `docs/efforts/next/[name]/int
 Efforts with intentions at `docs/efforts/future/[name]/intention.md`. Not yet ready to schedule.
 
 - **Power User Expansion** (`docs/efforts/future/power-user-expansion/`) — Three-level pricing model ($20 base, $10/resource, $150-200 early-adopter for new resources with crowd-funded price drops). Custom instruments, sources, and analysts. Local hybrid desktop tier. Subsumes the former premium-data-sources effort — premium feeds are funded by the crowd-funded pricing model.
-- **Mobile Polish** (`docs/efforts/future/mobile-polish/`) — Capacitor/iOS app refinement, responsive layout audit, Electron desktop polish. Table stakes for a stock app.
-- **Testing & Marketing Readiness** (`docs/efforts/future/testing-marketing-readiness/`) — Comprehensive E2E testing, demo scenarios, marketing copy that communicates the explainability story.
+- **Testing & Marketing Readiness** (`docs/efforts/future/testing-marketing-readiness/`) — Comprehensive E2E testing, demo scenarios, marketing copy that communicates the explainability story. Will be a hands-on week rather than automated pipeline.
 
 ---
 
