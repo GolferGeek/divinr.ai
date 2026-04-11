@@ -17,8 +17,8 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 **What follows is a three-phase product expansion:**
 
-1. **Professional polish** — Make the financial-domain SaaS product ready to charge for. Multi-analyst coordination, notifications, performance dashboard, mobile, testing, and marketing readiness.
-2. **SaaS Power tier** — Let power users extend the shared platform within SaaS: custom data sources, custom articles, custom analysts, all running on our infrastructure alongside the shared layer.
+1. **Professional polish + game layer** — Make the financial-domain SaaS product ready to launch. Core features, tournaments, learning clubs, testing, and marketing. The product you acquire users on.
+2. **SaaS Extension platform** — New domains (crypto, commodities, forex), custom analysts, custom data sources. The "build on our platform" play.
 3. **Local Hybrid tier** — Desktop app with a local API backend (e.g., DGX Spark). Power users get everything from the SaaS layer plus private analysts and proprietary data that never leaves their machine.
 
 ---
@@ -59,26 +59,33 @@ No current effort.
 
 ---
 
-## Phase 1 Status: DEVELOPMENT COMPLETE
+## Phase 1 Status: CORE DEVELOPMENT COMPLETE
 
-All Phase 1 (Professional Polish) development efforts are shipped. What remains is a systematic testing and marketing pass across every feature area before moving to Phase 2 (SaaS Power Tier).
+All Phase 1 core feature development is shipped. Two feature efforts remain (tournaments and clubs) — these are the social/competitive layer that makes Divinr a game, not just a tool. After those ship, a systematic testing and marketing pass covers every feature area.
 
-## Next Efforts — Testing & Marketing Readiness
+## Next Efforts
 
-Each effort covers Chrome-based testing, API verification, and a marketing blurb for that feature area. The final effort compiles all marketing blurbs into cohesive materials. Order is foundation-first (auth before features that depend on it).
+### Feature Development
 
-1. **Test: Auth & User Management** (`docs/efforts/next/test-auth-user-management/`) — Login, invite signup, RBAC, beta readers, user scoping
-2. **Test: Prediction Pipeline** (`docs/efforts/next/test-prediction-pipeline/`) — Queue analysis, analyst stances, arbitrator synthesis, reasoning capture
-3. **Test: Analyst Contracts & Editor** (`docs/efforts/next/test-analyst-contracts/`) — Contracts, versioning, diff view, editor, rollback
-4. **Test: Calibration & Performance** (`docs/efforts/next/test-calibration-performance/`) — Performance dashboard, equity curve, leaderboard, analyst drilldown, scatter
-5. **Test: Risk Analysis & Debate** (`docs/efforts/next/test-risk-analysis/`) — Risk dimensions, composite score, bull/bear debate, reasoning panels
-6. **Test: Three-Tier Learning Loop** (`docs/efforts/next/test-learning-loop/`) — Tier 1 autonomous, Tier 2 audit/findings, Tier 3 proposals
-7. **Test: Trading & Portfolios** (`docs/efforts/next/test-trading-portfolios/`) — Portfolio dashboard, positions, trade queue, PnL, recommendations
-8. **Test: User Analyst Affinity** (`docs/efforts/next/test-user-intelligence/`) — Affinity scores, contrarian alerts, dashboard personalization
-9. **Test: Notifications & Alerts** (`docs/efforts/next/test-notifications-alerts/`) — Notification bell, alert list, fear/greed alerts, SSE real-time
-10. **Test: Multi-Analyst Coordination** (`docs/efforts/next/test-coordination/`) — Correlation matrix, coverage gaps, contribution scores
-11. **Test: Mobile & Desktop** (`docs/efforts/next/test-mobile-desktop/`) — Responsive layouts at all viewports, Electron app, iOS/Capacitor
-12. **Marketing Compilation** (`docs/efforts/next/marketing-compilation/`) — Compile all marketing blurbs into landing page copy, feature inventory, differentiation narrative
+1. **Tournament System** (`docs/efforts/next/tournament-system/`) — Paper-trading competitions using AI analyst signals. Weekly sprints, sector challenges, analyst drafts. Virtual money only — explicitly a game, not investment advice.
+2. **Learning Clubs** (`docs/efforts/next/learning-clubs/`) — Groups of users learning together. Club tournaments, shared analytics, club-level analyst preferences. For university courses, Discord communities, friend groups.
+
+### Testing & Marketing Readiness
+
+Each effort covers Chrome-based testing, API verification, and a marketing blurb for that feature area. The final effort compiles all blurbs into cohesive materials. Order is foundation-first.
+
+3. **Test: Auth & User Management** (`docs/efforts/next/test-auth-user-management/`) — Login, invite signup, RBAC, beta readers, user scoping
+4. **Test: Prediction Pipeline** (`docs/efforts/next/test-prediction-pipeline/`) — Queue analysis, analyst stances, arbitrator synthesis, reasoning capture
+5. **Test: Analyst Contracts & Editor** (`docs/efforts/next/test-analyst-contracts/`) — Contracts, versioning, diff view, editor, rollback
+6. **Test: Calibration & Performance** (`docs/efforts/next/test-calibration-performance/`) — Performance dashboard, equity curve, leaderboard, analyst drilldown, scatter
+7. **Test: Risk Analysis & Debate** (`docs/efforts/next/test-risk-analysis/`) — Risk dimensions, composite score, bull/bear debate, reasoning panels
+8. **Test: Three-Tier Learning Loop** (`docs/efforts/next/test-learning-loop/`) — Tier 1 autonomous, Tier 2 audit/findings, Tier 3 proposals
+9. **Test: Trading & Portfolios** (`docs/efforts/next/test-trading-portfolios/`) — Portfolio dashboard, positions, trade queue, PnL, recommendations
+10. **Test: User Analyst Affinity** (`docs/efforts/next/test-user-intelligence/`) — Affinity scores, contrarian alerts, dashboard personalization
+11. **Test: Notifications & Alerts** (`docs/efforts/next/test-notifications-alerts/`) — Notification bell, alert list, fear/greed alerts, SSE real-time
+12. **Test: Multi-Analyst Coordination** (`docs/efforts/next/test-coordination/`) — Correlation matrix, coverage gaps, contribution scores
+13. **Test: Mobile & Desktop** (`docs/efforts/next/test-mobile-desktop/`) — Responsive layouts at all viewports, Electron app, iOS/Capacitor
+14. **Marketing Compilation** (`docs/efforts/next/marketing-compilation/`) — Compile all marketing blurbs into landing page copy, feature inventory, differentiation narrative
 
 ---
 
@@ -141,15 +148,19 @@ see-your-reasoning────┤
   │  multi-analyst-coordination ✅    │
   │  performance-dashboard ✅         │
   │  mobile-polish ✅                  │
-  │  DEVELOPMENT COMPLETE             │
+  │  CORE DEV COMPLETE                 │
+  │                                   │
+  │  ── Game Layer ──                 │
+  │  tournament-system                │
+  │  learning-clubs                   │
   │                                   │
   │  ── Testing & Marketing Pass ──   │
   │  12 test/marketing efforts        │
-  │  (see Next Efforts above)         │
   │                                   │
   └───────────┬───────────────────────┘
               ▼
-  ┌── Phase 2: SaaS Power Tier ──────┐
+  ┌── Phase 2: SaaS Extension ────────┐
+  │  new-domains (crypto, forex, etc) │
   │  custom-sources-articles          │
   │  custom-analysts                  │
   │  power-user-api-namespace         │
