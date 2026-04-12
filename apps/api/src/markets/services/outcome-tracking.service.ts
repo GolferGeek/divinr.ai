@@ -221,10 +221,16 @@ export class OutcomeTrackingService {
   /**
    * Fetch the latest price for a symbol from Polygon.
    */
-  private async fetchPrice(symbol: string, apiKey: string): Promise<{ price: number; change: number; changePercent: number } | null> {
+  private async fetchPrice(symbol: string, apiKey: string): Promise<{ price: number; change: number; changePercent: number; bars: RecentBar[] } | null> {
     try {
+      // Fetch recent daily bars (free-tier compatible) for real OHLC variation.
+      const to = new Date();
+      const from = new Date(to);
+      from.setDate(from.getDate() - 10); // go back 10 calendar days to get ~5 trading days
+      const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
       const response = await fetch(
-        `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?adjusted=true&apiKey=${apiKey}`,
+        `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${fmt(from)}/${fmt(to)}?adjusted=true&limit=${RECENT_BARS_CAP}&apiKey=${apiKey}`,
       );
 
       if (!response.ok) {
@@ -240,10 +246,20 @@ export class OutcomeTrackingService {
       };
 
       if (!data.results || data.results.length === 0) return null;
-      const bar = data.results[0];
-      const change = bar.c - bar.o;
-      const changePercent = bar.o > 0 ? (change / bar.o) * 100 : 0;
-      return { price: bar.c, change, changePercent };
+
+      const bars: RecentBar[] = data.results.map(raw => ({
+        t: raw.t ? new Date(raw.t).toISOString() : new Date().toISOString(),
+        o: raw.o,
+        h: raw.h,
+        l: raw.l,
+        c: raw.c,
+        v: raw.v ?? 0,
+      }));
+
+      const latest = data.results[data.results.length - 1];
+      const change = latest.c - latest.o;
+      const changePercent = latest.o > 0 ? (change / latest.o) * 100 : 0;
+      return { price: latest.c, change, changePercent, bars };
     } catch (err) {
       this.logger.debug(`Price fetch failed for ${symbol}: ${err instanceof Error ? err.message : String(err)}`);
       return null;
@@ -255,7 +271,7 @@ export class OutcomeTrackingService {
    */
   private async updateInstrumentPrice(
     instrumentId: string,
-    priceData: { price: number; change: number; changePercent: number },
+    priceData: { price: number; change: number; changePercent: number; bars: RecentBar[] },
   ): Promise<void> {
     // Get latest prediction direction/confidence for this instrument
     // Try arbitrator first, fall back to analyst consensus
@@ -279,25 +295,8 @@ export class OutcomeTrackingService {
       }
     } catch { /* no prediction data */ }
 
-    // Build new ring-buffer entry. Until OHLC is available from /prev, use
-    // the latest price for o/h/l/c and v=0 (documented limitation).
-    const newBar: RecentBar = {
-      t: new Date().toISOString(),
-      o: priceData.price,
-      h: priceData.price,
-      l: priceData.price,
-      c: priceData.price,
-      v: 0,
-    };
-
-    // Read the existing recent_bars to compute the trimmed buffer.
-    const existing = await this.db.rawQuery(
-      `select current_state from prediction.instruments where id = $1 limit 1`,
-      [instrumentId],
-    );
-    const existingState = ((existing.data as Array<{ current_state: Record<string, unknown> | null }> | null) ?? [])[0]?.current_state;
-    const priorBars = Array.isArray(existingState?.recent_bars) ? (existingState!.recent_bars as RecentBar[]) : [];
-    const nextBars = [...priorBars, newBar].slice(-RECENT_BARS_CAP);
+    // Replace the ring buffer with the full set of real OHLC bars from Polygon.
+    const nextBars = priceData.bars.slice(-RECENT_BARS_CAP);
 
     // Update ALL instruments with the same symbol (across all orgs including __base__)
     const result = await this.db.rawQuery(

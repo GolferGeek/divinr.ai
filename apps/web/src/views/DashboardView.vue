@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonGrid, IonRow, IonCol,
@@ -111,6 +111,13 @@ onMounted(async () => {
     predictions.value = await get<DashboardPrediction[]>('/predictions/dashboard');
   } catch { /* empty */ }
   loading.value = false;
+  // Force Ionic card-content to fill card height for equal-height layout
+  await nextTick();
+  document.querySelectorAll<HTMLElement>('.prediction-card ion-card-content').forEach(el => {
+    el.style.display = 'flex';
+    el.style.flexDirection = 'column';
+    el.style.flex = '1';
+  });
 });
 
 /** Sort analysts by affinity (highest first) when affinity data is available. */
@@ -233,8 +240,8 @@ function timeAgo(dateStr: string): string {
 
     <ion-grid v-else>
       <ion-row>
-        <ion-col v-for="pred in predictions" :key="pred.instrument_id" size="12" size-md="6" size-lg="4">
-          <ion-card class="prediction-card" button @click="router.push(`/instruments/${pred.instrument_id}`)">
+        <ion-col v-for="pred in predictions" :key="pred.instrument_id" size="12" size-md="6" size-lg="4" style="display:flex">
+          <ion-card class="prediction-card" style="display:flex;flex-direction:column;height:100%" button @click="router.push(`/instruments/${pred.instrument_id}`)">
             <ion-card-header>
               <div class="prediction-header">
                 <div>
@@ -254,7 +261,7 @@ function timeAgo(dateStr: string): string {
               </div>
             </ion-card-header>
 
-            <ion-card-content>
+            <ion-card-content style="display:flex;flex-direction:column;flex:1">
               <!-- Analyst Stances -->
               <div v-if="pred.analysts.length > 0" class="analyst-stances">
                 <div
@@ -283,6 +290,9 @@ function timeAgo(dateStr: string): string {
                 Single analyst prediction
               </div>
 
+              <!-- Bottom section: rationale + trade rec + footer — pushed to bottom -->
+              <div class="card-bottom-section" style="margin-top:auto">
+
               <!-- Rationale preview -->
               <div v-if="pred.arbitrator?.rationale" class="rationale-preview">
                 {{ pred.arbitrator.rationale.slice(0, 120) }}{{ pred.arbitrator.rationale.length > 120 ? '...' : '' }}
@@ -303,16 +313,20 @@ function timeAgo(dateStr: string): string {
                 </div>
                 <div v-if="pred.trade_recommendation.action !== 'hold'" class="trade-rec-details">
                   <div class="trade-rec-row">
-                    <span class="trade-rec-label">Size:</span>
+                    <span class="trade-rec-label">Size</span>
                     <span class="trade-rec-value">{{ pred.trade_recommendation.quantity }} sh ({{ (pred.trade_recommendation.position_percent * 100).toFixed(1) }}%)</span>
                   </div>
                   <div class="trade-rec-row">
-                    <span class="trade-rec-label">Entry / Stop / Target:</span>
-                    <span class="trade-rec-value">
-                      {{ formatPrice(pred.trade_recommendation.entry_price) }}
-                      / {{ formatPrice(pred.trade_recommendation.stop_loss) }}
-                      / {{ formatPrice(pred.trade_recommendation.take_profit) }}
-                    </span>
+                    <span class="trade-rec-label">Entry</span>
+                    <span class="trade-rec-value">{{ formatPrice(pred.trade_recommendation.entry_price) }}</span>
+                  </div>
+                  <div class="trade-rec-row">
+                    <span class="trade-rec-label">Stop</span>
+                    <span class="trade-rec-value">{{ formatPrice(pred.trade_recommendation.stop_loss) }}</span>
+                  </div>
+                  <div class="trade-rec-row">
+                    <span class="trade-rec-label">Target</span>
+                    <span class="trade-rec-value">{{ formatPrice(pred.trade_recommendation.take_profit) }}</span>
                   </div>
                 </div>
                 <div v-else class="trade-rec-hold">
@@ -331,6 +345,7 @@ function timeAgo(dateStr: string): string {
                     Trade
                   </ion-button>
                 </div>
+              </div>
               </div>
             </ion-card-content>
           </ion-card>
@@ -352,6 +367,24 @@ function timeAgo(dateStr: string): string {
   </div>
 </template>
 
+<!-- Unscoped overrides for Ionic card flex stretching -->
+<style>
+.prediction-card {
+  display: flex !important;
+  flex-direction: column !important;
+}
+.prediction-card::part(native) {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+}
+.prediction-card ion-card-content {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+}
+</style>
+
 <style scoped>
 .stat-value {
   font-size: 2rem;
@@ -360,11 +393,14 @@ function timeAgo(dateStr: string): string {
 
 .prediction-card {
   transition: transform 0.15s;
+  height: 100%;
 }
 
 .prediction-card:hover {
   transform: translateY(-2px);
 }
+
+/* placeholder */
 
 .prediction-header {
   display: flex;
@@ -446,10 +482,14 @@ function timeAgo(dateStr: string): string {
   line-height: 1.4;
 }
 
+.card-bottom-section {
+  margin-top: auto;
+}
+
 .rationale-preview {
   font-size: 0.8rem;
   color: #888;
-  margin: 8px 0;
+  margin: 0 0 8px 0;
   line-height: 1.4;
   border-top: 1px solid #eee;
   padding-top: 8px;
@@ -468,6 +508,15 @@ function timeAgo(dateStr: string): string {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+}
+
+/* Equal-height cards in the same row */
+ion-row {
+  align-items: stretch;
+}
+
+ion-col {
+  display: flex;
 }
 
 @media (max-width: 375px) {

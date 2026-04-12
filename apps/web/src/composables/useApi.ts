@@ -31,15 +31,30 @@ export function useApi() {
     return headers;
   }
 
-  async function get<T = unknown>(path: string): Promise<T> {
+  /**
+   * Core fetch wrapper with auto-refresh on 401.
+   * If a request gets a 401, attempts to refresh the token and retry once.
+   */
+  async function request<T = unknown>(path: string, init?: RequestInit): Promise<T> {
     loading.value = true;
     error.value = null;
     try {
-      const res = await fetch(`${BASE_URL}${path}`, { headers: getHeaders() });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`${res.status}: ${body}`);
+      let res = await fetch(`${BASE_URL}${path}`, { ...init, headers: { ...getHeaders(), ...init?.headers } });
+
+      // On 401, try refreshing the token and retry once
+      if (res.status === 401) {
+        const auth = useAuthStore();
+        const refreshed = await auth.tryRefresh();
+        if (refreshed) {
+          res = await fetch(`${BASE_URL}${path}`, { ...init, headers: { ...getHeaders(), ...init?.headers } });
+        }
       }
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text}`);
+      }
+      if (res.status === 204) return undefined as T;
       return await res.json() as T;
     } catch (err) {
       error.value = err instanceof Error ? err.message : String(err);
@@ -47,95 +62,29 @@ export function useApi() {
     } finally {
       loading.value = false;
     }
+  }
+
+  async function get<T = unknown>(path: string): Promise<T> {
+    return request<T>(path);
   }
 
   async function post<T = unknown>(path: string, body?: unknown): Promise<T> {
-    loading.value = true;
-    error.value = null;
-    try {
-      const res = await fetch(`${BASE_URL}${path}`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`${res.status}: ${text}`);
-      }
-      return await res.json() as T;
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return request<T>(path, { method: 'POST', body: JSON.stringify(body) });
   }
 
   async function put<T = unknown>(path: string, body?: unknown): Promise<T> {
-    loading.value = true;
-    error.value = null;
-    try {
-      const res = await fetch(`${BASE_URL}${path}`, {
-        method: 'PUT',
-        headers: getHeaders(),
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`${res.status}: ${text}`);
-      }
-      return await res.json() as T;
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return request<T>(path, { method: 'PUT', body: JSON.stringify(body) });
   }
 
   async function patch<T = unknown>(path: string, body?: unknown): Promise<T> {
-    loading.value = true;
-    error.value = null;
-    try {
-      const res = await fetch(`${BASE_URL}${path}`, {
-        method: 'PATCH',
-        headers: getHeaders(),
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`${res.status}: ${text}`);
-      }
-      if (res.status === 204) return undefined as T;
-      return await res.json() as T;
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return request<T>(path, {
+      method: 'PATCH',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
   }
 
   async function del<T = unknown>(path: string): Promise<T> {
-    loading.value = true;
-    error.value = null;
-    try {
-      const res = await fetch(`${BASE_URL}${path}`, {
-        method: 'DELETE',
-        headers: getHeaders(),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`${res.status}: ${text}`);
-      }
-      if (res.status === 204) return undefined as T;
-      return await res.json() as T;
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return request<T>(path, { method: 'DELETE' });
   }
 
   return { get, post, put, patch, delete: del, loading, error };

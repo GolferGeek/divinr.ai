@@ -65,7 +65,7 @@ async function login() {
     }
     const me = (await meRes.json()) as MeResponse;
 
-    auth.setAuth(me.id, loginData.accessToken, me.globalRole ?? me.role, me.email, me.displayName);
+    auth.setAuth(me.id, loginData.accessToken, me.globalRole ?? me.role, me.email, me.displayName, loginData.refreshToken);
     await router.push('/');
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);

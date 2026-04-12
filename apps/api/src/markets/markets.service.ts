@@ -395,7 +395,7 @@ export class MarketsService {
 
     const result = await this.db
       .from('prediction', 'instruments')
-      .insert(instrument)
+      .upsert(instrument, { onConflict: 'symbol' })
       .select('*')
       .single();
     if (result.error) {
@@ -442,6 +442,10 @@ export class MarketsService {
          default_weight, tier_instructions, is_system_default, is_enabled, is_active,
          workflow_scope, domain_slug, created_by, created_at, updated_at)
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      on conflict (slug) do update set
+        display_name = excluded.display_name,
+        persona_prompt = excluded.persona_prompt,
+        updated_at = excluded.updated_at
       returning *
       `,
       [
@@ -3027,7 +3031,10 @@ Respond ONLY with valid JSON.`,
           select 1 from prediction.market_predictions mp
           where mp.run_id = r.id and mp.settled_at is null
         )
-      order by r.instrument_id, r.completed_at desc
+      order by r.instrument_id,
+        (select count(*) from prediction.market_predictions mp2
+         where mp2.run_id = r.id and mp2.role = 'analyst' and mp2.settled_at is null) desc,
+        r.completed_at desc
       `,
     );
     if (runsResult.error) throw new Error(runsResult.error.message);

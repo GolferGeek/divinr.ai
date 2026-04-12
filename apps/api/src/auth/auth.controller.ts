@@ -57,6 +57,19 @@ export class AuthController {
   }
 
   /**
+   * Refresh an expired access token using a refresh token.
+   * Body: { refreshToken }
+   * Returns: { accessToken, refreshToken, tokenType, expiresIn }
+   */
+  @Post('refresh')
+  async refresh(@Body() body: { refreshToken?: string }) {
+    if (!body?.refreshToken) {
+      throw new UnauthorizedException('refreshToken is required');
+    }
+    return this.authService.refreshToken(body.refreshToken);
+  }
+
+  /**
    * Sign out the current user. Requires a valid bearer token.
    */
   @Post('logout')

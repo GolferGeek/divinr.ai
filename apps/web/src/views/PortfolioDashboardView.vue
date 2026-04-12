@@ -20,13 +20,18 @@ const decisions = ref<Array<Record<string, unknown>>>([]);
 const expandedKey = ref<string | null>(null);
 
 onMounted(async () => {
-  await Promise.all([
-    portfolio.fetchAllPortfolios(),
-    portfolio.fetchMyPortfolio(),
-    portfolio.fetchMyPositions('open'),
-    portfolio.fetchMyQueue(),
-    api.get<Array<Record<string, unknown>>>('/trades/decisions').then(d => decisions.value = d).catch((err) => console.error('Failed to load trade decisions', err)),
-  ]).catch((err) => console.error('Failed to load portfolio data', err));
+  try {
+    // Fetch user portfolio first to avoid deadlock with leaderboard query
+    await portfolio.fetchMyPortfolio();
+    await Promise.all([
+      portfolio.fetchAllPortfolios(),
+      portfolio.fetchMyPositions('open'),
+      portfolio.fetchMyQueue(),
+      api.get<Array<Record<string, unknown>>>('/trades/decisions').then(d => decisions.value = d).catch(() => {}),
+    ]);
+  } catch (err) {
+    console.error('Failed to load portfolio data', err);
+  }
 });
 
 function rowKey(p: PortfolioSummary): string { return `${p.kind}:${p.id}`; }
@@ -87,11 +92,12 @@ function toggleKind(k: PortfolioSummary['kind']) {
   activeKinds.value = next;
 }
 
-function setSort(key: SortKey) {
+function setSort(key: SortKey | string) {
+  if (!key) { sortKey.value = null; return; }
   if (sortKey.value === key) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
   } else {
-    sortKey.value = key;
+    sortKey.value = key as SortKey;
     sortDir.value = 'desc';
   }
 }
@@ -132,6 +138,39 @@ const sortedPortfolios = computed(() => {
 
   const key = sortKey.value;
   return [...filtered].sort((a, b) => compareValues(a[key], b[key], sortDir.value));
+});
+
+const GROUP_ORDER = ['user', 'analyst', 'day_trader'] as const;
+const GROUP_LABELS: Record<string, string> = {
+  user: 'My Portfolio',
+  analyst: 'Analysts',
+  day_trader: 'Day Traders',
+};
+
+const groupedPortfolios = computed(() => {
+  const list = sortedPortfolios.value;
+  const groups: Array<{ kind: string; label: string; items: PortfolioSummary[] }> = [];
+  for (const groupKey of GROUP_ORDER) {
+    let items: PortfolioSummary[];
+    if (groupKey === 'user') {
+      // Only show the current user's portfolio
+      const myId = String(portfolio.myPortfolio?.['id'] ?? '');
+      items = list.filter(p => p.kind === 'user' && p.id === myId);
+      // Fallback: if myPortfolio not loaded yet, show nothing
+      if (!myId) items = [];
+    } else if (groupKey === 'analyst') {
+      // Merge analysts and arbitrator — arbitrator first
+      const arbitrators = list.filter(p => p.kind === 'arbitrator');
+      const analysts = list.filter(p => p.kind === 'analyst');
+      items = [...arbitrators, ...analysts];
+    } else {
+      items = list.filter(p => p.kind === groupKey);
+    }
+    if (items.length > 0) {
+      groups.push({ kind: groupKey, label: GROUP_LABELS[groupKey] || groupKey, items });
+    }
+  }
+  return groups;
 });
 
 function fmtSharpe(v: number | null): string {
@@ -205,68 +244,82 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
         style="cursor:pointer;font-size:0.7rem;height:22px"
         @click="toggleKind(k)"
       >{{ k }}</ion-chip>
+
+      <span style="font-size:0.75rem;opacity:0.7;margin-left:16px">Sort:</span>
+      <select
+        :value="sortKey ?? ''"
+        style="padding:5px 8px;border:1px solid var(--ion-color-step-200);border-radius:4px;font-size:0.82rem;background:var(--ion-background-color);color:inherit"
+        @change="setSort(($event.target as HTMLSelectElement).value as SortKey)"
+      >
+        <option value="">Default</option>
+        <option value="name">Name</option>
+        <option value="current_balance">Balance</option>
+        <option value="total_return_pct">Return</option>
+        <option value="win_rate">Win Rate</option>
+        <option value="realized_pnl">Realized P&amp;L</option>
+        <option value="unrealized_pnl">Unrealized P&amp;L</option>
+        <option value="open_position_count">Open Positions</option>
+        <option value="longest_win_streak">Win Streak</option>
+        <option value="sharpe_30d">Sharpe</option>
+        <option value="max_drawdown_30d">Max Drawdown</option>
+        <option value="calibration_score">Calibration</option>
+      </select>
+      <ion-chip
+        v-if="sortKey"
+        :color="sortDir === 'desc' ? 'primary' : 'medium'"
+        style="cursor:pointer;font-size:0.7rem;height:22px"
+        @click="sortDir = sortDir === 'asc' ? 'desc' : 'asc'"
+      >{{ sortDir === 'desc' ? 'High to Low' : 'Low to High' }}</ion-chip>
     </div>
 
-    <!-- Master table -->
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
-        <thead>
-          <tr style="text-align:left;border-bottom:1px solid var(--ion-color-step-150)">
-            <th style="padding:8px;cursor:pointer;user-select:none" @click="setSort('name')">Name{{ sortIndicator('name') }}</th>
-            <th style="padding:8px;cursor:pointer;user-select:none" @click="setSort('kind')">Kind{{ sortIndicator('kind') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('current_balance')">Balance{{ sortIndicator('current_balance') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('realized_pnl')">Realized{{ sortIndicator('realized_pnl') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('unrealized_pnl')">Unrealized{{ sortIndicator('unrealized_pnl') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('win_rate')">Win Rate{{ sortIndicator('win_rate') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('total_return_pct')">Return{{ sortIndicator('total_return_pct') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('total_bailouts')">Bailouts{{ sortIndicator('total_bailouts') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('open_position_count')">Open{{ sortIndicator('open_position_count') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('sharpe_30d')" title="Sharpe ratio over 30d">Sharpe{{ sortIndicator('sharpe_30d') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('max_drawdown_30d')" title="Max drawdown over 30d">Max DD{{ sortIndicator('max_drawdown_30d') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('longest_win_streak')">Win Streak{{ sortIndicator('longest_win_streak') }}</th>
-            <th style="padding:8px;text-align:right;cursor:pointer;user-select:none" @click="setSort('calibration_score')" title="Analyst calibration: needs ≥ 20 resolved analyses">Calibration{{ sortIndicator('calibration_score') }}</th>
-            <th style="padding:8px">Trend</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="p in sortedPortfolios" :key="rowKey(p)">
-            <tr
-              style="cursor:pointer;border-bottom:1px solid var(--ion-color-step-100)"
-              :style="expandedKey === rowKey(p) ? 'background:var(--ion-color-step-50)' : ''"
-              @click="toggleRow(p)"
-            >
-              <td style="padding:8px;font-weight:500">{{ p.name }}</td>
-              <td style="padding:8px">
-                <ion-chip :color="kindBadgeColor(p.kind)" style="font-size:0.7rem;height:20px">{{ p.kind }}</ion-chip>
-              </td>
-              <td style="padding:8px;text-align:right">{{ formatCurrency(p.current_balance) }}</td>
-              <td style="padding:8px;text-align:right" :style="pnlColor(p.realized_pnl)">{{ formatCurrency(p.realized_pnl) }}</td>
-              <td style="padding:8px;text-align:right" :style="pnlColor(p.unrealized_pnl)">{{ formatCurrency(p.unrealized_pnl) }}</td>
-              <td style="padding:8px;text-align:right">{{ p.win_rate != null ? `${p.win_rate.toFixed(0)}%` : '—' }}</td>
-              <td style="padding:8px;text-align:right" :style="pnlColor(p.total_return_pct)">{{ fmtPct(p.total_return_pct) }}</td>
-              <td style="padding:8px;text-align:right">{{ formatCurrency(p.total_bailouts) }}</td>
-              <td style="padding:8px;text-align:right">{{ p.open_position_count }}</td>
-              <td style="padding:8px;text-align:right">{{ fmtSharpe(p.sharpe_30d) }}</td>
-              <td style="padding:8px;text-align:right" :style="pnlColor(p.max_drawdown_30d)">{{ fmtDrawdown(p.max_drawdown_30d) }}</td>
-              <td style="padding:8px;text-align:right">{{ p.longest_win_streak ?? 0 }}</td>
-              <td
-                style="padding:8px;text-align:right"
-                :title="p.calibration_score == null ? (p.kind === 'analyst' ? 'Needs ≥ 20 resolved analyses' : 'Not applicable for this actor type') : ''"
-              >
+    <!-- Portfolio rows grouped by kind -->
+    <div style="display:flex;flex-direction:column;gap:0">
+      <template v-for="group in groupedPortfolios" :key="group.kind">
+        <!-- Group header -->
+        <div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 0.5fr;gap:4px;padding:10px 16px 4px 16px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;opacity:0.45;border-bottom:1px solid var(--ion-color-step-100);margin-top:8px">
+          <span>{{ group.label }}</span>
+          <span style="text-align:right">Balance</span>
+          <span style="text-align:right">Return</span>
+          <span style="text-align:right">Win Rate</span>
+          <span style="text-align:right">Open</span>
+        </div>
+
+        <template v-for="p in group.items" :key="rowKey(p)">
+          <!-- Row -->
+          <div
+            class="portfolio-row"
+            :style="expandedKey === rowKey(p) ? 'background:var(--ion-color-step-50);border-left:3px solid var(--ion-color-primary)' : 'border-left:3px solid transparent'"
+            @click="toggleRow(p)"
+          >
+            <div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 0.5fr;gap:4px;align-items:center;padding:10px 16px;cursor:pointer">
+              <div style="font-size:0.92rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
+              <div style="text-align:right;font-size:0.88rem;font-weight:500">{{ formatCurrency(p.current_balance) }}</div>
+              <div style="text-align:right;font-size:0.88rem;font-weight:600" :style="pnlColor(p.total_return_pct)">{{ fmtPct(p.total_return_pct) }}</div>
+              <div style="text-align:right;font-size:0.88rem">{{ p.win_rate != null ? `${p.win_rate.toFixed(0)}%` : '—' }}</div>
+              <div style="text-align:right;font-size:0.88rem">{{ p.open_position_count }}</div>
+            </div>
+
+          <!-- Expanded detail panel -->
+          <div v-if="expandedKey === rowKey(p)" style="padding:0 16px 16px 16px;border-top:1px solid var(--ion-color-step-100)">
+            <!-- Secondary metrics -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px 24px;padding:12px 0;font-size:0.82rem">
+              <div><span style="opacity:0.5">Realized</span> <span :style="pnlColor(p.realized_pnl)" style="font-weight:500;margin-left:6px">{{ formatCurrency(p.realized_pnl) }}</span></div>
+              <div><span style="opacity:0.5">Unrealized</span> <span :style="pnlColor(p.unrealized_pnl)" style="font-weight:500;margin-left:6px">{{ formatCurrency(p.unrealized_pnl) }}</span></div>
+              <div><span style="opacity:0.5">Bailouts</span> <span style="font-weight:500;margin-left:6px">{{ formatCurrency(p.total_bailouts) }}</span></div>
+              <div><span style="opacity:0.5">Sharpe</span> <span style="font-weight:500;margin-left:6px">{{ fmtSharpe(p.sharpe_30d) }}</span></div>
+              <div><span style="opacity:0.5">Max DD</span> <span :style="pnlColor(p.max_drawdown_30d)" style="font-weight:500;margin-left:6px">{{ fmtDrawdown(p.max_drawdown_30d) }}</span></div>
+              <div><span style="opacity:0.5">Streak</span> <span style="font-weight:500;margin-left:6px">{{ p.longest_win_streak ?? 0 }}</span></div>
+              <div v-if="p.calibration_score != null">
+                <span style="opacity:0.5">Calibration</span>
                 <router-link
-                  v-if="p.analyst_id && p.calibration_score != null"
+                  v-if="p.analyst_id"
                   :to="{ name: 'analyst-performance', params: { id: p.analyst_id } }"
-                  style="text-decoration:underline;cursor:pointer;color:var(--ion-color-primary)"
+                  style="text-decoration:underline;color:var(--ion-color-primary);font-weight:500;margin-left:6px"
                   @click.stop
                 >{{ fmtCalibration(p.calibration_score) }}</router-link>
-                <template v-else>{{ fmtCalibration(p.calibration_score) }}</template>
-              </td>
-              <td style="padding:8px">
-                <EquitySparkline :snapshots="(portfolio.portfolioDetails[rowKey(p)]?.snapshots || []) as []" />
-              </td>
-            </tr>
-            <tr v-if="expandedKey === rowKey(p)">
-              <td colspan="14" style="padding:16px;background:var(--ion-color-step-50)">
+                <span v-else style="font-weight:500;margin-left:6px">{{ fmtCalibration(p.calibration_score) }}</span>
+              </div>
+            </div>
                 <!-- Equity curve + calibration charts -->
                 <div v-if="portfolio.portfolioDetails[rowKey(p)]" style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:24px">
                   <div style="flex:1 1 480px;min-width:320px">
@@ -398,11 +451,10 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
                     </ion-list>
                   </template>
                 </div>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
+              </div>
+        </div>
+        </template>
+      </template>
     </div>
 
     <ion-note v-if="sortedPortfolios.length === 0" color="primary" style="display:block;padding:12px">
@@ -410,3 +462,13 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
     </ion-note>
   </div>
 </template>
+
+<style scoped>
+.portfolio-row {
+  border-bottom: 1px solid var(--ion-color-step-100);
+  transition: background 0.15s ease, border-left-color 0.15s ease;
+}
+.portfolio-row:hover {
+  background: var(--ion-color-step-50);
+}
+</style>

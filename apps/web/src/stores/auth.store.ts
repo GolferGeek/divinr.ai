@@ -4,9 +4,12 @@ import { ref, computed } from 'vue';
 export const useAuthStore = defineStore('auth', () => {
   const userId = ref(localStorage.getItem('divinr_user') || '');
   const token = ref(localStorage.getItem('divinr_token') || '');
+  const refreshToken = ref(localStorage.getItem('divinr_refresh_token') || '');
   const role = ref(localStorage.getItem('divinr_role') || '');
   const email = ref(localStorage.getItem('divinr_email') || '');
   const name = ref(localStorage.getItem('divinr_display_name') || '');
+
+  let refreshPromise: Promise<boolean> | null = null;
 
   const isBetaReader = computed(() => role.value === 'beta_reader');
   const displayName = computed(() => {
@@ -16,7 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
     return userId.value;
   });
 
-  function setAuth(user: string, jwt?: string, userRole?: string, userEmail?: string, userDisplayName?: string) {
+  function setAuth(user: string, jwt?: string, userRole?: string, userEmail?: string, userDisplayName?: string, refresh?: string) {
     userId.value = user;
     localStorage.setItem('divinr_user', user);
     if (userEmail) {
@@ -31,6 +34,10 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = jwt;
       localStorage.setItem('divinr_token', jwt);
     }
+    if (refresh) {
+      refreshToken.value = refresh;
+      localStorage.setItem('divinr_refresh_token', refresh);
+    }
     if (userRole !== undefined) {
       role.value = userRole;
       localStorage.setItem('divinr_role', userRole);
@@ -40,12 +47,49 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('divinr_org_role');
   }
 
+  /** Attempt to refresh the access token. Returns true on success. */
+  async function tryRefresh(): Promise<boolean> {
+    if (!refreshToken.value) return false;
+    // Deduplicate concurrent refresh attempts
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: refreshToken.value }),
+        });
+        if (!res.ok) {
+          clear();
+          return false;
+        }
+        const data = (await res.json()) as { accessToken?: string; refreshToken?: string };
+        if (data.accessToken) {
+          token.value = data.accessToken;
+          localStorage.setItem('divinr_token', data.accessToken);
+        }
+        if (data.refreshToken) {
+          refreshToken.value = data.refreshToken;
+          localStorage.setItem('divinr_refresh_token', data.refreshToken);
+        }
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+    return refreshPromise;
+  }
+
   function clear() {
     userId.value = '';
     token.value = '';
+    refreshToken.value = '';
     role.value = '';
     localStorage.removeItem('divinr_user');
     localStorage.removeItem('divinr_token');
+    localStorage.removeItem('divinr_refresh_token');
     localStorage.removeItem('divinr_role');
     localStorage.removeItem('divinr_email');
     localStorage.removeItem('divinr_display_name');
@@ -55,5 +99,5 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isConfigured = () => userId.value.length > 0;
 
-  return { userId, token, role, email, isBetaReader, displayName, setAuth, clear, isConfigured };
+  return { userId, token, refreshToken, role, email, isBetaReader, displayName, setAuth, tryRefresh, clear, isConfigured };
 });

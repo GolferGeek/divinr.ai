@@ -212,6 +212,24 @@ export class LeaderboardService {
     const result = await this.db.rawQuery(sql, []);
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Array<Record<string, unknown>> | null) ?? [];
+
+    // Resolve user display names separately to avoid cross-schema deadlocks
+    const userRows = rows.filter(r => r.kind === 'user');
+    const userIds = userRows.map(r => String(r.name)).filter(id => id.length > 0);
+    const nameMap = new Map<string, string>();
+    if (userIds.length > 0) {
+      try {
+        const nameResult = await this.db.rawQuery(
+          `SELECT id::text, coalesce(raw_user_meta_data->>'display_name', split_part(email, '@', 1)) as display
+           FROM auth.users WHERE id::text = ANY($1)`,
+          [userIds],
+        );
+        for (const row of ((nameResult.data as Array<{ id: string; display: string }> | null) ?? [])) {
+          nameMap.set(row.id, row.display);
+        }
+      } catch { /* auth lookup failed — fall back to user_id */ }
+    }
+
     return rows.map((r) => {
       const closed = Number(r.closed_count ?? 0);
       const wins = Number(r.wins ?? 0);
@@ -224,7 +242,9 @@ export class LeaderboardService {
       return {
         kind: r.kind as PortfolioSummaryRow['kind'],
         id: String(r.id),
-        name: String(r.name ?? r.id),
+        name: r.kind === 'user'
+          ? (nameMap.get(String(r.name)) || String(r.name).split('@')[0])
+          : String(r.name ?? r.id),
         current_balance: balance,
         realized_pnl: realized,
         unrealized_pnl: Number(r.unrealized_pnl ?? 0),
