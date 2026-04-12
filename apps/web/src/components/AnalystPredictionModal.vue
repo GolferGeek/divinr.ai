@@ -88,15 +88,15 @@ function clearBrowseTimer() {
   }
 }
 
+onUnmounted(() => clearBrowseTimer());
+
+const analyst = computed(() => props.analysts[currentIndex.value] ?? props.analysts[0]);
+
 // Start/stop timer when modal opens/closes or analyst changes
 watch(() => [props.isOpen, analyst.value?.analyst_id], ([open, aId]) => {
   if (open && aId) startBrowseTimer(aId as string);
   else clearBrowseTimer();
 });
-
-onUnmounted(() => clearBrowseTimer());
-
-const analyst = computed(() => props.analysts[currentIndex.value] ?? props.analysts[0]);
 const hasPrev = computed(() => currentIndex.value > 0);
 const hasNext = computed(() => currentIndex.value < props.analysts.length - 1);
 
