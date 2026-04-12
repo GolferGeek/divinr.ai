@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-11
+**Last updated:** 2026-04-12
 **Maintained by:** `/roadmap` skill
 
 ## Vision
@@ -50,12 +50,13 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `multi-analyst-coordination` | Cross-analyst correlation analysis, coverage gap detection, leave-one-out contribution scoring. Admin dashboard with heatmap matrix, coverage table, contribution scores. Weekly cron + on-demand compute. 42 new tests. | `docs/efforts/multi-analyst-coordination/` |
 | `performance-dashboard` | Subscriber-facing performance view: equity curve with SPY benchmark overlay, PnL summary, analyst leaderboard with trend indicators, key metrics cards. Single aggregation endpoint (6 parallel queries, no new tables). 33 new tests. | `docs/efforts/performance-dashboard/` |
 | `mobile-polish` | Responsive layouts across 22+ views (375px–1024px), iOS safe-area handling, Capacitor status-bar/splash-screen, touch targets ≥44px, Electron menu bar + window state persistence. | `docs/efforts/mobile-polish/` |
+| `messaging-system` | Full messaging: DMs, club/tournament/system channels, threaded replies, emoji reactions, pinned messages, entity attachments (5 types), @mentions with notifications, soft-delete moderation. 107 new tests. | `docs/efforts/messaging-system/` |
 
 ---
 
 ## Current Effort
 
-**Messaging System** (`docs/efforts/current/messaging-system/`) — DMs, club/tournament channels, system announcements. Contextual entity attachments, threaded replies, @mentions, emoji reactions, pinned messages. Real-time via existing SSE.
+**Tournament System** (`docs/efforts/current/tournament-system/`) — Paper-trading competitions using AI analyst signals. Three scopes: system (official), club (private), invitation (friends). Weekly sprints, sector challenges, analyst drafts. Virtual money only — explicitly a game, not investment advice.
 
 ---
 
@@ -67,8 +68,7 @@ All Phase 1 core analysis/trading features are shipped. Three feature efforts re
 
 ### Feature Development
 
-1. **Tournament System** (`docs/efforts/next/tournament-system/`) — Paper-trading competitions using AI analyst signals. Three scopes: system (official), club (private), invitation (friends). Weekly sprints, sector challenges, analyst drafts. Virtual money only — explicitly a game, not investment advice.
-2. **Learning Clubs** (`docs/efforts/next/learning-clubs/`) — Groups of users learning together. Club analysts (custom AI analysts scoped to the club), club tournaments, prediction challenges, consensus polls, post-mortems, strategy journals. Multiple admin roles. For university courses, Discord communities, friend groups.
+1. **Learning Clubs** (`docs/efforts/next/learning-clubs/`) — Groups of users learning together. Club analysts (custom AI analysts scoped to the club), club tournaments, prediction challenges, consensus polls, post-mortems, strategy journals. Multiple admin roles. For university courses, Discord communities, friend groups.
 
 ### Testing & Marketing Readiness
 
@@ -151,7 +151,7 @@ see-your-reasoning────┤
   │  CORE DEV COMPLETE                 │
   │                                   │
   │  ── Social / Game Layer ──        │
-  │  messaging-system                 │
+  │  messaging-system ✅              │
   │  tournament-system                │
   │  learning-clubs (+ club analysts) │
   │                                   │
