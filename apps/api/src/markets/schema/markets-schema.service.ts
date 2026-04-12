@@ -351,6 +351,10 @@ export class MarketsSchemaService {
       create index if not exists prediction_market_predictions_unsettled_idx
         on prediction.market_predictions (instrument_id, created_at desc) where settled_at is null;
 
+      create unique index if not exists prediction_market_predictions_active_analyst_instrument_idx
+      on prediction.market_predictions (analyst_id, instrument_id)
+      where settled_at is null and analyst_id is not null;
+
       create unique index if not exists prediction_market_predictions_run_analyst_idx
       on prediction.market_predictions (run_id, analyst_id)
       where analyst_id is not null and role = 'analyst';

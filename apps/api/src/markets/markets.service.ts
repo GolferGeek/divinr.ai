@@ -2651,11 +2651,21 @@ Respond ONLY with valid JSON.`,
       rationale: outputText.slice(0, 1200),
       created_at: new Date().toISOString(),
     };
-    const insert = await this.db.rawQuery(
+    // Upsert: one active (unsettled) prediction per analyst per instrument.
+    // If one already exists, update it with the new run's data.
+    const upsert = await this.db.rawQuery(
       `
       insert into prediction.market_predictions
         (id, run_id, instrument_id, analyst_id, predicted_direction, confidence, horizon_minutes, rationale, created_at)
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      on conflict (analyst_id, instrument_id) where settled_at is null and analyst_id is not null
+      do update set
+        run_id = excluded.run_id,
+        predicted_direction = excluded.predicted_direction,
+        confidence = excluded.confidence,
+        horizon_minutes = excluded.horizon_minutes,
+        rationale = excluded.rationale,
+        created_at = excluded.created_at
       returning *
       `,
       [
@@ -2670,10 +2680,10 @@ Respond ONLY with valid JSON.`,
         prediction.created_at,
       ],
     );
-    if (insert.error) {
-      throw new Error(insert.error.message);
+    if (upsert.error) {
+      throw new Error(upsert.error.message);
     }
-    const rows = (insert.data as PredictionOutcome[] | null) ?? [];
+    const rows = (upsert.data as PredictionOutcome[] | null) ?? [];
     return rows[0] as PredictionOutcome;
   }
 
