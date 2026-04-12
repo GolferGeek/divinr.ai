@@ -82,13 +82,15 @@ export class AuthController {
     if (!req.user?.id) {
       throw new UnauthorizedException('Authentication required');
     }
-    // Resolve global role from RBAC tables
+    // Resolve global role and profile from RBAC/authz tables
     const globalRole = await this.inviteService.getUserRole(req.user.id);
+    const profile = await this.inviteService.getUserProfile(req.user.id);
     return {
       id: req.user.id,
       email: req.user.email,
       role: req.user.role,
       globalRole,
+      displayName: profile?.display_name ?? undefined,
     };
   }
 

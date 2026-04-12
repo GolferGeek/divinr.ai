@@ -28,6 +28,7 @@ interface MeResponse {
   email?: string;
   role?: string;
   globalRole?: string;
+  displayName?: string;
 }
 
 async function login() {
@@ -64,7 +65,7 @@ async function login() {
     }
     const me = (await meRes.json()) as MeResponse;
 
-    auth.setAuth(me.id, loginData.accessToken, me.globalRole ?? me.role);
+    auth.setAuth(me.id, loginData.accessToken, me.globalRole ?? me.role, me.email, me.displayName);
     await router.push('/');
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);

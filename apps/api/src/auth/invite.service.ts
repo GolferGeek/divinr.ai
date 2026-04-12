@@ -236,4 +236,13 @@ export class InviteService {
     const rows = (result.data as Array<{ name: string }> | null) ?? [];
     return rows.length > 0 ? rows[0].name : null;
   }
+
+  async getUserProfile(userId: string): Promise<{ display_name: string; email: string; status: string } | null> {
+    const result = await this.db.rawQuery(
+      `SELECT display_name, email, status FROM authz.users WHERE id = $1`,
+      [userId],
+    );
+    const rows = (result.data as Array<{ display_name: string; email: string; status: string }> | null) ?? [];
+    return rows.length > 0 ? rows[0] : null;
+  }
 }

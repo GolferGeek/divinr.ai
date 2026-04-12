@@ -125,7 +125,7 @@ function logout() {
                 <ion-label>Read Only</ion-label>
               </ion-chip>
               <ion-chip color="medium" class="header-user-chip">
-                <ion-label>{{ auth.userId }}</ion-label>
+                <ion-label>{{ auth.displayName }}</ion-label>
               </ion-chip>
               <ion-button fill="clear" @click="logout">
                 <ion-icon :icon="logOutOutline" />
