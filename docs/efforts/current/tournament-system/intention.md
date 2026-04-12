@@ -1,0 +1,77 @@
+# Effort: Tournament System
+
+## Problem
+
+Divinr has a complete AI analysis + paper trading platform, but no social or competitive layer. Solo users have no reason to come back daily or invite friends. The portfolio system tracks performance but there's no game around it.
+
+## Intention
+
+Build a tournament system where users compete on paper-trading performance using the AI analyst signals. Tournaments are the acquisition and engagement hook — "play the market with AI analysts." Explicitly a game, not investment advice.
+
+## Scope
+
+### Tournament Entity
+- Create, configure, and manage tournaments
+- Three tournament scopes:
+  - **System** — created and run by Divinr. Official competitions visible to all users. Weekly sprints, seasonal events, special challenges. Only platform admin can create these.
+  - **Club** — created by a club admin for their club members only. Private to the club. (Depends on learning-clubs effort for club infrastructure, but tournament entity supports the scope from day one.)
+  - **Invitation** — created by any user, who invites specific people. No club needed. Casual head-to-head or small group competitions.
+- Configurable: start/end dates, starting balance, allowed instruments (all or sector-restricted)
+- Tournament statuses: upcoming, active, completed, archived
+
+### Tournament Portfolios
+- Each user gets an isolated tournament portfolio on entry
+- Same trading mechanics as main portfolio (queue trades, positions, PnL)
+- Tournament portfolio is separate from the user's main portfolio
+- Starting balance is equal for all entrants
+
+### Tournament Leaderboard
+- Live leaderboard during tournament: rank, return %, PnL, win rate, Sharpe
+- Final results page after tournament ends
+- Highlight winner, top 3, notable stats
+
+### Tournament Types (initial set)
+- **Weekly Sprint** — fresh start Monday, scored Friday close
+- **Sector Challenge** — restricted instrument set (e.g., tech only)
+- **Analyst Draft** — pick N analysts, only get signals from your picks
+
+### Entry & Registration
+- Browse upcoming/active tournaments
+- One-click entry (creates tournament portfolio)
+- View your active tournaments from dashboard
+
+### Messaging Integration
+- Auto-create a tournament messaging channel when tournament starts (uses `createScopedChannel('tournament', ...)` from messaging system)
+- All entrants added as channel members automatically
+- Channel archived when tournament ends
+- Tournament admin has channel admin role for moderation
+
+### Notifications
+- Tournament starting soon (24h before, 1h before)
+- Tournament started / ended
+- Leaderboard position change (you moved up/down)
+- Final results announcement (your rank, winner)
+- Uses existing NotificationService with new event types
+
+### Invitation Flow
+- Invitation-scope tournaments: creator gets a shareable invite link
+- Link contains tournament ID + invite token
+- Clicking link shows tournament details + "Join" button (auth required)
+- Creator can also invite by username/email from within the app
+- Invited users get an in-app notification with join link
+
+### Results & History
+- Past tournament results with final standings
+- Personal tournament history (your rank in each)
+
+## Legal Framing
+- All tournaments use virtual/paper money only
+- Prominent disclaimer: "Divinr is an AI analysis game. Virtual portfolios use simulated trades for educational and entertainment purposes. Not investment advice."
+- No real money prizes (avoid gambling regulations)
+- Language: "players" not "investors", "game" not "trading"
+
+## Out of Scope
+- Real money or prizes
+- Club entity/membership management (that's learning-clubs effort — but club scope is supported in tournament entity)
+- Chat or messaging between players (shipped — messaging system handles this via tournament channels)
+- Badges and achievements (future, after tournaments prove out)
