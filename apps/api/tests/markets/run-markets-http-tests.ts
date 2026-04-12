@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   process.env.DATABASE_URL =
     process.env.DATABASE_URL ||
     process.env.SUPABASE_DB_URL ||
-    'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+    'postgresql://postgres:postgres@127.0.0.1:7011/postgres';
   process.env.DB_PROVIDER = process.env.DB_PROVIDER || 'supabase';
   process.env.LLM_PROVIDER = process.env.LLM_PROVIDER || 'simplified';
   process.env.COMMERCIAL_LLM_PROVIDER = process.env.COMMERCIAL_LLM_PROVIDER || 'none';

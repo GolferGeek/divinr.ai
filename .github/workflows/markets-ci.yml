@@ -48,15 +48,15 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
         ports:
-          - 54322:5432
+          - 7011:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-      POSTGRESQL_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:7011/postgres
+      POSTGRESQL_URL: postgresql://postgres:postgres@127.0.0.1:7011/postgres
       DB_PROVIDER: postgresql
       LLM_PROVIDER: simplified
       OBSERVABILITY_PROVIDER: console

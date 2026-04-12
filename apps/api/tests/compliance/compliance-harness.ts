@@ -42,7 +42,7 @@ const DEFAULT_ENV: EnvMap = {
   DATABASE_URL:
     process.env.DATABASE_URL ||
     process.env.SUPABASE_DB_URL ||
-    'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+    'postgresql://postgres:postgres@127.0.0.1:7011/postgres',
   DB_PROVIDER: 'supabase',
   LLM_PROVIDER: 'simplified',
   COMMERCIAL_LLM_PROVIDER: 'none',

@@ -24,7 +24,7 @@ import { join } from 'node:path';
 loadEnv({ path: join(__dirname, '..', '..', '..', '..', '..', '.env') });
 process.env.MARKETS_DEV_AUTH_BYPASS = 'true';
 process.env.MARKETS_ENABLE_LLM = 'true';
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:7011/postgres';
 process.env.DB_PROVIDER = process.env.DB_PROVIDER || 'supabase';
 process.env.LLM_PROVIDER = process.env.LLM_PROVIDER || 'simplified';
 process.env.OBSERVABILITY_PROVIDER = process.env.OBSERVABILITY_PROVIDER || 'supabase';
