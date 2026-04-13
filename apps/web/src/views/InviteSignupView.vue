@@ -75,15 +75,18 @@ async function signup() {
       error.value = data.message ?? `Signup failed (${res.status})`;
       return;
     }
-    const signupData = await res.json() as { accessToken: string };
+    const signupData = await res.json() as { accessToken: string; refreshToken?: string };
 
-    // Fetch profile to get user id and role
+    // Clear any previous session before setting the new one
+    auth.clear();
+
+    // Fetch profile to get user id, role, email, and display name
     const meRes = await fetch('/api/auth/me', {
       headers: { Authorization: `Bearer ${signupData.accessToken}` },
     });
     if (meRes.ok) {
-      const me = await meRes.json() as { id: string; role?: string };
-      auth.setAuth(me.id, signupData.accessToken, me.role ?? 'beta_reader');
+      const me = await meRes.json() as { id: string; role?: string; email?: string; displayName?: string; globalRole?: string };
+      auth.setAuth(me.id, signupData.accessToken, me.globalRole ?? me.role ?? 'beta_reader', me.email, me.displayName, signupData.refreshToken);
     }
 
     await router.push('/');

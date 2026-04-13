@@ -1,9 +1,9 @@
 /**
- * Invite Service — manages beta-reader invite flow.
+ * Invite Service — manages invite-based signup flow.
  * Effort: beta-user-share-path.
  *
  * Creates invite tokens, validates them, and handles invite-based signup
- * that creates a Supabase user with the beta_reader role.
+ * that creates a Supabase user with the member role (full read/write access).
  */
 import { Injectable, Inject, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -70,6 +70,12 @@ export class InviteService {
       VALUES ('role-beta-reader', 'beta_reader', 'Beta Reader', 'Read-only access to an organization', true)
       ON CONFLICT (id) DO NOTHING
     `);
+    // Ensure beta_reader has read permission
+    await this.db.rawQuery(`
+      INSERT INTO authz.rbac_role_permissions (role_id, permission_id)
+      VALUES ('role-beta-reader', 'markets-instruments-read')
+      ON CONFLICT DO NOTHING
+    `);
     this.schemaReady = true;
   }
 
@@ -85,7 +91,7 @@ export class InviteService {
 
     await this.db.rawQuery(
       `INSERT INTO authz.invites (id, email, token, role_name, created_by, expires_at)
-       VALUES ($1, $2, $3, 'beta_reader', $4, $5)`,
+       VALUES ($1, $2, $3, 'member', $4, $5)`,
       [id, email ?? null, token, createdBy, expiresAt],
     );
 
@@ -193,7 +199,7 @@ export class InviteService {
           password,
           displayName: displayName ?? email.split('@')[0],
           roles: [invite.role_name],
-          emailConfirm: false,
+          emailConfirm: true,
         },
         invite.created_by,
       );

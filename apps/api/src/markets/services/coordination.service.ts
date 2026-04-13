@@ -233,10 +233,17 @@ export class CoordinationService {
     const sql = `
       select
         g.*,
-        i.symbol as instrument_symbol,
+        coalesce(i.symbol, eval_sym.symbol) as instrument_symbol,
         a.display_name as best_analyst_name
       from prediction.analyst_coverage_gaps g
       left join prediction.instruments i on i.id = g.instrument_id
+      left join lateral (
+        select distinct e.actual_outcome_data->>'symbol' as symbol
+        from prediction.prediction_horizon_evaluations e
+        where e.instrument_id = g.instrument_id
+          and e.actual_outcome_data->>'symbol' is not null
+        limit 1
+      ) eval_sym on true
       left join prediction.market_analysts a on a.id = g.best_analyst_id
       where ${conditions.join(' and ')}
       order by g.avg_accuracy asc

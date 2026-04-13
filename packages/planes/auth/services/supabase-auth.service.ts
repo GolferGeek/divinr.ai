@@ -226,7 +226,8 @@ export class SupabaseAuthService
       }
 
       const { error: profileError } = await serviceClient
-        .from(getTableName('users'))
+        .schema('authz')
+        .from('users')
         .insert({
           id: authUser.user.id,
           email: createUserDto.email,
@@ -246,6 +247,7 @@ export class SupabaseAuthService
       const roles = createUserDto.roles || ['member'];
 
       const { data: roleData } = await serviceClient
+        .schema('authz')
         .from('rbac_roles')
         .select('id, name')
         .in('name', roles);
@@ -253,7 +255,7 @@ export class SupabaseAuthService
       if (roleData) {
         const typedRoleData = roleData as Array<{ id: string; name: string }>;
         for (const role of typedRoleData) {
-          await serviceClient.from('rbac_user_roles').insert({
+          await serviceClient.schema('authz').from('rbac_user_roles').insert({
             user_id: authUser.user.id,
             role_id: role.id,
             assigned_by: adminUserId,

@@ -3,9 +3,12 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInput, IonTextarea, IonToggle } from '@ionic/vue';
 import { useClubStore } from '../stores/club.store';
+import { useCanWrite } from '../composables/useCanWrite';
 
 const store = useClubStore();
 const router = useRouter();
+const { canWrite } = useCanWrite();
+if (!canWrite.value) router.replace('/clubs');
 const name = ref('');
 const description = ref('');
 const isPublic = ref(false);

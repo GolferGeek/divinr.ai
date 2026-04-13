@@ -1,0 +1,3 @@
+# Learning Clubs — Marketing Blurb
+
+Invest together. Learning Clubs let you form a private group, share an invite code, and start collaborating on market analysis. Create prediction challenges to test each other's thesis skills, run consensus polls to gauge group sentiment, and keep strategy journals to track your thinking over time. Club analytics score your group's accuracy and learning velocity. A ranking system compares clubs across the platform, and a mentoring framework pairs experienced members with newcomers. Every club gets its own chat channel for real-time discussion. Public clubs are discoverable — private ones stay invitation-only.

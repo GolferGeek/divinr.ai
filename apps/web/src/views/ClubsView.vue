@@ -3,8 +3,10 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote, IonSegment, IonSegmentButton, IonLabel } from '@ionic/vue';
 import { useClubStore } from '../stores/club.store';
+import { useCanWrite } from '../composables/useCanWrite';
 
 const store = useClubStore();
+const { canWrite } = useCanWrite();
 const router = useRouter();
 const tab = ref<'mine' | 'discover'>('mine');
 const discoverSort = ref('ranking_score');
@@ -20,7 +22,7 @@ function changeSortDiscover() { store.fetchPublicClubs(); }
       <h1>Investment Learning Clubs</h1>
       <div class="header-actions">
         <IonButton size="small" fill="outline" @click="router.push('/clubs/rankings')">Rankings</IonButton>
-        <IonButton size="small" @click="router.push('/clubs/create')">Create Club</IonButton>
+        <IonButton v-if="canWrite" size="small" @click="router.push('/clubs/create')">Create Club</IonButton>
       </div>
     </div>
     <p class="disclaimer">Investment Learning Club — educational platform for practicing AI-assisted market analysis. Not investment advice.</p>

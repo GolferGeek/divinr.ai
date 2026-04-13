@@ -3,8 +3,10 @@ import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote, IonSegment, IonSegmentButton, IonLabel } from '@ionic/vue';
 import { useTournamentStore } from '../stores/tournament.store';
+import { useCanWrite } from '../composables/useCanWrite';
 
 const store = useTournamentStore();
+const { canWrite } = useCanWrite();
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => route.params.id as string);
@@ -129,7 +131,7 @@ function typeLabel(t: string): string {
             <span :class="pos.unrealized_pnl >= 0 ? 'positive' : 'negative'">
               PnL: ${{ Number(pos.unrealized_pnl).toFixed(2) }}
             </span>
-            <IonButton size="small" fill="outline" color="danger" @click="closePos(pos.id)">Close</IonButton>
+            <IonButton v-if="canWrite" size="small" fill="outline" color="danger" @click="closePos(pos.id)">Close</IonButton>
           </div>
         </IonCardContent>
       </IonCard>
@@ -137,7 +139,7 @@ function typeLabel(t: string): string {
 
     <!-- Trade Tab -->
     <div v-if="tab === 'trade'" class="tab-content">
-      <IonCard v-if="store.activeTournament.status === 'active'">
+      <IonCard v-if="canWrite && store.activeTournament.status === 'active'">
         <IonCardHeader><IonCardTitle>Queue Trade</IonCardTitle></IonCardHeader>
         <IonCardContent>
           <div class="trade-form">
@@ -151,6 +153,7 @@ function typeLabel(t: string): string {
           </div>
         </IonCardContent>
       </IonCard>
+      <p v-else-if="!canWrite" class="empty">Read-only access — trading is not available.</p>
       <p v-else class="empty">Trades can only be queued during active games.</p>
     </div>
 

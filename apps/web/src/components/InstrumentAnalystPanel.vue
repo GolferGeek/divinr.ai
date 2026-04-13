@@ -31,7 +31,9 @@ function fmtDate(v: unknown): string {
 
 function fmtConfidence(v: unknown): string {
   const n = Number(v);
-  return Number.isFinite(n) ? `${Math.round(n * 100)}%` : '—';
+  if (!Number.isFinite(n)) return '—';
+  // API returns integer percentages (e.g. 70 for 70%), not decimals
+  return n > 1 ? `${Math.round(n)}%` : `${Math.round(n * 100)}%`;
 }
 </script>
 

@@ -1,0 +1,3 @@
+# Multi-Analyst Coordination — Marketing Blurb
+
+Five AI analysts independently analyze every instrument — but are they actually saying different things? The Coordination dashboard answers that question. A correlation matrix reveals which analysts agree most often (and flags pairs that are suspiciously redundant or adversarial). Coverage gap analysis shows which instruments lack sufficient analyst attention or accuracy. Contribution scoring uses leave-one-out simulation to measure each analyst's marginal value: what happens to the composite signal when you remove them? Every metric updates across 30-day, 90-day, and all-time windows. No black boxes — just transparent team dynamics.

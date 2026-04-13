@@ -1,0 +1,3 @@
+# Notifications & Fear/Greed Alerts — Marketing Blurb
+
+Never miss a signal. Every trade recommendation, stop-loss trigger, sentiment shift, and system learning milestone gets pushed to your notification feed in real time. Actionable alerts show you exactly what happened — which symbol, what direction, how much confidence — so you can act or dismiss with full context. When the Sentiment Analyst detects crowd fear or greed above its conviction threshold, a dedicated alert fires immediately. Your notification bell keeps a running count of unread items, and one tap marks them all as read when you've caught up.
