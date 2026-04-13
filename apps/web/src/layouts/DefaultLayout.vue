@@ -403,11 +403,11 @@ function logout() {
 
 .notification-badge {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: -2px;
+  right: -6px;
   background: var(--ion-color-danger, #eb445a);
   color: #fff;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 700;
   min-width: 16px;
   height: 16px;
@@ -415,7 +415,9 @@ function logout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  padding: 0 3px;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px #fff;
 }
 
 .fear-greed-bell ion-icon {
