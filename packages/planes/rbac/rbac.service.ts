@@ -476,7 +476,7 @@ export class RbacService {
     // Check if user has super-admin role by joining user_org_roles with roles
     const { data, error } = (await this.db
       .from('authz', 'rbac_user_roles')
-      .select('id, role_id, organization_slug')
+      .select('user_id, role_id, organization_slug')
       .eq('user_id', userId)
       .limit(100)) as {
       data: Record<string, unknown> | Record<string, unknown>[] | null;
@@ -510,7 +510,7 @@ export class RbacService {
 
     const saRoleId = (superAdminRole as { id: string }).id;
     const typedData = data as Array<{
-      id: string;
+      user_id: string;
       role_id: string;
       organization_slug: string;
     }>;
