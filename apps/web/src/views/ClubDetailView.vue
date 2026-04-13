@@ -226,7 +226,7 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
               :fill="(feedbackRatings[fb.pairing_id] ?? 0) >= n ? 'solid' : 'outline'"
               @click="feedbackRatings[fb.pairing_id] = n">{{ n }}</IonButton>
           </div>
-          <input :value="feedbackComments[fb.pairing_id] ?? ''" @input="feedbackComments[fb.pairing_id] = ($event.target as HTMLInputElement).value" placeholder="Optional comment" class="feedback-input" />
+          <input :value="feedbackComments[fb.pairing_id] ?? ''" @input="feedbackComments[fb.pairing_id] = ($event.target as unknown as {value: string}).value" placeholder="Optional comment" class="feedback-input" />
           <IonButton size="small" @click="submitFeedbackAction(fb.pairing_id)" :disabled="(feedbackRatings[fb.pairing_id] ?? 0) < 1">Submit</IonButton>
         </IonCardContent>
       </IonCard>

@@ -115,6 +115,7 @@ export class MarketsSchemaService {
       );
       alter table prediction.instruments add column if not exists universe_slug text not null default 'stocks';
       alter table prediction.instruments add column if not exists current_state jsonb not null default '{}'::jsonb;
+      create unique index if not exists instruments_symbol_unique_idx on prediction.instruments (symbol);
     `;
   }
 

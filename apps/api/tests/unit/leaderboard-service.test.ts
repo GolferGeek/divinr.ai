@@ -75,7 +75,7 @@ async function main(): Promise<void> {
     assert(rows.length === 4, 'returns 4 rows');
     assert(rows.find(r => r.kind === 'arbitrator')!.id === 'pf-portfolio-arbitrator', 'arbitrator id preserved');
     assert(rows.find(r => r.kind === 'day_trader') !== undefined, 'day_trader present');
-    assert(rows.find(r => r.kind === 'user')!.name === 'admin@alpha-capital.demo', 'user name from user_id');
+    assert(rows.find(r => r.kind === 'user')!.name === 'admin', 'user name from user_id');
 
     const alpha = rows.find(r => r.id === 'a1')!;
     assert(alpha.win_rate === 60, 'win_rate computed (6/10 = 60%)');
