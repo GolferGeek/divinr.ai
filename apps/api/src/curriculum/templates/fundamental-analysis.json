@@ -1,0 +1,43 @@
+{
+  "slug": "fundamental-analysis",
+  "name": "Fundamental Analysis",
+  "description": "A 6-week course on evaluating companies through financial statements, valuation metrics, and economic indicators.",
+  "weeks": [
+    {
+      "week_number": 1,
+      "theme": "Financial Statements",
+      "instruments": [{"symbol": "AAPL"}, {"symbol": "MSFT"}],
+      "journal_prompt": "Review a company's income statement, balance sheet, and cash flow statement. What stands out about their financial health?"
+    },
+    {
+      "week_number": 2,
+      "theme": "Valuation Ratios",
+      "instruments": [{"symbol": "GOOG"}, {"symbol": "META"}],
+      "journal_prompt": "Compare the P/E, P/B, and P/S ratios of two tech companies. Which appears more fairly valued and why?"
+    },
+    {
+      "week_number": 3,
+      "theme": "Earnings Analysis",
+      "instruments": [{"symbol": "AMZN"}, {"symbol": "NFLX"}],
+      "journal_prompt": "Research a company's last earnings report. Did they beat or miss estimates? How did the stock react and why?"
+    },
+    {
+      "week_number": 4,
+      "theme": "Industry Comparison",
+      "instruments": [{"symbol": "JPM"}, {"symbol": "BAC"}, {"symbol": "GS"}],
+      "journal_prompt": "Compare three companies in the same industry using key financial metrics. Which is the strongest competitor?"
+    },
+    {
+      "week_number": 5,
+      "theme": "Macro Indicators",
+      "instruments": [{"symbol": "TLT"}, {"symbol": "GLD"}, {"symbol": "SPY"}],
+      "journal_prompt": "How do interest rates, inflation, and GDP growth affect the stocks and bonds you are tracking?"
+    },
+    {
+      "week_number": 6,
+      "theme": "Building a Thesis",
+      "instruments": [{"symbol": "AAPL"}, {"symbol": "TSLA"}, {"symbol": "JNJ"}, {"symbol": "PG"}],
+      "journal_prompt": "Write a full investment thesis for one company: financial health, valuation, competitive position, risks, and your conclusion."
+    }
+  ]
+}

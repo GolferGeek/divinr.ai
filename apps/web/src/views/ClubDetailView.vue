@@ -3,12 +3,14 @@ import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote, IonSegment, IonSegmentButton, IonLabel } from '@ionic/vue';
 import { useClubStore } from '../stores/club.store';
+import { useCurriculumStore } from '../stores/curriculum.store';
 
 const store = useClubStore();
+const curriculumStore = useCurriculumStore();
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => route.params.id as string);
-const tab = ref<'members' | 'tournaments' | 'analysts' | 'activities' | 'analytics'>('members');
+const tab = ref<'members' | 'tournaments' | 'analysts' | 'activities' | 'analytics' | 'curriculum'>('members');
 const inviteCode = ref('');
 const showInvite = ref(false);
 
@@ -22,6 +24,7 @@ function loadTab(t: string) {
   if (t === 'analysts') store.fetchAnalysts(id.value);
   if (t === 'activities') { store.fetchChallenges(id.value); store.fetchPolls(id.value); store.fetchJournals(id.value); }
   if (t === 'analytics') store.fetchAnalytics(id.value);
+  if (t === 'curriculum') curriculumStore.fetchCurricula(id.value);
 }
 
 async function generateInvite() {
@@ -62,6 +65,7 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
       <IonSegmentButton value="analysts"><IonLabel>Analysts</IonLabel></IonSegmentButton>
       <IonSegmentButton value="activities"><IonLabel>Activities</IonLabel></IonSegmentButton>
       <IonSegmentButton value="analytics"><IonLabel>Analytics</IonLabel></IonSegmentButton>
+      <IonSegmentButton value="curriculum"><IonLabel>Curriculum</IonLabel></IonSegmentButton>
     </IonSegment>
 
     <!-- Members Tab -->
@@ -122,6 +126,22 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
         <IonCard><IonCardContent><div class="stat-label">Club Style</div><div class="stat-value">{{ (store.analytics as Record<string,unknown>).club_style }}</div></IonCardContent></IonCard>
         <IonCard><IonCardContent><div class="stat-label">Tournaments</div><div class="stat-value">{{ (store.analytics as Record<string,unknown>).tournament_count }}</div></IonCardContent></IonCard>
       </div>
+    </div>
+
+    <!-- Curriculum Tab -->
+    <div v-if="tab === 'curriculum'" class="tab-content">
+      <IonButton v-if="store.activeClub.my_role === 'owner' || store.activeClub.my_role === 'admin'" size="small" fill="outline" class="mb"
+        @click="router.push(`/clubs/${id}/curricula/create`)">Create Curriculum</IonButton>
+      <div v-if="curriculumStore.curricula.length === 0" class="empty">No curricula yet.</div>
+      <IonCard v-for="c in curriculumStore.curricula" :key="c.id" @click="router.push(`/clubs/${id}/curricula/${c.id}`)" style="cursor:pointer">
+        <IonCardHeader>
+          <IonCardTitle>{{ c.name }}</IonCardTitle>
+        </IonCardHeader>
+        <IonCardContent>
+          <IonChip :color="c.status === 'active' ? 'success' : c.status === 'draft' ? 'warning' : 'medium'" size="small">{{ c.status }}</IonChip>
+          <IonNote>{{ c.week_count }} weeks · {{ c.enrolled_count ?? 0 }} enrolled</IonNote>
+        </IonCardContent>
+      </IonCard>
     </div>
   </div>
 </template>

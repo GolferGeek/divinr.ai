@@ -1,0 +1,43 @@
+{
+  "slug": "intro-to-markets",
+  "name": "Intro to Markets",
+  "description": "A 6-week introductory course covering market fundamentals, chart reading, and portfolio construction.",
+  "weeks": [
+    {
+      "week_number": 1,
+      "theme": "Market Basics",
+      "instruments": [{"symbol": "SPY"}, {"symbol": "QQQ"}, {"symbol": "DIA"}],
+      "journal_prompt": "Research one major stock index (S&P 500, Nasdaq, or Dow Jones). What does it measure and why does it matter?"
+    },
+    {
+      "week_number": 2,
+      "theme": "Reading Charts",
+      "instruments": [{"symbol": "AAPL"}, {"symbol": "MSFT"}],
+      "journal_prompt": "Pick a stock and describe what you see on its 3-month chart. Identify any patterns or trends."
+    },
+    {
+      "week_number": 3,
+      "theme": "Understanding Volume",
+      "instruments": [{"symbol": "TSLA"}, {"symbol": "NVDA"}],
+      "journal_prompt": "Compare the volume patterns of two stocks over the past week. What might high or low volume indicate?"
+    },
+    {
+      "week_number": 4,
+      "theme": "Sectors & Industries",
+      "instruments": [{"symbol": "XLF"}, {"symbol": "XLK"}, {"symbol": "XLE"}, {"symbol": "XLV"}],
+      "journal_prompt": "Choose two sectors and compare their recent performance. What economic factors might explain the difference?"
+    },
+    {
+      "week_number": 5,
+      "theme": "Building a Watchlist",
+      "instruments": [{"symbol": "AMZN"}, {"symbol": "GOOG"}, {"symbol": "JPM"}, {"symbol": "JNJ"}],
+      "journal_prompt": "Create a 5-stock watchlist with a brief thesis for each pick. What criteria did you use to select them?"
+    },
+    {
+      "week_number": 6,
+      "theme": "Mock Portfolio",
+      "instruments": [{"symbol": "SPY"}, {"symbol": "AAPL"}, {"symbol": "MSFT"}, {"symbol": "AMZN"}, {"symbol": "GOOG"}],
+      "journal_prompt": "Design a mock portfolio with $10,000. Explain your allocation strategy and risk management approach."
+    }
+  ]
+}

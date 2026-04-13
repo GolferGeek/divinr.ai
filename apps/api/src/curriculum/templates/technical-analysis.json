@@ -1,0 +1,55 @@
+{
+  "slug": "technical-analysis",
+  "name": "Technical Analysis",
+  "description": "An 8-week deep dive into chart patterns, indicators, and technical trading strategies.",
+  "weeks": [
+    {
+      "week_number": 1,
+      "theme": "Candlestick Patterns",
+      "instruments": [{"symbol": "AAPL"}, {"symbol": "MSFT"}],
+      "journal_prompt": "Identify three candlestick patterns on a real chart. What do they signal about buyer/seller sentiment?"
+    },
+    {
+      "week_number": 2,
+      "theme": "Support & Resistance",
+      "instruments": [{"symbol": "SPY"}, {"symbol": "TSLA"}],
+      "journal_prompt": "Draw support and resistance levels on a stock chart. How would you use these levels to plan entries and exits?"
+    },
+    {
+      "week_number": 3,
+      "theme": "Moving Averages",
+      "instruments": [{"symbol": "NVDA"}, {"symbol": "AMD"}],
+      "journal_prompt": "Compare the 50-day and 200-day moving averages for a stock. What does a golden cross or death cross mean?"
+    },
+    {
+      "week_number": 4,
+      "theme": "RSI & Momentum",
+      "instruments": [{"symbol": "META"}, {"symbol": "NFLX"}],
+      "journal_prompt": "Find a stock with RSI above 70 or below 30. Is it overbought/oversold? What would you do with this signal?"
+    },
+    {
+      "week_number": 5,
+      "theme": "MACD & Trend",
+      "instruments": [{"symbol": "GOOG"}, {"symbol": "AMZN"}],
+      "journal_prompt": "Analyze a stock's MACD histogram. Where do you see bullish or bearish divergence?"
+    },
+    {
+      "week_number": 6,
+      "theme": "Bollinger Bands",
+      "instruments": [{"symbol": "JPM"}, {"symbol": "GS"}],
+      "journal_prompt": "Observe how a stock's price interacts with its Bollinger Bands. When does volatility expand or contract?"
+    },
+    {
+      "week_number": 7,
+      "theme": "Chart Patterns",
+      "instruments": [{"symbol": "BA"}, {"symbol": "DIS"}],
+      "journal_prompt": "Identify a head-and-shoulders, triangle, or flag pattern on a chart. What is the implied price target?"
+    },
+    {
+      "week_number": 8,
+      "theme": "Putting It Together",
+      "instruments": [{"symbol": "SPY"}, {"symbol": "QQQ"}, {"symbol": "AAPL"}, {"symbol": "TSLA"}],
+      "journal_prompt": "Pick a stock and build a full technical analysis: trend, support/resistance, indicators, and your trade thesis."
+    }
+  ]
+}
