@@ -16,6 +16,7 @@ import {
   type AuthServiceProvider,
   JwtAuthGuard,
 } from '@orchestratorai/planes/auth';
+import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { InviteService } from './invite.service';
 
 interface LoginBody {
@@ -38,11 +39,19 @@ interface SignupWithInviteBody {
   displayName?: string;
 }
 
+interface ClubSignupBody {
+  clubCode?: string;
+  email?: string;
+  password?: string;
+  displayName?: string;
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(
     @Inject(AUTH_SERVICE) private readonly authService: AuthServiceProvider,
     @Inject(InviteService) private readonly inviteService: InviteService,
+    @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {}
 
   /**
@@ -175,6 +184,58 @@ export class AuthController {
     if (!body.email) throw new UnauthorizedException('email is required');
     if (!body.password) throw new UnauthorizedException('password is required');
     return this.inviteService.acceptInvite(body.token, body.email, body.password, body.displayName);
+  }
+
+  /**
+   * Sign up using a club invite code. Public — no auth required.
+   * Creates a Supabase account with member role and joins the club in one step.
+   * Ethan's friends just need: divinr.ai/join + club code.
+   */
+  @Post('signup-with-club-code')
+  async signupWithClubCode(@Body() body: ClubSignupBody) {
+    if (!body.clubCode) throw new UnauthorizedException('clubCode is required');
+    if (!body.email) throw new UnauthorizedException('email is required');
+    if (!body.password) throw new UnauthorizedException('password is required');
+
+    // 1. Verify the club code exists
+    const clubResult = await this.db.rawQuery(
+      `SELECT id, name FROM prediction.clubs WHERE invite_code = $1`,
+      [body.clubCode.toUpperCase()],
+    );
+    const clubs = (clubResult.data as Array<{ id: string; name: string }>) ?? [];
+    if (clubs.length === 0) {
+      throw new UnauthorizedException('Invalid club code');
+    }
+    const club = clubs[0];
+
+    // 2. Create the user with member role
+    const createResult = await this.authService.createUser(
+      {
+        email: body.email,
+        password: body.password,
+        displayName: body.displayName ?? body.email.split('@')[0],
+        roles: ['member'],
+        emailConfirm: true,
+      },
+      club.id, // created_by = club
+    );
+    const userId = (createResult as unknown as Record<string, unknown>)?.id as string | undefined;
+
+    // 3. Join the club
+    if (userId) {
+      await this.db.rawQuery(
+        `INSERT INTO prediction.club_members (id, club_id, user_id, role, joined_at)
+         VALUES (gen_random_uuid()::text, $1, $2, 'member', now())
+         ON CONFLICT DO NOTHING`,
+        [club.id, userId],
+      );
+    }
+
+    // 4. Auto-login to get tokens
+    return this.authService.login({
+      email: body.email,
+      password: body.password,
+    });
   }
 
   // ─── Helpers ───────────────────────────────────────────────────
