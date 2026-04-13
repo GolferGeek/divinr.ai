@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-13 (curriculum-builder shipped)
+**Last updated:** 2026-04-13 (community depth complete, paid tiers deferred to future)
 **Maintained by:** `/roadmap` skill
 
 ## Vision
@@ -55,6 +55,7 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `learning-clubs` | Investment Learning Clubs: create/join clubs, invite system, club analysts, prediction challenges, consensus polls, strategy journals, club analytics. | `docs/efforts/learning-clubs/` |
 | `public-club-rankings` | Cross-club leaderboards, club badges, comparison view, discovery sort by performance, seasonal ranking snapshots. | `docs/efforts/public-club-rankings/` |
 | `curriculum-builder` | Structured multi-week courses for clubs. Weekly modules with sequenced activities, auto-unlock gating, server-side activity verification, professor dashboard, 3 pre-built templates. | `docs/efforts/curriculum-builder/` |
+| `mentor-mentee-pairing` | Mentor/mentee system within clubs. Eligibility from tournament performance, admin pairing (1:3 max), auto-DM channels, mentor dashboard, quarterly feedback, mentor leaderboard. | `docs/efforts/mentor-mentee-pairing/` |
 
 ---
 
@@ -64,16 +65,11 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 
 ---
 
-## Phase 1 Status: COMMUNITY DEPTH — 2 OF 4 REMAINING
+## Phase 1 Status: COMMUNITY DEPTH COMPLETE — TESTING & MARKETING NEXT
 
-Social/game layer is shipped (messaging, tournaments, clubs, rankings, curriculum). Two community-depth efforts remain (mentoring, paid tiers), then the testing & marketing pass. The differentiator is real: **AI analysis + clubs + tournaments + structured learning + rankings** — nothing else combines all of these.
+All community depth efforts shipped (clubs, rankings, curriculum, mentoring). Paid tiers deferred to Future — no Stripe yet, focus on local testing and beta first. The full feature set is built; now lock it down.
 
 ## Next Efforts
-
-### Community Depth (2 remaining)
-
-1. **Mentor/Mentee Pairing** (`docs/efforts/next/mentor-mentee-pairing/`) — Experienced members guide new ones within clubs. Eligibility criteria, admin-matched pairing, mentor dashboard, DM channels, recognition badges. The retention flywheel.
-2. **Paid Club Tiers** (`docs/efforts/next/paid-club-tiers/`) — Free/Pro/University pricing. More analysts, more members, advanced analytics, Stripe billing. The revenue model.
 
 ### Testing & Marketing Readiness
 
@@ -98,6 +94,8 @@ Each effort covers Chrome-based testing, API verification, and a marketing blurb
 
 Efforts with intentions at `docs/efforts/future/[name]/intention.md`. Not yet ready to schedule.
 
+- **Paid Club Tiers** (`docs/efforts/future/paid-club-tiers/`) — Free/Pro/University pricing. More analysts, more members, advanced analytics. Deferred until Stripe integration ships.
+- **Stripe Billing Integration** — Payment processing, subscription management, upgrade/downgrade flows. Prerequisite for paid tiers and power user expansion.
 - **Power User Expansion** (`docs/efforts/future/power-user-expansion/`) — Three-level pricing model ($20 base, $10/resource, $150-200 early-adopter for new resources with crowd-funded price drops). Custom instruments, sources, and analysts. Local hybrid desktop tier. Subsumes the former premium-data-sources effort — premium feeds are funded by the crowd-funded pricing model.
 
 ---
