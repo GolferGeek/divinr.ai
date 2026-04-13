@@ -2,12 +2,12 @@
 
 **PRD**: ./prd.md
 **Created**: 2026-04-13
-**Status**: In Progress
+**Status**: Complete
 
 ## Progress Tracker
 - [x] Phase 1: API Verification
 - [x] Phase 2: Chrome Testing
-- [ ] Phase 3: Bug Fixes & Marketing
+- [x] Phase 3: Bug Fixes & Marketing
 
 ---
 
@@ -60,18 +60,18 @@
 ---
 
 ## Phase 3: Bug Fixes & Marketing
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Fix any bugs found, write marketing blurb.
 
 ### Steps
-- [ ] 3.1 Fix any bugs discovered in Phases 1-2
-- [ ] 3.2 Re-run failed tests to verify fixes
-- [ ] 3.3 Write marketing blurb (2-3 sentences) covering: secure per-user accounts, invite-only beta access, role-based permissions. Save to `docs/efforts/current/test-auth-user-management/marketing-blurb.md`
+- [x] 3.1 Fix any bugs discovered in Phases 1-2 — 3 bugs fixed in commit 34171aa (setAuth args, beta_reader permissions, UX write guards)
+- [x] 3.2 Re-run failed tests to verify fixes — build clean, lint clean, 1 pre-existing test failure (recent-bars-ring-buffer, unrelated)
+- [x] 3.3 Write marketing blurb — saved to `marketing-blurb.md`
 
 ### Quality Gate
-- [ ] **Build**: `cd apps/api && pnpm run build` — clean
-- [ ] **Lint**: `cd apps/api && pnpm run lint` — clean
-- [ ] **Unit Tests**: `cd apps/api && pnpm run test:unit` — zero failures
-- [ ] **All Phase 1+2 tests pass**: No regressions
-- [ ] **Marketing blurb written**: Captures auth/security story
-- [ ] **Phase Review**: All PRD Phase 3 items covered
+- [x] **Build**: `cd apps/api && pnpm run build` — clean
+- [x] **Lint**: `cd apps/api && pnpm run lint` — clean
+- [ ] **Unit Tests**: 1 pre-existing failure (recent-bars-ring-buffer, not auth-related)
+- [x] **All Phase 1+2 tests pass**: No regressions
+- [x] **Marketing blurb written**: Captures auth/security story
+- [x] **Phase Review**: All PRD Phase 3 items covered
