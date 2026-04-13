@@ -73,13 +73,13 @@ const features = [
   },
   {
     icon: ribbonOutline,
-    title: 'Analyst Contracts',
-    desc: 'Every AI analyst has a written contract you can read, edit, and version. Full audit trail on every change.',
+    title: 'Open Playbooks',
+    desc: 'Every AI analyst operates under a readable contract — its strategy, decision criteria, and known weaknesses. No hidden logic.',
   },
   {
     icon: analyticsOutline,
-    title: 'Full Transparency',
-    desc: 'Every prediction, every risk score, every learning adaptation — visible, explainable, challengeable.',
+    title: 'Build Your Own Analysts',
+    desc: 'Start with five base analysts. Higher tiers let you create custom analysts with your own strategy, data sources, and decision criteria.',
   },
 ];
 </script>
