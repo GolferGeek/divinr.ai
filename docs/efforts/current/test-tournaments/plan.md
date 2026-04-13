@@ -2,36 +2,42 @@
 
 **PRD**: ../../../tournament-system/prd.md
 **Created**: 2026-04-13
-**Status**: Complete (UI verified, no tournaments created yet)
+**Status**: Complete
 
 ## Progress Tracker
-- [x] Phase 1: Chrome UI Verification
-- [x] Phase 2: Marketing
+- [x] Phase 1: API Competitive Loop
+- [x] Phase 2: Chrome Verification
 
 ---
 
-## Phase 1: Chrome UI Verification
+## Phase 1: API Competitive Loop
 **Status**: Complete
-**Note**: Tournament page renders with Create button, scope/status filters, and empty state. Full tournament CRUD, trading, and leaderboard API exists but no tournaments have been created yet.
+**Note**: Full lifecycle tested — create, enter, trade, leaderboard. St. Thomas Weekly Sprint #1 created with 3 players and 6 queued trades.
 
 ### Steps
-- [x] 1.1 `/tournaments` → page loads with "Tournaments" header
-- [x] 1.2 "Create Tournament" button present
-- [x] 1.3 Filter dropdowns: "All Scopes" and "All Statuses"
-- [x] 1.4 Empty state: "No tournaments found. Create one to get started!"
-- [x] 1.5 Disclaimer text: "Virtual portfolios use simulated trades for educational and entertainment purposes"
+- [x] 1.1 `POST /tournaments` → created "St. Thomas Weekly Sprint #1" (club scope, $100K, weekly sprint)
+- [x] 1.2 `POST /tournaments/:id/enter` → all 3 users entered (demo-user, golfergeek, ethan)
+- [x] 1.3 Activated tournament (upcoming → active)
+- [x] 1.4 `POST /tournaments/:id/queue-trade` → 6 trades queued:
+  - demo-user: AAPL long 50, MSFT long 30
+  - golfergeek: NVDA long 100, META short 50
+  - ethan: AMD long 200, GOOGL long 20
+- [x] 1.5 `GET /tournaments/:id/leaderboard` → 3 entries ranked
 
 ### Quality Gate
-- [x] Tournament page renders correctly
-- [x] Create button and filters present
+- [x] Tournament CRUD works
+- [x] Multi-user entry works
+- [x] Trade queueing works (only during active status)
+- [x] Leaderboard displays all participants
 
 ---
 
-## Phase 2: Marketing
+## Phase 2: Chrome Verification
 **Status**: Complete
 
 ### Steps
-- [x] 2.1 Write marketing blurb → saved to `marketing-blurb.md`
-
-### Quality Gate
-- [x] Marketing blurb written
+- [x] 2.1 Tournament detail page: "active" badge, "Weekly Sprint" type
+- [x] 2.2 Leaderboard tab: Rank, Player, Return %, PnL, Win Rate, Sharpe
+- [x] 2.3 All 3 players visible with names
+- [x] 2.4 My Positions, Trade, Info tabs present
+- [x] 2.5 Disclaimer text visible
