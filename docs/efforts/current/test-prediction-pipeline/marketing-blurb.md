@@ -1,0 +1,3 @@
+# Prediction Pipeline — Marketing Blurb
+
+Divinr doesn't rely on a single black-box model. Five specialized AI analysts — Macro Strategist, Technical Analyst, Sentiment Analyst, Momentum Analyst, and Fundamentals Analyst — each make an independent call with their own direction, confidence, and rationale. An arbitrator then synthesizes those stances into a single consensus signal, weighing each analyst's confidence and track record. Every step is explainable: you can see each analyst's reasoning, the source articles and data that informed their call, and the raw LLM traces behind the analysis. The result is a transparent, multi-perspective signal you can actually understand and challenge — not a number from a mystery algorithm.
