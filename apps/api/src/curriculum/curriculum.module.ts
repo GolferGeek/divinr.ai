@@ -4,6 +4,7 @@ import { CurriculumService } from './curriculum.service';
 import { CurriculumSchemaService } from './curriculum-schema.service';
 import { ClubService } from '../clubs/club.service';
 import { ClubSchemaService } from '../clubs/club-schema.service';
+import { ClubActivityService } from '../clubs/club-activity.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { NotificationService } from '../markets/services/notification.service';
@@ -16,6 +17,7 @@ import { MarketsSchemaService } from '../markets/schema/markets-schema.service';
     CurriculumService,
     ClubSchemaService,
     ClubService,
+    ClubActivityService,
     MessagingSchemaService,
     MessagingService,
     MarketsSchemaService,

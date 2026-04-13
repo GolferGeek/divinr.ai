@@ -102,18 +102,21 @@ export const useCurriculumStore = defineStore('curriculum', () => {
     }>;
   } | null>(null);
   const loading = ref(false);
+  const error = ref<string | null>(null);
 
   async function fetchCurricula(clubId: string) {
     loading.value = true;
+    error.value = null;
     try { curricula.value = await request<Curriculum[]>(`?club_id=${clubId}`); }
-    catch { /* silent */ }
+    catch (e) { error.value = e instanceof Error ? e.message : String(e); }
     finally { loading.value = false; }
   }
 
   async function fetchCurriculum(id: string) {
     loading.value = true;
+    error.value = null;
     try { activeCurriculum.value = await request<Curriculum>(`/${id}`); }
-    catch { /* silent */ }
+    catch (e) { error.value = e instanceof Error ? e.message : String(e); }
     finally { loading.value = false; }
   }
 
@@ -149,7 +152,7 @@ export const useCurriculumStore = defineStore('curriculum', () => {
   async function fetchTemplates() {
     loading.value = true;
     try { templates.value = await request<CurriculumTemplate[]>('/templates'); }
-    catch { /* silent */ }
+    catch (e) { error.value = e instanceof Error ? e.message : String(e); }
     finally { loading.value = false; }
   }
 
@@ -196,9 +199,10 @@ export const useCurriculumStore = defineStore('curriculum', () => {
 
   async function fetchDashboard(id: string) {
     loading.value = true;
+    error.value = null;
     try {
       dashboard.value = await request(`/${id}/dashboard`);
-    } catch { /* silent */ }
+    } catch (e) { error.value = e instanceof Error ? e.message : String(e); }
     finally { loading.value = false; }
   }
 
@@ -207,7 +211,7 @@ export const useCurriculumStore = defineStore('curriculum', () => {
   }
 
   return {
-    curricula, activeCurriculum, templates, enrollment, moduleProgress, dashboard, loading,
+    curricula, activeCurriculum, templates, enrollment, moduleProgress, dashboard, loading, error,
     fetchCurricula, fetchCurriculum, createCurriculum, updateCurriculum, deleteCurriculum,
     updateModule, fetchTemplates, createFromTemplate,
     enroll, fetchProgress, completeActivity,

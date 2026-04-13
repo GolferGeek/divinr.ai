@@ -80,9 +80,10 @@ export class CurriculumController {
 
   @Get()
   async listCurricula(@Req() req: { user?: AuthenticatedUser }, @Query('club_id') clubId?: string) {
-    this.getUser(req);
+    const user = this.getUser(req);
     if (!clubId) throw new BadRequestException('club_id query parameter is required');
-    return this.curriculumService.listCurricula(clubId);
+    try { return await this.curriculumService.listCurricula(clubId, user.id); }
+    catch (err) { this.handleError(err); }
   }
 
   // ─── Templates (before :id routes) ─────────────────────────────
@@ -106,10 +107,12 @@ export class CurriculumController {
 
   @Get(':id')
   async getCurriculum(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
-    this.getUser(req);
-    const curriculum = await this.curriculumService.getCurriculum(id);
-    if (!curriculum) throw new NotFoundException('Curriculum not found');
-    return curriculum;
+    const user = this.getUser(req);
+    try {
+      const curriculum = await this.curriculumService.getCurriculum(id, user.id);
+      if (!curriculum) throw new NotFoundException('Curriculum not found');
+      return curriculum;
+    } catch (err) { this.handleError(err); }
   }
 
   @Patch(':id')
@@ -145,7 +148,37 @@ export class CurriculumController {
     catch (err) { this.handleError(err); }
   }
 
-  // ─── Enrollment & Progress ─────────────────────────────────────
+  @Post(':id/modules/:weekNumber/challenge')
+  async createModuleChallenge(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('id') id: string,
+    @Param('weekNumber') weekNumber: string,
+    @Body() body: { instrument_id: string; symbol: string; prompt?: string },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    const week = parseInt(weekNumber, 10);
+    if (isNaN(week) || week < 1) throw new BadRequestException('Invalid week number');
+    if (!body?.instrument_id || !body?.symbol) throw new BadRequestException('instrument_id and symbol are required');
+    try { return await this.curriculumService.createModuleChallenge(id, week, body, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Post(':id/modules/:weekNumber/poll')
+  async createModulePoll(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('id') id: string,
+    @Param('weekNumber') weekNumber: string,
+    @Body() body: { instrument_id: string; symbol: string },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    const week = parseInt(weekNumber, 10);
+    if (isNaN(week) || week < 1) throw new BadRequestException('Invalid week number');
+    if (!body?.instrument_id || !body?.symbol) throw new BadRequestException('instrument_id and symbol are required');
+    try { return await this.curriculumService.createModulePoll(id, week, body, user.id); }
+    catch (err) { this.handleError(err); }
+  }
 
   // ─── Dashboard (admin-only) ─────────────────────────────────
 

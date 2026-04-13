@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS prediction.curriculum_module_progress (
   tournament_completed BOOLEAN DEFAULT false,
   score NUMERIC(5,2),
   completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE (enrollment_id, module_id)
 );
 

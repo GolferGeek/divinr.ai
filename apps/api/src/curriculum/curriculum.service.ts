@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { CurriculumSchemaService } from './curriculum-schema.service';
 import { ClubService } from '../clubs/club.service';
+import { ClubActivityService } from '../clubs/club-activity.service';
 import type {
   Curriculum,
   CurriculumModule,
@@ -23,6 +24,7 @@ export class CurriculumService {
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(CurriculumSchemaService) private readonly schema: CurriculumSchemaService,
     @Inject(ClubService) private readonly clubService: ClubService,
+    @Inject(ClubActivityService) private readonly activityService: ClubActivityService,
   ) {}
 
   // ─── CRUD ──────────────────────────────────────────────────────
@@ -60,8 +62,9 @@ export class CurriculumService {
     return { ...curriculum, modules };
   }
 
-  async listCurricula(clubId: string): Promise<Array<Curriculum & { enrolled_count: number }>> {
+  async listCurricula(clubId: string, userId: string): Promise<Array<Curriculum & { enrolled_count: number }>> {
     await this.schema.ensureSchema();
+    await this.clubService.requireMembership(clubId, userId);
 
     const result = await this.db.rawQuery(
       `SELECT c.*,
@@ -75,7 +78,7 @@ export class CurriculumService {
     return (result.data as Array<Curriculum & { enrolled_count: number }> | null) ?? [];
   }
 
-  async getCurriculum(id: string): Promise<(Curriculum & { modules: CurriculumModule[]; enrolled_count: number }) | null> {
+  async getCurriculum(id: string, userId?: string): Promise<(Curriculum & { modules: CurriculumModule[]; enrolled_count: number }) | null> {
     await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
@@ -90,6 +93,11 @@ export class CurriculumService {
     if (rows.length === 0) return null;
 
     const curriculum = rows[0]!;
+
+    // Verify membership if userId provided (skip for internal calls)
+    if (userId) {
+      await this.clubService.requireMembership(curriculum.club_id, userId);
+    }
 
     const modulesResult = await this.db.rawQuery(
       `SELECT * FROM prediction.curriculum_modules
@@ -186,6 +194,36 @@ export class CurriculumService {
     const rows = (result.data as CurriculumModule[] | null) ?? [];
     if (rows.length === 0) throw new Error(`Module for week ${weekNumber} not found`);
     return rows[0]!;
+  }
+
+  // ─── Module activity creation ────────────────────────────────────
+
+  async createModuleChallenge(
+    curriculumId: string,
+    weekNumber: number,
+    input: { instrument_id: string; symbol: string; prompt?: string },
+    userId: string,
+  ): Promise<CurriculumModule> {
+    const curriculum = await this.getCurriculum(curriculumId);
+    if (!curriculum) throw new Error('Curriculum not found');
+    await this.clubService.requireRole(curriculum.club_id, userId, ['owner', 'admin']);
+
+    const challenge = await this.activityService.createChallenge(curriculum.club_id, input, userId);
+    return this.updateModule(curriculumId, weekNumber, { challenge_id: challenge.id }, userId);
+  }
+
+  async createModulePoll(
+    curriculumId: string,
+    weekNumber: number,
+    input: { instrument_id: string; symbol: string },
+    userId: string,
+  ): Promise<CurriculumModule> {
+    const curriculum = await this.getCurriculum(curriculumId);
+    if (!curriculum) throw new Error('Curriculum not found');
+    await this.clubService.requireRole(curriculum.club_id, userId, ['owner', 'admin']);
+
+    const poll = await this.activityService.createPoll(curriculum.club_id, input, userId);
+    return this.updateModule(curriculumId, weekNumber, { poll_id: poll.id }, userId);
   }
 
   // ─── Templates ─────────────────────────────────────────────────
@@ -375,7 +413,7 @@ export class CurriculumService {
     if (!curriculum) throw new Error('Curriculum not found');
 
     // Server-side verification: check the activity was actually completed
-    await this.verifyActivityCompletion(activityType, mod, curriculum.club_id, userId);
+    await this.verifyActivityCompletion(activityType, mod, curriculum.club_id, userId, enrollment.id);
 
     // Update progress
     const columnMap: Record<string, string> = {
@@ -416,6 +454,7 @@ export class CurriculumService {
     mod: CurriculumModule,
     clubId: string,
     userId: string,
+    enrollmentId: string,
   ): Promise<void> {
     switch (activityType) {
       case 'challenge': {
@@ -444,14 +483,22 @@ export class CurriculumService {
       }
       case 'journal': {
         if (!mod.journal_prompt) throw new Error('No journal prompt assigned to this week');
+        // Require a journal entry created AFTER the module progress row was created
+        // (i.e., after this week was unlocked). This prevents reusing old entries.
+        const progressRow = await this.db.rawQuery(
+          `SELECT created_at FROM prediction.curriculum_module_progress
+           WHERE enrollment_id = $1 AND module_id = $2`,
+          [enrollmentId, mod.id],
+        );
+        const progressCreatedAt = ((progressRow.data as Array<{ created_at: string }> | null) ?? [])[0]?.created_at;
         const r = await this.db.rawQuery(
           `SELECT id FROM prediction.club_strategy_journals
-           WHERE club_id = $1 AND user_id = $2
+           WHERE club_id = $1 AND user_id = $2 AND created_at >= $3
            ORDER BY created_at DESC LIMIT 1`,
-          [clubId, userId],
+          [clubId, userId, progressCreatedAt ?? '1970-01-01'],
         );
         if (((r.data as unknown[] | null) ?? []).length === 0) {
-          throw new Error('Journal entry not found — write a journal entry first');
+          throw new Error('Journal entry not found — write a journal entry for this week first');
         }
         break;
       }
@@ -571,60 +618,82 @@ export class CurriculumService {
     );
     const allProgress = (progressResult.data as CurriculumModuleProgress[] | null) ?? [];
 
-    // Build per-module detail with activity responses
-    const modules = await Promise.all(curriculum.modules.map(async (mod) => {
+    // Batch-fetch all activity responses in 4 queries (not N+1)
+    const challengeIds = curriculum.modules.map(m => m.challenge_id).filter(Boolean) as string[];
+    const pollIds = curriculum.modules.map(m => m.poll_id).filter(Boolean) as string[];
+    const tournamentIds = curriculum.modules.map(m => m.tournament_id).filter(Boolean) as string[];
+
+    const challengeResponses = new Map<string, unknown>();
+    if (challengeIds.length > 0) {
+      const r = await this.db.rawQuery(
+        `SELECT * FROM prediction.club_challenge_responses
+         WHERE challenge_id = ANY($1) AND user_id = $2`,
+        [challengeIds, studentUserId],
+      );
+      for (const row of (r.data as Array<{ challenge_id: string }> | null) ?? []) {
+        challengeResponses.set(row.challenge_id, row);
+      }
+    }
+
+    const pollVotes = new Map<string, unknown>();
+    if (pollIds.length > 0) {
+      const r = await this.db.rawQuery(
+        `SELECT * FROM prediction.club_consensus_votes
+         WHERE poll_id = ANY($1) AND user_id = $2`,
+        [pollIds, studentUserId],
+      );
+      for (const row of (r.data as Array<{ poll_id: string }> | null) ?? []) {
+        pollVotes.set(row.poll_id, row);
+      }
+    }
+
+    // Journals: get all by this user in this club, ordered by date
+    const journalResult = await this.db.rawQuery(
+      `SELECT * FROM prediction.club_strategy_journals
+       WHERE club_id = $1 AND user_id = $2
+       ORDER BY created_at DESC`,
+      [curriculum.club_id, studentUserId],
+    );
+    const allJournals = (journalResult.data as Array<{ id: string; created_at: string }> | null) ?? [];
+
+    const tournamentEntries = new Map<string, unknown>();
+    if (tournamentIds.length > 0) {
+      const r = await this.db.rawQuery(
+        `SELECT te.*, tp.current_balance, tp.total_realized_pnl, te.final_rank
+         FROM prediction.tournament_entries te
+         LEFT JOIN prediction.tournament_portfolios tp ON tp.id = te.portfolio_id
+         WHERE te.tournament_id = ANY($1) AND te.user_id = $2`,
+        [tournamentIds, studentUserId],
+      );
+      for (const row of (r.data as Array<{ tournament_id: string }> | null) ?? []) {
+        tournamentEntries.set(row.tournament_id, row);
+      }
+    }
+
+    // Build per-module detail from batch results
+    const modules = curriculum.modules.map((mod) => {
       const progress = allProgress.find(p => p.module_id === mod.id) ?? null;
 
-      // Fetch actual activity responses
-      let challenge_response = null;
-      if (mod.challenge_id) {
-        const r = await this.db.rawQuery(
-          `SELECT * FROM prediction.club_challenge_responses
-           WHERE challenge_id = $1 AND user_id = $2`,
-          [mod.challenge_id, studentUserId],
-        );
-        challenge_response = ((r.data as unknown[] | null) ?? [])[0] ?? null;
-      }
-
-      let poll_vote = null;
-      if (mod.poll_id) {
-        const r = await this.db.rawQuery(
-          `SELECT * FROM prediction.club_consensus_votes
-           WHERE poll_id = $1 AND user_id = $2`,
-          [mod.poll_id, studentUserId],
-        );
-        poll_vote = ((r.data as unknown[] | null) ?? [])[0] ?? null;
-      }
-
-      let journal_entry = null;
-      if (mod.journal_prompt) {
-        const r = await this.db.rawQuery(
-          `SELECT * FROM prediction.club_strategy_journals
-           WHERE club_id = $1 AND user_id = $2
-           ORDER BY created_at DESC LIMIT 1`,
-          [curriculum.club_id, studentUserId],
-        );
-        journal_entry = ((r.data as unknown[] | null) ?? [])[0] ?? null;
-      }
-
-      let tournament_entry = null;
-      if (mod.tournament_id) {
-        const r = await this.db.rawQuery(
-          `SELECT te.*, tp.current_balance, tp.total_realized_pnl, te.final_rank
-           FROM prediction.tournament_entries te
-           LEFT JOIN prediction.tournament_portfolios tp ON tp.id = te.portfolio_id
-           WHERE te.tournament_id = $1 AND te.user_id = $2`,
-          [mod.tournament_id, studentUserId],
-        );
-        tournament_entry = ((r.data as unknown[] | null) ?? [])[0] ?? null;
+      // Match journal to module by finding one created after the progress row
+      let journal_entry: unknown = null;
+      if (mod.journal_prompt && progress) {
+        const progressCreatedAt = (progress as unknown as { created_at?: string }).created_at;
+        journal_entry = allJournals.find(j =>
+          !progressCreatedAt || j.created_at >= progressCreatedAt
+        ) ?? null;
       }
 
       return {
         module: mod,
         progress,
-        activities: { challenge_response, poll_vote, journal_entry, tournament_entry },
+        activities: {
+          challenge_response: mod.challenge_id ? (challengeResponses.get(mod.challenge_id) ?? null) : null,
+          poll_vote: mod.poll_id ? (pollVotes.get(mod.poll_id) ?? null) : null,
+          journal_entry,
+          tournament_entry: mod.tournament_id ? (tournamentEntries.get(mod.tournament_id) ?? null) : null,
+        },
       };
-    }));
+    });
 
     return { enrollment, modules };
   }

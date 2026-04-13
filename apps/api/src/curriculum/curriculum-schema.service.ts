@@ -60,8 +60,11 @@ export class CurriculumSchemaService {
         tournament_completed BOOLEAN DEFAULT false,
         score NUMERIC(5,2),
         completed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT now(),
         UNIQUE (enrollment_id, module_id)
       );
+
+      ALTER TABLE prediction.curriculum_module_progress ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
 
       CREATE INDEX IF NOT EXISTS idx_curricula_club ON prediction.curricula(club_id);
       CREATE INDEX IF NOT EXISTS idx_curriculum_modules_curriculum ON prediction.curriculum_modules(curriculum_id);
