@@ -36,7 +36,7 @@ export const useActivityStore = defineStore('activity', () => {
     // SSE connects to the observability endpoint (not /markets)
     const isElectron = typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI;
     const apiBase = isElectron
-      ? (localStorage.getItem('divinr_api_url') || 'http://localhost:6100')
+      ? (localStorage.getItem('divinr_api_url') || 'http://localhost:7100')
       : '/api';
     const auth = useAuthStore();
     const tokenParam = auth.token ? `?token=${encodeURIComponent(auth.token)}` : '';

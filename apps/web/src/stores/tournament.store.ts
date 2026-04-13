@@ -5,7 +5,7 @@ import { useAuthStore } from './auth.store';
 function getBaseUrl(): string {
   if (typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI) {
     const stored = localStorage.getItem('divinr_api_url');
-    return stored ? `${stored}/tournaments` : 'http://localhost:6100/tournaments';
+    return stored ? `${stored}/tournaments` : 'http://localhost:7100/tournaments';
   }
   return '/api/tournaments';
 }

@@ -9,10 +9,12 @@ import {
   Post,
   Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import {
   AUTH_SERVICE,
   type AuthServiceProvider,
+  JwtAuthGuard,
 } from '@orchestratorai/planes/auth';
 import { InviteService } from './invite.service';
 
@@ -88,6 +90,7 @@ export class AuthController {
    * Return the current authenticated principal with global role.
    * AuthMiddleware has already validated the bearer token and populated req.user.
    */
+  @UseGuards(JwtAuthGuard)
   @Get('me')
   async me(
     @Req() req: { user?: { id: string; email?: string; role?: string } },
@@ -114,6 +117,7 @@ export class AuthController {
    * Create an invite link for a beta reader.
    * Requires admin or owner role.
    */
+  @UseGuards(JwtAuthGuard)
   @Post('invites')
   async createInvite(
     @Req() req: { user?: { id: string; role?: string } },
@@ -128,6 +132,7 @@ export class AuthController {
   /**
    * List invites.
    */
+  @UseGuards(JwtAuthGuard)
   @Get('invites')
   async listInvites(
     @Req() req: { user?: { id: string } },
@@ -140,6 +145,7 @@ export class AuthController {
   /**
    * Revoke an invite.
    */
+  @UseGuards(JwtAuthGuard)
   @Delete('invites/:id')
   async revokeInvite(
     @Req() req: { user?: { id: string } },

@@ -134,7 +134,9 @@ export class MonthlyResetService {
    */
   private async writeBailoutAndReset(kind: 'analyst' | 'user', portfolioId: string): Promise<boolean> {
     // Read current balance fresh.
-    const table = kind === 'analyst' ? 'analyst_portfolios' : 'user_portfolios';
+    const allowedTables: Record<string, string> = { analyst: 'analyst_portfolios', user: 'user_portfolios' };
+    const table = allowedTables[kind];
+    if (!table) throw new Error(`Unknown portfolio kind: ${kind}`);
     const balRes = await this.db.rawQuery(
       `select current_balance from prediction.${table} where id = $1`,
       [portfolioId],

@@ -108,10 +108,16 @@ export class MarketsController {
     return req.user;
   }
 
-  private requireAdmin(user: AuthenticatedUser): void {
-    if (user.role !== 'admin') {
-      throw new ForbiddenException('Admin access required');
-    }
+  private async requireAdmin(user: AuthenticatedUser): Promise<void> {
+    const result = await this.db.rawQuery(
+      `SELECT r.name FROM authz.rbac_user_roles ur
+       JOIN authz.rbac_roles r ON r.id = ur.role_id
+       WHERE ur.user_id = $1 AND r.name IN ('super-admin', 'admin', 'owner')
+       LIMIT 1`,
+      [user.id],
+    );
+    const rows = (result.data as Array<{ name: string }> | null) ?? [];
+    if (rows.length === 0) throw new ForbiddenException('Admin access required');
   }
 
   /**
@@ -1335,21 +1341,21 @@ export class MarketsController {
   @Post('admin/run-settlement')
   async triggerSettlement(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.eodSettlement.runSettlement();
   }
 
   @Post('admin/run-nightly-evaluation')
   async triggerNightlyEvaluation(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.nightlyEvaluation.runNightlyEvaluation();
   }
 
   @Post('admin/run-learning-cycle')
   async triggerLearningCycle(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.learningEngine.runLearningCycle();
   }
 
@@ -1388,7 +1394,7 @@ export class MarketsController {
   @Post('admin/run-audit-policy-update')
   async triggerAuditPolicyUpdate(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.audit.updateAuditPolicy();
   }
 
@@ -1396,7 +1402,7 @@ export class MarketsController {
   @Post('admin/run-tier2-audit')
   async triggerTier2Audit(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.audit.runAuditCycle();
   }
 
@@ -1404,56 +1410,56 @@ export class MarketsController {
   @Post('admin/run-tier3-overhaul')
   async triggerTier3Overhaul(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.strategicOverhaul.runStrategicOverhaulCycle();
   }
 
   @Post('admin/run-crawl')
   async triggerCrawl(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.crawler.runCrawl();
   }
 
   @Post('admin/run-predictor-generation')
   async triggerPredictorGeneration(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.predictorGenerator.runGeneration();
   }
 
   @Post('admin/run-prediction-generation')
   async triggerPredictionGeneration(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.predictionGenerator.runGeneration();
   }
 
   @Post('admin/run-outcome-tracking')
   async triggerOutcomeTracking(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.outcomeTracking.runTracking();
   }
 
   @Post('admin/run-stop-loss-sweep')
   async triggerStopLossSweep(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.stopLossWatcher.sweep();
   }
 
   @Post('portfolios/admin/monthly-reset')
   async triggerMonthlyReset(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.monthlyReset.runReset({ manual: true });
   }
 
   @Post('admin/run-daily-snapshots')
   async triggerDailySnapshots(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     const prices = await this.eodSettlement.captureClosingPrices();
     return this.eodSettlement.writeDailySnapshots(prices);
   }
@@ -1461,28 +1467,28 @@ export class MarketsController {
   @Post('admin/run-benchmark-ingest')
   async triggerBenchmarkIngest(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.benchmarkIngest.ingestSpy();
   }
 
   @Post('admin/run-day-trader-strategies')
   async triggerDayTraderStrategies(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.dayTraderRunner.runStrategies();
   }
 
   @Post('admin/run-eod-forced-buy')
   async triggerEodForcedBuy(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     return this.eodForcedBuy.runSweep({ manual: true });
   }
 
   @Post('admin/run-pipeline')
   async triggerFullPipeline(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
-    this.requireAdmin(user);
+    await this.requireAdmin(user);
     const crawlResult = await this.crawler.runCrawl();
     const predictorResult = await this.predictorGenerator.runGeneration();
     const predictionResult = await this.predictionGenerator.runGeneration();

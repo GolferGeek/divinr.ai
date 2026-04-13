@@ -5,7 +5,7 @@ import { useAuthStore } from './auth.store';
 function getBaseUrl(): string {
   if (typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI) {
     const stored = localStorage.getItem('divinr_api_url');
-    return stored ? `${stored}/clubs` : 'http://localhost:6100/clubs';
+    return stored ? `${stored}/clubs` : 'http://localhost:7100/clubs';
   }
   return '/api/clubs';
 }
@@ -51,20 +51,21 @@ export const useClubStore = defineStore('club', () => {
   const journals = ref<unknown[]>([]);
   const analytics = ref<unknown | null>(null);
   const loading = ref(false);
+  const error = ref<string | null>(null);
 
   async function fetchMyClubs() {
     loading.value = true;
-    try { myClubs.value = await request<Club[]>(''); } catch { /* silent */ }
+    try { myClubs.value = await request<Club[]>(''); } catch (e) { error.value = e instanceof Error ? e.message : String(e); }
     finally { loading.value = false; }
   }
 
   async function fetchPublicClubs() {
-    try { publicClubs.value = await request<Club[]>('/discover'); } catch { /* silent */ }
+    try { publicClubs.value = await request<Club[]>('/discover'); } catch (e) { error.value = e instanceof Error ? e.message : String(e); }
   }
 
   async function fetchClub(id: string) {
     loading.value = true;
-    try { activeClub.value = await request<Club>(`/${id}`); } catch { /* silent */ }
+    try { activeClub.value = await request<Club>(`/${id}`); } catch (e) { error.value = e instanceof Error ? e.message : String(e); }
     finally { loading.value = false; }
   }
 
@@ -177,7 +178,7 @@ export const useClubStore = defineStore('club', () => {
   }
 
   return {
-    myClubs, publicClubs, activeClub, members, analysts, challenges, polls, journals, analytics, loading, leaderboard,
+    myClubs, publicClubs, activeClub, members, analysts, challenges, polls, journals, analytics, loading, error, leaderboard,
     fetchMyClubs, fetchPublicClubs, fetchClub, createClub, updateClub, deleteClub,
     joinClub, leaveClub, fetchMembers, promoteMember, demoteMember, removeMember,
     createInvite, fetchInviteDetails, acceptInvite,

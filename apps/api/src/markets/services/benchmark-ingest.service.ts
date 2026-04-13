@@ -50,9 +50,10 @@ export class BenchmarkIngestService {
 
   private async fetchSpyPrev(apiKey: string): Promise<{ c: number; t: number } | null> {
     try {
-      const response = await fetch(
-        `https://api.polygon.io/v2/aggs/ticker/SPY/prev?adjusted=true&apiKey=${apiKey}`,
-      );
+      const url = new URL('https://api.polygon.io/v2/aggs/ticker/SPY/prev');
+      url.searchParams.set('adjusted', 'true');
+      url.searchParams.set('apiKey', apiKey);
+      const response = await fetch(url);
       if (!response.ok) {
         this.logger.warn(`Polygon SPY fetch ${response.status}: ${response.statusText}`);
         return null;

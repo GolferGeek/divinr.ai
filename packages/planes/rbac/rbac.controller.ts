@@ -14,6 +14,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RbacService } from './rbac.service';
+import { RbacGuard } from './guards/rbac.guard';
 import { RequirePermission } from './decorators/require-permission.decorator';
 
 interface AuthenticatedUser {
@@ -32,7 +33,7 @@ class AssignRoleDto {
  * Manages roles, permissions, and user-role assignments
  */
 @Controller('api/rbac')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
 export class RbacController {
   constructor(@Inject(RbacService) private readonly rbacService: RbacService) {}
 

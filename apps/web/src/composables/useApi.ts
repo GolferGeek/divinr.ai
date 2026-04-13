@@ -11,7 +11,7 @@ function getBaseUrl(): string {
   // Electron environment: use configured API URL
   if (typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI) {
     const stored = localStorage.getItem('divinr_api_url');
-    return stored ? `${stored}/markets` : 'http://localhost:6100/markets';
+    return stored ? `${stored}/markets` : 'http://localhost:7100/markets';
   }
   return '/api/markets';
 }

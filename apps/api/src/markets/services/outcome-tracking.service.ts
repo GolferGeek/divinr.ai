@@ -229,9 +229,11 @@ export class OutcomeTrackingService {
       from.setDate(from.getDate() - 10); // go back 10 calendar days to get ~5 trading days
       const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
-      const response = await fetch(
-        `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${fmt(from)}/${fmt(to)}?adjusted=true&limit=${RECENT_BARS_CAP}&apiKey=${apiKey}`,
-      );
+      const url = new URL(`https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${fmt(from)}/${fmt(to)}`);
+      url.searchParams.set('adjusted', 'true');
+      url.searchParams.set('limit', String(RECENT_BARS_CAP));
+      url.searchParams.set('apiKey', apiKey);
+      const response = await fetch(url);
 
       if (!response.ok) {
         if (response.status === 429) {

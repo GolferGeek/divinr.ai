@@ -8,6 +8,11 @@ interface CacheEntry<T> {
 
 export class DataCache {
   private store = new Map<string, CacheEntry<string>>();
+  private readonly maxEntries: number;
+
+  constructor(maxEntries = 1000) {
+    this.maxEntries = maxEntries;
+  }
 
   static buildKey(provider: string, symbol: string, dataType: string): string {
     return `${provider}:${symbol}:${dataType}`;
@@ -24,6 +29,11 @@ export class DataCache {
   }
 
   set(key: string, data: string, ttlSeconds: number): void {
+    if (this.store.size >= this.maxEntries && !this.store.has(key)) {
+      // Evict the oldest entry (first key by insertion order)
+      const oldest = this.store.keys().next().value;
+      if (oldest !== undefined) this.store.delete(oldest);
+    }
     this.store.set(key, {
       data,
       expiresAt: Date.now() + ttlSeconds * 1000,

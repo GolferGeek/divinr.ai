@@ -32,7 +32,8 @@ export class PolygonAdapter implements DataSourceAdapter {
 
     try {
       await this.limiter.acquire();
-      const url = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/${params.symbol}?apiKey=${apiKey}`;
+      const url = new URL(`https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/${params.symbol}`);
+      url.searchParams.set('apiKey', apiKey);
       const res = await fetch(url);
       if (!res.ok) {
         logger.warn(`Polygon snapshot failed: ${res.status}`);
