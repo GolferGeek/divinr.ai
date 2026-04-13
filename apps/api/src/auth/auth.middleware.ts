@@ -51,8 +51,12 @@ export class AuthMiddleware implements NestMiddleware {
   ) {
     const authHeader = req.headers['authorization'] as string | undefined;
 
-    if (authHeader?.startsWith('Bearer ') && this.identityProvider) {
-      const token = authHeader.slice(7);
+    // Support ?token= query param for SSE (EventSource can't set headers)
+    const queryToken = (req as Record<string, unknown> & { query?: Record<string, string> }).query?.token as string | undefined;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+    const token = bearerToken ?? queryToken;
+
+    if (token && this.identityProvider) {
 
       // Service API keys are handled by ServiceApiKeyGuard, not JWT validation
       if (token.startsWith('div_sk_')) {

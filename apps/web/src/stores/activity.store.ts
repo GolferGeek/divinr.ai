@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { useAuthStore } from './auth.store';
 import { useNotificationStore } from './notification.store';
 import { useFearGreedStore } from './fear-greed.store';
 import { useMessagingStore } from './messaging.store';
@@ -37,7 +38,9 @@ export const useActivityStore = defineStore('activity', () => {
     const apiBase = isElectron
       ? (localStorage.getItem('divinr_api_url') || 'http://localhost:6100')
       : '/api';
-    const url = `${apiBase}/observability/stream`;
+    const auth = useAuthStore();
+    const tokenParam = auth.token ? `?token=${encodeURIComponent(auth.token)}` : '';
+    const url = `${apiBase}/observability/stream${tokenParam}`;
 
     eventSource = new EventSource(url);
     connected.value = true;
