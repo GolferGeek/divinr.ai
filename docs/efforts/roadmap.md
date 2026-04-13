@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-13
+**Last updated:** 2026-04-13 (curriculum-builder shipped)
 **Maintained by:** `/roadmap` skill
 
 ## Vision
@@ -52,29 +52,28 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `mobile-polish` | Responsive layouts across 22+ views (375px–1024px), iOS safe-area handling, Capacitor status-bar/splash-screen, touch targets ≥44px, Electron menu bar + window state persistence. | `docs/efforts/mobile-polish/` |
 | `messaging-system` | Full messaging: DMs, club/tournament/system channels, threaded replies, emoji reactions, pinned messages, entity attachments (5 types), @mentions with notifications, soft-delete moderation. 107 new tests. | `docs/efforts/messaging-system/` |
 | `tournament-system` | Paper-trading competitions with 3 scopes (system, club, invitation). Isolated portfolios, live leaderboards, lifecycle automation, invite flow, 6 frontend views. 123 test assertions. | `docs/efforts/tournament-system/` |
+| `learning-clubs` | Investment Learning Clubs: create/join clubs, invite system, club analysts, prediction challenges, consensus polls, strategy journals, club analytics. | `docs/efforts/learning-clubs/` |
+| `public-club-rankings` | Cross-club leaderboards, club badges, comparison view, discovery sort by performance, seasonal ranking snapshots. | `docs/efforts/public-club-rankings/` |
+| `curriculum-builder` | Structured multi-week courses for clubs. Weekly modules with sequenced activities, auto-unlock gating, server-side activity verification, professor dashboard, 3 pre-built templates. | `docs/efforts/curriculum-builder/` |
 
 ---
 
 ## Current Effort
 
-*No current effort.* `docs/efforts/current/` is empty. The next effort in the queue is **Learning Clubs**.
+*No current effort.* `docs/efforts/current/` is empty. Next in queue: **Mentor/Mentee Pairing**.
 
 ---
 
-## Phase 1 Status: SOCIAL/GAME LAYER IN PROGRESS
+## Phase 1 Status: COMMUNITY DEPTH — 2 OF 4 REMAINING
 
-Core analysis/trading features are shipped. Messaging and tournaments are shipped. Clubs are in progress — the final piece of the social/game layer. After clubs, four community-depth efforts (rankings, paid tiers, curriculum, mentoring) complete the differentiator: **AI analysis + clubs + tournaments + structured learning** — nothing else combines all of these. Then testing and marketing.
+Social/game layer is shipped (messaging, tournaments, clubs, rankings, curriculum). Two community-depth efforts remain (mentoring, paid tiers), then the testing & marketing pass. The differentiator is real: **AI analysis + clubs + tournaments + structured learning + rankings** — nothing else combines all of these.
 
 ## Next Efforts
 
-### Community Depth (post-clubs, pre-testing)
+### Community Depth (2 remaining)
 
-These ship immediately after Learning Clubs. They're what makes the product demo-ready and differentiated.
-
-1. **Public Club Rankings** (`docs/efforts/next/public-club-rankings/`) — Cross-club leaderboards, club badges ("Top 10%", "Rising"), comparison view, discovery sort by performance. Creates inter-club competition.
-2. **Curriculum Builder** (`docs/efforts/next/curriculum-builder/`) — Structured multi-week courses for university/org clubs. Weekly modules with sequenced activities, auto-unlock, progress tracking, professor dashboard. The university sales pitch.
-3. **Mentor/Mentee Pairing** (`docs/efforts/next/mentor-mentee-pairing/`) — Experienced members guide new ones within clubs. Eligibility criteria, admin-matched pairing, mentor dashboard, DM channels, recognition badges. The retention flywheel.
-4. **Paid Club Tiers** (`docs/efforts/next/paid-club-tiers/`) — Free/Pro/University pricing. More analysts, more members, advanced analytics, Stripe billing. The revenue model.
+1. **Mentor/Mentee Pairing** (`docs/efforts/next/mentor-mentee-pairing/`) — Experienced members guide new ones within clubs. Eligibility criteria, admin-matched pairing, mentor dashboard, DM channels, recognition badges. The retention flywheel.
+2. **Paid Club Tiers** (`docs/efforts/next/paid-club-tiers/`) — Free/Pro/University pricing. More analysts, more members, advanced analytics, Stripe billing. The revenue model.
 
 ### Testing & Marketing Readiness
 
@@ -159,7 +158,9 @@ see-your-reasoning────┤
   │  ── Social / Game Layer ──        │
   │  messaging-system ✅              │
   │  tournament-system ✅             │
-  │  learning-clubs (+ club analysts) │
+  │  learning-clubs ✅                │
+  │  public-club-rankings ✅          │
+  │  curriculum-builder ✅            │
   │                                   │
   │  ── Testing & Marketing Pass ──   │
   │  12 test/marketing efforts        │
