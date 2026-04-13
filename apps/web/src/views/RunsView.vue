@@ -191,34 +191,47 @@ function filterRuns() {
       No pipeline activity yet. Click <strong>Queue Analysis</strong> above to start one.
     </ion-note>
 
-    <!-- Run cards -->
-    <div class="run-grid">
-      <article
-        v-for="run in runs.items"
-        :key="String(run['id'])"
-        class="run-card"
-        :style="{ '--accent': statusAccent(run['status']) }"
-        @click="router.push(`/runs/${run['id']}`)"
-      >
-        <div class="run-card__top">
-          <div class="run-card__symbol">{{ symbolFor(run) }}</div>
-          <div class="run-card__status">
-            <ion-icon :icon="statusIcon(run['status'])" />
-            <span>{{ statusLabel(run['status']) }}</span>
-          </div>
-        </div>
-        <div class="run-card__type">
-          <ion-icon :icon="typeIcon(run['run_type'])" />
-          <span>{{ typeLabel(run['run_type']) }}</span>
-        </div>
-        <div class="run-card__time">{{ relTime(run['created_at']) }}</div>
-        <div
-          v-if="run['status'] === 'failed' && run['last_error']"
-          class="run-card__error"
-        >
-          {{ String(run['last_error']).slice(0, 140) }}
-        </div>
-      </article>
+    <!-- Run table -->
+    <div class="run-table-wrap">
+      <table class="run-table">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Started</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="run in runs.items"
+            :key="String(run['id'])"
+            class="run-row"
+            @click="router.push(`/runs/${run['id']}`)"
+          >
+            <td class="run-row__symbol">{{ symbolFor(run) }}</td>
+            <td>
+              <span class="run-row__type">
+                <ion-icon :icon="typeIcon(run['run_type'])" />
+                {{ typeLabel(run['run_type']) }}
+              </span>
+            </td>
+            <td>
+              <span class="run-row__status" :style="{ '--accent': statusAccent(run['status']) }">
+                <ion-icon :icon="statusIcon(run['status'])" />
+                {{ statusLabel(run['status']) }}
+              </span>
+            </td>
+            <td class="run-row__time">{{ relTime(run['created_at']) }}</td>
+            <td class="run-row__error">
+              <span v-if="run['status'] === 'failed' && run['last_error']">
+                {{ String(run['last_error']).slice(0, 100) }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- Queue Modal -->
@@ -368,78 +381,80 @@ function filterRuns() {
 .stat-tile--completed .stat-tile__num { color: #10b981; }
 .stat-tile--failed .stat-tile__num { color: #ef4444; }
 
-/* Run grid */
-.run-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
+/* Run table */
+.run-table-wrap {
+  overflow-x: auto;
 }
-.run-card {
-  background: var(--ion-card-background, #fff);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-left: 4px solid var(--accent);
-  border-radius: 12px;
-  padding: 16px;
+.run-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.run-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  border-bottom: 2px solid rgba(148, 163, 184, 0.2);
+  white-space: nowrap;
+}
+.run-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  vertical-align: middle;
+}
+.run-row {
   cursor: pointer;
-  transition: all 0.15s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  transition: background 0.1s ease;
 }
-.run-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
-  border-color: rgba(148, 163, 184, 0.4);
-  border-left-color: var(--accent);
+.run-row:hover {
+  background: rgba(99, 102, 241, 0.04);
 }
-.run-card__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-.run-card__symbol {
-  font-size: 1.4rem;
+.run-row__symbol {
   font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: 1rem;
 }
-.run-card__status {
-  display: flex;
+.run-row__type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  opacity: 0.75;
+}
+.run-row__type ion-icon {
+  font-size: 1rem;
+}
+.run-row__status {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
-  padding: 4px 10px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  white-space: nowrap;
 }
-.run-card__status ion-icon {
-  font-size: 0.9rem;
-}
-.run-card__type {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.run-row__status ion-icon {
   font-size: 0.85rem;
-  opacity: 0.75;
 }
-.run-card__type ion-icon {
-  font-size: 1rem;
-}
-.run-card__time {
-  font-size: 0.75rem;
+.run-row__time {
+  font-size: 0.8rem;
   opacity: 0.5;
+  white-space: nowrap;
 }
-.run-card__error {
-  margin-top: 4px;
-  padding: 8px 10px;
-  background: rgba(239, 68, 68, 0.08);
-  border-radius: 6px;
+.run-row__error {
   font-size: 0.75rem;
   color: #b91c1c;
-  line-height: 1.4;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 720px) {
