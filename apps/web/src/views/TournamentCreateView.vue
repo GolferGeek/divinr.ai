@@ -3,9 +3,12 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInput, IonSelect, IonSelectOption, IonTextarea } from '@ionic/vue';
 import { useTournamentStore } from '../stores/tournament.store';
+import { useCanWrite } from '../composables/useCanWrite';
 
 const store = useTournamentStore();
 const router = useRouter();
+const { canWrite } = useCanWrite();
+if (!canWrite.value) router.replace('/tournaments');
 const error = ref('');
 
 const name = ref('');

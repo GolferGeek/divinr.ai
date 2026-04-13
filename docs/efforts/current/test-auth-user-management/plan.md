@@ -6,7 +6,7 @@
 
 ## Progress Tracker
 - [x] Phase 1: API Verification
-- [ ] Phase 2: Chrome Testing
+- [x] Phase 2: Chrome Testing
 - [ ] Phase 3: Bug Fixes & Marketing
 
 ---
@@ -36,25 +36,25 @@
 ---
 
 ## Phase 2: Chrome Testing
-**Status**: In Progress
-**Note**: Steps 2.1-2.3 verified (login → dashboard → user name displays). Remaining: logout, invite signup in browser, beta reader UI, cross-user check.
+**Status**: Complete
+**Note**: All 10 steps pass. Found and fixed 3 bugs: (1) signup setAuth missing email/displayName/refreshToken, (2) bootstrap-auth missing email/refreshToken in setAuth, (3) beta_reader role missing markets-instruments-read permission. UX polish item: write-action buttons still visible for beta readers (API blocks correctly with 403).
 **Objective**: Walk through auth flows in the browser to verify UI behavior.
 
 ### Steps
-- [ ] 2.1 Navigate to divinr.ai → redirected to login page (no saved session)
-- [ ] 2.2 Login with valid credentials → lands on dashboard with data
-- [ ] 2.3 Verify user name displays in header
-- [ ] 2.4 Click logout → redirected to login, state cleared
-- [ ] 2.5 Login again → verify auto-login works (tokens in localStorage)
-- [ ] 2.6 Create an invite via API (`POST /auth/invites`) → get invite token
-- [ ] 2.7 Navigate to `/signup/:token` → invite signup form loads
-- [ ] 2.8 Sign up as beta reader → auto-login, dashboard loads
-- [ ] 2.9 As beta reader, attempt write actions (create club, queue analysis) → "Read Only" shown or action blocked
-- [ ] 2.10 Verify no cross-user data visible (switch between users)
+- [x] 2.1 Navigate to divinr.ai → redirected to login page (no saved session)
+- [x] 2.2 Login with valid credentials → lands on dashboard with data
+- [x] 2.3 Verify user name displays in header
+- [x] 2.4 Click logout → redirected to login, divinr_* keys cleared
+- [x] 2.5 Login again → tokens stored in localStorage, dashboard loads
+- [x] 2.6 Create an invite via API (`POST /auth/invites`) → got invite token
+- [x] 2.7 Navigate to `/signup/:token` → invite signup form loads with pre-filled email
+- [x] 2.8 Sign up as beta reader → auto-login, dashboard loads with "Read Only" badge and correct display name
+- [x] 2.9 As beta reader, write actions (create club, queue run, create tournament) → API returns 403. UI still shows write buttons (UX polish, not security bug)
+- [x] 2.10 No cross-user data visible — beta reader sees 0 clubs, shared instruments only
 
 ### Quality Gate
-- [ ] **Chrome Tests**: All 10 browser scenarios pass
-- [ ] **Screenshots**: Key flows documented
+- [x] **Chrome Tests**: All 10 browser scenarios pass
+- [x] **Screenshots**: Key flows documented
 - [ ] **Phase Review**: All PRD Phase 2 items covered
 
 ---

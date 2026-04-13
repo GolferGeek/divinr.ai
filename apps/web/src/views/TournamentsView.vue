@@ -3,8 +3,10 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote } from '@ionic/vue';
 import { useTournamentStore } from '../stores/tournament.store';
+import { useCanWrite } from '../composables/useCanWrite';
 
 const store = useTournamentStore();
+const { canWrite } = useCanWrite();
 const router = useRouter();
 const scopeFilter = ref<string>('');
 const statusFilter = ref<string>('');
@@ -40,7 +42,7 @@ function typeLabel(t: string): string {
   <div class="tournaments-page">
     <div class="page-header">
       <h1>Tournaments</h1>
-      <IonButton size="small" @click="router.push('/tournaments/create')">Create Tournament</IonButton>
+      <IonButton v-if="canWrite" size="small" @click="router.push('/tournaments/create')">Create Tournament</IonButton>
     </div>
 
     <p class="disclaimer">
@@ -85,7 +87,7 @@ function typeLabel(t: string): string {
             <IonNote>Virtual Balance: ${{ Number(t.starting_balance).toLocaleString() }}</IonNote>
             <IonNote>{{ relativeDate(t.starts_at) }} - {{ relativeDate(t.ends_at) }}</IonNote>
           </div>
-          <IonButton v-if="t.status === 'upcoming' || t.status === 'active'" size="small" fill="outline" @click.stop="enter(t.id)">
+          <IonButton v-if="canWrite && (t.status === 'upcoming' || t.status === 'active')" size="small" fill="outline" @click.stop="enter(t.id)">
             Enter Game
           </IonButton>
         </IonCardContent>

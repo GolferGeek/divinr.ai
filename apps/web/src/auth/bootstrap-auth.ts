@@ -22,6 +22,7 @@ interface MeResponse {
   email?: string;
   role?: string;
   globalRole?: string;
+  displayName?: string;
 }
 
 const API_BASE = '/api';
@@ -69,7 +70,7 @@ export async function bootstrapAuth(): Promise<void> {
     const me = (await meRes.json()) as MeResponse;
 
     const effectiveRole = me.globalRole ?? me.role ?? undefined;
-    auth.setAuth(me.id, login.accessToken, effectiveRole);
+    auth.setAuth(me.id, login.accessToken, effectiveRole, me.email, undefined, login.refreshToken);
     console.info(`[bootstrap-auth] Logged in as ${me.email ?? me.id} (role: ${effectiveRole ?? 'none'})`);
   } catch (err) {
     console.error('[bootstrap-auth] Auto-login error:', err);

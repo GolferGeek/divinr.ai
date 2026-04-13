@@ -70,6 +70,12 @@ export class InviteService {
       VALUES ('role-beta-reader', 'beta_reader', 'Beta Reader', 'Read-only access to an organization', true)
       ON CONFLICT (id) DO NOTHING
     `);
+    // Ensure beta_reader has read permission
+    await this.db.rawQuery(`
+      INSERT INTO authz.rbac_role_permissions (role_id, permission_id)
+      VALUES ('role-beta-reader', 'markets-instruments-read')
+      ON CONFLICT DO NOTHING
+    `);
     this.schemaReady = true;
   }
 
