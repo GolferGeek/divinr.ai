@@ -12,8 +12,9 @@ import {
   menuOutline, constructOutline, heartOutline, notificationsOutline,
   warningOutline, gitNetworkOutline, trendingUpOutline,
   chatbubblesOutline, trophyOutline, peopleCircleOutline,
+  chevronDownOutline, chevronForwardOutline,
 } from 'ionicons/icons';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 import { useDomainStore } from '../stores/domain.store';
 import { useActivityStore } from '../stores/activity.store';
@@ -33,25 +34,76 @@ const messagingStore = useMessagingStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
-const navItems = [
-  { title: 'Dashboard', icon: gridOutline, to: '/' },
-  { title: 'Performance', icon: trendingUpOutline, to: '/performance' },
-  { title: 'Instruments', icon: statsChartOutline, to: '/instruments' },
-  { title: 'Analysts', icon: peopleOutline, to: '/analysts' },
-  { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination' },
-  { title: 'Runs', icon: playOutline, to: '/runs' },
-  { title: 'Risk', icon: shieldOutline, to: '/risk' },
-  { title: 'Portfolios', icon: briefcaseOutline, to: '/portfolios' },
-  { title: 'Sources', icon: newspaperOutline, to: '/sources' },
-  { title: 'Evaluations', icon: ribbonOutline, to: '/evaluations' },
-  { title: 'Learning', icon: bulbOutline, to: '/learning' },
-  { title: 'Proposals', icon: constructOutline, to: '/proposals' },
-  { title: 'Affinity', icon: heartOutline, to: '/affinity' },
-  { title: 'Clubs', icon: peopleCircleOutline, to: '/clubs' },
-  { title: 'Tournaments', icon: trophyOutline, to: '/tournaments' },
-  { title: 'Messages', icon: chatbubblesOutline, to: '/messages' },
-  { title: 'Notifications', icon: notificationsOutline, to: '/notifications' },
+interface NavItem {
+  title: string;
+  icon: string;
+  to: string;
+}
+
+interface NavGroup {
+  label: string;
+  adminOnly?: boolean;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    label: '',
+    items: [
+      { title: 'Dashboard', icon: gridOutline, to: '/' },
+    ],
+  },
+  {
+    label: 'Markets',
+    items: [
+      { title: 'Instruments', icon: statsChartOutline, to: '/instruments' },
+      { title: 'Portfolios', icon: briefcaseOutline, to: '/portfolios' },
+      { title: 'Risk', icon: shieldOutline, to: '/risk' },
+    ],
+  },
+  {
+    label: 'AI Analysts',
+    items: [
+      { title: 'Analysts', icon: peopleOutline, to: '/analysts' },
+      { title: 'Performance', icon: trendingUpOutline, to: '/performance' },
+      { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination' },
+      { title: 'Affinity', icon: heartOutline, to: '/affinity' },
+    ],
+  },
+  {
+    label: 'Community',
+    items: [
+      { title: 'Clubs', icon: peopleCircleOutline, to: '/clubs' },
+      { title: 'Tournaments', icon: trophyOutline, to: '/tournaments' },
+      { title: 'Messages', icon: chatbubblesOutline, to: '/messages' },
+    ],
+  },
+  {
+    label: 'System',
+    adminOnly: true,
+    items: [
+      { title: 'Runs', icon: playOutline, to: '/runs' },
+      { title: 'Sources', icon: newspaperOutline, to: '/sources' },
+      { title: 'Evaluations', icon: ribbonOutline, to: '/evaluations' },
+      { title: 'Learning', icon: bulbOutline, to: '/learning' },
+      { title: 'Proposals', icon: constructOutline, to: '/proposals' },
+    ],
+  },
 ];
+
+const collapsedGroups = ref<Record<string, boolean>>({});
+
+function toggleGroup(label: string) {
+  collapsedGroups.value[label] = !collapsedGroups.value[label];
+}
+
+function isGroupCollapsed(label: string): boolean {
+  return !!collapsedGroups.value[label];
+}
+
+const visibleGroups = computed(() =>
+  navGroups.filter(g => !g.adminOnly || auth.isAdmin),
+);
 
 // Load contrarian alerts and notification count on mount
 affinityStore.fetchContrarianAlerts(true);
@@ -71,19 +123,34 @@ function logout() {
       <nav class="sidebar" :class="{ 'sidebar-mobile-open': sidebarOpen }">
         <div class="sidebar-header">Divinr AI</div>
         <ul class="sidebar-nav">
-          <li
-            v-for="item in navItems"
-            :key="item.to"
-            class="sidebar-item"
-            :class="{ active: $route.path === item.to }"
-            role="link"
-            tabindex="0"
-            @click="router.push(item.to); sidebarOpen = false"
-            @keyup.enter="router.push(item.to); sidebarOpen = false"
-          >
-            <ion-icon :icon="item.icon" />
-            <span>{{ item.title }}</span>
-          </li>
+          <template v-for="group in visibleGroups" :key="group.label">
+            <li
+              v-if="group.label"
+              class="sidebar-group-header"
+              @click="toggleGroup(group.label)"
+            >
+              <span class="group-label">{{ group.label }}</span>
+              <ion-icon
+                :icon="isGroupCollapsed(group.label) ? chevronForwardOutline : chevronDownOutline"
+                class="group-chevron"
+              />
+            </li>
+            <template v-if="!isGroupCollapsed(group.label)">
+              <li
+                v-for="item in group.items"
+                :key="item.to"
+                class="sidebar-item"
+                :class="{ active: $route.path === item.to }"
+                role="link"
+                tabindex="0"
+                @click="router.push(item.to); sidebarOpen = false"
+                @keyup.enter="router.push(item.to); sidebarOpen = false"
+              >
+                <ion-icon :icon="item.icon" />
+                <span>{{ item.title }}</span>
+              </li>
+            </template>
+          </template>
         </ul>
         <div class="sidebar-footer">
           <button
@@ -182,15 +249,42 @@ function logout() {
   flex: 1;
 }
 
+.sidebar-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px 4px;
+  margin-top: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #999;
+}
+
+.group-chevron {
+  font-size: 0.7rem;
+  color: #bbb;
+}
+
+.sidebar-group-header:hover .group-label {
+  color: #666;
+}
+
 .sidebar-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 12px 20px;
   min-height: 44px;
   cursor: pointer;
   color: #333;
-  font-size: 0.95rem;
+  font-size: 0.93rem;
   transition: background 0.15s;
 }
 
