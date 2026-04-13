@@ -5,6 +5,12 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
+      path: '/welcome',
+      name: 'landing',
+      component: () => import('../views/LandingView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),
@@ -78,6 +84,6 @@ export const router = createRouter({
 router.beforeEach((to) => {
   if (to.meta.public) return true;
   const auth = useAuthStore();
-  if (!auth.isConfigured()) return '/login';
+  if (!auth.isConfigured()) return '/welcome';
   return true;
 });
