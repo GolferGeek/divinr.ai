@@ -1,188 +1,142 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-13 (community depth complete, paid tiers deferred to future)
+**Last updated:** 2026-04-13
 **Maintained by:** `/roadmap` skill
 
 ## Vision
 
-Divinr's core promise is **explainability over black-box trading bots**. The system produces predictions through a panel of LLM-powered analysts, each with their own perspective and decision criteria. The vision is a closed loop:
+Divinr's core promise is **explainability over black-box trading bots**. Five LLM-powered analysts each produce independent predictions with captured reasoning. A risk debate system challenges every assessment. A three-tier learning loop makes the system smarter over time — and every adaptation is visible.
 
-1. **Analysts produce predictions** with captured reasoning (shipped).
-2. **Predictions are evaluated** against real outcomes by a nightly pipeline (shipped).
-3. **Humans can read** why analysts were right or wrong (shipped: `see-your-reasoning`, `calibration-drilldown`).
-4. **The system itself audits** analyst reasoning against stated contracts and surfaces discrepancies (shipped: `analyst-contracts`, `tier-2-audit`).
-5. **A human approves** or rejects the system's proposals, and the system learns from the human's judgments over time (shipped: `automated-meta-loop`).
+**The closed loop is fully operational:**
+1. Analysts produce predictions with reasoning (shipped)
+2. Predictions evaluated against real outcomes nightly (shipped)
+3. Humans can read why analysts were right or wrong (shipped)
+4. System audits analyst reasoning against contracts (shipped)
+5. System proposes improvements, humans approve (shipped)
 
-**All 5 steps are now operational.** The loop is closed end-to-end. The codebase has been hardened and monitored. All three learning tiers are running (Tier 1 autonomous, Tier 2 audited, Tier 3 strategic).
-
-**What follows is a three-phase product expansion:**
-
-1. **Professional polish + game layer** — Make the financial-domain SaaS product ready to launch. Core features, tournaments, learning clubs, testing, and marketing. The product you acquire users on.
-2. **SaaS Extension platform** — New domains (crypto, commodities, forex), custom analysts, custom data sources. The "build on our platform" play.
-3. **Local Hybrid tier** — Desktop app with a local API backend (e.g., DGX Spark). Power users get everything from the SaaS layer plus private analysts and proprietary data that never leaves their machine.
-
----
-
-## Completed Efforts
-
-| Effort | What it did | Archived |
-|---|---|---|
-| `auth-bootstrap` | JWT auth, RBAC, admin middleware | `docs/efforts/auth-bootstrap/` |
-| `llm-reasoning-capture` | Capture reasoning_content on every LLM call into `llm_usage` | `docs/efforts/llm-reasoning-capture/` |
-| `see-your-reasoning` | Render captured reasoning in the prediction modal's Reasoning tab | `docs/efforts/see-your-reasoning/` |
-| `calibration-drilldown` | Analyst performance view: metrics, per-instrument breakdown, scatter, wrong-first list, inline reasoning expansion | `docs/efforts/calibration-drilldown/` |
-| `analyst-contracts` | Structured markdown contracts for 7 base analysts, config version bootstrap, canonical readers, tier-1 carry-forward | `docs/efforts/analyst-contracts/` |
-| `tier-2-audit` | Contract-vs-output audit with gemma4:26b, admin inbox at /findings, cron schedule, accept/reject/note feedback | `docs/efforts/tier-2-audit/` |
-| `day-trader-contracts` | Extended structured contracts to day-trader analysts (gap-and-go, mean-reversion, momentum-breakout) | `docs/efforts/day-trader-contracts/` |
-| `automated-meta-loop` | Audit learns from user feedback — selection policy updates from accept/reject log | `docs/efforts/automated-meta-loop/` |
-| `harden-monitor` | Full codebase scan + hardening: 40 issues fixed across 89 files (@Inject, admin auth, security, legal language, dead code, accessibility) | `docs/efforts/harden-monitor/` |
-| `tier-1-structured-writes` | Learning engine writes structured adaptations into `## Adaptations` of `context_markdown` instead of appending to `persona_prompt`; audit and runner now include adaptations | `docs/efforts/tier-1-structured-writes/` |
-| `beta-user-share-path` | Invite-based signup for beta readers with read-only access; mutation guard on all endpoints; frontend canWrite composable | `docs/efforts/beta-user-share-path/` |
-| `leaderboard-calibration-affordance` | One-click link from leaderboard calibration score to analyst drilldown; added analyst_id to portfolio summary API | `docs/efforts/leaderboard-calibration-affordance/` |
-| `contract-editor-ui` | Admin contract editor at /analysts/:id/contract: read, version history, side-by-side diff, inline edit, one-click rollback; navigation from analyst list and findings | `docs/efforts/contract-editor-ui/` |
-| `risk-debate-drilldown` | Expandable LLM reasoning panels on Blue/Red/Arbiter debate columns; GET /risk-debates/:id/reasoning endpoint; lazy-loaded with provider/model/token metadata | `docs/efforts/risk-debate-drilldown/` |
-| `dead-table-cleanup` | Dropped legacy `prediction.analysts` and `prediction.analyst_context_versions` tables via ensureSchema() DDL | `docs/efforts/dead-table-cleanup/` |
-| `tier3-strategic-overhauls` | Tier 3 learning: evidence aggregation from Tier 2 findings, LLM contract rewrites via gemma4:26b, canonical test validation, admin /proposals page with approve/reject, weekly cron | `docs/efforts/tier3-strategic-overhauls/` |
-| `user-scoped-platform` | Replaced organization_slug multi-tenant layer with user_id ownership across 117 files. Schema, services, controllers, frontend, RBAC all migrated. | `docs/efforts/user-scoped-platform/` |
-| `user-analyst-affinity` | Affinity Agent learns user preferences from trade decisions, challenges, and browsing. Exponential decay scoring, contrarian alerts, dashboard personalization. 74 new tests. | `docs/efforts/user-analyst-affinity/` |
-| `notification-system` | Unified in-app notification bell + list page. 5 event producers wired (stop-loss, trade recs, nightly eval, Tier 3 proposals, contrarian alerts). SSE real-time updates. 24 new tests. | `docs/efforts/notification-system/` |
-| `fear-greed-alerting` | Sentiment Analyst predicts crowd reaction (fear/greed/noise). Immediate alerts on high-conviction triggers with trade rec context. 5-alert cap, dedup, legal-safe language. 44 new tests. | `docs/efforts/fear-greed-alerting/` |
-| `multi-analyst-coordination` | Cross-analyst correlation analysis, coverage gap detection, leave-one-out contribution scoring. Admin dashboard with heatmap matrix, coverage table, contribution scores. Weekly cron + on-demand compute. 42 new tests. | `docs/efforts/multi-analyst-coordination/` |
-| `performance-dashboard` | Subscriber-facing performance view: equity curve with SPY benchmark overlay, PnL summary, analyst leaderboard with trend indicators, key metrics cards. Single aggregation endpoint (6 parallel queries, no new tables). 33 new tests. | `docs/efforts/performance-dashboard/` |
-| `mobile-polish` | Responsive layouts across 22+ views (375px–1024px), iOS safe-area handling, Capacitor status-bar/splash-screen, touch targets ≥44px, Electron menu bar + window state persistence. | `docs/efforts/mobile-polish/` |
-| `messaging-system` | Full messaging: DMs, club/tournament/system channels, threaded replies, emoji reactions, pinned messages, entity attachments (5 types), @mentions with notifications, soft-delete moderation. 107 new tests. | `docs/efforts/messaging-system/` |
-| `tournament-system` | Paper-trading competitions with 3 scopes (system, club, invitation). Isolated portfolios, live leaderboards, lifecycle automation, invite flow, 6 frontend views. 123 test assertions. | `docs/efforts/tournament-system/` |
-| `learning-clubs` | Investment Learning Clubs: create/join clubs, invite system, club analysts, prediction challenges, consensus polls, strategy journals, club analytics. | `docs/efforts/learning-clubs/` |
-| `public-club-rankings` | Cross-club leaderboards, club badges, comparison view, discovery sort by performance, seasonal ranking snapshots. | `docs/efforts/public-club-rankings/` |
-| `curriculum-builder` | Structured multi-week courses for clubs. Weekly modules with sequenced activities, auto-unlock gating, server-side activity verification, professor dashboard, 3 pre-built templates. | `docs/efforts/curriculum-builder/` |
-| `mentor-mentee-pairing` | Mentor/mentee system within clubs. Eligibility from tournament performance, admin pairing (1:3 max), auto-DM channels, mentor dashboard, quarterly feedback, mentor leaderboard. | `docs/efforts/mentor-mentee-pairing/` |
+**What's built and tested:**
+- 14 feature areas Chrome-tested and verified
+- Landing page live at /welcome
+- Grouped sidebar nav with role-based visibility
+- St. Thomas Investing Club with 3 members, tournament scheduled for Apr 20
+- One-step club signup at /join with invite code
+- Marketing compilation: hero copy, 15-feature inventory, 4 user personas
 
 ---
 
-## Current Effort
+## Current State
 
-*No current effort.* `docs/efforts/current/` is empty. Next in queue: **Mentor/Mentee Pairing**.
-
----
-
-## Phase 1 Status: COMMUNITY DEPTH COMPLETE — TESTING & MARKETING NEXT
-
-All community depth efforts shipped (clubs, rankings, curriculum, mentoring). Paid tiers deferred to Future — no Stripe yet, focus on local testing and beta first. The full feature set is built; now lock it down.
-
-## Next Efforts
-
-### Testing & Marketing Readiness
-
-Each effort covers Chrome-based testing, API verification, and a marketing blurb for that feature area. The final effort compiles all blurbs into cohesive materials. Order is foundation-first.
-
-5. **Test: Auth & User Management** (`docs/efforts/next/test-auth-user-management/`) — Login, invite signup, RBAC, beta readers, user scoping
-6. **Test: Prediction Pipeline** (`docs/efforts/next/test-prediction-pipeline/`) — Queue analysis, analyst stances, arbitrator synthesis, reasoning capture
-7. **Test: Analyst Contracts & Editor** (`docs/efforts/next/test-analyst-contracts/`) — Contracts, versioning, diff view, editor, rollback
-8. **Test: Calibration & Performance** (`docs/efforts/next/test-calibration-performance/`) — Performance dashboard, equity curve, leaderboard, analyst drilldown, scatter
-9. **Test: Risk Analysis & Debate** (`docs/efforts/next/test-risk-analysis/`) — Risk dimensions, composite score, bull/bear debate, reasoning panels
-10. **Test: Three-Tier Learning Loop** (`docs/efforts/next/test-learning-loop/`) — Tier 1 autonomous, Tier 2 audit/findings, Tier 3 proposals
-11. **Test: Trading & Portfolios** (`docs/efforts/next/test-trading-portfolios/`) — Portfolio dashboard, positions, trade queue, PnL, recommendations
-12. **Test: User Analyst Affinity** (`docs/efforts/next/test-user-intelligence/`) — Affinity scores, contrarian alerts, dashboard personalization
-13. **Test: Notifications & Alerts** (`docs/efforts/next/test-notifications-alerts/`) — Notification bell, alert list, fear/greed alerts, SSE real-time
-14. **Test: Multi-Analyst Coordination** (`docs/efforts/next/test-coordination/`) — Correlation matrix, coverage gaps, contribution scores
-15. **Test: Mobile & Desktop** (`docs/efforts/next/test-mobile-desktop/`) — Responsive layouts at all viewports, Electron app, iOS/Capacitor
-16. **Marketing Compilation** (`docs/efforts/next/marketing-compilation/`) — Compile all marketing blurbs into landing page copy, feature inventory, differentiation narrative
+**Infrastructure:** DGX Spark running gemma4 (local inference, zero cost)
+**Users:** 3 active (demo-user, golfergeek, ethan) + invite flow ready
+**Status:** Feature-complete for beta. Revenue model defined. Ready for Stripe.
 
 ---
 
-## Future Efforts
+## Next (2 efforts)
 
-Efforts with intentions at `docs/efforts/future/[name]/intention.md`. Not yet ready to schedule.
+### 1. Live Prediction PnL
+Run prediction cycles during market hours to generate real day trader returns. Validates that positions open at market prices, hold through intraday movement, and close at EOD with actual PnL.
 
-- **Paid Club Tiers** (`docs/efforts/future/paid-club-tiers/`) — Free/Pro/University pricing. More analysts, more members, advanced analytics. Deferred until Stripe integration ships.
-- **Stripe Billing Integration** — Payment processing, subscription management, upgrade/downgrade flows. Prerequisite for paid tiers and power user expansion.
-- **Power User Expansion** (`docs/efforts/future/power-user-expansion/`) — Three-level pricing model ($20 base, $10/resource, $150-200 early-adopter for new resources with crowd-funded price drops). Custom instruments, sources, and analysts. Local hybrid desktop tier. Subsumes the former premium-data-sources effort — premium feeds are funded by the crowd-funded pricing model.
+**Blocked on:** Market hours (weekday 9:30 AM - 4:00 PM ET)
+
+### 2. Stripe Integration
+Payment processing, subscription management, tier gating. Prerequisite for everything in the revenue pipeline.
+
+**Scope:** Customer creation, subscription CRUD, webhook handling, billing portal, pricing page, feature gating middleware.
 
 ---
 
-## Dependency Graph
+## Future — Revenue Pipeline
 
-```
-auth-bootstrap ──────┐
-                      │
-llm-reasoning-capture─┤
-                      │
-see-your-reasoning────┤
-                      ▼
-         calibration-drilldown ✅
-                      │
-                      ▼
-            analyst-contracts ✅
-               │           │
-               ▼           ▼
-     tier-2-audit ✅    day-trader-contracts ✅
-          │
-          ├──────────────────┐
-          ▼                  ▼
-  automated-meta-loop ✅   harden-monitor ✅
-          │                  │
-          ▼                  ▼
-  tier-1-structured-writes ✅ beta-user-share-path ✅
-          │
-          ▼
-  leaderboard-calibration-affordance ✅
-          │
-          ▼
-  contract-editor-ui ✅
-          │
-          ▼
-  risk-debate-drilldown ✅
-          │
-          ▼
-  dead-table-cleanup ✅
-          │
-          ▼
-  tier3-strategic-overhauls ✅
-          │
-          ▼
-  user-scoped-platform ✅
-          │
-          ▼
-  ┌── Phase 1: Professional Polish ──┐
-  │                                   │
-  │  user-analyst-affinity ✅          │
-  │  notification-system ✅            │
-  │  fear-greed-alerting ✅            │
-  │  multi-analyst-coordination ✅    │
-  │  performance-dashboard ✅         │
-  │  mobile-polish ✅                  │
-  │  CORE DEV COMPLETE                 │
-  │                                   │
-  │  ── Social / Game Layer ──        │
-  │  messaging-system ✅              │
-  │  tournament-system ✅             │
-  │  learning-clubs ✅                │
-  │  public-club-rankings ✅          │
-  │  curriculum-builder ✅            │
-  │                                   │
-  │  ── Testing & Marketing Pass ──   │
-  │  12 test/marketing efforts        │
-  │                                   │
-  └───────────┬───────────────────────┘
-              ▼
-  ┌── Phase 2: SaaS Extension ────────┐
-  │  new-domains (crypto, forex, etc) │
-  │  custom-sources-articles          │
-  │  custom-analysts                  │
-  │  power-user-api-namespace         │
-  └───────────┬───────────────────────┘
-              ▼
-  ┌── Phase 3: Local Hybrid Tier ────┐
-  │  desktop-app-federation           │
-  │  local-llm-backend                │
-  │  private-data-layer               │
-  └───────────────────────────────────┘
-```
+### Phase 1: Paid Tiers
+
+| Tier | Price | Analysts | Sources | Instruments |
+|------|-------|----------|---------|-------------|
+| **Free trial** | $0 / 1 month | Pro-level access | All | All |
+| **Starter** | $20/mo | 5 base (gemma4) | Free (RSS, public filings) | Core stocks (~15-20) |
+| **Pro** | $50/mo | Refined (better contracts) | Paid (Polygon, news APIs) | Full stock universe |
+| **Premium** | $100/mo | Frontier-model (Claude/GPT-4) | Institutional-grade | Full + crypto/commodities |
+
+**Key:** Quality ladder — better sources produce better analysis. Users upgrade when they see Pro analysts outperform Starter ones.
+
+### Phase 2: Custom Tier ($500+/mo)
+
+Power users bring their own API keys:
+- **Custom analysts** — user's LLM key pays for inference
+- **Custom data sources** — user's data API key pays for feeds
+- **Platform fee** covers orchestration, learning loop, evaluation
+- **Private analysis** invisible to other users
+- Pure margin — they pay their own compute/data costs
+
+### Phase 3: Infrastructure Migration
+
+Revenue from tiers funds the move from Spark/gemma4 to frontier models on cloud:
+1. **Now:** Spark + gemma4 (bootstrap, zero inference cost)
+2. **Revenue:** Stripe + paid tiers fund the transition
+3. **Scale:** Frontier models on cloud (faster, smarter, concurrent)
+
+**No desktop/local hybrid.** Platform never leaves our infrastructure. That's the moat.
+
+---
+
+## Completed Efforts (31)
+
+### Core Engine
+| Effort | What it did |
+|---|---|
+| `auth-bootstrap` | JWT auth, RBAC, admin middleware |
+| `llm-reasoning-capture` | Capture reasoning on every LLM call |
+| `see-your-reasoning` | Render reasoning in prediction modal |
+| `calibration-drilldown` | Per-instrument accuracy, scatter, wrong-first list |
+| `analyst-contracts` | Structured markdown contracts for 7 analysts |
+| `tier-2-audit` | Contract-vs-output audit, admin findings inbox |
+| `day-trader-contracts` | Contracts for 3 day trader strategies |
+| `automated-meta-loop` | Audit policy evolves from accept/reject feedback |
+| `tier-1-structured-writes` | Autonomous adaptations into context_markdown |
+| `tier3-strategic-overhauls` | Full contract rewrites with canonical test validation |
+| `user-scoped-platform` | Replaced org-slug with user_id ownership (117 files) |
+
+### Professional Polish
+| Effort | What it did |
+|---|---|
+| `harden-monitor` | 40 issues fixed across 89 files |
+| `dead-table-cleanup` | Dropped legacy tables |
+| `beta-user-share-path` | Invite signup, mutation guards, canWrite composable |
+| `leaderboard-calibration-affordance` | One-click from leaderboard to drilldown |
+| `contract-editor-ui` | Admin contract editor with version history, diff, rollback |
+| `risk-debate-drilldown` | Expandable reasoning panels on debate columns |
+| `user-analyst-affinity` | Affinity scoring, contrarian alerts, personalization |
+| `notification-system` | Unified notification bell, 5 event producers, SSE |
+| `fear-greed-alerting` | Sentiment crowd reaction alerts |
+| `multi-analyst-coordination` | Correlation matrix, coverage gaps, contribution scoring |
+| `performance-dashboard` | Equity curves, PnL summary, analyst leaderboard |
+| `mobile-polish` | Responsive layouts 375px–1440px |
+
+### Social / Game Layer
+| Effort | What it did |
+|---|---|
+| `messaging-system` | DMs, channels, threads, reactions, attachments, moderation |
+| `tournament-system` | Paper-trading competitions, isolated portfolios, leaderboards |
+| `learning-clubs` | Clubs, invites, challenges, polls, journals, analytics |
+| `public-club-rankings` | Cross-club leaderboards, badges, comparison |
+| `curriculum-builder` | Multi-week courses, auto-unlock, professor dashboard |
+| `mentor-mentee-pairing` | Mentor eligibility, pairing, feedback, leaderboard |
+
+### Testing & Marketing (this session)
+| Effort | What it did |
+|---|---|
+| 14 test efforts | API + Chrome verification of every feature area |
+| Marketing compilation | Landing page copy, 15-feature inventory, 4 personas |
+| Nav redesign | Grouped sidebar, admin-only sections, notification cleanup |
+| Landing page | Public page at /welcome with hero, features, how-it-works |
+| Fix orphaned evaluations | Remapped 3,036 instrument IDs, fixed contributions + findings |
+| Tournament competitive loop | St. Thomas Sprint #1 with 3 players, 6 trades |
+| Friend invite flow | One-step /join page with club code signup |
 
 ---
 
 ## How This Document Is Maintained
 
-- **Updated by the `/roadmap` skill** whenever the user wants to discuss, reprioritize, or add/remove efforts.
-- **Updated at effort transitions:** when an effort completes and archives, the skill moves it to Completed, promotes the next effort to Current, and adjusts the dependency graph.
-- **Not a plan.** This document captures *what* and *why* and *in what order*. The *how* lives in each effort's intention → PRD → plan chain.
+- Updated whenever efforts complete or priorities change
+- Each effort has its own `intention.md` → `plan.md` chain in `docs/efforts/`
+- `current/` = in progress, `next/` = queued, `future/` = planned but not scheduled
