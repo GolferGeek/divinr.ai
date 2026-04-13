@@ -116,7 +116,8 @@ export class ClubMentorService {
     if (win_rate !== null && win_rate < 50) reasons.push(`Need at least 50% win rate (have ${win_rate.toFixed(1)}%)`);
     if (win_rate === null && tournament_count > 0) reasons.push('No closed positions yet — complete some trades');
 
-    const eligible = tournament_count >= 2 && (win_rate === null || win_rate >= 50);
+    // Must have 2+ tournaments AND a measurable win rate >= 50%
+    const eligible = tournament_count >= 2 && win_rate !== null && win_rate >= 50;
 
     return { eligible, tournament_count, win_rate, avg_return_pct, reasons };
   }
@@ -394,6 +395,8 @@ export class ClubMentorService {
   }> {
     await this.schema.ensureSchema();
 
+    await this.clubService.requireMembership(clubId, userId);
+
     // Verify user is an approved mentor
     const mentorResult = await this.db.rawQuery(
       `SELECT id FROM prediction.club_mentors
@@ -471,6 +474,8 @@ export class ClubMentorService {
   }> {
     await this.schema.ensureSchema();
 
+    await this.clubService.requireMembership(clubId, userId);
+
     const pairingResult = await this.db.rawQuery(
       `SELECT p.*, m.user_id as mentor_user_id, u.display_name
        FROM prediction.club_mentor_pairings p
@@ -513,7 +518,7 @@ export class ClubMentorService {
     };
   }
 
-  async getMentorLeaderboard(clubId: string): Promise<Array<{
+  async getMentorLeaderboard(clubId: string, userId: string): Promise<Array<{
     mentor_id: string;
     user_id: string;
     display_name: string | null;
@@ -523,6 +528,7 @@ export class ClubMentorService {
     win_rate: number | null;
   }>> {
     await this.schema.ensureSchema();
+    await this.clubService.requireMembership(clubId, userId);
 
     const result = await this.db.rawQuery(
       `SELECT m.id as mentor_id, m.user_id, u.display_name,
@@ -549,6 +555,7 @@ export class ClubMentorService {
 
   async checkPendingFeedback(clubId: string, userId: string): Promise<Array<{ pairing_id: string; mentor_display_name: string | null; current_quarter: string }>> {
     await this.schema.ensureSchema();
+    await this.clubService.requireMembership(clubId, userId);
 
     const now = new Date();
     const quarter = Math.ceil((now.getMonth() + 1) / 3);

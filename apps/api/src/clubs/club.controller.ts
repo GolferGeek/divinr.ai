@@ -467,8 +467,8 @@ export class ClubController {
 
   @Get(':id/mentoring/leaderboard')
   async getMentorLeaderboard(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
-    this.getUser(req);
-    try { return await this.mentorService.getMentorLeaderboard(id); }
+    const user = this.getUser(req);
+    try { return await this.mentorService.getMentorLeaderboard(id, user.id); }
     catch (err) { this.handleError(err); }
   }
 

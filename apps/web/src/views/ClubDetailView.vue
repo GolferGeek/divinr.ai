@@ -13,14 +13,16 @@ const route = useRoute();
 const router = useRouter();
 const id = computed(() => route.params.id as string);
 const tab = ref<'members' | 'tournaments' | 'analysts' | 'activities' | 'analytics' | 'curriculum' | 'mentoring'>('members');
-const feedbackRating = ref(0);
-const feedbackComment = ref('');
+const feedbackRatings = ref<Record<string, number>>({});
+const feedbackComments = ref<Record<string, string>>({});
+const selectedMentorForPairing = ref<Record<string, string>>({});
 const inviteCode = ref('');
 const showInvite = ref(false);
 
 onMounted(async () => {
   await store.fetchClub(id.value);
   await store.fetchMembers(id.value);
+  mentorStore.fetchLeaderboard(id.value);
 });
 
 function loadTab(t: string) {
@@ -39,11 +41,20 @@ async function requestMentorAction() {
   try { await mentorStore.requestMentor(id.value); } catch { /* error in store */ }
 }
 async function submitFeedbackAction(pairingId: string) {
-  if (feedbackRating.value < 1) return;
+  const rating = feedbackRatings.value[pairingId] ?? 0;
+  if (rating < 1) return;
   try {
-    await mentorStore.submitFeedback(id.value, pairingId, feedbackRating.value, feedbackComment.value || undefined);
-    feedbackRating.value = 0;
-    feedbackComment.value = '';
+    await mentorStore.submitFeedback(id.value, pairingId, rating, feedbackComments.value[pairingId] || undefined);
+    delete feedbackRatings.value[pairingId];
+    delete feedbackComments.value[pairingId];
+  } catch { /* error in store */ }
+}
+async function pairMentorAction(menteeUserId: string) {
+  const mentorId = selectedMentorForPairing.value[menteeUserId];
+  if (!mentorId) return;
+  try {
+    await mentorStore.pairMentor(id.value, mentorId, menteeUserId);
+    delete selectedMentorForPairing.value[menteeUserId];
   } catch { /* error in store */ }
 }
 
@@ -95,6 +106,7 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
         <IonCardContent class="member-row">
           <strong>{{ m.display_name || m.user_id.slice(0, 8) }}</strong>
           <IonChip :color="m.role === 'owner' ? 'primary' : m.role === 'admin' ? 'tertiary' : 'medium'" size="small">{{ m.role }}</IonChip>
+          <IonChip v-if="mentorStore.leaderboard.some(mt => mt.user_id === m.user_id)" color="success" size="small">Mentor</IonChip>
         </IonCardContent>
       </IonCard>
     </div>
@@ -210,10 +222,12 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
         <IonCardContent>
           <strong>Rate your mentor {{ fb.mentor_display_name || '' }} ({{ fb.current_quarter }})</strong>
           <div class="rating-row">
-            <IonButton v-for="n in 5" :key="n" size="small" :fill="feedbackRating >= n ? 'solid' : 'outline'" @click="feedbackRating = n">{{ n }}</IonButton>
+            <IonButton v-for="n in 5" :key="n" size="small"
+              :fill="(feedbackRatings[fb.pairing_id] ?? 0) >= n ? 'solid' : 'outline'"
+              @click="feedbackRatings[fb.pairing_id] = n">{{ n }}</IonButton>
           </div>
-          <input v-model="feedbackComment" placeholder="Optional comment" class="feedback-input" />
-          <IonButton size="small" @click="submitFeedbackAction(fb.pairing_id)" :disabled="feedbackRating < 1">Submit</IonButton>
+          <input :value="feedbackComments[fb.pairing_id] ?? ''" @input="feedbackComments[fb.pairing_id] = ($event.target as HTMLInputElement).value" placeholder="Optional comment" class="feedback-input" />
+          <IonButton size="small" @click="submitFeedbackAction(fb.pairing_id)" :disabled="(feedbackRatings[fb.pairing_id] ?? 0) < 1">Submit</IonButton>
         </IonCardContent>
       </IonCard>
 
@@ -240,6 +254,15 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
           <IonCardContent class="app-row">
             <strong>{{ req.display_name || req.user_id.slice(0, 8) }}</strong>
             <IonNote>Requested {{ new Date(req.requested_at).toLocaleDateString() }}</IonNote>
+            <div class="pair-controls">
+              <select class="mentor-select" :value="selectedMentorForPairing[req.user_id] ?? ''" @change="selectedMentorForPairing[req.user_id] = ($event.target as HTMLSelectElement).value">
+                <option value="">Select mentor...</option>
+                <option v-for="m in mentorStore.leaderboard" :key="m.mentor_id" :value="m.mentor_id">
+                  {{ m.display_name || m.user_id.slice(0, 8) }} ({{ m.mentee_count }}/3)
+                </option>
+              </select>
+              <IonButton size="small" color="primary" :disabled="!selectedMentorForPairing[req.user_id]" @click="pairMentorAction(req.user_id)">Pair</IonButton>
+            </div>
           </IonCardContent>
         </IonCard>
       </div>
@@ -283,4 +306,6 @@ h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1.1rem; }
 .feedback-card { border-left: 3px solid var(--ion-color-primary); }
 .rating-row { display: flex; gap: 0.25rem; margin: 0.5rem 0; }
 .feedback-input { width: 100%; padding: 0.5rem; border: 1px solid var(--ion-color-light-shade); border-radius: 4px; margin-bottom: 0.5rem; }
+.pair-controls { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+.mentor-select { padding: 0.4rem; border: 1px solid var(--ion-color-light-shade); border-radius: 4px; font-size: 0.85rem; }
 </style>
