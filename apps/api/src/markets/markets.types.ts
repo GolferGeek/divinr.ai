@@ -761,7 +761,12 @@ export type NotificationEventType =
   | 'nightly_eval'
   | 'contrarian_alert'
   | 'fear_greed_alert'
-  | 'mention';
+  | 'mention'
+  | 'tournament_starting'
+  | 'tournament_started'
+  | 'tournament_ended'
+  | 'tournament_rank_change'
+  | 'tournament_results';
 
 export type NotificationUrgency = 'immediate' | 'actionable' | 'informational';
 

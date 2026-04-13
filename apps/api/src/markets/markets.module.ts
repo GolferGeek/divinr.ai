@@ -41,6 +41,8 @@ import { CoordinationService } from './services/coordination.service';
 import { PerformanceService } from './services/performance.service';
 import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { MessagingService } from '../messaging/messaging.service';
+import { TournamentSchemaService } from '../tournaments/tournament-schema.service';
+import { TournamentPortfolioService } from '../tournaments/tournament-portfolio.service';
 import { PolygonAdapter } from './adapters/polygon.adapter';
 import { FmpAdapter } from './adapters/fmp.adapter';
 import { TwelveDataAdapter } from './adapters/twelve-data.adapter';
@@ -100,6 +102,8 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     MarketsService,
     MessagingSchemaService,
     MessagingService,
+    TournamentSchemaService,
+    TournamentPortfolioService,
   ],
   exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService],
 })

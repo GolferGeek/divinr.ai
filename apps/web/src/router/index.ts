@@ -46,6 +46,12 @@ export const router = createRouter({
         { path: 'coordination', name: 'coordination', component: () => import('../views/CoordinationView.vue') },
         { path: 'messages', name: 'messages', component: () => import('../views/MessagesView.vue') },
         { path: 'messages/:channelId', name: 'messages-channel', component: () => import('../views/MessagesView.vue') },
+        { path: 'tournaments', name: 'tournaments', component: () => import('../views/TournamentsView.vue') },
+        { path: 'tournaments/create', name: 'tournament-create', component: () => import('../views/TournamentCreateView.vue') },
+        { path: 'tournaments/history', name: 'tournament-history', component: () => import('../views/TournamentHistoryView.vue') },
+        { path: 'tournaments/invite/:token', name: 'tournament-invite', component: () => import('../views/TournamentInviteView.vue') },
+        { path: 'tournaments/:id', name: 'tournament-detail', component: () => import('../views/TournamentDetailView.vue') },
+        { path: 'tournaments/:id/results', name: 'tournament-results', component: () => import('../views/TournamentResultsView.vue') },
       ],
     },
     {

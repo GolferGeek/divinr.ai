@@ -20,6 +20,7 @@ import { InternalIdentityLinkService } from '@orchestratorai/planes/auth/service
 import { HealthController } from './health.controller';
 import { MarketsModule } from './markets/markets.module';
 import { A2AModule } from './a2a/a2a.module';
+import { TournamentModule } from './tournaments/tournament.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuthController } from './auth/auth.controller';
 import { InviteService } from './auth/invite.service';
@@ -39,6 +40,7 @@ import { InviteService } from './auth/invite.service';
     ObservabilityPlaneModule,
     MarketsModule,
     A2AModule,
+    TournamentModule,
   ],
   controllers: [HealthController, AuthController],
   providers: [

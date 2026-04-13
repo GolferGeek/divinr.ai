@@ -10,6 +10,7 @@ import { PositionSizingService } from './position-sizing.service';
 import { NightlyEvaluationService } from './nightly-evaluation.service';
 import { LearningEngineService } from './learning-engine.service';
 import { EodForcedBuyService } from './eod-forced-buy.service';
+import { TournamentPortfolioService } from '../../tournaments/tournament-portfolio.service';
 import type { EodSettlementLog } from '../markets.types';
 
 /**
@@ -39,6 +40,7 @@ export class EodSettlementService {
     @Inject(NightlyEvaluationService) private readonly nightlyEval: NightlyEvaluationService,
     @Inject(LearningEngineService) private readonly learningEngine: LearningEngineService,
     @Inject(EodForcedBuyService) private readonly eodForcedBuy: EodForcedBuyService,
+    @Inject(TournamentPortfolioService) private readonly tournamentPortfolio: TournamentPortfolioService,
   ) {}
 
   /** Cron: 5 PM ET Mon-Fri (22:00 UTC). Disable with MARKETS_DISABLE_EOD_SETTLEMENT=true */
@@ -139,7 +141,25 @@ export class EodSettlementService {
         log.errors.push(`Learning: ${err instanceof Error ? err.message : String(err)}`);
       }
 
-      // Step 6.5: Daily P&L snapshots — feeds /portfolios sparkline.
+      // Step 6.5: Tournament settlement — execute queued tournament trades and update PnL.
+      // Failure-isolated: tournament errors never roll back main settlement.
+      try {
+        const tournQueueResult = await this.tournamentPortfolio.executeQueuedTournamentTrades(closingPrices);
+        if (tournQueueResult.executed > 0 || tournQueueResult.errors.length > 0) {
+          this.logger.log(
+            `Tournament EOD: ${tournQueueResult.executed} trades executed, ${tournQueueResult.errors.length} errors`,
+          );
+          log.errors.push(...tournQueueResult.errors);
+        }
+        const tournPnlUpdated = await this.tournamentPortfolio.updateTournamentUnrealizedPnl(closingPrices);
+        if (tournPnlUpdated > 0) {
+          this.logger.log(`Tournament PnL: updated ${tournPnlUpdated} positions`);
+        }
+      } catch (err) {
+        log.errors.push(`Tournament settlement: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      // Step 6.6: Daily P&L snapshots — feeds /portfolios sparkline.
       // Failure-isolated: errors are logged but never roll back settlement.
       try {
         const snapResult = await this.writeDailySnapshots(closingPrices);

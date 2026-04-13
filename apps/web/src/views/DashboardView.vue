@@ -12,6 +12,7 @@ import { useInstrumentsStore } from '../stores/instruments.store';
 import { useDomainStore } from '../stores/domain.store';
 import AnalystPredictionModal from '../components/AnalystPredictionModal.vue';
 import { useAffinityStore } from '../stores/affinity.store';
+import { useTournamentStore } from '../stores/tournament.store';
 import ContrarianAlert from '../components/ContrarianAlert.vue';
 
 interface AnalystStance {
@@ -104,9 +105,12 @@ function openTradeModal(pred: DashboardPrediction) {
   modalOpen.value = true;
 }
 
+const tournamentStore = useTournamentStore();
+
 onMounted(async () => {
   await instruments.fetch().catch(() => {});
   affinityStore.fetchAffinityProfile().catch(() => {});
+  tournamentStore.fetchMyEntries().catch(() => {});
   try {
     predictions.value = await get<DashboardPrediction[]>('/predictions/dashboard');
   } catch { /* empty */ }
@@ -188,6 +192,22 @@ function timeAgo(dateStr: string): string {
   <div>
     <h1>{{ domain.dashboardLayout?.title ?? 'Dashboard' }}</h1>
     <ion-note>{{ domain.activeDomain }} / {{ domain.activeUniverse }}</ion-note>
+
+    <!-- Your Tournaments -->
+    <IonCard v-if="tournamentStore.myEntries.length > 0" class="tournament-dashboard-card">
+      <IonCardHeader>
+        <IonCardTitle>Your Tournaments</IonCardTitle>
+      </IonCardHeader>
+      <IonCardContent>
+        <div v-for="entry in tournamentStore.myEntries" :key="entry.id" class="tournament-entry"
+          @click="router.push(`/tournaments/${entry.tournament_id}`)" role="link" tabindex="0">
+          <strong>{{ entry.tournament_name }}</strong>
+          <IonChip size="small" :color="entry.tournament_status === 'active' ? 'success' : 'warning'">
+            {{ entry.tournament_status }}
+          </IonChip>
+        </div>
+      </IonCardContent>
+    </IonCard>
 
     <!-- Contrarian Alerts -->
     <ContrarianAlert />
