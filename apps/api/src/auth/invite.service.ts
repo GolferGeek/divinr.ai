@@ -193,7 +193,7 @@ export class InviteService {
           password,
           displayName: displayName ?? email.split('@')[0],
           roles: [invite.role_name],
-          emailConfirm: false,
+          emailConfirm: true,
         },
         invite.created_by,
       );
