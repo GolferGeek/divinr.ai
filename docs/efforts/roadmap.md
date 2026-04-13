@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-12
+**Last updated:** 2026-04-13
 **Maintained by:** `/roadmap` skill
 
 ## Vision
@@ -51,41 +51,47 @@ Divinr's core promise is **explainability over black-box trading bots**. The sys
 | `performance-dashboard` | Subscriber-facing performance view: equity curve with SPY benchmark overlay, PnL summary, analyst leaderboard with trend indicators, key metrics cards. Single aggregation endpoint (6 parallel queries, no new tables). 33 new tests. | `docs/efforts/performance-dashboard/` |
 | `mobile-polish` | Responsive layouts across 22+ views (375px–1024px), iOS safe-area handling, Capacitor status-bar/splash-screen, touch targets ≥44px, Electron menu bar + window state persistence. | `docs/efforts/mobile-polish/` |
 | `messaging-system` | Full messaging: DMs, club/tournament/system channels, threaded replies, emoji reactions, pinned messages, entity attachments (5 types), @mentions with notifications, soft-delete moderation. 107 new tests. | `docs/efforts/messaging-system/` |
+| `tournament-system` | Paper-trading competitions with 3 scopes (system, club, invitation). Isolated portfolios, live leaderboards, lifecycle automation, invite flow, 6 frontend views. 123 test assertions. | `docs/efforts/tournament-system/` |
 
 ---
 
 ## Current Effort
 
-**Tournament System** (`docs/efforts/current/tournament-system/`) — Paper-trading competitions using AI analyst signals. Three scopes: system (official), club (private), invitation (friends). Weekly sprints, sector challenges, analyst drafts. Virtual money only — explicitly a game, not investment advice.
+*No current effort.* `docs/efforts/current/` is empty. The next effort in the queue is **Learning Clubs**.
 
 ---
 
-## Phase 1 Status: CORE DEVELOPMENT COMPLETE
+## Phase 1 Status: SOCIAL/GAME LAYER IN PROGRESS
 
-All Phase 1 core analysis/trading features are shipped. Three feature efforts remain — messaging, tournaments, and clubs — the social/competitive/learning layer that makes Divinr a game and a community, not just a tool. After those ship, a systematic testing and marketing pass covers every feature area.
+Core analysis/trading features are shipped. Messaging and tournaments are shipped. Clubs are in progress — the final piece of the social/game layer. After clubs, four community-depth efforts (rankings, paid tiers, curriculum, mentoring) complete the differentiator: **AI analysis + clubs + tournaments + structured learning** — nothing else combines all of these. Then testing and marketing.
 
 ## Next Efforts
 
-### Feature Development
+### Community Depth (post-clubs, pre-testing)
 
-1. **Learning Clubs** (`docs/efforts/next/learning-clubs/`) — Groups of users learning together. Club analysts (custom AI analysts scoped to the club), club tournaments, prediction challenges, consensus polls, post-mortems, strategy journals. Multiple admin roles. For university courses, Discord communities, friend groups.
+These ship immediately after Learning Clubs. They're what makes the product demo-ready and differentiated.
+
+1. **Public Club Rankings** (`docs/efforts/next/public-club-rankings/`) — Cross-club leaderboards, club badges ("Top 10%", "Rising"), comparison view, discovery sort by performance. Creates inter-club competition.
+2. **Curriculum Builder** (`docs/efforts/next/curriculum-builder/`) — Structured multi-week courses for university/org clubs. Weekly modules with sequenced activities, auto-unlock, progress tracking, professor dashboard. The university sales pitch.
+3. **Mentor/Mentee Pairing** (`docs/efforts/next/mentor-mentee-pairing/`) — Experienced members guide new ones within clubs. Eligibility criteria, admin-matched pairing, mentor dashboard, DM channels, recognition badges. The retention flywheel.
+4. **Paid Club Tiers** (`docs/efforts/next/paid-club-tiers/`) — Free/Pro/University pricing. More analysts, more members, advanced analytics, Stripe billing. The revenue model.
 
 ### Testing & Marketing Readiness
 
 Each effort covers Chrome-based testing, API verification, and a marketing blurb for that feature area. The final effort compiles all blurbs into cohesive materials. Order is foundation-first.
 
-3. **Test: Auth & User Management** (`docs/efforts/next/test-auth-user-management/`) — Login, invite signup, RBAC, beta readers, user scoping
-4. **Test: Prediction Pipeline** (`docs/efforts/next/test-prediction-pipeline/`) — Queue analysis, analyst stances, arbitrator synthesis, reasoning capture
-5. **Test: Analyst Contracts & Editor** (`docs/efforts/next/test-analyst-contracts/`) — Contracts, versioning, diff view, editor, rollback
-6. **Test: Calibration & Performance** (`docs/efforts/next/test-calibration-performance/`) — Performance dashboard, equity curve, leaderboard, analyst drilldown, scatter
-7. **Test: Risk Analysis & Debate** (`docs/efforts/next/test-risk-analysis/`) — Risk dimensions, composite score, bull/bear debate, reasoning panels
-8. **Test: Three-Tier Learning Loop** (`docs/efforts/next/test-learning-loop/`) — Tier 1 autonomous, Tier 2 audit/findings, Tier 3 proposals
-9. **Test: Trading & Portfolios** (`docs/efforts/next/test-trading-portfolios/`) — Portfolio dashboard, positions, trade queue, PnL, recommendations
-10. **Test: User Analyst Affinity** (`docs/efforts/next/test-user-intelligence/`) — Affinity scores, contrarian alerts, dashboard personalization
-11. **Test: Notifications & Alerts** (`docs/efforts/next/test-notifications-alerts/`) — Notification bell, alert list, fear/greed alerts, SSE real-time
-12. **Test: Multi-Analyst Coordination** (`docs/efforts/next/test-coordination/`) — Correlation matrix, coverage gaps, contribution scores
-13. **Test: Mobile & Desktop** (`docs/efforts/next/test-mobile-desktop/`) — Responsive layouts at all viewports, Electron app, iOS/Capacitor
-14. **Marketing Compilation** (`docs/efforts/next/marketing-compilation/`) — Compile all marketing blurbs into landing page copy, feature inventory, differentiation narrative
+5. **Test: Auth & User Management** (`docs/efforts/next/test-auth-user-management/`) — Login, invite signup, RBAC, beta readers, user scoping
+6. **Test: Prediction Pipeline** (`docs/efforts/next/test-prediction-pipeline/`) — Queue analysis, analyst stances, arbitrator synthesis, reasoning capture
+7. **Test: Analyst Contracts & Editor** (`docs/efforts/next/test-analyst-contracts/`) — Contracts, versioning, diff view, editor, rollback
+8. **Test: Calibration & Performance** (`docs/efforts/next/test-calibration-performance/`) — Performance dashboard, equity curve, leaderboard, analyst drilldown, scatter
+9. **Test: Risk Analysis & Debate** (`docs/efforts/next/test-risk-analysis/`) — Risk dimensions, composite score, bull/bear debate, reasoning panels
+10. **Test: Three-Tier Learning Loop** (`docs/efforts/next/test-learning-loop/`) — Tier 1 autonomous, Tier 2 audit/findings, Tier 3 proposals
+11. **Test: Trading & Portfolios** (`docs/efforts/next/test-trading-portfolios/`) — Portfolio dashboard, positions, trade queue, PnL, recommendations
+12. **Test: User Analyst Affinity** (`docs/efforts/next/test-user-intelligence/`) — Affinity scores, contrarian alerts, dashboard personalization
+13. **Test: Notifications & Alerts** (`docs/efforts/next/test-notifications-alerts/`) — Notification bell, alert list, fear/greed alerts, SSE real-time
+14. **Test: Multi-Analyst Coordination** (`docs/efforts/next/test-coordination/`) — Correlation matrix, coverage gaps, contribution scores
+15. **Test: Mobile & Desktop** (`docs/efforts/next/test-mobile-desktop/`) — Responsive layouts at all viewports, Electron app, iOS/Capacitor
+16. **Marketing Compilation** (`docs/efforts/next/marketing-compilation/`) — Compile all marketing blurbs into landing page copy, feature inventory, differentiation narrative
 
 ---
 
@@ -152,7 +158,7 @@ see-your-reasoning────┤
   │                                   │
   │  ── Social / Game Layer ──        │
   │  messaging-system ✅              │
-  │  tournament-system                │
+  │  tournament-system ✅             │
   │  learning-clubs (+ club analysts) │
   │                                   │
   │  ── Testing & Marketing Pass ──   │
