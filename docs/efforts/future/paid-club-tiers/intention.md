@@ -8,6 +8,19 @@ Divinr is free during beta. We need a revenue model that gives users control ove
 
 Every analyst, instrument, and source is tagged with a tier level (1-4). Users get a number of **slots** per resource type based on their subscription. They choose what fills those slots and can swap anytime.
 
+### Launch vs. Growth
+
+**This is our launch catalog.** During beta and early launch we're limited by Spark/gemma4 infrastructure — fewer analysts, fewer instruments, mostly free data sources.
+
+As we move out of beta and onto frontier-model infrastructure on cloud, every tier's catalog will grow:
+- More analysts (specialized strategies, frontier-model powered)
+- More instruments (full S&P 500, international, crypto, commodities)
+- More data sources (institutional-grade feeds)
+
+**Slot counts stay the same at each tier. The pool you pick from gets bigger.** Early subscribers grandfather into platform growth — a Starter user today gets access to tomorrow's expanded tier-1 catalog at the same price.
+
+**Marketing language for launch:** "Our launch tiers reflect what we can deliver today on beta infrastructure. As we scale to frontier models and institutional data, your catalog grows with us."
+
 ### Tiers
 
 | Tier | Price | Analyst Slots | Instrument Slots | Source Slots |
