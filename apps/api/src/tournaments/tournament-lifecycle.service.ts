@@ -175,9 +175,9 @@ export class TournamentLifecycleService {
           const existing = await this.db.rawQuery(
             `SELECT id FROM prediction.notifications
              WHERE user_id = $1 AND event_type = 'tournament_starting'
-               AND link_to = $2 AND title LIKE $3
+               AND link_to = $2 AND POSITION($3 IN title) > 0
              LIMIT 1`,
-            [entry.user_id, `/tournaments/${tournament.id}`, `%${window.label}%`],
+            [entry.user_id, `/tournaments/${tournament.id}`, window.label],
           );
           if (((existing.data as Array<unknown> | null) ?? []).length > 0) continue;
 

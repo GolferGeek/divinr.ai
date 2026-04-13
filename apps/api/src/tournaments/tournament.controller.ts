@@ -217,7 +217,9 @@ export class TournamentController {
     @Req() req: { user?: AuthenticatedUser },
     @Param('id') id: string,
   ) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    const tournament = await this.tournamentService.getTournament(id, user.id);
+    if (!tournament) throw new NotFoundException('Tournament not found');
     return this.leaderboardService.getLeaderboard(id);
   }
 
@@ -226,7 +228,9 @@ export class TournamentController {
     @Req() req: { user?: AuthenticatedUser },
     @Param('id') id: string,
   ) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    const tournament = await this.tournamentService.getTournament(id, user.id);
+    if (!tournament) throw new NotFoundException('Tournament not found');
     const results = await this.leaderboardService.getResults(id);
     if (!results) throw new NotFoundException('Results not available — tournament not completed');
     return results;
@@ -282,7 +286,9 @@ export class TournamentController {
     @Req() req: { user?: AuthenticatedUser },
     @Param('id') id: string,
   ) {
-    this.getUser(req);
+    const user = this.getUser(req);
+    const tournament = await this.tournamentService.getTournament(id, user.id);
+    if (!tournament) throw new NotFoundException('Tournament not found');
     return this.portfolioService.listEntries(id);
   }
 
