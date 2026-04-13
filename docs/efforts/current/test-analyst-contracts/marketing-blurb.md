@@ -1,0 +1,3 @@
+# Analyst Contracts & Editor — Marketing Blurb
+
+Every AI analyst in Divinr operates under a written contract that defines its analytical philosophy, decision criteria, known failure modes, and reasoning patterns. You can read exactly why the Fundamentals Analyst checks three metrics before forming a view, or why the Sentiment Analyst flags divergence between retail euphoria and institutional positioning. Contracts are versioned with a full audit trail — you can diff any two versions side-by-side to see what changed and why. This isn't a black box; it's an open playbook you can inspect, edit, and hold accountable.
