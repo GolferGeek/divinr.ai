@@ -265,14 +265,13 @@ Output ONLY the policy text. No preamble.`;
               af.severity, af.status, af.created_at,
               ma.display_name as analyst_name, ma.slug as analyst_slug,
               i.symbol,
-              mp.predicted_direction, mp.confidence,
+              phe.predicted_direction, phe.confidence_at_prediction as confidence,
               phe.actual_direction, phe.was_correct, phe.evaluation_date,
               (phe.actual_outcome_data->>'changePercent')::numeric as change_percent,
-              mp.created_at as prediction_date
+              phe.prediction_date as prediction_date
        FROM prediction.audit_findings af
        JOIN prediction.market_analysts ma ON ma.id = af.analyst_id
-       JOIN prediction.market_predictions mp ON mp.id = af.prediction_id
-       JOIN prediction.prediction_horizon_evaluations phe ON phe.prediction_id = af.prediction_id
+       LEFT JOIN prediction.prediction_horizon_evaluations phe ON phe.prediction_id = af.prediction_id
        LEFT JOIN prediction.instruments i ON i.id = phe.instrument_id
        WHERE af.status = 'pending_review'
        ORDER BY af.created_at DESC`,

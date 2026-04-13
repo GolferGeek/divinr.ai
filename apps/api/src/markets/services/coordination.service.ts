@@ -233,17 +233,10 @@ export class CoordinationService {
     const sql = `
       select
         g.*,
-        coalesce(i.symbol, eval_sym.symbol) as instrument_symbol,
+        i.symbol as instrument_symbol,
         a.display_name as best_analyst_name
       from prediction.analyst_coverage_gaps g
       left join prediction.instruments i on i.id = g.instrument_id
-      left join lateral (
-        select distinct e.actual_outcome_data->>'symbol' as symbol
-        from prediction.prediction_horizon_evaluations e
-        where e.instrument_id = g.instrument_id
-          and e.actual_outcome_data->>'symbol' is not null
-        limit 1
-      ) eval_sym on true
       left join prediction.market_analysts a on a.id = g.best_analyst_id
       where ${conditions.join(' and ')}
       order by g.avg_accuracy asc
@@ -260,7 +253,9 @@ export class CoordinationService {
     const cutoff = this.periodToCutoff(period);
 
     // Step 1: Get all evaluated runs with their analyst predictions and arbitrator outcome.
-    // We use the deterministic majority-vote approach for leave-one-out simulation.
+    // Uses evaluation table directly (both arbitrator and analyst rows) instead of
+    // joining to market_predictions, which may not have matching run_ids for
+    // nightly-evaluation-seeded data.
     const fetchSql = `
       select
         e_arb.run_id,
@@ -268,17 +263,19 @@ export class CoordinationService {
         e_arb.was_correct as arbitrator_correct,
         e_arb.actual_direction,
         array_agg(json_build_object(
-          'analyst_id', p.analyst_id,
-          'direction', p.predicted_direction
+          'analyst_id', e_analyst.analyst_id,
+          'direction', e_analyst.predicted_direction
         )) as analyst_predictions
       from prediction.prediction_horizon_evaluations e_arb
-      join prediction.market_predictions p
-        on p.run_id = e_arb.run_id
-        and p.role = 'analyst'
-        and p.analyst_id is not null
+      join prediction.prediction_horizon_evaluations e_analyst
+        on e_analyst.run_id = e_arb.run_id
+        and e_analyst.instrument_id = e_arb.instrument_id
+        and e_analyst.horizon_window = e_arb.horizon_window
+        and e_analyst.analyst_id is not null
       where e_arb.analyst_id is null
         ${cutoff ? `and e_arb.created_at >= $1` : ''}
       group by e_arb.run_id, e_arb.instrument_id, e_arb.was_correct, e_arb.actual_direction
+      having count(e_analyst.id) >= 2
     `;
 
     const fetchParams: unknown[] = [];
