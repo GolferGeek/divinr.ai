@@ -180,15 +180,15 @@ function logout() {
               </ion-chip>
               <ion-button fill="clear" class="notification-bell fear-greed-bell" @click="router.push('/fear-greed-alerts')" v-if="fearGreedStore.unreadCount > 0">
                 <ion-icon :icon="warningOutline" />
-                <span class="notification-badge fear-greed-badge">{{ fearGreedStore.unreadCount }}</span>
+                <span class="notification-badge fear-greed-badge">{{ fearGreedStore.unreadCount > 9 ? '9+' : fearGreedStore.unreadCount }}</span>
               </ion-button>
               <ion-button fill="clear" class="notification-bell" @click="router.push('/messages')">
                 <ion-icon :icon="chatbubblesOutline" />
-                <span v-if="messagingStore.totalUnread > 0" class="notification-badge">{{ messagingStore.totalUnread }}</span>
+                <span v-if="messagingStore.totalUnread > 0" class="notification-badge">{{ messagingStore.totalUnread > 9 ? '9+' : messagingStore.totalUnread }}</span>
               </ion-button>
               <ion-button fill="clear" class="notification-bell" @click="router.push('/notifications')">
                 <ion-icon :icon="notificationsOutline" />
-                <span v-if="notificationStore.unreadCount > 0" class="notification-badge">{{ notificationStore.unreadCount }}</span>
+                <span v-if="notificationStore.unreadCount > 0" class="notification-badge">{{ notificationStore.unreadCount > 9 ? '9+' : notificationStore.unreadCount }}</span>
               </ion-button>
               <ion-chip v-if="auth.isBetaReader" color="warning" outline>
                 <ion-label>Read Only</ion-label>

@@ -506,15 +506,8 @@ export class TradeRecommendationService {
       JSON.stringify(tradeMetadata),
     ]);
 
-    if (input.computed.action !== 'hold') {
-      await this.notifications.notifyAllUsers({
-        event_type: 'trade_recommendation',
-        urgency: 'actionable',
-        title: `${input.symbol} ${input.computed.action.toUpperCase()} recommendation`,
-        summary: `${input.arbitratorDirection} direction, ${input.arbitratorConfidence}% confidence, ${(input.computed.positionPercent * 100).toFixed(1)}% position`,
-        link_to: '/portfolios',
-      }).catch(err => this.logger.warn(`Notification failed: ${err}`));
-    }
+    // Trade recommendations are visible on the dashboard and portfolios page.
+    // No notification needed — they'd flood the bell with hundreds of entries.
 
     return {
       id,
