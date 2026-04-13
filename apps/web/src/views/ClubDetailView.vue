@@ -4,13 +4,17 @@ import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote, IonSegment, IonSegmentButton, IonLabel } from '@ionic/vue';
 import { useClubStore } from '../stores/club.store';
 import { useCurriculumStore } from '../stores/curriculum.store';
+import { useMentorStore } from '../stores/mentor.store';
 
 const store = useClubStore();
 const curriculumStore = useCurriculumStore();
+const mentorStore = useMentorStore();
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => route.params.id as string);
-const tab = ref<'members' | 'tournaments' | 'analysts' | 'activities' | 'analytics' | 'curriculum'>('members');
+const tab = ref<'members' | 'tournaments' | 'analysts' | 'activities' | 'analytics' | 'curriculum' | 'mentoring'>('members');
+const feedbackRating = ref(0);
+const feedbackComment = ref('');
 const inviteCode = ref('');
 const showInvite = ref(false);
 
@@ -25,6 +29,22 @@ function loadTab(t: string) {
   if (t === 'activities') { store.fetchChallenges(id.value); store.fetchPolls(id.value); store.fetchJournals(id.value); }
   if (t === 'analytics') store.fetchAnalytics(id.value);
   if (t === 'curriculum') curriculumStore.fetchCurricula(id.value);
+  if (t === 'mentoring') { mentorStore.fetchStatus(id.value); mentorStore.fetchLeaderboard(id.value); mentorStore.checkEligibility(id.value); mentorStore.fetchPendingFeedback(id.value); }
+}
+
+async function applyMentor() {
+  try { await mentorStore.applyToMentor(id.value); } catch { /* error in store */ }
+}
+async function requestMentorAction() {
+  try { await mentorStore.requestMentor(id.value); } catch { /* error in store */ }
+}
+async function submitFeedbackAction(pairingId: string) {
+  if (feedbackRating.value < 1) return;
+  try {
+    await mentorStore.submitFeedback(id.value, pairingId, feedbackRating.value, feedbackComment.value || undefined);
+    feedbackRating.value = 0;
+    feedbackComment.value = '';
+  } catch { /* error in store */ }
 }
 
 async function generateInvite() {
@@ -66,6 +86,7 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
       <IonSegmentButton value="activities"><IonLabel>Activities</IonLabel></IonSegmentButton>
       <IonSegmentButton value="analytics"><IonLabel>Analytics</IonLabel></IonSegmentButton>
       <IonSegmentButton value="curriculum"><IonLabel>Curriculum</IonLabel></IonSegmentButton>
+      <IonSegmentButton value="mentoring"><IonLabel>Mentoring</IonLabel></IonSegmentButton>
     </IonSegment>
 
     <!-- Members Tab -->
@@ -143,6 +164,97 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
         </IonCardContent>
       </IonCard>
     </div>
+
+    <!-- Mentoring Tab -->
+    <div v-if="tab === 'mentoring'" class="tab-content">
+      <!-- Status Section -->
+      <div v-if="mentorStore.status" class="mentoring-status">
+        <!-- Active Mentor -->
+        <div v-if="mentorStore.status.is_mentor" class="status-card">
+          <IonChip color="primary">Mentor</IonChip>
+          <IonNote>{{ mentorStore.status.mentees.length }} active mentee(s)</IonNote>
+          <IonButton size="small" fill="outline" @click="router.push(`/clubs/${id}/mentoring/dashboard`)">Mentor Dashboard</IonButton>
+        </div>
+
+        <!-- Active Mentee -->
+        <div v-if="mentorStore.status.is_mentee && mentorStore.status.my_mentor" class="status-card">
+          <IonChip color="tertiary">Mentee</IonChip>
+          <IonNote>Mentor: <strong>{{ mentorStore.status.my_mentor.mentor_display_name || 'Mentor' }}</strong></IonNote>
+          <IonButton v-if="mentorStore.status.my_mentor.dm_channel_id" size="small" fill="outline"
+            @click="router.push(`/messages/${mentorStore.status.my_mentor.dm_channel_id}`)">Message Mentor</IonButton>
+        </div>
+
+        <!-- Pending Application -->
+        <div v-if="mentorStore.status.pending_application" class="status-card">
+          <IonChip color="warning">Application Pending</IonChip>
+          <IonNote>Waiting for admin approval</IonNote>
+        </div>
+
+        <!-- Pending Request -->
+        <div v-if="mentorStore.status.pending_request" class="status-card">
+          <IonChip color="warning">Mentor Request Pending</IonChip>
+        </div>
+
+        <!-- Actions for uninvolved members -->
+        <div v-if="!mentorStore.status.is_mentor && !mentorStore.status.pending_application && !mentorStore.status.is_mentee && !mentorStore.status.pending_request" class="action-buttons">
+          <IonButton v-if="mentorStore.eligibility?.eligible" size="small" fill="outline" @click="applyMentor">Apply to Mentor</IonButton>
+          <IonNote v-else-if="mentorStore.eligibility" class="eligibility-note">
+            Not yet eligible: {{ mentorStore.eligibility.reasons.join(', ') }}
+          </IonNote>
+          <IonButton size="small" fill="outline" @click="requestMentorAction">Request a Mentor</IonButton>
+        </div>
+      </div>
+
+      <!-- Feedback Prompt -->
+      <IonCard v-for="fb in mentorStore.pendingFeedback" :key="fb.pairing_id" class="feedback-card">
+        <IonCardContent>
+          <strong>Rate your mentor {{ fb.mentor_display_name || '' }} ({{ fb.current_quarter }})</strong>
+          <div class="rating-row">
+            <IonButton v-for="n in 5" :key="n" size="small" :fill="feedbackRating >= n ? 'solid' : 'outline'" @click="feedbackRating = n">{{ n }}</IonButton>
+          </div>
+          <input v-model="feedbackComment" placeholder="Optional comment" class="feedback-input" />
+          <IonButton size="small" @click="submitFeedbackAction(fb.pairing_id)" :disabled="feedbackRating < 1">Submit</IonButton>
+        </IonCardContent>
+      </IonCard>
+
+      <!-- Admin Section -->
+      <div v-if="store.activeClub.my_role === 'owner' || store.activeClub.my_role === 'admin'" class="admin-section">
+        <h3>Admin: Mentor Applications</h3>
+        <IonButton size="small" fill="clear" @click="mentorStore.fetchApplications(id)">Refresh</IonButton>
+        <div v-if="mentorStore.applications.length === 0" class="empty">No pending applications</div>
+        <IonCard v-for="app in mentorStore.applications" :key="app.id">
+          <IonCardContent class="app-row">
+            <strong>{{ app.display_name || app.user_id.slice(0, 8) }}</strong>
+            <IonNote>{{ app.tournament_count }} tournaments · {{ app.win_rate?.toFixed(1) ?? '?' }}% win rate</IonNote>
+            <div>
+              <IonButton size="small" color="success" @click="mentorStore.approveApplication(id, app.id)">Approve</IonButton>
+              <IonButton size="small" color="danger" fill="outline" @click="mentorStore.rejectApplication(id, app.id)">Reject</IonButton>
+            </div>
+          </IonCardContent>
+        </IonCard>
+
+        <h3>Admin: Mentee Requests</h3>
+        <IonButton size="small" fill="clear" @click="mentorStore.fetchRequests(id)">Refresh</IonButton>
+        <div v-if="mentorStore.requests.length === 0" class="empty">No pending requests</div>
+        <IonCard v-for="req in mentorStore.requests" :key="req.id">
+          <IonCardContent class="app-row">
+            <strong>{{ req.display_name || req.user_id.slice(0, 8) }}</strong>
+            <IonNote>Requested {{ new Date(req.requested_at).toLocaleDateString() }}</IonNote>
+          </IonCardContent>
+        </IonCard>
+      </div>
+
+      <!-- Mentor Leaderboard -->
+      <h3>Mentor Leaderboard</h3>
+      <div v-if="mentorStore.leaderboard.length === 0" class="empty">No mentors yet</div>
+      <IonCard v-for="m in mentorStore.leaderboard" :key="m.mentor_id">
+        <IonCardContent class="mentor-row">
+          <strong>{{ m.display_name || m.user_id.slice(0, 8) }}</strong>
+          <IonChip color="primary" size="small">Mentor</IonChip>
+          <IonNote>{{ m.mentee_count }} mentee(s) · Rating: {{ m.avg_rating?.toFixed(1) ?? 'N/A' }}</IonNote>
+        </IonCardContent>
+      </IonCard>
+    </div>
   </div>
 </template>
 
@@ -161,4 +273,14 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
 .stat-label { font-size: 0.8rem; color: var(--ion-color-medium); }
 .stat-value { font-size: 1.3rem; font-weight: 700; }
 h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1.1rem; }
+.mentoring-status { margin-bottom: 1rem; }
+.status-card { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+.action-buttons { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.eligibility-note { font-size: 0.85rem; color: var(--ion-color-medium); }
+.admin-section { margin-top: 1rem; }
+.app-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.mentor-row { display: flex; align-items: center; gap: 0.5rem; }
+.feedback-card { border-left: 3px solid var(--ion-color-primary); }
+.rating-row { display: flex; gap: 0.25rem; margin: 0.5rem 0; }
+.feedback-input { width: 100%; padding: 0.5rem; border: 1px solid var(--ion-color-light-shade); border-radius: 4px; margin-bottom: 0.5rem; }
 </style>

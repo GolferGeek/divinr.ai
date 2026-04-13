@@ -6,6 +6,7 @@ import { ClubAnalystService } from './club-analyst.service';
 import { ClubActivityService } from './club-activity.service';
 import { ClubAnalyticsService } from './club-analytics.service';
 import { ClubRankingService } from './club-ranking.service';
+import { ClubMentorService } from './club-mentor.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { NotificationService } from '../markets/services/notification.service';
@@ -20,6 +21,7 @@ import { MarketsSchemaService } from '../markets/schema/markets-schema.service';
     ClubActivityService,
     ClubAnalyticsService,
     ClubRankingService,
+    ClubMentorService,
     MessagingSchemaService,
     MessagingService,
     MarketsSchemaService,

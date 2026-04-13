@@ -55,6 +55,7 @@ export const router = createRouter({
         { path: 'clubs/:clubId/curricula/create', name: 'curriculum-create', component: () => import('../views/CurriculumCreateView.vue') },
         { path: 'clubs/:clubId/curricula/:id', name: 'curriculum-detail', component: () => import('../views/CurriculumDetailView.vue') },
         { path: 'clubs/:clubId/curricula/:id/dashboard', name: 'curriculum-dashboard', component: () => import('../views/CurriculumDashboardView.vue') },
+        { path: 'clubs/:clubId/mentoring/dashboard', name: 'mentor-dashboard', component: () => import('../views/MentorDashboardView.vue') },
         { path: 'tournaments', name: 'tournaments', component: () => import('../views/TournamentsView.vue') },
         { path: 'tournaments/create', name: 'tournament-create', component: () => import('../views/TournamentCreateView.vue') },
         { path: 'tournaments/history', name: 'tournament-history', component: () => import('../views/TournamentHistoryView.vue') },

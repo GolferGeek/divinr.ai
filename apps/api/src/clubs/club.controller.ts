@@ -22,6 +22,7 @@ import { ClubAnalystService } from './club-analyst.service';
 import { ClubActivityService } from './club-activity.service';
 import { ClubAnalyticsService } from './club-analytics.service';
 import { ClubRankingService } from './club-ranking.service';
+import { ClubMentorService } from './club-mentor.service';
 import type { CreateClubInput, UpdateClubInput } from './club.types';
 
 interface AuthenticatedUser {
@@ -40,6 +41,7 @@ export class ClubController {
     @Inject(ClubActivityService) private readonly activityService: ClubActivityService,
     @Inject(ClubAnalyticsService) private readonly analyticsService: ClubAnalyticsService,
     @Inject(ClubRankingService) private readonly rankingService: ClubRankingService,
+    @Inject(ClubMentorService) private readonly mentorService: ClubMentorService,
   ) {}
 
   private getUser(req: { user?: AuthenticatedUser }): AuthenticatedUser {
@@ -368,5 +370,122 @@ export class ClubController {
   async listJournals(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
     const user = this.getUser(req);
     return this.activityService.listJournals(id, user.id);
+  }
+
+  // ─── Mentoring ─────────────────────────────────────────────────
+
+  @Get(':id/mentoring/eligibility')
+  async checkMentorEligibility(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    try { return await this.mentorService.checkEligibility(id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Post(':id/mentoring/apply')
+  async applyToMentor(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    try { return await this.mentorService.applyToMentor(id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Get(':id/mentoring/applications')
+  async listMentorApplications(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    try { return await this.mentorService.listApplications(id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Post(':id/mentoring/applications/:mentorId/approve')
+  async approveMentorApplication(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string, @Param('mentorId') mentorId: string) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    try { await this.mentorService.approveApplication(id, mentorId, user.id); return { approved: true }; }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Post(':id/mentoring/applications/:mentorId/reject')
+  async rejectMentorApplication(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string, @Param('mentorId') mentorId: string) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    try { await this.mentorService.rejectApplication(id, mentorId, user.id); return { rejected: true }; }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Post(':id/mentoring/request')
+  async requestMentor(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    try { return await this.mentorService.requestMentor(id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Get(':id/mentoring/requests')
+  async listMenteeRequests(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    try { return await this.mentorService.listRequests(id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Post(':id/mentoring/pair')
+  async pairMentorToMentee(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string, @Body() body: { mentor_id: string; mentee_user_id: string }) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    if (!body?.mentor_id || !body?.mentee_user_id) throw new BadRequestException('mentor_id and mentee_user_id are required');
+    try { return await this.mentorService.pairMentorToMentee(id, body.mentor_id, body.mentee_user_id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Post(':id/mentoring/pairings/:pairingId/end')
+  async endMentorPairing(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string, @Param('pairingId') pairingId: string) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    try { await this.mentorService.endPairing(id, pairingId, user.id); return { ended: true }; }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Get(':id/mentoring/status')
+  async getMentoringStatus(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    try { return await this.mentorService.getMentoringStatus(id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Get(':id/mentoring/mentor-dashboard')
+  async getMentorDashboard(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    try { return await this.mentorService.getMentorDashboard(id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Get(':id/mentoring/my-mentor')
+  async getMyMentor(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    try { return await this.mentorService.getMyMentor(id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Get(':id/mentoring/leaderboard')
+  async getMentorLeaderboard(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    this.getUser(req);
+    try { return await this.mentorService.getMentorLeaderboard(id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Get(':id/mentoring/feedback/pending')
+  async getPendingFeedback(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    try { return await this.mentorService.checkPendingFeedback(id, user.id); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Post(':id/mentoring/feedback')
+  async submitMentorFeedback(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string, @Body() body: { pairing_id: string; rating: number; comment?: string }) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    if (!body?.pairing_id || !body?.rating) throw new BadRequestException('pairing_id and rating are required');
+    if (body.rating < 1 || body.rating > 5) throw new BadRequestException('rating must be between 1 and 5');
+    try { return await this.mentorService.submitFeedback(id, body.pairing_id, user.id, body.rating, body.comment); }
+    catch (err) { this.handleError(err); }
   }
 }
