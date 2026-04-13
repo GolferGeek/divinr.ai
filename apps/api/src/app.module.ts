@@ -21,6 +21,7 @@ import { HealthController } from './health.controller';
 import { MarketsModule } from './markets/markets.module';
 import { A2AModule } from './a2a/a2a.module';
 import { TournamentModule } from './tournaments/tournament.module';
+import { ClubModule } from './clubs/club.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuthController } from './auth/auth.controller';
 import { InviteService } from './auth/invite.service';
@@ -41,6 +42,7 @@ import { InviteService } from './auth/invite.service';
     MarketsModule,
     A2AModule,
     TournamentModule,
+    ClubModule,
   ],
   controllers: [HealthController, AuthController],
   providers: [

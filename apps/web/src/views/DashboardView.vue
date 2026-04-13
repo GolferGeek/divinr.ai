@@ -13,6 +13,7 @@ import { useDomainStore } from '../stores/domain.store';
 import AnalystPredictionModal from '../components/AnalystPredictionModal.vue';
 import { useAffinityStore } from '../stores/affinity.store';
 import { useTournamentStore } from '../stores/tournament.store';
+import { useClubStore } from '../stores/club.store';
 import ContrarianAlert from '../components/ContrarianAlert.vue';
 
 interface AnalystStance {
@@ -106,11 +107,13 @@ function openTradeModal(pred: DashboardPrediction) {
 }
 
 const tournamentStore = useTournamentStore();
+const clubStore = useClubStore();
 
 onMounted(async () => {
   await instruments.fetch().catch(() => {});
   affinityStore.fetchAffinityProfile().catch(() => {});
   tournamentStore.fetchMyEntries().catch(() => {});
+  clubStore.fetchMyClubs().catch(() => {});
   try {
     predictions.value = await get<DashboardPrediction[]>('/predictions/dashboard');
   } catch { /* empty */ }
@@ -192,6 +195,20 @@ function timeAgo(dateStr: string): string {
   <div>
     <h1>{{ domain.dashboardLayout?.title ?? 'Dashboard' }}</h1>
     <ion-note>{{ domain.activeDomain }} / {{ domain.activeUniverse }}</ion-note>
+
+    <!-- Your Clubs -->
+    <IonCard v-if="clubStore.myClubs.length > 0" class="club-dashboard-card">
+      <IonCardHeader>
+        <IonCardTitle>Your Clubs</IonCardTitle>
+      </IonCardHeader>
+      <IonCardContent>
+        <div v-for="club in clubStore.myClubs" :key="club.id" class="club-entry"
+          @click="router.push(`/clubs/${club.id}`)" role="link" tabindex="0">
+          <strong>{{ club.name }}</strong>
+          <IonNote>{{ club.member_count }} members</IonNote>
+        </div>
+      </IonCardContent>
+    </IonCard>
 
     <!-- Your Tournaments -->
     <IonCard v-if="tournamentStore.myEntries.length > 0" class="tournament-dashboard-card">

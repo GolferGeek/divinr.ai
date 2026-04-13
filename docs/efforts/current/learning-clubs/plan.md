@@ -5,29 +5,29 @@
 **Status**: Not Started
 
 ## Progress Tracker
-- [ ] Phase 1: Club Entity & Membership
-- [ ] Phase 2: Club Analysts
-- [ ] Phase 3: Club Tournaments
-- [ ] Phase 4: Learning Activities
-- [ ] Phase 5: Club Analytics & Post-Mortems
-- [ ] Phase 6: Frontend — Club UI
+- [x] Phase 1: Club Entity & Membership
+- [x] Phase 2: Club Analysts
+- [x] Phase 3: Club Tournaments
+- [x] Phase 4: Learning Activities
+- [x] Phase 5: Club Analytics & Post-Mortems
+- [x] Phase 6: Frontend — Club UI
 
 ---
 
 ## Phase 1: Club Entity & Membership
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Create all club database tables, build ClubModule with CRUD and membership management, implement role hierarchy, auto-create messaging channel on club creation.
 
 ### Steps
-- [ ] 1.1 Create database migration `apps/api/db/migrations/2026-04-13-learning-clubs.sql` with tables: `prediction.clubs`, `prediction.club_members`, `prediction.club_invites`, `prediction.club_analysts`, `prediction.club_prediction_challenges`, `prediction.club_challenge_responses`, `prediction.club_consensus_polls`, `prediction.club_consensus_votes`, `prediction.club_strategy_journals`. All DDL uses `CREATE TABLE IF NOT EXISTS`. Indexes on `(club_id, user_id)`, `invite_code`, `invite_token`.
-- [ ] 1.2 Create `apps/api/src/clubs/` directory with module structure:
+- [x] 1.1 Create database migration `apps/api/db/migrations/2026-04-13-learning-clubs.sql` with tables: `prediction.clubs`, `prediction.club_members`, `prediction.club_invites`, `prediction.club_analysts`, `prediction.club_prediction_challenges`, `prediction.club_challenge_responses`, `prediction.club_consensus_polls`, `prediction.club_consensus_votes`, `prediction.club_strategy_journals`. All DDL uses `CREATE TABLE IF NOT EXISTS`. Indexes on `(club_id, user_id)`, `invite_code`, `invite_token`.
+- [x] 1.2 Create `apps/api/src/clubs/` directory with module structure:
   - `club.module.ts` — NestJS module
   - `club.controller.ts` — Controller under `/clubs` prefix with `@UseGuards(JwtAuthGuard)`
   - `club.service.ts` — CRUD + membership service
   - `club.types.ts` — TypeScript interfaces for all club entities
   - `club-schema.service.ts` — Schema service with `ensureSchema()`
-- [ ] 1.3 Implement `ClubSchemaService` with `ensureSchema()` mirroring the migration DDL.
-- [ ] 1.4 Implement `ClubService` with methods:
+- [x] 1.3 Implement `ClubSchemaService` with `ensureSchema()` mirroring the migration DDL.
+- [x] 1.4 Implement `ClubService` with methods:
   - `createClub(input, userId)` — creates club, auto-generates invite_code (8-char alphanumeric), creates owner entry in `club_members`, auto-creates messaging channel via `MessagingService.createChannel('club', clubId, clubName)`, adds owner as channel admin.
   - `listMyClubs(userId)` — clubs where user is a member.
   - `discoverClubs()` — public clubs with member count, tournament count.
@@ -40,11 +40,11 @@
   - `promoteMember(clubId, targetUserId, userId)` — owner only, sets role to 'admin'.
   - `demoteMember(clubId, targetUserId, userId)` — owner only, sets role to 'member'.
   - `removeMember(clubId, targetUserId, userId)` — owner/admin only. Cannot remove owner.
-- [ ] 1.5 Implement invite endpoints in `ClubService`:
+- [x] 1.5 Implement invite endpoints in `ClubService`:
   - `createInvite(clubId, userId, input?: { email?, username? })` — generates invite token. If username/email provided, sends notification.
   - `getInviteDetails(token)` — returns club info from invite token (no membership required).
   - `acceptInvite(token, userId)` — validates token, joins club.
-- [ ] 1.6 Implement `ClubController` endpoints:
+- [x] 1.6 Implement `ClubController` endpoints:
   - `POST /clubs` — create club
   - `GET /clubs` — list my clubs
   - `GET /clubs/discover` — browse public clubs
@@ -60,8 +60,8 @@
   - `POST /clubs/:id/members/:userId/demote` — demote
   - `DELETE /clubs/:id/members/:userId` — remove member
   - `POST /clubs/:id/invites` — create invite
-- [ ] 1.7 Register `ClubModule` in `apps/api/src/app.module.ts`. Import `MessagingService`, `MessagingSchemaService`, `NotificationService`, `MarketsSchemaService` in the module providers.
-- [ ] 1.8 Write unit test `apps/api/tests/unit/club-membership.test.ts` covering:
+- [x] 1.7 Register `ClubModule` in `apps/api/src/app.module.ts`. Import `MessagingService`, `MessagingSchemaService`, `NotificationService`, `MarketsSchemaService` in the module providers.
+- [x] 1.8 Write unit test `apps/api/tests/unit/club-membership.test.ts` covering:
   - Club creation generates invite code and owner membership
   - Join via invite code creates member entry
   - Duplicate join rejected
@@ -105,7 +105,7 @@
 ---
 
 ## Phase 2: Club Analysts
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Build club analyst management — create custom analysts linked to clubs, extend the analyst pipeline to include club analysts for club members, and guard the contract editor for club-scoped access.
 
 ### Steps
@@ -153,7 +153,7 @@
 ---
 
 ## Phase 3: Club Tournaments
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Wire club tournaments into the existing tournament system by validating club membership on `scope='club'` tournament creation and filtering visibility for club members.
 
 ### Steps
@@ -179,7 +179,7 @@
 ---
 
 ## Phase 4: Learning Activities
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Build prediction challenges, consensus polls, strategy journals, and contrarian spotlight — the educational activities that make clubs more than just tournament groups.
 
 ### Steps
@@ -220,7 +220,7 @@
 ---
 
 ## Phase 5: Club Analytics & Post-Mortems
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Build aggregate club analytics (win rate, analyst trust, learning score, club style, common mistakes) and auto-generate post-mortems for completed club tournaments.
 
 ### Steps
@@ -267,7 +267,7 @@
 ---
 
 ## Phase 6: Frontend — Club UI
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Build all frontend views, store, dashboard integration, and legal framing so the full club user journey works in the browser.
 
 ### Steps

@@ -11,7 +11,7 @@ import {
   ribbonOutline, bulbOutline, logOutOutline, earthOutline, pulseOutline,
   menuOutline, constructOutline, heartOutline, notificationsOutline,
   warningOutline, gitNetworkOutline, trendingUpOutline,
-  chatbubblesOutline, trophyOutline,
+  chatbubblesOutline, trophyOutline, peopleCircleOutline,
 } from 'ionicons/icons';
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -47,6 +47,7 @@ const navItems = [
   { title: 'Learning', icon: bulbOutline, to: '/learning' },
   { title: 'Proposals', icon: constructOutline, to: '/proposals' },
   { title: 'Affinity', icon: heartOutline, to: '/affinity' },
+  { title: 'Clubs', icon: peopleCircleOutline, to: '/clubs' },
   { title: 'Tournaments', icon: trophyOutline, to: '/tournaments' },
   { title: 'Messages', icon: chatbubblesOutline, to: '/messages' },
   { title: 'Notifications', icon: notificationsOutline, to: '/notifications' },

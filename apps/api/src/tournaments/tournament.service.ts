@@ -25,6 +25,18 @@ export class TournamentService {
       throw new Error('Only admins can create system tournaments');
     }
 
+    // Club scope: validate club exists and user is admin/owner
+    if (input.scope === 'club') {
+      if (!input.scope_id) throw new Error('scope_id (club ID) is required for club tournaments');
+      const clubCheck = await this.db.rawQuery(
+        `SELECT cm.role FROM prediction.club_members cm WHERE cm.club_id = $1 AND cm.user_id = $2`,
+        [input.scope_id, userId],
+      );
+      const members = (clubCheck.data as Array<{ role: string }> | null) ?? [];
+      if (members.length === 0) throw new Error('Not a member of this club');
+      if (!['owner', 'admin'].includes(members[0].role)) throw new Error('Only club admins can create club tournaments');
+    }
+
     const id = randomUUID();
     const result = await this.db.rawQuery(
       `INSERT INTO prediction.tournaments
@@ -54,7 +66,7 @@ export class TournamentService {
     const params: unknown[] = [];
     let paramIndex = 1;
 
-    // System tournaments visible to all; invitation visible to creator or invitees
+    // System tournaments visible to all; club visible to club members; invitation visible to creator or invitees
     conditions.push(`(
       t.scope = 'system'
       OR t.created_by = $${paramIndex}
@@ -64,6 +76,9 @@ export class TournamentService {
       OR EXISTS (
         SELECT 1 FROM prediction.tournament_invites ti WHERE ti.tournament_id = t.id AND ti.invited_user_id = $${paramIndex} AND ti.status = 'pending'
       )
+      OR (t.scope = 'club' AND EXISTS (
+        SELECT 1 FROM prediction.club_members cm WHERE cm.club_id = t.scope_id AND cm.user_id = $${paramIndex}
+      ))
     )`);
     params.push(userId);
     paramIndex++;
@@ -104,6 +119,7 @@ export class TournamentService {
            OR t.created_by = $2
            OR EXISTS (SELECT 1 FROM prediction.tournament_entries te WHERE te.tournament_id = t.id AND te.user_id = $2)
            OR EXISTS (SELECT 1 FROM prediction.tournament_invites ti WHERE ti.tournament_id = t.id AND ti.invited_user_id = $2 AND ti.status = 'pending')
+           OR (t.scope = 'club' AND EXISTS (SELECT 1 FROM prediction.club_members cm WHERE cm.club_id = t.scope_id AND cm.user_id = $2))
          )`,
       [id, userId],
     );

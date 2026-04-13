@@ -630,7 +630,12 @@ export class MarketsService {
       `
       select *
       from prediction.market_analysts
-      where (user_id IS NULL OR user_id = $1)
+      where (user_id IS NULL OR user_id = $1
+        OR id IN (
+          SELECT ca.analyst_id FROM prediction.club_analysts ca
+          JOIN prediction.club_members cm ON cm.club_id = ca.club_id
+          WHERE cm.user_id = $1
+        ))
       order by case when user_id = $1 then 0 else 1 end, created_at asc
       `,
       [userId],
@@ -655,7 +660,12 @@ export class MarketsService {
       `
       select *
       from prediction.market_analysts
-      where (user_id IS NULL OR user_id = $1)
+      where (user_id IS NULL OR user_id = $1
+        OR id IN (
+          SELECT ca.analyst_id FROM prediction.club_analysts ca
+          JOIN prediction.club_members cm ON cm.club_id = ca.club_id
+          WHERE cm.user_id = $1
+        ))
         and is_enabled = true
       order by case when user_id = $1 then 0 else 1 end, created_at asc
       `,
