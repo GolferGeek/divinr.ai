@@ -78,15 +78,22 @@ export class ClubService {
     return (result.data as Array<Club & { member_count: number; my_role: string }> | null) ?? [];
   }
 
-  async discoverClubs(): Promise<Array<Club & { member_count: number; tournament_count: number }>> {
+  async discoverClubs(sortBy?: string): Promise<Array<Club & { member_count: number; tournament_count: number }>> {
     await this.schema.ensureSchema();
+    const validSorts: Record<string, string> = {
+      ranking_score: 'c.ranking_score DESC NULLS LAST',
+      member_count: 'member_count DESC',
+      return_pct: 'c.ranking_score DESC NULLS LAST',
+      win_rate: 'c.ranking_score DESC NULLS LAST',
+    };
+    const orderBy = validSorts[sortBy ?? 'ranking_score'] ?? 'c.ranking_score DESC NULLS LAST';
     const result = await this.db.rawQuery(
       `SELECT c.*,
               (SELECT COUNT(*)::int FROM prediction.club_members m WHERE m.club_id = c.id) as member_count,
               (SELECT COUNT(*)::int FROM prediction.tournaments t WHERE t.scope = 'club' AND t.scope_id = c.id) as tournament_count
        FROM prediction.clubs c
        WHERE c.is_public = true
-       ORDER BY member_count DESC, c.created_at DESC
+       ORDER BY ${orderBy}, c.created_at DESC
        LIMIT 50`,
     );
     if (result.error) throw new Error(result.error.message);

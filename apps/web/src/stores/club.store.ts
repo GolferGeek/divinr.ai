@@ -159,8 +159,25 @@ export const useClubStore = defineStore('club', () => {
     return request(`/${id}/analytics/post-mortem/${tournamentId}`);
   }
 
+  // Rankings
+  const leaderboard = ref<unknown[]>([]);
+  async function fetchLeaderboard(sortBy?: string, limit?: number, offset?: number) {
+    const params = new URLSearchParams();
+    if (sortBy) params.set('sort_by', sortBy);
+    if (limit) params.set('limit', String(limit));
+    if (offset) params.set('offset', String(offset));
+    const query = params.toString() ? `?${params.toString()}` : '';
+    leaderboard.value = await request(`/rankings/leaderboard${query}`);
+  }
+  async function fetchComparison(clubA: string, clubB: string) {
+    return request(`/rankings/compare?club_a=${clubA}&club_b=${clubB}`);
+  }
+  async function fetchRankingHistory(clubId: string) {
+    return request(`/rankings/${clubId}/history`);
+  }
+
   return {
-    myClubs, publicClubs, activeClub, members, analysts, challenges, polls, journals, analytics, loading,
+    myClubs, publicClubs, activeClub, members, analysts, challenges, polls, journals, analytics, loading, leaderboard,
     fetchMyClubs, fetchPublicClubs, fetchClub, createClub, updateClub, deleteClub,
     joinClub, leaveClub, fetchMembers, promoteMember, demoteMember, removeMember,
     createInvite, fetchInviteDetails, acceptInvite,
@@ -169,5 +186,6 @@ export const useClubStore = defineStore('club', () => {
     fetchPolls, createPoll, vote, revealPoll,
     fetchJournals, addJournal,
     fetchAnalytics, fetchPostMortem,
+    fetchLeaderboard, fetchComparison, fetchRankingHistory,
   };
 });

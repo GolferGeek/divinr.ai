@@ -7,15 +7,21 @@ import { useClubStore } from '../stores/club.store';
 const store = useClubStore();
 const router = useRouter();
 const tab = ref<'mine' | 'discover'>('mine');
+const discoverSort = ref('ranking_score');
 
 onMounted(() => { store.fetchMyClubs(); store.fetchPublicClubs(); });
+
+function changeSortDiscover() { store.fetchPublicClubs(); }
 </script>
 
 <template>
   <div class="clubs-page">
     <div class="page-header">
       <h1>Investment Learning Clubs</h1>
-      <IonButton size="small" @click="router.push('/clubs/create')">Create Club</IonButton>
+      <div class="header-actions">
+        <IonButton size="small" fill="outline" @click="router.push('/clubs/rankings')">Rankings</IonButton>
+        <IonButton size="small" @click="router.push('/clubs/create')">Create Club</IonButton>
+      </div>
     </div>
     <p class="disclaimer">Investment Learning Club — educational platform for practicing AI-assisted market analysis. Not investment advice.</p>
 

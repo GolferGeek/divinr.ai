@@ -11,6 +11,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import { ClubService } from './club.service';
 import { ClubAnalystService } from './club-analyst.service';
 import { ClubActivityService } from './club-activity.service';
 import { ClubAnalyticsService } from './club-analytics.service';
+import { ClubRankingService } from './club-ranking.service';
 import type { CreateClubInput, UpdateClubInput } from './club.types';
 
 interface AuthenticatedUser {
@@ -37,6 +39,7 @@ export class ClubController {
     @Inject(ClubAnalystService) private readonly analystService: ClubAnalystService,
     @Inject(ClubActivityService) private readonly activityService: ClubActivityService,
     @Inject(ClubAnalyticsService) private readonly analyticsService: ClubAnalyticsService,
+    @Inject(ClubRankingService) private readonly rankingService: ClubRankingService,
   ) {}
 
   private getUser(req: { user?: AuthenticatedUser }): AuthenticatedUser {
@@ -86,9 +89,46 @@ export class ClubController {
   }
 
   @Get('discover')
-  async discoverClubs(@Req() req: { user?: AuthenticatedUser }) {
+  async discoverClubs(@Req() req: { user?: AuthenticatedUser }, @Query('sort_by') sortBy?: string) {
     this.getUser(req);
-    return this.clubService.discoverClubs();
+    return this.clubService.discoverClubs(sortBy);
+  }
+
+  // ─── Rankings (before :id routes) ──────────────────────────────
+
+  @Get('rankings/leaderboard')
+  async getLeaderboard(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('sort_by') sortBy?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    this.getUser(req);
+    return this.rankingService.getLeaderboard(sortBy ?? 'ranking_score', Number(limit) || 50, Number(offset) || 0);
+  }
+
+  @Get('rankings/badges')
+  async getBadgeTypes(@Req() req: { user?: AuthenticatedUser }) {
+    this.getUser(req);
+    return this.rankingService.getBadgeTypes();
+  }
+
+  @Get('rankings/compare')
+  async compareClubs(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('club_a') clubA?: string,
+    @Query('club_b') clubB?: string,
+  ) {
+    this.getUser(req);
+    if (!clubA || !clubB) throw new BadRequestException('club_a and club_b query params are required');
+    try { return await this.rankingService.compareClubs(clubA, clubB); }
+    catch (err) { this.handleError(err); }
+  }
+
+  @Get('rankings/:clubId/history')
+  async getRankingHistory(@Req() req: { user?: AuthenticatedUser }, @Param('clubId') clubId: string) {
+    this.getUser(req);
+    return this.rankingService.getRankingHistory(clubId);
   }
 
   // Invite routes before :id
