@@ -189,8 +189,8 @@ export class EodSettlementService {
   // ─── Step 0: Closing prices ──────────────────────────────────
 
   async captureClosingPrices(): Promise<Map<string, number>> {
-    // TODO: Integrate with market data API via prediction plane
-    // For now, use current_state from instruments table
+    // Uses current_state from instruments table (populated by the market-data ingestion pipeline).
+    // If a dedicated closing-price snapshot endpoint is added, switch to it here.
     const result = await this.db.rawQuery(
       `select id, current_state from prediction.instruments where is_active = true`,
     );

@@ -3,22 +3,25 @@ import { useAuthStore } from '../stores/auth.store';
 
 /**
  * Base URL for API calls.
- * - Web (dev): relative '/api/markets' (Vite proxy handles routing)
- * - Web (prod): relative '/api/markets' (Nginx proxy handles routing)
+ * @param basePath – path segment appended after the host, e.g. '/api/markets'.
+ *   Defaults to '/api/markets' for backward compatibility.
+ * - Web (dev): relative basePath (Vite proxy handles routing)
+ * - Web (prod): relative basePath (Nginx proxy handles routing)
  * - Electron: configurable base URL from localStorage or window.electronAPI
  */
-function getBaseUrl(): string {
+function getBaseUrl(basePath: string): string {
   // Electron environment: use configured API URL
   if (typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI) {
     const stored = localStorage.getItem('divinr_api_url');
-    return stored ? `${stored}/markets` : 'http://localhost:7100/markets';
+    // Strip leading '/api' from basePath to get the service segment (e.g. '/markets')
+    const servicePath = basePath.replace(/^\/api/, '');
+    return stored ? `${stored}${servicePath}` : `http://localhost:7100${servicePath}`;
   }
-  return '/api/markets';
+  return basePath;
 }
 
-const BASE_URL = getBaseUrl();
-
-export function useApi() {
+export function useApi(basePath: string = '/api/markets') {
+  const BASE_URL = getBaseUrl(basePath);
   const loading = ref(false);
   const error = ref<string | null>(null);
 

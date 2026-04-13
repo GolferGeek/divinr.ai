@@ -305,30 +305,18 @@ export class ObservabilityDbService {
   }
 
   async incrementThemeDownloadCount(id: string): Promise<boolean> {
-    // Fetch current count, increment, and update
-    const { data } = (await this.db
-      .from('observability', 'themes')
-      .select('download_count')
-      .eq('id', id)
-      .single()) as QueryResult<unknown>;
+    // Atomic increment — avoids read-then-update race condition
+    const result = await this.db.rawQuery(
+      `UPDATE observability.themes SET download_count = COALESCE(download_count, 0) + 1 WHERE id = $1 RETURNING id`,
+      [id],
+    );
 
-    if (!data) {
-      return false;
+    if (result.error) {
+      throw new Error(`Failed to increment download count: ${result.error.message}`);
     }
 
-    const { error } = (await this.db
-      .from('observability', 'themes')
-      .update({
-        download_count:
-          ((data as { download_count: number }).download_count || 0) + 1,
-      })
-      .eq('id', id)) as QueryResult<unknown>;
-
-    if (error) {
-      throw new Error(`Failed to increment download count: ${error.message}`);
-    }
-
-    return true;
+    const rows = (result.data as Array<unknown> | null) ?? [];
+    return rows.length > 0;
   }
 
   // Helper: map a database row to HookEvent

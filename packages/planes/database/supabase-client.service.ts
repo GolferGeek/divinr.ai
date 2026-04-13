@@ -54,7 +54,8 @@ export class SupabaseService implements OnModuleInit {
 
     // Get configuration - process.env first, then ConfigService, then local dev defaults
     const LOCAL_DEFAULT_URL = 'http://127.0.0.1:6010';
-    // Well-known Supabase local development key — NOT a production secret
+    // Well-known Supabase local development service role key — not a secret.
+    // See: https://supabase.com/docs/guides/self-hosting
     const LOCAL_DEFAULT_SERVICE_KEY =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
     const supabaseConfig = this.configService.get<{

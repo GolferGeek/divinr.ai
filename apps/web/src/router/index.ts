@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router';
+import { useAuthStore } from '../stores/auth.store';
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -72,10 +73,11 @@ export const router = createRouter({
   ],
 });
 
-// Auth guard: redirect to login if no user configured
+// Auth guard: redirect to login if no user configured.
+// Uses the auth Pinia store so the localStorage key name is encapsulated in one place.
 router.beforeEach((to) => {
   if (to.meta.public) return true;
-  const userId = localStorage.getItem('divinr_user');
-  if (!userId) return '/login';
+  const auth = useAuthStore();
+  if (!auth.isConfigured()) return '/login';
   return true;
 });

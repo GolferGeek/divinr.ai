@@ -6,7 +6,7 @@ export const useInstrumentsStore = defineStore('instruments', () => {
   const items = ref<Record<string, unknown>[]>([]);
   const loading = ref(false);
 
-  async function fetch() {
+  async function fetchInstruments() {
     const api = useApi();
     loading.value = true;
     try {
@@ -19,9 +19,9 @@ export const useInstrumentsStore = defineStore('instruments', () => {
   async function create(symbol: string, name?: string) {
     const api = useApi();
     const result = await api.post('/instruments', { symbol, name: name || symbol });
-    await fetch();
+    await fetchInstruments();
     return result;
   }
 
-  return { items, loading, fetch, create };
+  return { items, loading, fetch: fetchInstruments, fetchInstruments, create };
 });

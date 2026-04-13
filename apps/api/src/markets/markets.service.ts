@@ -1337,6 +1337,72 @@ export class MarketsService {
 
   // ─── Prediction Challenges ─────────────────────────────────────
 
+  /**
+   * Shared logic for running a single challenger against a prediction:
+   * builds the prompt, calls the LLM, parses the JSON response, and persists the result.
+   */
+  private async runSingleChallenge(
+    context: ReturnType<typeof this.marketsLlm.buildExecutionContext>,
+    pred: Record<string, unknown>,
+    predictionId: string,
+    challenger: { id: string; slug: string; display_name: string; persona_prompt: string },
+  ): Promise<{
+    challenger: { id: string; slug: string; display_name: string };
+    counterArgument: string;
+    counterDirection: string;
+    counterConfidence: number;
+    evidence: string[];
+  }> {
+    const systemPrompt = `You are ${challenger.display_name}. ${challenger.persona_prompt}
+Another analyst (${pred.analyst_name}) has predicted ${pred.predicted_direction} for ${pred.symbol} at ${pred.confidence}% confidence.
+Their reasoning: ${String(pred.rationale).slice(0, 500)}
+
+Using your expertise, provide a counter-argument. Respond with valid JSON only:
+{
+  "counterArgument": "<your counter-argument from your perspective>",
+  "counterDirection": "up" | "down" | "flat",
+  "counterConfidence": <0-100>,
+  "evidence": ["<evidence point 1>", "<evidence point 2>"]
+}`;
+
+    let counterArgument = `As ${challenger.display_name}, I would approach this differently.`;
+    let counterDirection = 'flat';
+    let counterConfidence = 50;
+    let evidence: string[] = [];
+    let llmUsageId: string | null = null;
+
+    if (this.marketsLlm.isLlmEnabled()) {
+      const result = await this.marketsLlm.generateText(context, systemPrompt, `Challenge the ${pred.predicted_direction} analysis for ${pred.symbol}.`);
+      llmUsageId = result.llmUsageId ?? null;
+      const match = result.text.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+        counterArgument = String(parsed.counterArgument || counterArgument);
+        counterDirection = String(parsed.counterDirection || 'flat');
+        counterConfidence = Math.min(100, Math.max(0, Number(parsed.counterConfidence) || 50));
+        evidence = Array.isArray(parsed.evidence) ? (parsed.evidence as string[]).map(String) : [];
+      }
+    }
+
+    // Persist
+    await this.db.rawQuery(
+      `insert into prediction.prediction_challenges
+        (prediction_id, challenged_analyst_id, challenger_analyst_id, instrument_id,
+         counter_argument, counter_direction, counter_confidence, evidence, llm_usage_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [predictionId, pred.analyst_id, challenger.id, pred.instrument_id,
+       counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence), llmUsageId],
+    );
+
+    return {
+      challenger: { id: challenger.id, slug: challenger.slug, display_name: challenger.display_name },
+      counterArgument,
+      counterDirection,
+      counterConfidence,
+      evidence,
+    };
+  }
+
   async challengePrediction(userId: string, predictionId: string) {
     await this.schema.ensureSchema();
     await this.requireRead(userId);
@@ -1383,54 +1449,8 @@ export class MarketsService {
     // Run challenges in parallel
     const promises = challengers.map(async (challenger) => {
       try {
-        const systemPrompt = `You are ${challenger.display_name}. ${challenger.persona_prompt}
-Another analyst (${pred.analyst_name}) has predicted ${pred.predicted_direction} for ${pred.symbol} at ${pred.confidence}% confidence.
-Their reasoning: ${String(pred.rationale).slice(0, 500)}
-
-Using your expertise, provide a counter-argument. Respond with valid JSON only:
-{
-  "counterArgument": "<your counter-argument from your perspective>",
-  "counterDirection": "up" | "down" | "flat",
-  "counterConfidence": <0-100>,
-  "evidence": ["<evidence point 1>", "<evidence point 2>"]
-}`;
-
-        let counterArgument = `As ${challenger.display_name}, I would approach this differently.`;
-        let counterDirection = 'flat';
-        let counterConfidence = 50;
-        let evidence: string[] = [];
-        let llmUsageId: string | null = null;
-
-        if (this.marketsLlm.isLlmEnabled()) {
-          const result = await this.marketsLlm.generateText(context, systemPrompt, `Challenge the ${pred.predicted_direction} analysis for ${pred.symbol}.`);
-          llmUsageId = result.llmUsageId ?? null;
-          const match = result.text.match(/\{[\s\S]*\}/);
-          if (match) {
-            const parsed = JSON.parse(match[0]) as Record<string, unknown>;
-            counterArgument = String(parsed.counterArgument || counterArgument);
-            counterDirection = String(parsed.counterDirection || 'flat');
-            counterConfidence = Math.min(100, Math.max(0, Number(parsed.counterConfidence) || 50));
-            evidence = Array.isArray(parsed.evidence) ? (parsed.evidence as string[]).map(String) : [];
-          }
-        }
-
-        // Persist
-        await this.db.rawQuery(
-          `insert into prediction.prediction_challenges
-            (prediction_id, challenged_analyst_id, challenger_analyst_id, instrument_id,
-             counter_argument, counter_direction, counter_confidence, evidence, llm_usage_id)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [predictionId, pred.analyst_id, challenger.id, pred.instrument_id,
-           counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence), llmUsageId],
-        );
-
-        challenges.push({
-          challenger: { id: challenger.id, slug: challenger.slug, display_name: challenger.display_name },
-          counterArgument,
-          counterDirection,
-          counterConfidence,
-          evidence,
-        });
+        const result = await this.runSingleChallenge(context, pred, predictionId, challenger);
+        challenges.push(result);
       } catch (err) {
         this.logger.warn(`Challenge failed for challenger ${challenger.id}: ${err instanceof Error ? err.message : String(err)}`);
         // Graceful degradation — skip this challenger
@@ -1490,54 +1510,8 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
       const challenger = challengers[i];
       yield { thinking: true, analyst: challenger.display_name, index: i, total: challengers.length };
       try {
-        const systemPrompt = `You are ${challenger.display_name}. ${challenger.persona_prompt}
-Another analyst (${pred.analyst_name}) has predicted ${pred.predicted_direction} for ${pred.symbol} at ${pred.confidence}% confidence.
-Their reasoning: ${String(pred.rationale).slice(0, 500)}
-
-Using your expertise, provide a counter-argument. Respond with valid JSON only:
-{
-  "counterArgument": "<your counter-argument from your perspective>",
-  "counterDirection": "up" | "down" | "flat",
-  "counterConfidence": <0-100>,
-  "evidence": ["<evidence point 1>", "<evidence point 2>"]
-}`;
-
-        let counterArgument = `As ${challenger.display_name}, I would approach this differently.`;
-        let counterDirection = 'flat';
-        let counterConfidence = 50;
-        let evidence: string[] = [];
-        let llmUsageId: string | null = null;
-
-        if (this.marketsLlm.isLlmEnabled()) {
-          const result = await this.marketsLlm.generateText(context, systemPrompt, `Challenge the ${pred.predicted_direction} analysis for ${pred.symbol}.`);
-          llmUsageId = result.llmUsageId ?? null;
-          const match = result.text.match(/\{[\s\S]*\}/);
-          if (match) {
-            const parsed = JSON.parse(match[0]) as Record<string, unknown>;
-            counterArgument = String(parsed.counterArgument || counterArgument);
-            counterDirection = String(parsed.counterDirection || 'flat');
-            counterConfidence = Math.min(100, Math.max(0, Number(parsed.counterConfidence) || 50));
-            evidence = Array.isArray(parsed.evidence) ? (parsed.evidence as string[]).map(String) : [];
-          }
-        }
-
-        // Persist
-        await this.db.rawQuery(
-          `insert into prediction.prediction_challenges
-            (prediction_id, challenged_analyst_id, challenger_analyst_id, instrument_id,
-             counter_argument, counter_direction, counter_confidence, evidence, llm_usage_id)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [predictionId, pred.analyst_id, challenger.id, pred.instrument_id,
-           counterArgument, counterDirection, counterConfidence, JSON.stringify(evidence), llmUsageId],
-        );
-
-        yield {
-          challenger: { id: challenger.id, slug: challenger.slug, display_name: challenger.display_name },
-          counterArgument,
-          counterDirection,
-          counterConfidence,
-          evidence,
-        };
+        const result = await this.runSingleChallenge(context, pred, predictionId, challenger);
+        yield result;
       } catch {
         // Skip failed challengers
       }

@@ -28,8 +28,9 @@ import type { PredictionOutcome } from '../markets.types';
 export class ConvictionTraderService {
   private readonly logger = new Logger(ConvictionTraderService.name);
 
-  // Hard-coded id from portfolio-foundation Phase 1 seeding.
-  private static readonly ARBITRATOR_PORTFOLIO_ID = 'pf-portfolio-arbitrator';
+  // Configurable via env var; falls back to portfolio-foundation Phase 1 seed value.
+  private static readonly ARBITRATOR_PORTFOLIO_ID =
+    process.env.ARBITRATOR_PORTFOLIO_ID || 'pf-portfolio-arbitrator';
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
