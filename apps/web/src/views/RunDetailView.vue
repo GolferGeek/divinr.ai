@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useRunsStore } from '../stores/runs.store';
 import { useInstrumentsStore } from '../stores/instruments.store';
 import { useApi } from '../composables/useApi';
@@ -17,6 +17,7 @@ import {
 } from 'ionicons/icons';
 
 const route = useRoute();
+const router = useRouter();
 const runs = useRunsStore();
 const instruments = useInstrumentsStore();
 const api = useApi();
@@ -103,7 +104,7 @@ function fmtTime(v: unknown): string {
 
 <template>
   <div class="run-detail">
-    <ion-button fill="clear" router-link="/runs" class="back-link">
+    <ion-button fill="clear" class="back-link" @click="router.push('/runs')">
       <ion-icon slot="start" :icon="arrowBackOutline" />
       Pipeline Activity
     </ion-button>
