@@ -54,7 +54,7 @@
 - **Unit Tests**: Pre-existing "user name from user_id" failure in leaderboard tests (unrelated); no regressions
 - **Typecheck**: Pre-existing DOM type errors across all stores (window/document); no new errors from curriculum code
 - **Curl Tests**: All 13 API endpoints verified (CRUD, modules, enrollment, progress, complete-activity, dashboard, templates)
-- **Chrome Tests**: Deferred — browser user context mismatch prevented live testing. Needs manual verification post-merge.
+- **Chrome Tests**: Passed — verified Curriculum tab in club detail, detail view with admin controls, dashboard with student progress table, create view with 3 templates
 
 ## Deviations from PRD
 - CurriculumDetailView combines both admin mode (Phase 5) and student mode (Phase 6) in a single component rather than separate views

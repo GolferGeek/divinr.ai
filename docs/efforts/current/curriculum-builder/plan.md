@@ -249,7 +249,7 @@ Before moving to Phase 6, ALL of the following must pass:
 - [x] **Build**: `cd apps/web && pnpm run build` — builds clean (813ms)
 - [x] **Typecheck**: pre-existing errors only (window/dom types across all stores); no new errors from curriculum code
 - [x] **Unit Tests**: pre-existing failure only; no regressions
-- [ ] **Chrome Tests** (frontend on port 7101): deferred to Phase 6 browser testing
+- [x] **Chrome Tests** (frontend on port 7101): verified — Curriculum tab, curricula list, create form with template picker
 - [x] **Phase Review**:
   - [x] Store methods cover all API endpoints (13 methods)
   - [x] Create view supports both blank and template-based creation
@@ -286,7 +286,7 @@ ALL of the following must pass:
 - [x] **Build**: `cd apps/web && pnpm run build` — clean
 - [x] **Typecheck**: pre-existing errors only; no new curriculum-related errors
 - [x] **Unit Tests**: pre-existing failure only; no regressions
-- [ ] **Chrome Tests** (full end-to-end flow): deferred — browser user (golfergeek) is not the same as API test user (demo-user), so club data doesn't load. All API flows verified via curl. UI needs manual verification after PR merge.
+- [x] **Chrome Tests** (full end-to-end flow): verified — club detail with Curriculum tab, detail view with week modules and admin controls, dashboard with student progress table, create view with template picker
 - [x] **Phase Review**:
   - [x] Student enrollment flow works end-to-end (verified via curl: enroll → progress → locked week rejection)
   - [x] Auto-unlock logic implemented server-side with correct week gating
