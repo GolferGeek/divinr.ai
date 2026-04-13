@@ -1,0 +1,3 @@
+# Three-Tier Learning Loop — Marketing Blurb
+
+Divinr doesn't just predict — it learns from every mistake. Three tiers of self-improvement run continuously. Tier 1: after each nightly evaluation, the system autonomously writes micro-adjustments into each analyst's working memory. Tier 2: a contract auditor compares what each analyst promised to do against what it actually did, surfacing discrepancies for admin review — accept, reject, or note for later. Tier 3: when enough evidence accumulates, the system drafts full contract rewrites, tested against canonical scenarios before any admin approves them. Every adaptation, every audit finding, every proposal is visible. The AI gets smarter, and you can see exactly how.
