@@ -1,0 +1,18 @@
+[Unit]
+Description=Divinr.ai Postgres backup to external drive
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=golfergeek
+Group=golfergeek
+ExecStart=/home/golfergeek/projects/divinr.ai/scripts/ops/backup-postgres.sh
+# Backup mount must exist
+ConditionPathExists=/mnt/divinr-backup
+# Don't stack up if the previous one is still running
+StartLimitBurst=2
+StartLimitIntervalSec=3600
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

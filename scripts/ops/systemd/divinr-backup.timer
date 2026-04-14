@@ -1,0 +1,14 @@
+[Unit]
+Description=Divinr.ai backup every 3 hours
+Requires=divinr-backup.service
+
+[Timer]
+# Run every 3 hours starting 5 min after boot
+OnBootSec=5min
+OnUnitActiveSec=3h
+# If Spark was off when a backup was scheduled, run once at boot
+Persistent=true
+Unit=divinr-backup.service
+
+[Install]
+WantedBy=timers.target
