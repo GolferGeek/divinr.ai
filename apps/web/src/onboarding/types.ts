@@ -73,6 +73,18 @@ export interface StepContent {
    * of an embeddable video also works.
    */
   videoUrl?: string;
+  /**
+   * Extra paths the router guard should let through while this step is active.
+   * Required for action-gated steps whose completion is triggered by navigating
+   * to an otherwise-locked path (e.g., the predictions step needs /instruments
+   * to be reachable so the user can open an instrument detail page — but the
+   * /instruments nav rule says it unlocks AFTER predictions, creating a
+   * chicken-and-egg problem without this escape hatch).
+   *
+   * Prefix match on /path or exact match — e.g., '/instruments' whitelists
+   * both /instruments and /instruments/AAPL.
+   */
+  allowedPaths?: string[];
 }
 
 /**

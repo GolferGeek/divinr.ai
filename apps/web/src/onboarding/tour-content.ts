@@ -34,6 +34,9 @@ export const tourContent: Record<StepId, StepContent> = {
     body: "Go ahead — pick any prediction card on your dashboard and click into it.\n\nThe next screen is the most important thing in Divinr. This is where the platform stops being a collection of cards and starts being a conversation you can read.",
     routePath: '/',
     pulseSelectors: ['[data-tour="dashboard-prediction-card"]'],
+    // Opening an instrument detail page is the action that completes this step,
+    // so /instruments/* must be reachable while predictions is the active step.
+    allowedPaths: ['/instruments'],
     cta: { label: 'Click any prediction card to continue', actionKey: 'opened-instrument-detail' },
     completion: { kind: 'action', actionKey: 'opened-instrument-detail' },
     emotionalBeat: 'shown-something-cool',

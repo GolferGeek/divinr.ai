@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router';
 import { useAuthStore } from '../stores/auth.store';
 import { useOnboardingStore } from '../stores/onboarding.store';
+import { tourContent } from '../onboarding/tour-content';
 
 // Routes that are always accessible during the tour regardless of step state.
 // Covers: the tour's own redirect target, the notifications page, and admin-only
@@ -129,6 +130,14 @@ router.beforeEach((to) => {
   // Allowlist: root, notifications, admin System routes, tour's redirect target.
   if (ALWAYS_UNLOCKED_DURING_TOUR.has(to.path)) return true;
   if (to.path === onboarding.currentStepPath) return true;
+
+  // Per-step escape hatch: action-gated steps can declare which paths need to
+  // be reachable to trigger their completion action.
+  const currentStepContent = tourContent[onboarding.currentStep];
+  const allowed = currentStepContent.allowedPaths;
+  if (allowed && allowed.some((p) => to.path === p || to.path.startsWith(p + '/'))) {
+    return true;
+  }
 
   // Check the unlock rule (handles nested routes via matchNavRoot in the store).
   if (onboarding.isUnlocked(to.path, auth.isAdmin)) return true;
