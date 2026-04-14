@@ -66,6 +66,22 @@ export interface StepContent {
   cta?: { label: string; actionKey?: string };
   completion: { kind: StepKind; actionKey?: string };
   emotionalBeat: string;
+  /**
+   * Optional short-form walkthrough video for this step.
+   * Accepts a Loom share URL (https://www.loom.com/share/ID) — the modal
+   * converts it to the embed form automatically. Any direct https:// URL
+   * of an embeddable video also works.
+   */
+  videoUrl?: string;
+}
+
+/**
+ * Turn a Loom share URL into the embed URL. Passes other URLs through unchanged.
+ * Loom share: https://www.loom.com/share/7f2ff9d72de245d99db3a5077e4729ed
+ * Loom embed: https://www.loom.com/embed/7f2ff9d72de245d99db3a5077e4729ed
+ */
+export function toEmbedUrl(url: string): string {
+  return url.replace(/\/\/www\.loom\.com\/share\//, '//www.loom.com/embed/');
 }
 
 /**

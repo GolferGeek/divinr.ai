@@ -47,6 +47,7 @@ export const tourContent: Record<StepId, StepContent> = {
       '[data-tour="analyst-panel"]',
       '[data-tour="instrument-tabs"]',
     ],
+    videoUrl: 'https://www.loom.com/share/7f2ff9d72de245d99db3a5077e4729ed',
     completion: { kind: 'got_it' },
     emotionalBeat: 'astonished',
   },

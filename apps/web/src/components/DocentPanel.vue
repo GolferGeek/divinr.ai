@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import { IonIcon } from '@ionic/vue';
 import {
-  closeOutline,
   chevronForwardOutline,
   pauseOutline,
+  playCircleOutline,
 } from 'ionicons/icons';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { tourContent } from '../onboarding/tour-content';
 import { useOnboardingStore } from '../stores/onboarding.store';
+import TourVideoModal from './TourVideoModal.vue';
 
 const onboarding = useOnboardingStore();
 
 const step = computed(() => tourContent[onboarding.currentStep]);
+
+const videoOpen = ref(false);
+function openVideo() { videoOpen.value = true; }
+function closeVideo() { videoOpen.value = false; }
+
+// Auto-close the modal if the user advances to a new step.
+watch(() => onboarding.currentStep, () => { videoOpen.value = false; });
 
 // Render a minimal subset of markdown (paragraphs + **bold** + *italic* + `code`).
 // Copy is authored and checked into tour-content.ts — not user input — so v-html is safe.
@@ -67,6 +75,10 @@ function pause() {
       <h3>{{ step.title }}</h3>
       <!-- eslint-disable-next-line vue/no-v-html -->
       <div class="body-content" v-html="renderBody(step.body)" />
+      <button v-if="step.videoUrl" class="video-btn" @click="openVideo">
+        <ion-icon :icon="playCircleOutline" />
+        <span>Watch the walkthrough</span>
+      </button>
       <p v-if="step.cta" class="cta-note">👉 {{ step.cta.label }}</p>
     </div>
     <div v-if="onboarding.lockedFlash" class="locked-flash">
@@ -91,6 +103,11 @@ function pause() {
         {{ step.cta?.label ?? 'Complete action to continue' }}
       </button>
     </div>
+    <TourVideoModal
+      :is-open="videoOpen"
+      :url="step.videoUrl ?? null"
+      @close="closeVideo"
+    />
   </aside>
 </template>
 
@@ -174,6 +191,28 @@ function pause() {
   border-radius: 8px;
   font-size: 0.92rem;
   color: var(--ion-color-primary-shade, #1e40af);
+}
+
+.video-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: var(--ion-color-primary, #3b82f6);
+  color: var(--ion-color-primary-contrast, #fff);
+  border: none;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.video-btn ion-icon {
+  font-size: 1.3rem;
+}
+.video-btn:hover {
+  background: var(--ion-color-primary-shade, #2563eb);
 }
 
 .locked-flash {
