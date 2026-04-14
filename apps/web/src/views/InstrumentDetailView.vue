@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '../composables/useApi';
+import { useOnboardingStore } from '../stores/onboarding.store';
 import PredictorScoringPanel from '../components/PredictorScoringPanel.vue';
 import InstrumentAnalystPanel from '../components/InstrumentAnalystPanel.vue';
 import {
@@ -12,6 +13,7 @@ import { arrowBackOutline } from 'ionicons/icons';
 
 const route = useRoute();
 const api = useApi();
+const onboarding = useOnboardingStore();
 const instrument = ref<Record<string, unknown> | null>(null);
 const analysts = ref<Record<string, unknown>[]>([]);
 const compositeScore = ref<Record<string, unknown> | null>(null);
@@ -32,6 +34,9 @@ function fmtConfidence(v: unknown): string {
 
 onMounted(async () => {
   const id = route.params.id as string;
+  // Notify onboarding that the user opened an instrument detail page.
+  // No-op unless the current tour step is waiting on this action.
+  onboarding.notifyAction('opened-instrument-detail').catch(() => { /* non-fatal */ });
   try {
     const all = await api.get<Record<string, unknown>[]>('/instruments');
     instrument.value = all.find(i => i['id'] === id) ?? null;
@@ -60,7 +65,7 @@ onMounted(async () => {
     <!-- Analysts Tab -->
     <div v-if="tab === 'analysts'">
       <!-- Arbitrator synthesis (composite signal + composite risk) -->
-      <ion-card v-if="arbitratorPrediction || compositeScore?.['current']" color="light" style="margin-bottom:16px">
+      <ion-card v-if="arbitratorPrediction || compositeScore?.['current']" color="light" style="margin-bottom:16px" data-tour="arbitrator-synthesis">
         <ion-card-header>
           <ion-card-title>Arbitrator Synthesis</ion-card-title>
         </ion-card-header>
@@ -77,13 +82,15 @@ onMounted(async () => {
         </ion-card-content>
       </ion-card>
 
-      <InstrumentAnalystPanel
-        v-for="a in analysts"
-        :key="String(a['id'])"
-        :analyst="a"
-        :predictions="predictions"
-        :risks="riskAssessments"
-      />
+      <div data-tour="analyst-panel">
+        <InstrumentAnalystPanel
+          v-for="a in analysts"
+          :key="String(a['id'])"
+          :analyst="a"
+          :predictions="predictions"
+          :risks="riskAssessments"
+        />
+      </div>
       <ion-note v-if="analysts.length === 0" color="primary" style="display:block;padding:16px">
         No analysts available for this instrument.
       </ion-note>
