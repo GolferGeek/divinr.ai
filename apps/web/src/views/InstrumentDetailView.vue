@@ -57,7 +57,7 @@ onMounted(async () => {
     <h1 style="margin-bottom:16px">{{ instrument?.['symbol'] ?? 'Loading...' }}</h1>
     <p style="margin-bottom:16px;opacity:0.7">{{ instrument?.['name'] }}</p>
 
-    <ion-segment v-model="tab" style="margin-bottom:16px">
+    <ion-segment v-model="tab" style="margin-bottom:16px" data-tour="instrument-tabs">
       <ion-segment-button value="analysts"><ion-label>Analysts</ion-label></ion-segment-button>
       <ion-segment-button value="predictors"><ion-label>AI Scoring</ion-label></ion-segment-button>
     </ion-segment>

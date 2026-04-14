@@ -30,7 +30,7 @@ export const tourContent: Record<StepId, StepContent> = {
   predictions: {
     id: 'predictions',
     title: 'Open a prediction',
-    body: "Go ahead — pick any prediction card on your dashboard and click into it.\n\nYou'll land on the instrument page, where the real transparency starts.",
+    body: "Go ahead — pick any prediction card on your dashboard and click into it.\n\nThe next screen is the most important thing in Divinr. This is where the platform stops being a collection of cards and starts being a conversation you can read.",
     routePath: '/',
     pulseSelectors: ['[data-tour="dashboard-prediction-card"]'],
     cta: { label: 'Click any prediction card to continue', actionKey: 'opened-instrument-detail' },
@@ -39,10 +39,14 @@ export const tourContent: Record<StepId, StepContent> = {
   },
   'instrument-detail': {
     id: 'instrument-detail',
-    title: 'Five analysts, one synthesis',
-    body: "This is the thesis of Divinr.\n\nAt the top: the **Arbitrator Synthesis** — the combined signal after weighing every analyst. Below it: **each analyst's own card** showing direction, confidence, and the rationale they used to get there.\n\nThese aren't five mirrors of the same model — each analyst has a distinct style. You can read every one of their rationales in their own words.",
+    title: 'This is the whole thing',
+    body: "Take a minute here. This page is the biggest part of Divinr — everything else is scaffolding around it.\n\n**At the top**: the Arbitrator Synthesis. One combined signal after weighing every analyst.\n\n**Below that**: each of the five analysts, side by side. Every card shows their call, their confidence, and — in their own words — **why** they called it that way.\n\n**Try this before you move on:**\n\n• Scroll down and read at least two rationales in full. They disagree with each other. That is the point.\n\n• On any analyst with a track record, click **View history** to see their past calls.\n\n• Switch to the **AI Scoring** tab up top to see the raw scoring behind the synthesis.\n\nWhen you are done exploring, hit Next.",
     routePath: '/instruments',
-    pulseSelectors: ['[data-tour="arbitrator-synthesis"]', '[data-tour="analyst-panel"]'],
+    pulseSelectors: [
+      '[data-tour="arbitrator-synthesis"]',
+      '[data-tour="analyst-panel"]',
+      '[data-tour="instrument-tabs"]',
+    ],
     completion: { kind: 'got_it' },
     emotionalBeat: 'astonished',
   },
