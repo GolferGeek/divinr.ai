@@ -1,7 +1,9 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-13
+**Last updated:** 2026-04-16
 **Maintained by:** `/roadmap` skill
+
+> **⚠️ Strategy under revision.** The tier model documented in the *Future — Revenue Pipeline* section below (Starter / Pro / Premium / Custom) is **historical**, not current strategy. The system is moving to a **club-as-billing-unit** model with capability-union + quota-sum entitlements, where every user is auto-enrolled in a default paid club (**Divinr Basic**, $50/mo). The in-flight redesign lives in [next/divinr-basic-club-model/intention.md](next/divinr-basic-club-model/intention.md), which owns the rewrite of this document as its prerequisite phase. Treat the Phase 1/2 tier tables below as the prior plan, not the active one.
 
 ## Vision
 
@@ -27,22 +29,45 @@ Divinr's core promise is **explainability over black-box trading bots**. Five LL
 ## Current State
 
 **Infrastructure:** DGX Spark running gemma4 (local inference, zero cost)
-**Users:** 3 active (demo-user, golfergeek, ethan) + invite flow ready
-**Status:** Feature-complete for beta. Revenue model defined. Ready for Stripe.
+**Users:** 3 active (demo-user, golfergeek, ethan) + invite flow ready; St. Thomas intern joining shortly
+**Status:** Onboarding tour v1 shipped. Architecture restructure block queued ahead of billing — the system is moving from individual-tier pricing to a club-as-billing-unit model, which requires foundational work on contracts, the workflow pipeline, and the (club, analyst, instrument) triple model before billing can be wired.
+
+**Current effort:** *(none active — promote first architecture effort when ready)*
 
 ---
 
-## Next (2 efforts)
+## Next (14 efforts queued)
 
-### 1. Live Prediction PnL
-Run prediction cycles during market hours to generate real day trader returns. Validates that positions open at market prices, hold through intraday movement, and close at EOD with actual PnL.
+See [next/](next/) for full intention files. Logical ordering with dependencies:
 
-**Blocked on:** Market hours (weekday 9:30 AM - 4:00 PM ET)
+**Architecture restructure block** (sequential — each depends on the prior):
+1. [workflow-stages-article-pipeline](next/workflow-stages-article-pipeline/intention.md) — named workflow stages, two-step article pipeline, predictor → risk → prediction reorder
+2. [stage-keyed-analyst-contracts](next/stage-keyed-analyst-contracts/intention.md) — restructure contracts; close documented-vs-runtime gap
+3. [instrument-contracts](next/instrument-contracts/intention.md) — first-class contract entity for instruments
+4. [club-authored-custom-content](next/club-authored-custom-content/intention.md) — clubs author analysts, contracts, instruments
+5. [triple-model-reasoning-continuity](next/triple-model-reasoning-continuity/intention.md) — (club, analyst, instrument) becomes the reasoning atom
+6. [slot-based-enablement-ui](next/slot-based-enablement-ui/intention.md) — user-facing triple selection
 
-### 2. Stripe Integration
-Payment processing, subscription management, tier gating. Prerequisite for everything in the revenue pipeline.
+**Membership / club model block** (depends on architecture):
+7. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — default paid club, multi-club entitlement, opt-outs, lifecycle (and **owns the rewrite of this roadmap document**)
+8. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
+9. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student clubs (free, paid-ready)
+10. [paid-club-tier-catalog](next/paid-club-tier-catalog/intention.md) — $100 / $500 club SKUs above Basic
 
-**Scope:** Customer creation, subscription CRUD, webhook handling, billing portal, pricing page, feature gating middleware.
+**Product expansion block:**
+11. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready (v2 of shipped tour)
+12. [live-prediction-pnl](next/live-prediction-pnl/) — real-money intraday cycle validation
+13. [spark-beta-hardening](next/spark-beta-hardening/) — operational hardening for beta on DGX Spark
+14. [stripe-integration](next/stripe-integration/) — billing wiring (rescoped to club subscriptions, not individual tiers)
+
+---
+
+## Key Architectural Insights (driving the restructure)
+
+- **Inference cost is content-keyed, not user-keyed.** Total cost ≈ (articles × analysts) + (predictions × predictors × analysts) — adding users who follow already-covered content is nearly free; adding instruments to the universe is what costs money. Pricing should align with content commitment, not headcount.
+- **The (club, analyst, instrument) triple is the atom of reasoning continuity.** A single analyst running through multiple instrument-contract lenses holds independent risk views, predictor streams, and learning per lens.
+- **Custom-instrument authorship is the real revenue lever.** Custom analyst authorship is meaningful but bounded; custom-instrument authorship inflates Stage 1 article fanout for every article forever — the right place for premium pricing (~$4k/mo magnitude per quota of 10 custom instruments).
+- **Beta strategy is "premium content as showcase."** Put genuinely attractive instruments/sources/analysts in beta labeled "premium-eligible later, free now" — beta validates the model, not revenue.
 
 ---
 
