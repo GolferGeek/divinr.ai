@@ -32,33 +32,32 @@ Divinr's core promise is **explainability over black-box trading bots**. Five LL
 **Users:** 3 active (demo-user, golfergeek, ethan) + invite flow ready; St. Thomas intern joining shortly
 **Status:** Onboarding tour v1 shipped. Architecture restructure block queued ahead of billing — the system is moving from individual-tier pricing to a club-as-billing-unit model, which requires foundational work on contracts, the workflow pipeline, and the (club, analyst, instrument) triple model before billing can be wired.
 
-**Current effort:** *(none active — promote first architecture effort when ready)*
+**Current effort:** [workflow-stages-article-pipeline](current/workflow-stages-article-pipeline/intention.md) — first phase of the architecture restructure block: named workflow stages, two-step article pipeline (relevance check → analyst fanout), predictor → risk → prediction reorder.
 
 ---
 
-## Next (14 efforts queued)
+## Next (13 efforts queued)
 
 See [next/](next/) for full intention files. Logical ordering with dependencies:
 
-**Architecture restructure block** (sequential — each depends on the prior):
-1. [workflow-stages-article-pipeline](next/workflow-stages-article-pipeline/intention.md) — named workflow stages, two-step article pipeline, predictor → risk → prediction reorder
-2. [stage-keyed-analyst-contracts](next/stage-keyed-analyst-contracts/intention.md) — restructure contracts; close documented-vs-runtime gap
-3. [instrument-contracts](next/instrument-contracts/intention.md) — first-class contract entity for instruments
-4. [club-authored-custom-content](next/club-authored-custom-content/intention.md) — clubs author analysts, contracts, instruments
-5. [triple-model-reasoning-continuity](next/triple-model-reasoning-continuity/intention.md) — (club, analyst, instrument) becomes the reasoning atom
-6. [slot-based-enablement-ui](next/slot-based-enablement-ui/intention.md) — user-facing triple selection
+**Architecture restructure block** (sequential — each depends on the prior; first effort now in [current/](current/)):
+1. [stage-keyed-analyst-contracts](next/stage-keyed-analyst-contracts/intention.md) — restructure contracts; close documented-vs-runtime gap
+2. [instrument-contracts](next/instrument-contracts/intention.md) — first-class contract entity for instruments
+3. [club-authored-custom-content](next/club-authored-custom-content/intention.md) — clubs author analysts, contracts, instruments
+4. [triple-model-reasoning-continuity](next/triple-model-reasoning-continuity/intention.md) — (club, analyst, instrument) becomes the reasoning atom
+5. [slot-based-enablement-ui](next/slot-based-enablement-ui/intention.md) — user-facing triple selection
 
 **Membership / club model block** (depends on architecture):
-7. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — default paid club, multi-club entitlement, opt-outs, lifecycle (and **owns the rewrite of this roadmap document**)
-8. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
-9. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student clubs (free, paid-ready)
-10. [paid-club-tier-catalog](next/paid-club-tier-catalog/intention.md) — $100 / $500 club SKUs above Basic
+6. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — default paid club, multi-club entitlement, opt-outs, lifecycle (and **owns the rewrite of this roadmap document**)
+7. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
+8. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student clubs (free, paid-ready)
+9. [paid-club-tier-catalog](next/paid-club-tier-catalog/intention.md) — $100 / $500 club SKUs above Basic
 
 **Product expansion block:**
-11. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready (v2 of shipped tour)
-12. [live-prediction-pnl](next/live-prediction-pnl/) — real-money intraday cycle validation
-13. [spark-beta-hardening](next/spark-beta-hardening/) — operational hardening for beta on DGX Spark
-14. [stripe-integration](next/stripe-integration/) — billing wiring (rescoped to club subscriptions, not individual tiers)
+10. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready (v2 of shipped tour)
+11. [live-prediction-pnl](next/live-prediction-pnl/) — real-money intraday cycle validation
+12. [spark-beta-hardening](next/spark-beta-hardening/) — operational hardening for beta on DGX Spark
+13. [stripe-integration](next/stripe-integration/) — billing wiring (rescoped to club subscriptions, not individual tiers)
 
 ---
 
