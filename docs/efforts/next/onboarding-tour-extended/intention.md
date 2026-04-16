@@ -10,7 +10,7 @@ This v2 effort extends that foundation into a substantially deeper experience th
 
 Three things have changed since v1 shipped:
 
-1. **The product got deeper.** Stage-keyed contracts, the (club, analyst, instrument) triple model, club-authored content, slot-based enablement — all of these are non-obvious to a new user and central to understanding what Divinr does.
+1. **The product got deeper.** Stage-keyed contracts, the (user, analyst, instrument) triple model, user-authored content with optional sharing, slot-based enablement, per-item authorship pricing, and custom-to-base graduation — all non-obvious to a new user and central to understanding what Divinr does.
 2. **12 linear steps undersells the product.** A new user genuinely deserves an hour of guided context if they want it. Half-explaining a product whose whole thesis is explainability is self-defeating.
 3. **The tour isn't interaction-aware.** When a user clicks "Add a new club," the docent loses them. Each meaningful sub-flow inside a section deserves its own beats.
 
@@ -76,7 +76,7 @@ Each chapter has multiple beats, a video slot, and follows the user's actual int
 
 ## Success Criteria
 
-- A new user who takes the full tour ends understanding the entire product, including explainability, contracts (as portioned by stage), the triple model, and how clubs differentiate via custom content
+- A new user who takes the full tour ends understanding the entire product, including explainability, contracts (as portioned by stage), the (user, analyst, instrument) triple model, how per-item authorship lets power users build their own analytical universe, and how custom-to-base graduation rewards contribution
 - A new user who skips can use the full product without restriction
 - A user can pause at any beat and resume cleanly later
 - Each chapter's content can be authored or edited independently of the others

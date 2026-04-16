@@ -103,7 +103,7 @@ This is a one-day project: hardware purchase + a few hours of config + setting u
 ## When to Move Off Spark
 
 This effort makes Spark "good enough for beta." We migrate to cloud (OpenRouter + Google Cloud or similar) when:
-- Premium ($100+) tier customers come on board
+- Power-user authorship volume grows (per-item $20/$60 authorships compound Stage-1 fanout beyond Spark's serial inference throughput)
 - Sustained traffic exceeds Spark capacity (~40 instruments, ~10 analysts)
 - Day trader features need intraday cycles (parallel inference)
 - Revenue covers the migration cost (~$1,200/mo at Launch scale)

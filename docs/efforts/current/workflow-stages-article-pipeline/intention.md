@@ -56,7 +56,7 @@ Restructure the prediction cycle into named, first-class **workflow stages** wit
 
 - Stage-keyed contracts (separate effort: `stage-keyed-analyst-contracts` — depends on this one)
 - Instrument contracts (separate effort: `instrument-contracts`)
-- Custom content authorship (separate effort: `club-authored-custom-content`)
+- Custom content authorship (separate effort: `user-authored-custom-content`)
 
 ## Dependencies
 

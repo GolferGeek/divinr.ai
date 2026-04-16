@@ -1,98 +1,94 @@
-# Effort: Divinr Basic & Multi-Club Membership Model
+# Effort: Divinr Basic Membership & Single-Tier Billing
 
 ## Problem
 
-Divinr's current pricing strategy (documented in `roadmap.md`) is built around individual user tiers — Starter / Pro / Premium / Custom — each with its own bundle of analysts, sources, and instrument caps. That model has two structural problems:
-
-1. **It splits the product into "social" and "solo" experiences.** A solo Starter user lives in a different mental model than a club member, and the codebase has to support both as first-class shapes.
-2. **It misprices the actual cost driver.** Inference cost is content-keyed — `(articles × analysts) + (predictions × predictors × analysts)` — not user-keyed. Per-user tiers price something that isn't the cost. Adding users to already-covered instruments is nearly free; adding instruments to the covered universe is what costs money. Per-user tiers don't align price with cost.
-
-We need a single, clean model where every user is a member of at least one club, the club is the billing unit, and individual users never have a separate paid tier.
+The product needs a clean answer to "who pays, how much, and for what." Previous iterations of this effort explored club-as-billing-unit models with multi-club entitlement stacking. We landed on something simpler: **every user is a $50/mo Basic user**. No individual tier ladder (Starter / Pro / Premium), no paid club tiers, no billing through clubs. Custom content authorship is a per-item add-on on top of Basic, not a separate tier.
 
 ## Intention
 
-Replace individual user tiers with a **club-as-billing-unit** model where every active user belongs to a default paid club (**Divinr Basic**, $50/mo, 10-instrument portfolio cap), can join additional clubs that stack their entitlements, and can opt out of any social surface within any club without losing functional access.
-
-This collapses "individual user" and "club member" into one shape, aligns price with cost, and gives every user a default home for tournaments and social features without forcing participation.
+Formalize **Divinr Basic** as the single baseline product shape — every active user is a $50/mo Basic subscriber and auto-enrolled in the default Divinr Basic social club. Clubs become purely social/discovery spaces with zero billing implications. Custom content authorship (analysts, instruments, sources) is billed per-item on top of the Basic subscription, and the compute underlying it is tracked by the separate `cost-modeling-system` effort.
 
 ## Scope
 
-### The Divinr Basic Club
+### Divinr Basic — the only default tier
 
-- Default club; every active account is auto-enrolled at signup
-- Cannot be left (you can leave other clubs, not Basic)
-- $50/mo, 10 portfolio slots (a *ceiling*, not a quota — using 2 is fine)
-- 30-day free trial at signup; auto-converts to paid if card on file, else moves to trial-expired state
-- Trial-expired accounts: read-only, 6-month dormancy window, then purged (with warning email at 30-days-before)
+- **$50/mo per user**
+- Includes base content (all base analysts × all base instruments, shared universe, content-keyed cost)
+- Includes social membership in the default Divinr Basic club (tournaments, messaging, shared activity feed)
+- 30-day free trial at signup → auto-converts to paid if card on file, else trial-expired state
+- Trial-expired: read-only access for 6 months, then account purged (email warning 30 days before)
 
-### Multi-Club Entitlement Rules
+### Clubs — social only, zero billing
 
-- **Capabilities union** across all clubs the user belongs to: analysts, sources, article feeds, custom signal types — you get everything from every club
-- **Quotas sum** across all clubs: instrument cap, alert count, custom analyst slots, anything countable. Pay for 50 + 30, get 80 portfolio slots.
-- No "club context switcher" UI required — entitlements are flat across the user's session
+- Clubs exist as social/tournament/messaging spaces
+- Users can create and join additional clubs beyond the default Basic one at no cost
+- Club membership grants no entitlements, costs nothing, and never consumes quota
+- Club admins manage membership and social surface — they are not content managers or billing payers
 
-### Per-User Opt-Outs (works in any club, including Basic)
+### Per-Item Authorship — the optional upgrade path
 
-- Visibility (be hidden from member lists)
-- Messaging (don't receive, don't appear as a target)
-- Tournament participation (silent member who doesn't compete)
-- Notifications and announcements
-- Leaderboard appearance
-- Profile visibility
+- Any Basic user can opt in to authoring custom content, billed per item:
+  - **$20/mo per authored custom instrument**
+  - **$60/mo per authored custom analyst**
+  - (Prices illustrative; finalized during PRD phase)
+- Per-item fees added to monthly bill alongside the $50 Basic charge
+- Compute cost for authored content tracked separately by `cost-modeling-system` — either bundled into the per-item fee or itemized (PRD decision)
+- BYO API key option (bring your own Claude/GPT/etc. credential) available for premium model authorship — platform fee charged; user's provider bills them directly for inference
 
-A silent, 2-instrument Basic user who never sees another user and is never seen by one is a **first-class** experience, not degraded.
+### Per-User Opt-Outs
+
+- Any user can disable social surfaces (visibility in member lists, messaging, tournament participation, notifications, leaderboard appearance)
+- A silent, $50-only user who never sees another user and is never seen by one is a first-class experience
 
 ### Lifecycle
 
 ```
-signup → trial (30 days) → active (paid) → expired (read-only, 6mo) → purged
+signup → trial (30 days) → active (paid $50/mo + any per-item fees) → expired (read-only, 6mo) → purged
                        ↘ no card → expired (read-only, 6mo) → purged
 ```
 
 Email touchpoints: trial-end conversion prompt, 30-days-before-purge warning.
 
-### Pricing/Strategy Reset (prerequisite phase)
+### Strategy/Roadmap Reset (prerequisite phase)
 
 Before building, this effort owns rewriting the documented strategy to match the new model:
 
-- Audit `next/stripe-integration` — its scope is currently "individual tier subscriptions"; needs reframing to "club subscriptions"
-- Grep `next/` and `future/` for "Starter / Pro / Premium / Custom" tier references — reconcile each
-- Rewrite the Phase 1 tier table in `roadmap.md`
-- Update `project_strategy.md` memory in the same change (docs and memory must stay coherent)
-- Reconcile `learning-clubs`, `mentor-mentee-pairing`, `public-club-rankings`, `tournament-system` if any bake in old assumptions
+- Update `roadmap.md` to remove the old Starter/Pro/Premium/Custom individual tier table (Phase 1) and the old "users bring their own API keys" Custom Tier (Phase 2)
+- Document the single-tier + per-item authorship model as current strategy
+- Reconcile `project_strategy.md` memory in the same change
+- Reconcile any other efforts still referencing multi-tier models
 
 ### Migration
 
-- Existing users: auto-enrolled in Basic, grandfathered into trial or active state per current account state (TBD in PRD)
-- Existing clubs (St. Thomas Investing Club): keep their distinct identity, members are *also* in Basic by definition
+- Existing users auto-enrolled in Basic at flip-over
+- Grandfathered trial/active state per current account state (TBD in PRD)
+- Existing clubs (St. Thomas, etc.) convert to social-only (no billing impact)
 
 ## Success Criteria
 
-- Every active account is a member of Divinr Basic
-- A user joining a second club sees their entitlements stack correctly (more analysts, more sources, slot caps sum)
-- A user can disable every social surface in Basic and still have a functional product
-- Trial → paid → expired → purged lifecycle works end to end with the right email touchpoints
-- Strategy docs (`roadmap.md`) and memory (`project_strategy.md`) reflect the club-as-billing-unit model — no orphaned references to the old individual-tier model
+- Every active account is a $50/mo Basic user
+- Clubs have zero billing implications anywhere in the product or codebase
+- Per-item authorship charges correctly appear on monthly bills for users who author
+- Strategy docs and memory reflect the single-tier + per-item model — no orphaned references to the old multi-tier model
 
 ## Out of Scope
 
-- Stripe wiring itself (lives in the rescoped `stripe-integration` effort that comes after)
-- Student-club .edu gating (separate effort: `student-club-accounts`)
-- The $100 / $500 paid club SKUs beyond Basic (separate effort: `paid-club-tier-catalog`)
-- Polish of the club/tournament UX surfaces themselves (separate effort: `club-tournament-experience-polish`, comes before this)
+- Stripe wiring itself (`stripe-integration` effort, rescoped to single-tier + per-item charges)
+- The authorship *mechanics* — that's `user-authored-custom-content`
+- The cost tracking *infrastructure* — that's `cost-modeling-system`
+- The donation/graduation mechanic — that's `custom-to-base-graduation`
+- Student pricing mechanics — that's `student-club-accounts` (cost-pass-through model)
 
 ## Dependencies
 
-- `club-tournament-experience-polish` should land first so the surfaces this effort wires opt-outs and entitlements into are already polished
-- Onboarding tour (current effort) — completion-state assumptions may need to mention Basic membership
+- Architecture restructure block must land first (workflow stages, contracts, triple model, slot-based enablement) — these define what "Basic" actually gives a user access to
 
 ## Open Questions for PRD Phase
 
-- Does Basic include a baseline source/analyst set, or do users start with zero curated content until they engage?
-- How do entitlements display in the UI — flat list with no club attribution, or grouped by source club ("AAPL analysis from Pro Club")?
-- For the migration: how do we communicate the model change to existing tier-aware users (if any exist by then)?
-- Is there a per-club admin role distinct from per-club billing payer?
+- Does the $50 Basic subscription include any per-item authorship quota (e.g., "first analyst free"), or is per-item billing strict from the first item?
+- For users with BYO API keys: what's the platform fee structure — flat monthly on top of $50, percentage of inference cost, or per-call surcharge?
+- How do we display the monthly bill when a user has $50 Basic + 3 instruments ($60) + 2 analysts ($120) = $230 total? UX matters for perception of per-item model.
 
 ---
 
-*Next artifacts: PRD (detailed entitlement rules, lifecycle state machine, migration plan, strategy-doc rewrite checklist), then a phased plan starting with the strategy/memory reset before any code lands.*
+*Drafted after extensive conversation collapsing the earlier multi-tier and club-as-billing-unit models. Clubs are social, users pay, per-item authorship is an opt-in upgrade path.*

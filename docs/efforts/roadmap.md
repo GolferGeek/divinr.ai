@@ -3,11 +3,11 @@
 **Last updated:** 2026-04-16
 **Maintained by:** `/roadmap` skill
 
-> **⚠️ Strategy under revision.** The tier model documented in the *Future — Revenue Pipeline* section below (Starter / Pro / Premium / Custom) is **historical**, not current strategy. The system is moving to a **club-as-billing-unit** model with capability-union + quota-sum entitlements, where every user is auto-enrolled in a default paid club (**Divinr Basic**, $50/mo). The in-flight redesign lives in [next/divinr-basic-club-model/intention.md](next/divinr-basic-club-model/intention.md), which owns the rewrite of this document as its prerequisite phase. Treat the Phase 1/2 tier tables below as the prior plan, not the active one.
+> **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
 
 ## Vision
 
-Divinr's core promise is **explainability over black-box trading bots**. Five LLM-powered analysts each produce independent predictions with captured reasoning. A risk debate system challenges every assessment. A three-tier learning loop makes the system smarter over time — and every adaptation is visible.
+Divinr's core promise is **explainability over black-box trading bots**. LLM-powered analysts each produce independent predictions with captured reasoning. A risk debate system challenges every assessment. A three-tier learning loop makes the system smarter over time — and every adaptation is visible.
 
 **The closed loop is fully operational:**
 1. Analysts produce predictions with reasoning (shipped)
@@ -16,94 +16,92 @@ Divinr's core promise is **explainability over black-box trading bots**. Five LL
 4. System audits analyst reasoning against contracts (shipped)
 5. System proposes improvements, humans approve (shipped)
 
-**What's built and tested:**
+---
+
+## What's Built & Tested
+
 - 14 feature areas Chrome-tested and verified
 - Landing page live at /welcome
 - Grouped sidebar nav with role-based visibility
 - St. Thomas Investing Club with 3 members, tournament scheduled for Apr 20
 - One-step club signup at /join with invite code
 - Marketing compilation: hero copy, 15-feature inventory, 4 user personas
+- Onboarding tour v1 (welcome modal → 12-step docent → completion, per-step walkthrough videos)
+- Spark beta hardening: automated Postgres backups every 3 hours
 
 ---
 
 ## Current State
 
-**Infrastructure:** DGX Spark running gemma4 (local inference, zero cost)
-**Users:** 3 active (demo-user, golfergeek, ethan) + invite flow ready; St. Thomas intern joining shortly
-**Status:** Onboarding tour v1 shipped. Architecture restructure block queued ahead of billing — the system is moving from individual-tier pricing to a club-as-billing-unit model, which requires foundational work on contracts, the workflow pipeline, and the (club, analyst, instrument) triple model before billing can be wired.
-
-**Current effort:** [workflow-stages-article-pipeline](current/workflow-stages-article-pipeline/intention.md) — first phase of the architecture restructure block: named workflow stages, two-step article pipeline (relevance check → analyst fanout), predictor → risk → prediction reorder.
+**Infrastructure:** DGX Spark running gemma4 (local inference, zero cost). Hardening in place (backups, service recovery).
+**Users:** 3 active (demo-user, golfergeek, ethan); St. Thomas intern joining shortly; broader beta pending architecture work.
+**Business model direction:** See [master-intention.md](master-intention.md). Single $50/mo Basic tier. Per-item authorship ($20/instrument, $60/analyst). Clubs are purely social. No multi-tier ladder. Cost-pass-through for students.
+**Status:** Onboarding v1 shipped. Architecture restructure block underway. No billing wired yet (Stripe queued behind architecture foundation).
 
 ---
 
-## Next (13 efforts queued)
+## Current Effort
 
-See [next/](next/) for full intention files. Logical ordering with dependencies:
+**[workflow-stages-article-pipeline](current/workflow-stages-article-pipeline/intention.md)** — first phase of the architecture restructure block: named workflow stages, two-step article pipeline (relevance check → analyst fanout), predictor → risk → prediction reorder. Foundation that the other architecture efforts depend on.
 
-**Architecture restructure block** (sequential — each depends on the prior; first effort now in [current/](current/)):
-1. [stage-keyed-analyst-contracts](next/stage-keyed-analyst-contracts/intention.md) — restructure contracts; close documented-vs-runtime gap
-2. [instrument-contracts](next/instrument-contracts/intention.md) — first-class contract entity for instruments
-3. [club-authored-custom-content](next/club-authored-custom-content/intention.md) — clubs author analysts, contracts, instruments
-4. [triple-model-reasoning-continuity](next/triple-model-reasoning-continuity/intention.md) — (club, analyst, instrument) becomes the reasoning atom
+---
+
+## Next — Queued Efforts (17)
+
+Grouped by logical dependency; each block mostly sequential, some efforts within a block may parallelize.
+
+### Architecture Restructure Block (5 efforts, sequential)
+
+1. [stage-keyed-analyst-contracts](next/stage-keyed-analyst-contracts/intention.md) — restructure contracts: General + per-stage sections + Adaptations; close documented-vs-runtime gap
+2. [instrument-contracts](next/instrument-contracts/intention.md) — first-class contract entity for instruments (parallel shape to analysts, plus article-processing section)
+3. [user-authored-custom-content](next/user-authored-custom-content/intention.md) — individual authorship of analysts, instrument contracts, instruments; per-item pricing
+4. [triple-model-reasoning-continuity](next/triple-model-reasoning-continuity/intention.md) — (user, analyst, instrument) becomes the atom of reasoning continuity
 5. [slot-based-enablement-ui](next/slot-based-enablement-ui/intention.md) — user-facing triple selection
 
-**Membership / club model block** (depends on architecture):
-6. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — default paid club, multi-club entitlement, opt-outs, lifecycle (and **owns the rewrite of this roadmap document**)
-7. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
-8. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student clubs (free, paid-ready)
-9. [paid-club-tier-catalog](next/paid-club-tier-catalog/intention.md) — $100 / $500 club SKUs above Basic
+### Economics & Evaluation Substrate (4 efforts)
 
-**Product expansion block:**
-10. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready (v2 of shipped tour)
-11. [live-prediction-pnl](next/live-prediction-pnl/) — real-money intraday cycle validation
-12. [spark-beta-hardening](next/spark-beta-hardening/) — operational hardening for beta on DGX Spark
-13. [stripe-integration](next/stripe-integration/) — billing wiring (rescoped to club subscriptions, not individual tiers)
+6. [llm-usage-logging](next/llm-usage-logging/intention.md) — capture every LLM call with full dimensional context (triple, stage, sub-stage, model, tokens, cost, BYO flag); load-bearing infrastructure that every economics/attribution/billing/regression effort consumes
+7. [cost-modeling-system](next/cost-modeling-system/intention.md) — calibration, prediction, pricing defensibility, experimentation mode; pure consumer of llm-usage-logging data
+8. [entity-level-performance-attribution](next/entity-level-performance-attribution/intention.md) — multi-dimensional P&L (per analyst / instrument / source / article / author / any combination); load-bearing for graduation decisions and author retention
+9. [regression-testing-harness](next/regression-testing-harness/intention.md) — historical-day replay system; validate contract changes, model upgrades, and graduation candidates against real past data
 
----
+### Billing Surface (3 efforts)
 
-## Key Architectural Insights (driving the restructure)
+10. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics, social-only clubs (effort name predates the simplification; the scope is now single-tier user billing)
+11. [stripe-integration](next/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
+12. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing (depends on cost-modeling-system)
 
-- **Inference cost is content-keyed, not user-keyed.** Total cost ≈ (articles × analysts) + (predictions × predictors × analysts) — adding users who follow already-covered content is nearly free; adding instruments to the universe is what costs money. Pricing should align with content commitment, not headcount.
-- **The (club, analyst, instrument) triple is the atom of reasoning continuity.** A single analyst running through multiple instrument-contract lenses holds independent risk views, predictor streams, and learning per lens.
-- **Custom-instrument authorship is the real revenue lever.** Custom analyst authorship is meaningful but bounded; custom-instrument authorship inflates Stage 1 article fanout for every article forever — the right place for premium pricing (~$4k/mo magnitude per quota of 10 custom instruments).
-- **Beta strategy is "premium content as showcase."** Put genuinely attractive instruments/sources/analysts in beta labeled "premium-eligible later, free now" — beta validates the model, not revenue.
+### Graduation & Contribution Layer (1 effort)
 
----
+13. [custom-to-base-graduation](next/custom-to-base-graduation/intention.md) — opt-in donation from user-authored to base, with cost-reduction-on-donation reward and community board attribution
 
-## Future — Revenue Pipeline
+### Experience Polish (2 efforts)
 
-### Phase 1: Paid Tiers
+14. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
+15. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
 
-| Tier | Price | Analysts | Sources | Instruments |
-|------|-------|----------|---------|-------------|
-| **Free trial** | $0 / 1 month | Pro-level access | All | All |
-| **Starter** | $20/mo | 5 base (gemma4) | Free (RSS, public filings) | Core stocks (~15-20) |
-| **Pro** | $50/mo | Refined (better contracts) | Paid (Polygon, news APIs) | Full stock universe |
-| **Premium** | $100/mo | Frontier-model (Claude/GPT-4) | Institutional-grade | Full + crypto/commodities |
+### Operations & Validation (2 efforts)
 
-**Key:** Quality ladder — better sources produce better analysis. Users upgrade when they see Pro analysts outperform Starter ones.
-
-### Phase 2: Custom Tier ($500+/mo)
-
-Power users bring their own API keys:
-- **Custom analysts** — user's LLM key pays for inference
-- **Custom data sources** — user's data API key pays for feeds
-- **Platform fee** covers orchestration, learning loop, evaluation
-- **Private analysis** invisible to other users
-- Pure margin — they pay their own compute/data costs
-
-### Phase 3: Infrastructure Migration
-
-Revenue from tiers funds the move from Spark/gemma4 to frontier models on cloud:
-1. **Now:** Spark + gemma4 (bootstrap, zero inference cost)
-2. **Revenue:** Stripe + paid tiers fund the transition
-3. **Scale:** Frontier models on cloud (faster, smarter, concurrent)
-
-**No desktop/local hybrid.** Platform never leaves our infrastructure. That's the moat.
+16. [live-prediction-pnl](next/live-prediction-pnl/intention.md) — run prediction cycles during market hours to validate intraday flow
+17. [spark-beta-hardening](next/spark-beta-hardening/intention.md) — power protection, service reliability, offsite backups, monitoring, recovery docs
 
 ---
 
-## Completed Efforts (31)
+## Future
+
+Preserved from prior planning because the concepts remain pertinent, but deferred indefinitely until demand or scale justifies the work.
+
+### [infrastructure-migration](future/infrastructure-migration/intention.md)
+
+Spark → cloud when revenue and scale justify it. Platform never leaves Divinr's infrastructure (no desktop/local hybrid — that's the moat). Target: OpenRouter for LLM routing + managed cloud for DB/compute. Timing gated on authorship volume, parallel-inference demand, and revenue sufficient to fund the migration.
+
+### [custom-source-ingestion](future/custom-source-ingestion/intention.md)
+
+Let power users attach their own article-ingestion sources (custom RSS, APIs, manual submission) for truly niche authored instruments not covered by Divinr's base sources. Scoped out of `user-authored-custom-content` v1; revisit when demand emerges.
+
+---
+
+## Completed Efforts (32)
 
 ### Core Engine
 | Effort | What it did |
@@ -146,7 +144,7 @@ Revenue from tiers funds the move from Spark/gemma4 to frontier models on cloud:
 | `curriculum-builder` | Multi-week courses, auto-unlock, professor dashboard |
 | `mentor-mentee-pairing` | Mentor eligibility, pairing, feedback, leaderboard |
 
-### Testing & Marketing (this session)
+### Experience & Marketing
 | Effort | What it did |
 |---|---|
 | 14 test efforts | API + Chrome verification of every feature area |
@@ -156,11 +154,14 @@ Revenue from tiers funds the move from Spark/gemma4 to frontier models on cloud:
 | Fix orphaned evaluations | Remapped 3,036 instrument IDs, fixed contributions + findings |
 | Tournament competitive loop | St. Thomas Sprint #1 with 3 players, 6 trades |
 | Friend invite flow | One-step /join page with club code signup |
+| **`onboarding-tour-v1`** | Welcome modal → 12-step docent → completion, per-step videos |
 
 ---
 
 ## How This Document Is Maintained
 
-- Updated whenever efforts complete or priorities change
-- Each effort has its own `intention.md` → `plan.md` chain in `docs/efforts/`
-- `current/` = in progress, `next/` = queued, `future/` = planned but not scheduled
+- [master-intention.md](master-intention.md) is the canonical product vision. This roadmap is an effort-status snapshot.
+- Each effort has its own `intention.md` → `plan.md` chain in `docs/efforts/{current,next,future}/`
+- `current/` = in progress, `next/` = queued, `future/` = planned but unscheduled, `archive/` = shipped or retired
+- Updated whenever efforts complete, efforts get promoted/archived, or priorities shift
+- Retired efforts / strategies move to `archive/` with a superseded-by banner pointing at the current source of truth

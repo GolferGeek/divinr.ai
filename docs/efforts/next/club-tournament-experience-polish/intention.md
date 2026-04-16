@@ -4,7 +4,7 @@
 
 The intern (and the broader St. Thomas Investing Club cohort) is the showcase audience for Divinr right now. The architectural underpinnings — analysts, predictions, risk debates — are working. But the *club* and *tournament* surfaces those students live in day-to-day haven't been polished as a deliberate experience. They function; they don't yet *delight*.
 
-Before we layer new architecture on top (Divinr Basic membership model, paid club tiers, .edu gating), the existing club + tournament UX needs to feel like a finished product — because that's the experience the intern and her classmates judge us on, and what they tell their friends about.
+Before we layer new architecture on top (Divinr Basic billing model, .edu-gated student accounts, user-authored custom content), the existing club + tournament UX needs to feel like a finished product — because that's the experience the intern and her classmates judge us on, and what they tell their friends about.
 
 ## Intention
 

@@ -1,3 +1,8 @@
+> **🗄️ Archived 2026-04-16 — Superseded by [master-intention.md](../../master-intention.md).**
+> This document describes a separate Custom Tier ($500+/mo) where power users bring their own API keys as a standalone SKU. That concept is retired. In the new model, BYO API keys is an add-on available to any Basic user (with a platform fee), and per-item authorship ($20/instrument, $60/analyst) covers the "serious operators want custom content" use case without needing a separate tier. Kept here for historical reference.
+
+---
+
 # Effort: Power User Expansion (Custom Tier)
 
 ## Problem

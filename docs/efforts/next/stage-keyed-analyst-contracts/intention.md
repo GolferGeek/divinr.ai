@@ -21,8 +21,11 @@ Restructure analyst contracts to be **stage-keyed** — General + per-stage sect
 ## Stage: Predictor Generation
 (decision criteria for extracting predictors from articles)
 
-## Stage: Risk Assessment
-(decision criteria for maintaining/updating risk view)
+## Stage: Risk Assessment — Reflection (3a)
+(first-person decision criteria: how this analyst integrates new predictors into its holistic risk view on an instrument)
+
+## Stage: Risk Assessment — Debate (3b)
+(decision criteria for this analyst's role in the Red/Blue/Arbiter multi-agent debate — what stance to take, how to argue, how to respond to the adversary; note that the Arbitrator analyst has different clauses here than the personality analysts that play Blue/Red)
 
 ## Stage: Prediction Generation
 (decision criteria for issuing predictions from predictors + risk)
@@ -62,7 +65,7 @@ Note: analyst contracts do **not** have an "Article Processing" stage section �
 
 - For analysts that genuinely have no special instructions for a given stage, do we leave that stage section empty or default it to "follow General rules"?
 - Existing `tier-1-structured-writes` queued effort writes to `## Adaptations` — does it stay separate or fold into this effort?
-- Should there be a "## Stage: Risk Debate" section in addition to "## Stage: Risk Assessment" if the Blue/Red/Arbiter flow remains?
+- ~~Should there be a "## Stage: Risk Debate" section in addition to "## Stage: Risk Assessment" if the Blue/Red/Arbiter flow remains?~~ **Resolved** — yes. Master-intention §3.5 confirmed the debate stays in the cycle, and the contract shape above splits Risk Assessment into 3a (Reflection) and 3b (Debate) sub-stage sections.
 
 ## Success Criteria
 
@@ -75,7 +78,7 @@ Note: analyst contracts do **not** have an "Article Processing" stage section �
 
 - Instrument contracts (separate effort: `instrument-contracts`)
 - Stage taxonomy itself (defined in `workflow-stages-article-pipeline`)
-- Custom contract authorship by clubs (separate effort: `club-authored-custom-content`)
+- Custom contract authorship by users (separate effort: `user-authored-custom-content`)
 
 ## Dependencies
 

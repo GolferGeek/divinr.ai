@@ -1,62 +1,74 @@
-# Effort: Student Club Accounts
+# Effort: Student Club Accounts (Cost-Pass-Through Pricing)
 
 ## Problem
 
-Students are a high-leverage early audience — they're already coordinating in investing clubs (St. Thomas Investing Club is the proof point), they have time to engage deeply, and a graduating student becomes a working professional with a Divinr habit. But the current club model has no notion of "this is a student club," no automatic credentialing, and no graceful handling of the moment a student stops being a student.
+Students are a high-leverage early audience — they're already coordinating in investing clubs (St. Thomas Investing Club is the proof point), they have time to engage deeply, and a graduating student becomes a working professional with a Divinr habit. But the $50/mo Basic tier — designed to recover full cost plus markup for regular users — is steep for students. And free-for-students is unsustainable once the system has real compute costs.
+
+The right answer: let students pay **at cost**, using the `cost-modeling-system` to dynamically calculate their actual compute usage. No markup, no profit, but no hit to Divinr either. Break-even pricing for students; regular users pay the same cost plus a significant markup.
 
 ## Intention
 
-Add a first-class **Student Club** type that uses `.edu` email verification as the membership credential. Free during beta, structured so that flipping to paid is a config change rather than a rebuild. Membership naturally lapses when the student graduates and loses their `.edu` address, providing a self-cleaning credential without manual offboarding.
+Create a **Student** membership modifier — gated on `.edu` email verification, priced at the user's actual compute cost (as calculated by the cost-modeling-system), with zero profit margin. Student membership lives on top of the existing user account; the `.edu` credential naturally expires when the student graduates, providing a self-cleaning offboarding mechanism into regular Basic pricing.
 
 ## Scope
 
-### New Club Type
-
-- "Student Club" as a distinct club kind alongside the regular paid clubs
-- St. Thomas Investing Club is the first instance
-- Inherits the standard club model from `divinr-basic-club-model`: opt-outs, tournaments, club-scoped analysts/sources
-
 ### .edu Membership Gating
 
-- Membership requires a verified `.edu` email on file
-- Periodic re-verification cadence (TBD — quarterly? on each login? on bounce?)
-- Loss of `.edu` validity → membership transitions to a graceful "alumni" state, not a hard kick
+- Students verify a `.edu` email at signup or upgrade
+- Periodic re-verification (cadence TBD — probably annual + bounce-triggered)
+- Loss of `.edu` validity → graceful transition to regular $50/mo Basic, not a hard kick
 
-### Free-Now, Paid-Ready Architecture
+### Cost-Pass-Through Pricing
 
-- Pricing is $0/mo at launch
-- Plumbing (subscription record, billing hooks, entitlements) is wired the same way a paid club would be
-- Flipping to paid is changing a `monthly_price_cents` value, not adding a billing system
+- Student's monthly bill = their actual compute cost as calculated by `cost-modeling-system`
+- No per-item authorship markup (if they author custom content, they pay the compute cost, not the $20/$60 markup-inclusive per-item fee)
+- Floor price: some minimum (e.g., $10/mo) to prevent truly-zero-usage accounts
+- Ceiling: none (if a student authors a lot and runs heavy workflows, they pay for what they use)
 
-### Alumni Off-Ramp (the natural funnel)
+### UI / Transparency
 
-- When .edu lapses, student is offered conversion to regular Divinr Basic
-- Their portfolio, predictions, and history stay intact through the transition
-- Tournament participation history follows them into Basic
+- Student dashboard shows **real-time cost breakdown** — "this month so far: $7.42 across 3 instruments and 2 analysts"
+- Educational value in the transparency: students literally see the economics of AI workflows
+- Monthly statement itemizes compute by stage, model, and triple
 
-## Open Questions for PRD Phase
+### Student Clubs (Social, Unchanged from Basic)
 
-- How aggressive is the .edu re-verification? Annual? On every login? Only on bounce?
-- What does the alumni transition look like — silent, email-prompted, in-app modal?
-- Can a club admin (faculty advisor) manually approve non-.edu members for edge cases?
-- Does a Student Club have a different default analyst/source bundle than Divinr Basic, or is it Basic + identity?
+- Student status doesn't change club behavior — clubs remain social-only and free
+- St. Thomas Investing Club operates as a regular social club whose members happen to be students
+- "Student Club" isn't a separate billable entity — it's a social convention (a club full of verified students)
+
+### Alumni Off-Ramp
+
+- Student graduates → `.edu` lapses
+- System offers conversion to regular $50/mo Basic
+- Portfolio, predictions, authored content, history all stay intact through the transition
+- Authored content transitions to regular per-item pricing at the transition date
 
 ## Success Criteria
 
-- St. Thomas Investing Club operates as a Student Club instance with .edu-gated membership
-- A graduating student has a graceful path into regular Basic without losing their data
-- Flipping student clubs to paid in the future requires only a price config change
+- St. Thomas Investing Club members operate as Student Accounts with cost-pass-through pricing
+- A student's monthly bill accurately reflects their compute consumption (within the headroom of the cost-modeling-system)
+- Student dashboard shows transparent per-item / per-stage cost breakdown
+- Graduation transitions cleanly to regular Basic without data loss
 
 ## Out of Scope
 
-- The actual paid pricing for student clubs (decided when we flip the switch)
-- Billing/Stripe wiring (depends on the rescoped `stripe-integration` effort)
-- Faculty/advisor admin tooling beyond what `divinr-basic-club-model` provides
+- A separate "Student Club" billing entity (removed — students use normal social clubs)
+- Free-for-all student tier (removed — cost-pass-through instead)
+- Faculty/advisor admin tooling beyond standard club admin
 
 ## Dependencies
 
-- `divinr-basic-club-model` must land first — Student Club is a specialization of the club shape that effort defines
+- **`cost-modeling-system` must land first and be reasonably accurate** — student pricing depends entirely on it. Without accurate cost calculation, cost-pass-through is uncalibrated.
+- `divinr-basic-club-model` — for the broader Basic membership model to slot into
+
+## Open Questions for PRD Phase
+
+- What's the minimum floor — $10/mo? $5/mo? Free-with-ads? Should inform the prevent-abuse mechanics.
+- How aggressive is `.edu` re-verification — annual? Login-based? Only on bounce?
+- Can a club admin (e.g., faculty advisor) manually approve non-.edu members for edge cases (grad students on alt emails, etc.)?
+- Does the student "educational transparency" dashboard live only for students, or should all users see cost breakdowns eventually? (Probably all users; start with students.)
 
 ---
 
-*Stub — to be expanded after `divinr-basic-club-model` settles the base club shape.*
+*Rescoped after removing club-based billing. The "Student Club" concept dissolves into "Student Accounts" — .edu-gated users with cost-pass-through pricing.*

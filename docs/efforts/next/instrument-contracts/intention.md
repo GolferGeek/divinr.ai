@@ -76,7 +76,7 @@ Add a first-class **instrument contract** entity, parallel in shape to analyst c
 
 ## Out of Scope
 
-- Custom instrument contracts authored by clubs (separate effort: `club-authored-custom-content`)
+- Custom instrument contracts authored by users (separate effort: `user-authored-custom-content`)
 - The triple-model storage of analysis (separate effort: `triple-model-reasoning-continuity`)
 
 ## Dependencies

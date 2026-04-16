@@ -1,3 +1,8 @@
+> **🗄️ Archived 2026-04-16 — Superseded by [master-intention.md](../../master-intention.md).**
+> This document describes a 4-tier personal ladder (Starter/Pro/Premium/Custom) and a parallel 4-tier club ladder with a capability-union ("superset") rule. The entire model is retired. See master-intention Section 8 ("What This Replaces") for the full retirement list. Kept here for historical reference — *why* we moved away from this structure is useful context.
+
+---
+
 # Effort: Paid Tiers — Personal + Club Superset Model
 
 ## Problem
