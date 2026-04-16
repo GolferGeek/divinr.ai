@@ -30,6 +30,10 @@ import {
   type AnalystType as ContractAnalystType,
   type ContractValidationResult,
 } from './utils/parse-contract-markdown';
+import {
+  ANALYST_SCAFFOLD_PROMPT,
+  INSTRUMENT_SCAFFOLD_PROMPT,
+} from './utils/scaffold-prompts';
 import type {
   AssignAnalystInput,
   CreateAnalystInput,
@@ -399,15 +403,27 @@ export class MarketsService {
       created_at: new Date().toISOString(),
     };
 
-    const result = await this.db
-      .from('prediction', 'instruments')
-      .upsert(instrument, { onConflict: 'symbol' })
-      .select('*')
-      .single();
+    const result = await this.db.rawQuery(
+      `
+      insert into prediction.instruments
+        (id, user_id, symbol, name, asset_type, universe_slug, current_state, is_active, created_at)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      on conflict (symbol, (coalesce(user_id, 'base'))) do update set
+        name = excluded.name,
+        asset_type = excluded.asset_type
+      returning *
+      `,
+      [
+        instrument.id, instrument.user_id, instrument.symbol,
+        instrument.name, instrument.asset_type, instrument.universe_slug,
+        JSON.stringify(instrument.current_state), instrument.is_active, instrument.created_at,
+      ],
+    );
     if (result.error) {
       throw new Error(result.error.message);
     }
-    return result.data as MarketInstrument;
+    const rows = (result.data as MarketInstrument[] | null) ?? [];
+    return rows[0] as MarketInstrument;
   }
 
   async createAnalyst(input: CreateAnalystInput): Promise<MarketAnalyst> {
@@ -446,9 +462,9 @@ export class MarketsService {
       insert into prediction.market_analysts
         (id, user_id, slug, display_name, name, persona_prompt, analyst_type,
          default_weight, tier_instructions, is_system_default, is_enabled, is_active,
-         workflow_scope, domain_slug, created_by, created_at, updated_at)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-      on conflict (slug) do update set
+         workflow_scope, domain_slug, shared_with_clubs, created_by, created_at, updated_at)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15, $16, $17)
+      on conflict (slug, (coalesce(user_id, 'base'))) do update set
         display_name = excluded.display_name,
         persona_prompt = excluded.persona_prompt,
         updated_at = excluded.updated_at
@@ -1389,14 +1405,16 @@ export class MarketsService {
       `INSERT INTO prediction.analyst_config_versions
         (id, analyst_id, version_number, persona_prompt,
          tier_instructions, default_weight, context_markdown,
-         source, change_reason, parent_version_id, is_active, created_by, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'manual', $8, $9, true, $10, $11)`,
+         source, change_reason, parent_version_id, is_active, created_by, created_at,
+         author_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'manual', $8, $9, true, $10, $11, $12)`,
       [
         newVersionId, input.analystId, newVersionNumber,
         current.persona_prompt ?? '', JSON.stringify(current.tier_instructions ?? null),
         current.default_weight ?? 1.0, input.markdown,
         input.changeReason || 'Manual contract edit',
         oldVersionId, input.userId, new Date().toISOString(),
+        input.userId,
       ],
     );
 
@@ -1539,8 +1557,9 @@ export class MarketsService {
     await this.db.rawQuery(
       `INSERT INTO prediction.instrument_config_versions
         (id, instrument_id, version_number, context_markdown,
-         source, change_reason, parent_version_id, is_active, created_by, created_at)
-       VALUES ($1, $2, $3, $4, 'manual', $5, $6, true, $7, $8)`,
+         source, change_reason, parent_version_id, is_active, created_by, created_at,
+         author_user_id)
+       VALUES ($1, $2, $3, $4, 'manual', $5, $6, true, $7, $8, $9)`,
       [
         newVersionId,
         input.instrumentId,
@@ -1550,6 +1569,7 @@ export class MarketsService {
         oldVersionId,
         input.userId,
         new Date().toISOString(),
+        input.userId,
       ],
     );
 
@@ -4158,5 +4178,301 @@ Respond ONLY with valid JSON.`,
         predictionId, instrumentId,
       );
     }
+  }
+
+  // ─── Ownership Guards (effort: user-authored-custom-content) ────
+
+  private async assertOwnsAnalyst(analystId: string, userId: string): Promise<void> {
+    const result = await this.db.rawQuery(
+      `SELECT id, user_id FROM prediction.market_analysts WHERE id = $1`,
+      [analystId],
+    );
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Array<{ id: string; user_id: string | null }> | null) ?? [];
+    if (rows.length === 0) throw new NotFoundException('Analyst not found');
+    const row = rows[0];
+    if (row.user_id === null || row.user_id === undefined) {
+      throw new ForbiddenException('Base content is immutable');
+    }
+    if (row.user_id !== userId) {
+      throw new ForbiddenException('Not the owner of this content');
+    }
+  }
+
+  private async assertOwnsInstrument(instrumentId: string, userId: string): Promise<void> {
+    const result = await this.db.rawQuery(
+      `SELECT id, user_id FROM prediction.instruments WHERE id = $1`,
+      [instrumentId],
+    );
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Array<{ id: string; user_id: string | null }> | null) ?? [];
+    if (rows.length === 0) throw new NotFoundException('Instrument not found');
+    const row = rows[0];
+    if (row.user_id === null || row.user_id === undefined) {
+      throw new ForbiddenException('Base content is immutable');
+    }
+    if (row.user_id !== userId) {
+      throw new ForbiddenException('Not the owner of this content');
+    }
+  }
+
+  // ─── User-Authored CRUD (effort: user-authored-custom-content) ──
+
+  async listMyAnalysts(userId: string): Promise<MarketAnalyst[]> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `SELECT * FROM prediction.market_analysts WHERE user_id = $1 AND is_active = true ORDER BY display_name`,
+      [userId],
+    );
+    if (result.error) throw new Error(result.error.message);
+    return (result.data as MarketAnalyst[] | null) ?? [];
+  }
+
+  async softDeleteAnalyst(analystId: string, userId: string): Promise<void> {
+    await this.schema.ensureSchema();
+    await this.assertOwnsAnalyst(analystId, userId);
+    const result = await this.db.rawQuery(
+      `UPDATE prediction.market_analysts SET is_active = false WHERE id = $1`,
+      [analystId],
+    );
+    if (result.error) throw new Error(result.error.message);
+  }
+
+  async updateAnalystMetadata(
+    analystId: string,
+    userId: string,
+    patch: { displayName?: string },
+  ): Promise<void> {
+    await this.schema.ensureSchema();
+    await this.assertOwnsAnalyst(analystId, userId);
+
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (patch.displayName !== undefined) {
+      setClauses.push(`display_name = $${paramIdx++}`);
+      params.push(patch.displayName);
+    }
+
+    if (setClauses.length === 0) return;
+
+    setClauses.push(`updated_at = now()`);
+    params.push(analystId);
+
+    const result = await this.db.rawQuery(
+      `UPDATE prediction.market_analysts SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+      params,
+    );
+    if (result.error) throw new Error(result.error.message);
+  }
+
+  async listMyInstruments(userId: string): Promise<MarketInstrument[]> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `SELECT * FROM prediction.instruments WHERE user_id = $1 AND is_active = true ORDER BY symbol`,
+      [userId],
+    );
+    if (result.error) throw new Error(result.error.message);
+    return (result.data as MarketInstrument[] | null) ?? [];
+  }
+
+  async softDeleteInstrument(instrumentId: string, userId: string): Promise<void> {
+    await this.schema.ensureSchema();
+    await this.assertOwnsInstrument(instrumentId, userId);
+    const result = await this.db.rawQuery(
+      `UPDATE prediction.instruments SET is_active = false WHERE id = $1`,
+      [instrumentId],
+    );
+    if (result.error) throw new Error(result.error.message);
+  }
+
+  // ─── Scaffold Methods (effort: user-authored-custom-content) ────
+
+  async scaffoldAnalystContract(
+    analystId: string,
+    userId: string,
+  ): Promise<{ contextMarkdown: string; versionId: string }> {
+    await this.schema.ensureSchema();
+    await this.assertOwnsAnalyst(analystId, userId);
+
+    // Fetch analyst metadata
+    const analystResult = await this.db.rawQuery(
+      `SELECT display_name, analyst_type FROM prediction.market_analysts WHERE id = $1`,
+      [analystId],
+    );
+    if (analystResult.error) throw new Error(analystResult.error.message);
+    const analysts = (analystResult.data as Array<{ display_name: string; analyst_type: string }> | null) ?? [];
+    if (analysts.length === 0) throw new NotFoundException('Analyst not found');
+    const analyst = analysts[0];
+
+    // Generate scaffold via LLM
+    const prompt = ANALYST_SCAFFOLD_PROMPT(analyst.display_name, analyst.analyst_type);
+    const context = this.marketsLlm.buildExecutionContext(userId, 'scaffold');
+    const llmResult = await this.marketsLlm.generateText(
+      context,
+      'You are a financial analysis contract generator.',
+      prompt,
+    );
+    const contextMarkdown = llmResult.text;
+
+    // Get current version number
+    const currentResult = await this.db.rawQuery(
+      `SELECT current_config_version_id FROM prediction.market_analysts WHERE id = $1`,
+      [analystId],
+    );
+    const currentRows = (currentResult.data as Array<{ current_config_version_id: string | null }> | null) ?? [];
+    const oldVersionId = currentRows.length > 0 ? currentRows[0].current_config_version_id : null;
+
+    let versionNumber = 1;
+    if (oldVersionId) {
+      const vResult = await this.db.rawQuery(
+        `SELECT version_number FROM prediction.analyst_config_versions WHERE id = $1`,
+        [oldVersionId],
+      );
+      const vRows = (vResult.data as Array<{ version_number: number }> | null) ?? [];
+      versionNumber = (vRows.length > 0 ? Number(vRows[0].version_number) : 0) + 1;
+
+      // Deactivate old version
+      await this.db.rawQuery(
+        `UPDATE prediction.analyst_config_versions SET is_active = false WHERE id = $1`,
+        [oldVersionId],
+      );
+    }
+
+    // Insert new version
+    const versionId = randomUUID();
+    await this.db.rawQuery(
+      `INSERT INTO prediction.analyst_config_versions
+        (id, analyst_id, version_number, context_markdown,
+         source, change_reason, parent_version_id, is_active,
+         created_by, created_at, author_user_id)
+       VALUES ($1, $2, $3, $4, 'manual', 'scaffold', $5, true, $6, $7, $8)`,
+      [
+        versionId, analystId, versionNumber, contextMarkdown,
+        oldVersionId, userId, new Date().toISOString(), userId,
+      ],
+    );
+
+    // Update analyst pointer
+    await this.db.rawQuery(
+      `UPDATE prediction.market_analysts SET current_config_version_id = $1 WHERE id = $2`,
+      [versionId, analystId],
+    );
+
+    return { contextMarkdown, versionId };
+  }
+
+  async scaffoldInstrumentContract(
+    instrumentId: string,
+    userId: string,
+  ): Promise<{ contextMarkdown: string; versionId: string }> {
+    await this.schema.ensureSchema();
+    await this.assertOwnsInstrument(instrumentId, userId);
+
+    // Fetch instrument metadata
+    const instrumentResult = await this.db.rawQuery(
+      `SELECT symbol, name, asset_type FROM prediction.instruments WHERE id = $1`,
+      [instrumentId],
+    );
+    if (instrumentResult.error) throw new Error(instrumentResult.error.message);
+    const instruments = (instrumentResult.data as Array<{ symbol: string; name: string; asset_type: string }> | null) ?? [];
+    if (instruments.length === 0) throw new NotFoundException('Instrument not found');
+    const instrument = instruments[0];
+
+    // Generate scaffold via LLM
+    const prompt = INSTRUMENT_SCAFFOLD_PROMPT(instrument.symbol, instrument.name, instrument.asset_type);
+    const context = this.marketsLlm.buildExecutionContext(userId, 'scaffold');
+    const llmResult = await this.marketsLlm.generateText(
+      context,
+      'You are a financial analysis contract generator.',
+      prompt,
+    );
+    const contextMarkdown = llmResult.text;
+
+    // Get current version number
+    const currentResult = await this.db.rawQuery(
+      `SELECT current_config_version_id FROM prediction.instruments WHERE id = $1`,
+      [instrumentId],
+    );
+    const currentRows = (currentResult.data as Array<{ current_config_version_id: string | null }> | null) ?? [];
+    const oldVersionId = currentRows.length > 0 ? currentRows[0].current_config_version_id : null;
+
+    let versionNumber = 1;
+    if (oldVersionId) {
+      const vResult = await this.db.rawQuery(
+        `SELECT version_number FROM prediction.instrument_config_versions WHERE id = $1`,
+        [oldVersionId],
+      );
+      const vRows = (vResult.data as Array<{ version_number: number }> | null) ?? [];
+      versionNumber = (vRows.length > 0 ? Number(vRows[0].version_number) : 0) + 1;
+
+      // Deactivate old version
+      await this.db.rawQuery(
+        `UPDATE prediction.instrument_config_versions SET is_active = false WHERE id = $1`,
+        [oldVersionId],
+      );
+    }
+
+    // Insert new version
+    const versionId = randomUUID();
+    await this.db.rawQuery(
+      `INSERT INTO prediction.instrument_config_versions
+        (id, instrument_id, version_number, context_markdown,
+         source, change_reason, parent_version_id, is_active,
+         created_by, created_at, author_user_id)
+       VALUES ($1, $2, $3, $4, 'manual', 'scaffold', $5, true, $6, $7, $8)`,
+      [
+        versionId, instrumentId, versionNumber, contextMarkdown,
+        oldVersionId, userId, new Date().toISOString(), userId,
+      ],
+    );
+
+    // Update instrument pointer
+    await this.db.rawQuery(
+      `UPDATE prediction.instruments SET current_config_version_id = $1 WHERE id = $2`,
+      [versionId, instrumentId],
+    );
+
+    return { contextMarkdown, versionId };
+  }
+
+  // ─── Contract Version Filtering (effort: user-authored-custom-content) ──
+
+  async getAnalystContractVersions(
+    analystId: string,
+    userId: string,
+    authorFilter?: string,
+  ): Promise<Array<Record<string, unknown>>> {
+    await this.schema.ensureSchema();
+
+    let sql = `SELECT id, version_number, source, change_reason, created_by, created_at,
+                      is_active, context_markdown, author_user_id
+               FROM prediction.analyst_config_versions
+               WHERE analyst_id = $1`;
+    const params: unknown[] = [analystId];
+
+    if (authorFilter === 'me') {
+      sql += ` AND author_user_id = $2`;
+      params.push(userId);
+    }
+
+    sql += ` ORDER BY version_number DESC`;
+
+    const result = await this.db.rawQuery(sql, params);
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Array<Record<string, unknown>> | null) ?? [];
+
+    return rows.map(v => ({
+      id: String(v.id),
+      versionNumber: Number(v.version_number),
+      source: String(v.source ?? 'manual'),
+      changeReason: v.change_reason ? String(v.change_reason) : null,
+      createdBy: v.created_by ? String(v.created_by) : null,
+      createdAt: String(v.created_at),
+      isActive: Boolean(v.is_active),
+      contextMarkdown: v.context_markdown ? String(v.context_markdown) : null,
+      authorUserId: v.author_user_id ? String(v.author_user_id) : null,
+    }));
   }
 }

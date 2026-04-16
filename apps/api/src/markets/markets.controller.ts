@@ -173,6 +173,23 @@ export class MarketsController {
     });
   }
 
+  @Get('instruments/mine')
+  async listMyInstruments(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    return this.markets.listMyInstruments(user.id);
+  }
+
+  @Delete('instruments/:instrumentId')
+  async deleteInstrument(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('instrumentId') instrumentId: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.markets.softDeleteInstrument(instrumentId, user.id);
+    return { deleted: true };
+  }
+
   // ─── Analysts ──────────────────────────────────────────────────
 
   @Get('analysts')
@@ -181,6 +198,12 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     return this.markets.listAnalysts(user.id);
+  }
+
+  @Get('analysts/mine')
+  async listMyAnalysts(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    return this.markets.listMyAnalysts(user.id);
   }
 
   @Get('instruments/:instrumentId/analysts')
@@ -214,6 +237,29 @@ export class MarketsController {
       displayName: body.displayName,
       personaPrompt: body.personaPrompt,
     });
+  }
+
+  @Delete('analysts/:analystId')
+  async deleteAnalyst(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('analystId') analystId: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.markets.softDeleteAnalyst(analystId, user.id);
+    return { deleted: true };
+  }
+
+  @Patch('analysts/:analystId/metadata')
+  async updateAnalystMetadata(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('analystId') analystId: string,
+    @Body() body: { displayName?: string },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    await this.markets.updateAnalystMetadata(analystId, user.id, body);
+    return { updated: true };
   }
 
   @Put('analysts/:analystId')
@@ -299,6 +345,26 @@ export class MarketsController {
     return this.markets.validateAnalystContract(analystId, user.id, body.markdown);
   }
 
+  @Get('analysts/:analystId/contract/versions')
+  async getAnalystContractVersions(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('analystId') analystId: string,
+    @Query('authorUserId') authorUserId?: string,
+  ) {
+    const user = this.getUser(req);
+    return this.markets.getAnalystContractVersions(analystId, user.id, authorUserId);
+  }
+
+  @Post('analysts/:analystId/contract/scaffold')
+  async scaffoldAnalystContract(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('analystId') analystId: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    return this.markets.scaffoldAnalystContract(analystId, user.id);
+  }
+
   @Get('instruments/:instrumentId/contract')
   async getInstrumentContract(
     @Req() req: { user?: AuthenticatedUser },
@@ -338,6 +404,16 @@ export class MarketsController {
       throw new BadRequestException('markdown is required');
     }
     return this.markets.validateInstrumentContract(instrumentId, user.id, body.markdown);
+  }
+
+  @Post('instruments/:instrumentId/contract/scaffold')
+  async scaffoldInstrumentContract(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('instrumentId') instrumentId: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    return this.markets.scaffoldInstrumentContract(instrumentId, user.id);
   }
 
   @Post('analysts/assign')

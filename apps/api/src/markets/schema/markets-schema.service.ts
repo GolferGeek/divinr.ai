@@ -56,6 +56,8 @@ export class MarketsSchemaService {
       ${this.notificationsDdl()}
       ${this.fearGreedAlertsDdl()}
       ${this.coordinationDdl()}
+      ${this.authorUserIdColumnsDdl()}
+      ${this.sharingPlumbingDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -63,6 +65,7 @@ export class MarketsSchemaService {
       throw new Error(`Schema creation failed: ${result.error.message}`);
     }
 
+    await this.preflightUserScopedUniqueness();
     await this.seedDefaultDomains();
     await this.seedDefaultSources();
     await this.seedDefaultRiskDimensions();
@@ -98,6 +101,63 @@ export class MarketsSchemaService {
         `Base instrument ${row.symbol} (${row.id}) has no contract — Stage 1 will use the hardcoded fallback prompt`,
       );
     }
+  }
+
+  // ─── Authorship Schema (effort: user-authored-custom-content) ──
+
+  private async preflightUserScopedUniqueness(): Promise<void> {
+    const analystDupes = await this.db.rawQuery(
+      `SELECT slug, coalesce(user_id, 'base') AS scope, count(*) AS cnt
+       FROM prediction.market_analysts GROUP BY 1, 2 HAVING count(*) > 1`,
+    );
+    const analystRows = (analystDupes.data as Array<{ slug: string; scope: string; cnt: number }> | null) ?? [];
+    if (analystRows.length > 0) {
+      this.logger.error(
+        `Duplicate analyst slugs per user scope — resolve before user-scoped index can be created: ${JSON.stringify(analystRows)}`,
+      );
+    }
+
+    const instrumentDupes = await this.db.rawQuery(
+      `SELECT symbol, coalesce(user_id, 'base') AS scope, count(*) AS cnt
+       FROM prediction.instruments GROUP BY 1, 2 HAVING count(*) > 1`,
+    );
+    const instrumentRows = (instrumentDupes.data as Array<{ symbol: string; scope: string; cnt: number }> | null) ?? [];
+    if (instrumentRows.length > 0) {
+      this.logger.error(
+        `Duplicate instrument symbols per user scope — resolve before user-scoped index can be created: ${JSON.stringify(instrumentRows)}`,
+      );
+    }
+  }
+
+  private authorUserIdColumnsDdl(): string {
+    return `
+      alter table prediction.analyst_config_versions
+        add column if not exists author_user_id text;
+      alter table prediction.instrument_config_versions
+        add column if not exists author_user_id text;
+      create index if not exists analyst_config_versions_author_idx
+        on prediction.analyst_config_versions (author_user_id)
+        where author_user_id is not null;
+      create index if not exists instrument_config_versions_author_idx
+        on prediction.instrument_config_versions (author_user_id)
+        where author_user_id is not null;
+    `;
+  }
+
+  private sharingPlumbingDdl(): string {
+    return `
+      alter table prediction.market_analysts
+        add column if not exists shared_with_clubs boolean not null default false;
+      alter table prediction.instruments
+        add column if not exists shared_with_clubs boolean not null default false;
+      create table if not exists prediction.authored_content_shares (
+        content_kind text not null check (content_kind in ('analyst', 'instrument')),
+        content_id text not null,
+        shared_with_user_id text not null,
+        shared_at timestamptz not null default now(),
+        primary key (content_kind, content_id, shared_with_user_id)
+      );
+    `;
   }
 
   // ─── DDL Sections ────────────────────────────────────────────
@@ -142,7 +202,13 @@ export class MarketsSchemaService {
       alter table prediction.instruments add column if not exists universe_slug text not null default 'stocks';
       alter table prediction.instruments add column if not exists current_state jsonb not null default '{}'::jsonb;
       alter table prediction.instruments add column if not exists current_config_version_id text;
-      create unique index if not exists instruments_symbol_unique_idx on prediction.instruments (symbol);
+      -- User-scoped uniqueness: two users can author instruments with the same
+      -- symbol. Base content uses user_id IS NULL; COALESCE maps that to 'base'
+      -- so the index treats all base rows as one scope.
+      -- Effort: user-authored-custom-content
+      drop index if exists prediction.instruments_symbol_unique_idx;
+      create unique index if not exists instruments_symbol_user_unique
+        on prediction.instruments (symbol, coalesce(user_id, 'base'));
     `;
   }
 
@@ -217,13 +283,14 @@ export class MarketsSchemaService {
       -- Drop legacy org-scoped unique indexes
       drop index if exists prediction.prediction_analysts_org_slug_unique_idx;
 
-      -- Unique index on slug backs the ON CONFLICT (slug) upsert path in
-      -- MarketsService.createAnalyst. Without it, CI fails with
-      -- "no unique or exclusion constraint matching the ON CONFLICT specification".
-      -- The user-scoping migration dropped the legacy org-scoped variant above
-      -- without replacing it; this line restores the constraint globally.
-      create unique index if not exists market_analysts_slug_unique_idx
-        on prediction.market_analysts (slug);
+      -- User-scoped uniqueness: two users can author analysts with the same slug.
+      -- Base content uses user_id IS NULL; COALESCE maps that to 'base' so the
+      -- index treats all base rows as one scope. Backs the ON CONFLICT
+      -- (slug, (coalesce(user_id, 'base'))) upsert in MarketsService.createAnalyst.
+      -- Effort: user-authored-custom-content
+      drop index if exists prediction.market_analysts_slug_unique_idx;
+      create unique index if not exists market_analysts_slug_user_unique
+        on prediction.market_analysts (slug, coalesce(user_id, 'base'));
 
       -- Expanded analyst model (Sprint 0)
       alter table prediction.market_analysts add column if not exists analyst_type text not null default 'personality';
