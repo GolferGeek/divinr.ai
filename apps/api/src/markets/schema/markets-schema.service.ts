@@ -167,6 +167,14 @@ export class MarketsSchemaService {
       -- Drop legacy org-scoped unique indexes
       drop index if exists prediction.prediction_analysts_org_slug_unique_idx;
 
+      -- Unique index on slug backs the ON CONFLICT (slug) upsert path in
+      -- MarketsService.createAnalyst. Without it, CI fails with
+      -- "no unique or exclusion constraint matching the ON CONFLICT specification".
+      -- The user-scoping migration dropped the legacy org-scoped variant above
+      -- without replacing it; this line restores the constraint globally.
+      create unique index if not exists market_analysts_slug_unique_idx
+        on prediction.market_analysts (slug);
+
       -- Expanded analyst model (Sprint 0)
       alter table prediction.market_analysts add column if not exists analyst_type text not null default 'personality';
       alter table prediction.market_analysts add column if not exists default_weight numeric not null default 1.0;
