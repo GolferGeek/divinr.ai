@@ -21,6 +21,7 @@ import type {
   RiskAssessment,
 } from '../markets.types';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
+import { loadContractFragment } from '../utils/contract-loader';
 
 export interface RiskRunResult {
   compositeScore: RiskCompositeScore;
@@ -36,6 +37,7 @@ interface AnalystRef {
   persona_prompt: string;
   default_weight: number;
   user_id?: string | null;
+  current_config_version_id?: string | null;
 }
 
 interface InstrumentScope {
@@ -377,6 +379,7 @@ export class RiskRunnerService {
             analystSlug: item.analyst.slug,
             analystDisplayName: item.analyst.display_name,
             analystPersona: item.analyst.persona_prompt,
+            configVersionId: item.analyst.current_config_version_id ?? null,
           },
           scope.instrument,
         );
@@ -515,7 +518,7 @@ export class RiskRunnerService {
 
   private async loadBasePersonalityAnalysts(): Promise<AnalystRef[]> {
     const result = await this.db.rawQuery(
-      `select id, slug, display_name, persona_prompt, default_weight, user_id
+      `select id, slug, display_name, persona_prompt, default_weight, user_id, current_config_version_id
        from prediction.market_analysts
        where analyst_type = 'personality' and is_enabled = true and is_active = true
          and workflow_scope in ('risk', 'both')
@@ -527,7 +530,7 @@ export class RiskRunnerService {
 
   private async loadAssignedAnalystsForInstrument(instrumentId: string): Promise<AnalystRef[]> {
     const result = await this.db.rawQuery(
-      `select ma.id, ma.slug, ma.display_name, ma.persona_prompt, ma.default_weight, ma.user_id
+      `select ma.id, ma.slug, ma.display_name, ma.persona_prompt, ma.default_weight, ma.user_id, ma.current_config_version_id
        from prediction.market_instrument_analyst_assignments mia
        join prediction.market_analysts ma on ma.id = mia.analyst_id
        where mia.instrument_id = $1
@@ -542,7 +545,7 @@ export class RiskRunnerService {
   private async loadAnalystsByIds(ids: string[]): Promise<AnalystRef[]> {
     if (ids.length === 0) return [];
     const result = await this.db.rawQuery(
-      `select id, slug, display_name, persona_prompt, default_weight, user_id
+      `select id, slug, display_name, persona_prompt, default_weight, user_id, current_config_version_id
        from prediction.market_analysts
        where id = any($1::text[])
          and is_enabled = true and is_active = true
@@ -592,7 +595,7 @@ export class RiskRunnerService {
 
   private async runPerAnalystReflection(
     runId: string,
-    item: { instrumentId: string; analystId: string; analystSlug: string; analystDisplayName: string; analystPersona: string },
+    item: { instrumentId: string; analystId: string; analystSlug: string; analystDisplayName: string; analystPersona: string; configVersionId: string | null },
     instrument: MarketInstrument,
   ): Promise<{ score: number; confidence: number; reasoning: string }> {
     const priorResult = await this.db.rawQuery(
@@ -606,7 +609,19 @@ export class RiskRunnerService {
 
     const predictorLines = await this.loadPerAnalystPredictorLines(item.instrumentId, item.analystId);
 
-    const systemPrompt = `You are ${item.analystDisplayName}. ${item.analystPersona}
+    const { stageFragment, fallback } = await loadContractFragment(
+      { db: this.db, logger: this.logger, observability: this.observability },
+      { id: item.analystId, slug: item.analystSlug },
+      item.configVersionId,
+      WorkflowStage.RiskAssessment,
+      'reflection',
+    );
+
+    const personaBlock = fallback
+      ? `You are ${item.analystDisplayName}. ${item.analystPersona}`
+      : `You are ${item.analystDisplayName}.\n\n${stageFragment}`;
+
+    const systemPrompt = `${personaBlock}
 Produce your holistic risk assessment for ${instrument.symbol} (${instrument.name}) as a first-person analysis of how the latest signals shift your prior risk view. Use the language "analysis" and "signal" — never "advice" or "recommendation".
 Respond with valid JSON only:
 {
@@ -788,7 +803,7 @@ Respond with valid JSON only:
   ): Promise<Array<{ analystId: string; analystSlug: string; score: number; confidence: number; weight: number; reasoning: string | null; evidence: string[]; }>> {
     // Load personality analysts
     const result = await this.db.rawQuery(
-      `select id, slug, display_name, persona_prompt, default_weight
+      `select id, slug, display_name, persona_prompt, default_weight, current_config_version_id
        from prediction.market_analysts
        where analyst_type = 'personality' and is_enabled = true and is_active = true
          and workflow_scope in ('risk', 'both')
@@ -796,6 +811,7 @@ Respond with valid JSON only:
     );
     const analysts = (result.data as Array<{
       id: string; slug: string; display_name: string; persona_prompt: string; default_weight: number;
+      current_config_version_id: string | null;
     }> | null) ?? [];
 
     if (analysts.length === 0) return [];
@@ -811,7 +827,16 @@ Respond with valid JSON only:
           dataSourceText = dsResult.context;
         } catch { /* graceful degradation */ }
 
-        const systemPrompt = `You are the ${analyst.display_name}. ${analyst.persona_prompt}
+        const { stageFragment, fallback: contractFallback } = await loadContractFragment(
+          { db: this.db, logger: this.logger, observability: this.observability },
+          { id: analyst.id, slug: analyst.slug },
+          analyst.current_config_version_id ?? null,
+          WorkflowStage.RiskAssessment,
+          'reflection',
+        );
+        const legacyPersonaBlock = `You are the ${analyst.display_name}. ${analyst.persona_prompt}`;
+        const v4PersonaBlock = `You are the ${analyst.display_name}.\n\n${stageFragment}`;
+        const systemPrompt = `${contractFallback ? legacyPersonaBlock : v4PersonaBlock}
 You are assessing the risk for a specific financial instrument from YOUR perspective and expertise.
 Respond with valid JSON only:
 {
