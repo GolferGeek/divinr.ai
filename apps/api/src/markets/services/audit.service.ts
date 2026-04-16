@@ -412,27 +412,45 @@ Output ONLY the policy text. No preamble.`;
     }
 
     const sections = parseContractMarkdown(contextMarkdown);
-    const roleNames = Object.keys(sections.roles);
-    const roleSection = roleNames.length > 0 ? sections.roles[roleNames[0]] : '';
 
-    const llmResult = await this.callAuditLlm(candidate, sections.general, roleSection, policyText, sections.adaptations);
+    // v4 stage-keyed path: prefer the Prediction Generation stage section for
+    // the audit (this audit targets prediction outputs). Fall back to the
+    // legacy `## Role:` section on pre-v4 contracts. Effort: stage-keyed-analyst-contracts.
+    const v4StageBody = sections.stages?.predictionGeneration ?? '';
+    let scopedSection: string;
+    let contractSection: string | null;
+    let violationStage: string | null;
+    if (v4StageBody.trim()) {
+      scopedSection = v4StageBody;
+      contractSection = 'Stage: Prediction Generation';
+      violationStage = 'prediction_generation';
+    } else {
+      const roleNames = Object.keys(sections.roles);
+      scopedSection = roleNames.length > 0 ? sections.roles[roleNames[0]] : '';
+      contractSection = roleNames.length > 0 ? `Role: ${roleNames[0]}` : null;
+      violationStage = null; // Legacy contract — no stage attribution.
+    }
+
+    const llmResult = await this.callAuditLlm(candidate, sections.general, scopedSection, policyText, sections.adaptations);
 
     if (!llmResult || !llmResult.finding) return false;
 
-    // Insert finding
+    // Insert finding with stage attribution (stage-keyed-analyst-contracts effort).
     const findingId = randomUUID();
     await this.db.rawQuery(
       `INSERT INTO prediction.audit_findings
         (id, analyst_id, prediction_id, config_version_id,
          contract_excerpt, output_excerpt, discrepancy, hypothesis, severity,
+         violation_stage, contract_section,
          status, audit_model, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-               'pending_review', $10, now())`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+               'pending_review', $12, now())`,
       [
         findingId, candidate.analyst_id, candidate.prediction_id,
         candidate.config_version_id,
         llmResult.contractExcerpt, llmResult.outputExcerpt,
         llmResult.discrepancy, llmResult.hypothesis, llmResult.severity,
+        violationStage, contractSection,
         llmResult.model ?? 'stub',
       ],
     );

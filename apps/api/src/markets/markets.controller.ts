@@ -281,6 +281,24 @@ export class MarketsController {
     });
   }
 
+  /**
+   * Preflight validation for the contract editor — returns the same shape as
+   * the save-time validation error without creating a new version.
+   * Effort: stage-keyed-analyst-contracts (Phase 5).
+   */
+  @Post('analysts/:analystId/contract/validate')
+  async validateAnalystContract(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('analystId') analystId: string,
+    @Body() body: { markdown: string },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.markdown || typeof body.markdown !== 'string') {
+      throw new BadRequestException('markdown is required');
+    }
+    return this.markets.validateAnalystContract(analystId, user.id, body.markdown);
+  }
+
   @Post('analysts/assign')
   async assignAnalyst(
     @Req() req: { user?: AuthenticatedUser },

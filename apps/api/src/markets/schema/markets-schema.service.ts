@@ -1463,6 +1463,16 @@ export class MarketsSchemaService {
         on prediction.audit_findings (analyst_id);
       create index if not exists audit_findings_prediction_idx
         on prediction.audit_findings (prediction_id);
+      -- Stage-keyed contract attribution (effort: stage-keyed-analyst-contracts).
+      alter table prediction.audit_findings
+        add column if not exists violation_stage text;
+      alter table prediction.audit_findings
+        add column if not exists contract_section text;
+      -- Deprecation marker for persona_prompt (effort: stage-keyed-analyst-contracts).
+      -- Runtime prompts now draw from analyst_config_versions.context_markdown stage sections;
+      -- the column is retained for rollback and for non-v4 analysts (day-traders).
+      comment on column prediction.market_analysts.persona_prompt is
+        'DEPRECATED: superseded by analyst_config_versions.context_markdown stage sections (stage-keyed-analyst-contracts effort). Retained for rollback and for non-v4 analysts.';
     `;
   }
 

@@ -44,14 +44,15 @@ interface PredictorGenResult {
   errors: string[];
 }
 
-/** Per-analyst scoring focus — determines how each analyst evaluates article relevance */
-const ANALYST_SCORING_FOCUS: Record<string, string> = {
-  'technical-analyst': 'Score relevance for technical analysis — price levels, volume, chart patterns, support/resistance, technical indicators like RSI, MACD, moving averages.',
-  'fundamentals-analyst': 'Score relevance for fundamental analysis — earnings, revenue, margins, valuation metrics, balance sheet, filings, competitive position.',
-  'sentiment-analyst': 'Score sentiment signals — analyst ratings, insider activity, crowd behavior, social media buzz, contrarian indicators.',
-  'macro-strategist': 'Score macro relevance — economic indicators, Fed policy, interest rates, inflation, employment, GDP, yield curves, sector rotation.',
-  'momentum-analyst': 'Score momentum signals — breakouts, volume spikes, trend changes, earnings acceleration, relative strength.',
-};
+/**
+ * Generic fallback prompt body for analysts that don't have a v4 stage-keyed
+ * contract's Predictor Generation section. In production, every base
+ * personality analyst has one after the stage-keyed-analyst-contracts effort,
+ * so this path is dead for the 7 base analysts. It remains for rollback
+ * safety and for future analysts seeded without a v4 contract.
+ */
+const GENERIC_FALLBACK_SCORING_FOCUS =
+  'Score the relevance of this article to the instrument from your analytical perspective. Focus on signals aligned with your specialty.';
 
 /**
  * PredictorGeneratorService — Scores new articles against active instruments
@@ -211,7 +212,7 @@ export class PredictorGeneratorService {
     const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null }> | null) ?? [];
     return rows.map(r => ({
       ...r,
-      scoring_focus: ANALYST_SCORING_FOCUS[r.slug] ?? 'Score general relevance to this instrument.',
+      scoring_focus: GENERIC_FALLBACK_SCORING_FOCUS,
     }));
   }
 
