@@ -24,6 +24,7 @@ Let users author their own analysts, instrument contracts, and custom instrument
 - `author_user_id IS NULL` = base content, global, owned by Divinr
 - `author_user_id IS NOT NULL` = custom content, owned and billed to that user
 - `shared_with_clubs` boolean and `shared_with_users` FK set (both default false/empty) — plumbing present, UI deferred per earlier design discussion
+- **Uniqueness constraint fix (unblocks markets-integration CI):** today `MarketsService.createAnalyst` uses `ON CONFLICT (slug)` but `market_analysts` has no unique index on `slug` — the integration test has been failing because of this mismatch. The fix has to happen here because the triple model explicitly allows multiple users to author analysts with the same slug: add `create unique index market_analysts_slug_user_unique on prediction.market_analysts (slug, coalesce(user_id, 'base'))` (or equivalent partial-index pattern) and change the upsert to `ON CONFLICT (slug, user_id)`. Same pattern applies to `instruments` when custom-instrument authorship lands. Tracked here rather than fixed in passing because the semantic answer depends on this effort's scope.
 
 ### Immutability of Base
 
