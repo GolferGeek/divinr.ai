@@ -1409,6 +1409,158 @@ export class MarketsService {
     return this.getAnalystContract(input.analystId, input.userId);
   }
 
+  // ─── Instrument Contract Editor (effort: instrument-contracts) ─
+
+  private coerceInstrumentType(): ContractAnalystType {
+    return 'instrument';
+  }
+
+  async getInstrumentContract(instrumentId: string, _userId: string) {
+    await this.schema.ensureSchema();
+
+    const instrumentResult = await this.db.rawQuery(
+      `SELECT id, symbol, name, asset_type, current_config_version_id
+       FROM prediction.instruments
+       WHERE id = $1`,
+      [instrumentId],
+    );
+    if (instrumentResult.error) throw new Error(instrumentResult.error.message);
+    const instruments = (instrumentResult.data as Array<{
+      id: string;
+      symbol: string;
+      name: string;
+      asset_type: string;
+      current_config_version_id: string | null;
+    }> | null) ?? [];
+    if (instruments.length === 0) throw new BadRequestException('Instrument not found');
+    const instrument = instruments[0];
+    const contractInstrumentType = this.coerceInstrumentType();
+
+    const versionsResult = await this.db.rawQuery(
+      `SELECT id, version_number, source, change_reason, created_by, created_at, is_active, context_markdown
+       FROM prediction.instrument_config_versions
+       WHERE instrument_id = $1
+       ORDER BY version_number DESC`,
+      [instrumentId],
+    );
+    if (versionsResult.error) throw new Error(versionsResult.error.message);
+    const versionRows = (versionsResult.data as Array<Record<string, unknown>> | null) ?? [];
+
+    const activeVersion = versionRows.find(v => v.is_active === true);
+    const activeMarkdown = activeVersion?.context_markdown as string | null;
+    const contract = activeMarkdown
+      ? { markdown: activeMarkdown, sections: this.parseContractMarkdown(activeMarkdown) }
+      : null;
+
+    return {
+      instrumentId: instrument.id,
+      symbol: instrument.symbol,
+      name: instrument.name,
+      assetType: instrument.asset_type,
+      requiredSections: REQUIRED_SECTIONS_BY_TYPE[contractInstrumentType],
+      activeVersionId: instrument.current_config_version_id,
+      contract,
+      versions: versionRows.map(v => ({
+        id: String(v.id),
+        versionNumber: Number(v.version_number),
+        source: String(v.source ?? 'manual'),
+        changeReason: v.change_reason ? String(v.change_reason) : null,
+        createdBy: v.created_by ? String(v.created_by) : null,
+        createdAt: String(v.created_at),
+        isActive: Boolean(v.is_active),
+        contextMarkdown: v.context_markdown ? String(v.context_markdown) : null,
+      })),
+    };
+  }
+
+  async validateInstrumentContract(
+    instrumentId: string,
+    _userId: string,
+    markdown: string,
+  ): Promise<ContractValidationResult> {
+    await this.schema.ensureSchema();
+    const instrumentResult = await this.db.rawQuery(
+      `SELECT id FROM prediction.instruments WHERE id = $1`,
+      [instrumentId],
+    );
+    if (instrumentResult.error) throw new Error(instrumentResult.error.message);
+    const rows = (instrumentResult.data as Array<{ id: string }> | null) ?? [];
+    if (rows.length === 0) throw new BadRequestException('Instrument not found');
+    const sections = parseContractMarkdownUtil(markdown);
+    return validateContractSections(sections, this.coerceInstrumentType());
+  }
+
+  async saveInstrumentContract(input: {
+    instrumentId: string;
+    userId: string;
+    markdown: string;
+    changeReason?: string;
+  }) {
+    await this.schema.ensureSchema();
+    await this.requireWrite(input.userId);
+
+    const instrumentResult = await this.db.rawQuery(
+      `SELECT i.id, i.current_config_version_id, icv.version_number
+       FROM prediction.instruments i
+       LEFT JOIN prediction.instrument_config_versions icv ON icv.id = i.current_config_version_id
+       WHERE i.id = $1`,
+      [input.instrumentId],
+    );
+    if (instrumentResult.error) throw new Error(instrumentResult.error.message);
+    const rows = (instrumentResult.data as Array<Record<string, unknown>> | null) ?? [];
+    if (rows.length === 0) throw new BadRequestException('Instrument not found');
+    const current = rows[0];
+    const oldVersionId = current.current_config_version_id
+      ? String(current.current_config_version_id)
+      : null;
+
+    const policyType = this.coerceInstrumentType();
+    const sections = parseContractMarkdownUtil(input.markdown);
+    const validation = validateContractSections(sections, policyType);
+    if (!validation.valid) {
+      throw new BadRequestException({
+        message: 'Contract validation failed',
+        instrumentType: policyType,
+        missingSections: validation.missingSections,
+        forbiddenPhrases: validation.forbiddenPhrases,
+        extraSections: validation.extraSections,
+      });
+    }
+
+    if (oldVersionId) {
+      await this.db.rawQuery(
+        `UPDATE prediction.instrument_config_versions SET is_active = false WHERE id = $1`,
+        [oldVersionId],
+      );
+    }
+
+    const newVersionId = randomUUID();
+    const newVersionNumber = (Number(current.version_number) || 0) + 1;
+    await this.db.rawQuery(
+      `INSERT INTO prediction.instrument_config_versions
+        (id, instrument_id, version_number, context_markdown,
+         source, change_reason, parent_version_id, is_active, created_by, created_at)
+       VALUES ($1, $2, $3, $4, 'manual', $5, $6, true, $7, $8)`,
+      [
+        newVersionId,
+        input.instrumentId,
+        newVersionNumber,
+        input.markdown,
+        input.changeReason || 'Manual contract edit',
+        oldVersionId,
+        input.userId,
+        new Date().toISOString(),
+      ],
+    );
+
+    await this.db.rawQuery(
+      `UPDATE prediction.instruments SET current_config_version_id = $1 WHERE id = $2`,
+      [newVersionId, input.instrumentId],
+    );
+
+    return this.getInstrumentContract(input.instrumentId, input.userId);
+  }
+
   // ─── Prediction Challenges ─────────────────────────────────────
 
   /**

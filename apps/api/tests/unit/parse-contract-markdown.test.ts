@@ -8,6 +8,8 @@ import {
   buildStagePromptFragment,
   validateContractSections,
   stageToKey,
+  instrumentStageToKey,
+  buildInstrumentStagePromptFragment,
 } from '../../src/markets/utils/parse-contract-markdown';
 import { WorkflowStage } from '../../src/markets/workflow-stages/workflow-stage';
 
@@ -371,6 +373,215 @@ A.`;
     if (key === 'predictionGeneration') continue;
     assert.ok(!sections.stages[key].includes('Ignored'), `unexpected leak into ${String(key)}`);
   }
+});
+
+// ─── Instrument contracts (effort: instrument-contracts) ─────────
+
+test('parses ## Stage: Article Processing heading into stages.articleProcessing', () => {
+  const md = `## General
+
+G-body
+
+## Stage: Article Processing
+
+Decide relevance by sector exposure.
+
+## Adaptations
+
+A-body`;
+  const sections = parseContractMarkdown(md);
+  assert.equal(sections.stages.articleProcessing.trim(), 'Decide relevance by sector exposure.');
+});
+
+test('instrumentStageToKey maps ArticleProcessing', () => {
+  assert.equal(instrumentStageToKey(WorkflowStage.ArticleProcessing), 'articleProcessing');
+});
+
+test('instrumentStageToKey maps PredictorGeneration', () => {
+  assert.equal(instrumentStageToKey(WorkflowStage.PredictorGeneration), 'predictorGeneration');
+});
+
+test('instrumentStageToKey maps RiskAssessment reflection and debate', () => {
+  assert.equal(instrumentStageToKey(WorkflowStage.RiskAssessment, 'reflection'), 'riskReflection');
+  assert.equal(instrumentStageToKey(WorkflowStage.RiskAssessment, 'debate'), 'riskDebate');
+});
+
+test('buildInstrumentStagePromptFragment returns General + Article Processing + Adaptations', () => {
+  const md = `## General
+
+G-body
+
+## Stage: Article Processing
+
+AP-body
+
+## Adaptations
+
+A-body`;
+  const sections = parseContractMarkdown(md);
+  const fragment = buildInstrumentStagePromptFragment(sections, WorkflowStage.ArticleProcessing);
+  assert.ok(fragment.includes('G-body'));
+  assert.ok(fragment.includes('AP-body'));
+  assert.ok(fragment.includes('A-body'));
+  const gIdx = fragment.indexOf('G-body');
+  const apIdx = fragment.indexOf('AP-body');
+  const aIdx = fragment.indexOf('A-body');
+  assert.ok(gIdx < apIdx && apIdx < aIdx, 'fragment must be in order General, stage, Adaptations');
+});
+
+test('buildInstrumentStagePromptFragment returns empty when Article Processing missing', () => {
+  const md = `## General
+
+G-body
+
+## Adaptations
+
+A-body`;
+  const sections = parseContractMarkdown(md);
+  const fragment = buildInstrumentStagePromptFragment(sections, WorkflowStage.ArticleProcessing);
+  assert.equal(fragment, '');
+});
+
+test('validateContractSections accepts instrument with all 6 stage sections populated', () => {
+  const md = `## General
+
+G
+
+## Stage: Article Processing
+
+AP
+
+## Stage: Predictor Generation
+
+PG
+
+## Stage: Risk Assessment — Reflection (3a)
+
+RR
+
+## Stage: Risk Assessment — Debate (3b)
+
+RD
+
+## Stage: Prediction Generation
+
+PGen
+
+## Stage: Learning
+
+L
+
+## Adaptations
+
+A`;
+  const sections = parseContractMarkdown(md);
+  const result = validateContractSections(sections, 'instrument');
+  assert.equal(result.valid, true, `expected valid; got ${JSON.stringify(result)}`);
+  assert.equal(result.missingSections.length, 0);
+  assert.equal(result.forbiddenPhrases.length, 0);
+  assert.equal(result.extraSections.length, 0);
+});
+
+test('validateContractSections flags missing Article Processing for instrument', () => {
+  const md = `## General
+
+G
+
+## Stage: Predictor Generation
+
+PG
+
+## Stage: Risk Assessment — Reflection (3a)
+
+RR
+
+## Stage: Risk Assessment — Debate (3b)
+
+RD
+
+## Stage: Prediction Generation
+
+PGen
+
+## Stage: Learning
+
+L
+
+## Adaptations
+
+A`;
+  const sections = parseContractMarkdown(md);
+  const result = validateContractSections(sections, 'instrument');
+  assert.equal(result.valid, false);
+  assert.ok(
+    result.missingSections.includes('Stage: Article Processing'),
+    `expected missing Article Processing; got ${JSON.stringify(result.missingSections)}`,
+  );
+});
+
+test('validateContractSections flags instrument with only 5 of 6 required stages', () => {
+  const md = `## General
+
+G
+
+## Stage: Article Processing
+
+AP
+
+## Stage: Predictor Generation
+
+PG
+
+## Stage: Risk Assessment — Reflection (3a)
+
+RR
+
+## Stage: Risk Assessment — Debate (3b)
+
+RD
+
+## Stage: Prediction Generation
+
+PGen
+
+## Adaptations
+
+A`;
+  const sections = parseContractMarkdown(md);
+  const result = validateContractSections(sections, 'instrument');
+  assert.equal(result.valid, false);
+  assert.ok(
+    result.missingSections.includes('Stage: Learning'),
+    `expected missing Learning; got ${JSON.stringify(result.missingSections)}`,
+  );
+});
+
+test('stageToKey(ArticleProcessing) still throws (analyst safety net)', () => {
+  let threw = false;
+  try {
+    stageToKey(WorkflowStage.ArticleProcessing);
+  } catch {
+    threw = true;
+  }
+  assert.equal(threw, true, 'stageToKey must still throw for ArticleProcessing');
+});
+
+test('buildStagePromptFragment(ArticleProcessing) still throws (analyst safety net)', () => {
+  const md = `## General
+
+G
+
+## Adaptations
+
+A`;
+  const sections = parseContractMarkdown(md);
+  let threw = false;
+  try {
+    buildStagePromptFragment(sections, WorkflowStage.ArticleProcessing);
+  } catch {
+    threw = true;
+  }
+  assert.equal(threw, true, 'buildStagePromptFragment must still throw for ArticleProcessing');
 });
 
 console.log('\nContract markdown parser tests complete.');

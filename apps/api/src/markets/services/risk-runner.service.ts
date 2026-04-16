@@ -22,6 +22,8 @@ import type {
 } from '../markets.types';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import { loadContractFragment } from '../utils/contract-loader';
+import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
+import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
 
 export interface RiskRunResult {
   compositeScore: RiskCompositeScore;
@@ -609,19 +611,39 @@ export class RiskRunnerService {
 
     const predictorLines = await this.loadPerAnalystPredictorLines(item.instrumentId, item.analystId);
 
-    const { stageFragment, fallback } = await loadContractFragment(
-      { db: this.db, logger: this.logger, observability: this.observability },
-      { id: item.analystId, slug: item.analystSlug },
-      item.configVersionId,
-      WorkflowStage.RiskAssessment,
-      'reflection',
-    );
+    const deps = { db: this.db, logger: this.logger, observability: this.observability };
+    const [analystLoad, instrumentLoad] = await Promise.all([
+      loadContractFragment(
+        deps,
+        { id: item.analystId, slug: item.analystSlug },
+        item.configVersionId,
+        WorkflowStage.RiskAssessment,
+        'reflection',
+      ),
+      loadInstrumentContractFragment(
+        deps,
+        { id: instrument.id, symbol: instrument.symbol },
+        WorkflowStage.RiskAssessment,
+        'reflection',
+      ),
+    ]);
+    const { stageFragment: analystFragment, fallback } = analystLoad;
+    const { stageFragment: instrumentFragment } = instrumentLoad;
 
-    const personaBlock = fallback
+    const analystBlock = fallback
       ? `You are ${item.analystDisplayName}. ${item.analystPersona}`
-      : `You are ${item.analystDisplayName}.\n\n${stageFragment}`;
+      : `You are ${item.analystDisplayName}.\n\n${analystFragment}`;
 
-    const systemPrompt = `${personaBlock}
+    const mergedBlock = instrumentFragment
+      ? buildMergedSystemPrompt({
+          instrumentSymbol: instrument.symbol,
+          instrumentFragment,
+          analystSlug: item.analystSlug,
+          analystFragment: analystBlock,
+        })
+      : analystBlock;
+
+    const systemPrompt = `${mergedBlock}
 Produce your holistic risk assessment for ${instrument.symbol} (${instrument.name}) as a first-person analysis of how the latest signals shift your prior risk view. Use the language "analysis" and "signal" — never "advice" or "recommendation".
 Respond with valid JSON only:
 {
@@ -630,6 +652,13 @@ Respond with valid JSON only:
   "reasoning": "<your reasoning>",
   "evidence": ["<evidence 1>", "<evidence 2>"]
 }`;
+    emitPromptTokenEstimate(this.observability, this.logger, {
+      prompt: systemPrompt,
+      stage: WorkflowStage.RiskAssessment,
+      subStage: 'reflection',
+      analystSlug: item.analystSlug,
+      instrumentSymbol: instrument.symbol,
+    });
 
     const priorText = prior
       ? `Your previous risk view: score=${prior.score}, confidence=${Number(prior.confidence).toFixed(2)}. Reasoning: ${prior.reasoning ?? '(none)'}`
@@ -827,16 +856,36 @@ Respond with valid JSON only:
           dataSourceText = dsResult.context;
         } catch { /* graceful degradation */ }
 
-        const { stageFragment, fallback: contractFallback } = await loadContractFragment(
-          { db: this.db, logger: this.logger, observability: this.observability },
-          { id: analyst.id, slug: analyst.slug },
-          analyst.current_config_version_id ?? null,
-          WorkflowStage.RiskAssessment,
-          'reflection',
-        );
-        const legacyPersonaBlock = `You are the ${analyst.display_name}. ${analyst.persona_prompt}`;
-        const v4PersonaBlock = `You are the ${analyst.display_name}.\n\n${stageFragment}`;
-        const systemPrompt = `${contractFallback ? legacyPersonaBlock : v4PersonaBlock}
+        const runnerDeps = { db: this.db, logger: this.logger, observability: this.observability };
+        const [analystLoad, instrumentLoad] = await Promise.all([
+          loadContractFragment(
+            runnerDeps,
+            { id: analyst.id, slug: analyst.slug },
+            analyst.current_config_version_id ?? null,
+            WorkflowStage.RiskAssessment,
+            'reflection',
+          ),
+          loadInstrumentContractFragment(
+            runnerDeps,
+            { id: instrument.id, symbol: instrument.symbol },
+            WorkflowStage.RiskAssessment,
+            'reflection',
+          ),
+        ]);
+        const { stageFragment: analystFragment, fallback: contractFallback } = analystLoad;
+        const { stageFragment: instrumentFragment } = instrumentLoad;
+        const legacyAnalystBlock = `You are the ${analyst.display_name}. ${analyst.persona_prompt}`;
+        const v4AnalystBlock = `You are the ${analyst.display_name}.\n\n${analystFragment}`;
+        const analystBlock = contractFallback ? legacyAnalystBlock : v4AnalystBlock;
+        const mergedBlock = instrumentFragment
+          ? buildMergedSystemPrompt({
+              instrumentSymbol: instrument.symbol,
+              instrumentFragment,
+              analystSlug: analyst.slug,
+              analystFragment: analystBlock,
+            })
+          : analystBlock;
+        const systemPrompt = `${mergedBlock}
 You are assessing the risk for a specific financial instrument from YOUR perspective and expertise.
 Respond with valid JSON only:
 {
@@ -845,6 +894,13 @@ Respond with valid JSON only:
   "reasoning": "<your risk assessment from your perspective>",
   "evidence": ["<evidence point 1>", "<evidence point 2>"]
 }`;
+        emitPromptTokenEstimate(this.observability, this.logger, {
+          prompt: systemPrompt,
+          stage: WorkflowStage.RiskAssessment,
+          subStage: 'reflection',
+          analystSlug: analyst.slug,
+          instrumentSymbol: instrument.symbol,
+        });
 
         const userPrompt = [
           `Assess the risk for ${instrument.symbol} (${instrument.name}) from your perspective as ${analyst.display_name}.`,

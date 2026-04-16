@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '../composables/useApi';
+import { useCanWrite } from '../composables/useCanWrite';
 import { useOnboardingStore } from '../stores/onboarding.store';
 import PredictorScoringPanel from '../components/PredictorScoringPanel.vue';
 import InstrumentAnalystPanel from '../components/InstrumentAnalystPanel.vue';
@@ -13,6 +14,7 @@ import { arrowBackOutline } from 'ionicons/icons';
 
 const route = useRoute();
 const api = useApi();
+const { canWrite } = useCanWrite();
 const onboarding = useOnboardingStore();
 const instrument = ref<Record<string, unknown> | null>(null);
 const analysts = ref<Record<string, unknown>[]>([]);
@@ -54,7 +56,17 @@ onMounted(async () => {
       <ion-icon slot="start" :icon="arrowBackOutline" />
       Back
     </ion-button>
-    <h1 style="margin-bottom:16px">{{ instrument?.['symbol'] ?? 'Loading...' }}</h1>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <h1 style="margin:0">{{ instrument?.['symbol'] ?? 'Loading...' }}</h1>
+      <span style="flex:1" />
+      <ion-button
+        v-if="canWrite && instrument"
+        size="small" fill="outline" color="primary"
+        :router-link="`/instruments/${String(instrument['id'])}/contract`"
+      >
+        Edit Contract
+      </ion-button>
+    </div>
     <p style="margin-bottom:16px;opacity:0.7">{{ instrument?.['name'] }}</p>
 
     <ion-segment v-model="tab" style="margin-bottom:16px" data-tour="instrument-tabs">

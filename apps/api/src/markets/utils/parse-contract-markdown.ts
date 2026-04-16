@@ -4,6 +4,7 @@
  * Recognized `## ` headings:
  *   - General
  *   - Role: <name>                                     (legacy, pre-stage-keyed)
+ *   - Stage: Article Processing                        (instrument contracts only)
  *   - Stage: Predictor Generation
  *   - Stage: Risk Assessment — Reflection (3a)         (em-dash or ASCII `--`)
  *   - Stage: Risk Assessment — Debate (3b)
@@ -15,18 +16,20 @@
  * empty objects. Shared by MarketsService, AuditService, and the prediction
  * runtime.
  *
- * Effort: stage-keyed-analyst-contracts (extends original analyst-contracts).
+ * Efforts: stage-keyed-analyst-contracts (initial shape);
+ *          instrument-contracts (adds articleProcessing + instrument audience).
  */
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 
 export type StageKey =
+  | 'articleProcessing'
   | 'predictorGeneration'
   | 'riskReflection'
   | 'riskDebate'
   | 'predictionGeneration'
   | 'learning';
 
-export type AnalystType = 'personality' | 'arbitrator' | 'portfolio_manager';
+export type AnalystType = 'personality' | 'arbitrator' | 'portfolio_manager' | 'instrument';
 
 export interface ContractSections {
   general: string;
@@ -50,7 +53,7 @@ export interface ContractValidationResult {
   extraSections: string[];
 }
 
-/** Required stage sections per analyst type (see PRD §7 risk 4). */
+/** Required stage sections per audience type (see PRD §7 risk 4 + instrument-contracts PRD §4.1). */
 export const REQUIRED_SECTIONS_BY_TYPE: Record<AnalystType, StageKey[]> = {
   personality: [
     'predictorGeneration',
@@ -61,9 +64,18 @@ export const REQUIRED_SECTIONS_BY_TYPE: Record<AnalystType, StageKey[]> = {
   ],
   arbitrator: ['riskDebate', 'learning'],
   portfolio_manager: ['predictionGeneration', 'learning'],
+  instrument: [
+    'articleProcessing',
+    'predictorGeneration',
+    'riskReflection',
+    'riskDebate',
+    'predictionGeneration',
+    'learning',
+  ],
 };
 
 const EMPTY_STAGES: Record<StageKey, string> = {
+  articleProcessing: '',
   predictorGeneration: '',
   riskReflection: '',
   riskDebate: '',
@@ -74,6 +86,7 @@ const EMPTY_STAGES: Record<StageKey, string> = {
 const FORBIDDEN_PHRASES = ['advice', 'recommendation', 'as an ai'];
 
 const STAGE_HEADING_LABELS: Record<StageKey, string> = {
+  articleProcessing: 'Stage: Article Processing',
   predictorGeneration: 'Stage: Predictor Generation',
   riskReflection: 'Stage: Risk Assessment — Reflection (3a)',
   riskDebate: 'Stage: Risk Assessment — Debate (3b)',
@@ -94,6 +107,7 @@ function matchStageHeading(heading: string): StageKey | null {
   const n = normalizeHeading(heading);
   if (!n.startsWith('stage:')) return null;
   const body = n.slice(6).trim();
+  if (body === 'article processing') return 'articleProcessing';
   if (body === 'predictor generation') return 'predictorGeneration';
   if (body === 'prediction generation') return 'predictionGeneration';
   if (body === 'learning') return 'learning';
@@ -175,6 +189,50 @@ export function buildStagePromptFragment(
   subStage?: 'reflection' | 'debate',
 ): string {
   const key = stageToKey(stage, subStage);
+  const stageBody = sections.stages[key];
+  if (!stageBody.trim()) return '';
+  const parts = [sections.general.trim(), stageBody.trim(), sections.adaptations.trim()]
+    .filter((p) => p.length > 0);
+  return parts.join('\n\n');
+}
+
+/**
+ * Instrument-side counterpart of stageToKey. Unlike stageToKey, this accepts
+ * ArticleProcessing and returns 'articleProcessing'. The analyst variant stays
+ * strict (throws) to preserve its safety net.
+ * Effort: instrument-contracts.
+ */
+export function instrumentStageToKey(
+  stage: WorkflowStage,
+  subStage?: 'reflection' | 'debate',
+): StageKey {
+  switch (stage) {
+    case WorkflowStage.ArticleProcessing:
+      return 'articleProcessing';
+    case WorkflowStage.PredictorGeneration:
+      return 'predictorGeneration';
+    case WorkflowStage.RiskAssessment:
+      if (subStage === 'reflection') return 'riskReflection';
+      if (subStage === 'debate') return 'riskDebate';
+      throw new Error('RiskAssessment requires subStage: "reflection" | "debate"');
+    case WorkflowStage.PredictionGeneration:
+      return 'predictionGeneration';
+    case WorkflowStage.Learning:
+      return 'learning';
+  }
+}
+
+/**
+ * Assemble the prompt fragment for a given stage using the instrument contract
+ * parser. Same shape as buildStagePromptFragment but accepts ArticleProcessing.
+ * Effort: instrument-contracts.
+ */
+export function buildInstrumentStagePromptFragment(
+  sections: ContractSections,
+  stage: WorkflowStage,
+  subStage?: 'reflection' | 'debate',
+): string {
+  const key = instrumentStageToKey(stage, subStage);
   const stageBody = sections.stages[key];
   if (!stageBody.trim()) return '';
   const parts = [sections.general.trim(), stageBody.trim(), sections.adaptations.trim()]

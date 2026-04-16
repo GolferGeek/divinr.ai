@@ -9,6 +9,8 @@ import { MarketsLlmService } from './markets-llm.service';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import { instrumentKeywordScore } from '../utils/instrument-keyword-match';
 import { loadContractFragment } from '../utils/contract-loader';
+import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
+import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
 
 interface UnscoredArticle {
   id: string;
@@ -313,29 +315,54 @@ Include these extra fields in your JSON response:
   "estimated_reaction_window_minutes": <integer 15-120, how many minutes before the crowd prices it in>`
         : '';
 
-      // v4 stage-keyed contract injection (stage-keyed-analyst-contracts effort).
-      // Falls back to the legacy scoring_focus map when no v4 contract is present.
-      const { stageFragment, fallback: contractFallback } = await loadContractFragment(
-        { db: this.db, logger: this.logger, observability: this.observability },
-        { id: analyst.id, slug: analyst.slug },
-        analyst.current_config_version_id,
-        WorkflowStage.PredictorGeneration,
-      );
-      const legacyPersonaBlock = `You are the ${analyst.display_name}. ${analyst.scoring_focus}`;
-      const v4PersonaBlock = `You are the ${analyst.display_name}.\n\n${stageFragment}`;
-      try {
-        const llmResult = await this.marketsLlm.generateText(
-          context,
-          `${contractFallback ? legacyPersonaBlock : v4PersonaBlock}
+      // v4 stage-keyed analyst contract + v1 instrument contract (Phase 4 of
+      // instrument-contracts effort). The two loads are independent — parallelize.
+      const deps = { db: this.db, logger: this.logger, observability: this.observability };
+      const [analystLoad, instrumentLoad] = await Promise.all([
+        loadContractFragment(
+          deps,
+          { id: analyst.id, slug: analyst.slug },
+          analyst.current_config_version_id,
+          WorkflowStage.PredictorGeneration,
+        ),
+        loadInstrumentContractFragment(
+          deps,
+          { id: instrument.id, symbol: instrument.symbol },
+          WorkflowStage.PredictorGeneration,
+        ),
+      ]);
+      const { stageFragment: analystFragment, fallback: contractFallback } = analystLoad;
+      const { stageFragment: instrumentFragment } = instrumentLoad;
+
+      const legacyAnalystBlock = `You are the ${analyst.display_name}. ${analyst.scoring_focus}`;
+      const v4AnalystBlock = `You are the ${analyst.display_name}.\n\n${analystFragment}`;
+      const analystBlock = contractFallback ? legacyAnalystBlock : v4AnalystBlock;
+      const mergedPersonaBlock = instrumentFragment
+        ? buildMergedSystemPrompt({
+            instrumentSymbol: instrument.symbol,
+            instrumentFragment,
+            analystSlug: analyst.slug,
+            analystFragment: analystBlock,
+          })
+        : analystBlock;
+      const systemPrompt = `${mergedPersonaBlock}
 Score the relevance of this news article to a specific financial instrument from YOUR perspective.
 Respond with valid JSON only:
 {
   "relevance": <number 0.0-1.0, where 0=irrelevant to your analysis, 1=highly relevant to your specialty>,
   "rationale": "<brief one-sentence explanation from your perspective>",
   "dismiss": <boolean, true if article is clearly irrelevant to your type of analysis>
-}${crowdReactionPromptAddition}`,
-          `Score this article's relevance to ${instrument.symbol} (${instrument.name}, ${instrument.asset_type}) from your perspective as ${analyst.display_name}:\n\n${articleText}`,
-        );
+}${crowdReactionPromptAddition}`;
+      const userPrompt = `Score this article's relevance to ${instrument.symbol} (${instrument.name}, ${instrument.asset_type}) from your perspective as ${analyst.display_name}:\n\n${articleText}`;
+      emitPromptTokenEstimate(this.observability, this.logger, {
+        prompt: systemPrompt,
+        stage: WorkflowStage.PredictorGeneration,
+        subStage: null,
+        analystSlug: analyst.slug,
+        instrumentSymbol: instrument.symbol,
+      });
+      try {
+        const llmResult = await this.marketsLlm.generateText(context, systemPrompt, userPrompt);
 
         llmUsageId = llmResult.llmUsageId ?? null;
         const match = llmResult.text.match(/\{[\s\S]*\}/);

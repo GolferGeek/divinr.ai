@@ -5,6 +5,13 @@ import { ObservabilityEventsService } from '@orchestratorai/planes/observability
 import { MarketsLlmService } from './markets-llm.service';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import { instrumentKeywordScore } from '../utils/instrument-keyword-match';
+import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
+
+const STAGE1_TRAILING_INSTRUCTIONS =
+  'Use the language "analysis" and "signal", never "advice" or "recommendation". Respond with valid JSON: {"is_relevant": true/false, "rationale": "brief explanation"}.';
+
+const STAGE1_HARDCODED_FALLBACK_PROMPT = (symbol: string, name: string): string =>
+  `You are an instrument-relevance classifier. Determine if the article is relevant to the financial instrument ${symbol} (${name}). Respond with valid JSON: {"is_relevant": true/false, "rationale": "brief explanation"}. Use the language "analysis" and "signal", never "advice" or "recommendation".`;
 
 interface RelevanceResult {
   pairsEvaluated: number;
@@ -149,7 +156,15 @@ export class ArticleRelevanceService {
       .filter(Boolean)
       .join('\n');
 
-    const systemPrompt = `You are an instrument-relevance classifier. Determine if the article is relevant to the financial instrument ${instrument.symbol} (${instrument.name}). Respond with valid JSON: {"is_relevant": true/false, "rationale": "brief explanation"}. Use the language "analysis" and "signal", never "advice" or "recommendation".`;
+    const { stageFragment, fallback } = await loadInstrumentContractFragment(
+      { db: this.db, logger: this.logger, observability: this.observability },
+      { id: instrument.id, symbol: instrument.symbol },
+      WorkflowStage.ArticleProcessing,
+    );
+
+    const systemPrompt = fallback
+      ? STAGE1_HARDCODED_FALLBACK_PROMPT(instrument.symbol, instrument.name)
+      : `${stageFragment}\n\n${STAGE1_TRAILING_INSTRUCTIONS}`;
     const userPrompt = `Article:\n${articleText}\n\nIs this article relevant to ${instrument.symbol} (${instrument.name})?`;
 
     try {

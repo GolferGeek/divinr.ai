@@ -299,6 +299,47 @@ export class MarketsController {
     return this.markets.validateAnalystContract(analystId, user.id, body.markdown);
   }
 
+  @Get('instruments/:instrumentId/contract')
+  async getInstrumentContract(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('instrumentId') instrumentId: string,
+  ) {
+    const user = this.getUser(req);
+    if (!instrumentId) throw new BadRequestException('instrumentId is required');
+    return this.markets.getInstrumentContract(instrumentId, user.id);
+  }
+
+  @Put('instruments/:instrumentId/contract')
+  async saveInstrumentContract(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('instrumentId') instrumentId: string,
+    @Body() body: { markdown: string; changeReason?: string },
+  ) {
+    const user = this.getUser(req);
+    if (!instrumentId) throw new BadRequestException('instrumentId is required');
+    await this.requireWriteAccess(user);
+    return this.markets.saveInstrumentContract({
+      instrumentId,
+      userId: user.id,
+      markdown: body.markdown,
+      changeReason: body.changeReason,
+    });
+  }
+
+  @Post('instruments/:instrumentId/contract/validate')
+  async validateInstrumentContract(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('instrumentId') instrumentId: string,
+    @Body() body: { markdown: string },
+  ) {
+    const user = this.getUser(req);
+    if (!instrumentId) throw new BadRequestException('instrumentId is required');
+    if (!body?.markdown || typeof body.markdown !== 'string') {
+      throw new BadRequestException('markdown is required');
+    }
+    return this.markets.validateInstrumentContract(instrumentId, user.id, body.markdown);
+  }
+
   @Post('analysts/assign')
   async assignAnalyst(
     @Req() req: { user?: AuthenticatedUser },

@@ -60,6 +60,7 @@ export const router = createRouter({
         { path: 'domain/:domain', name: 'domain-dashboard', component: () => import('../views/DomainDashboardView.vue') },
         { path: 'instruments', name: 'instruments', component: () => import('../views/InstrumentsView.vue') },
         { path: 'instruments/:id', name: 'instrument-detail', component: () => import('../views/InstrumentDetailView.vue') },
+        { path: 'instruments/:id/contract', name: 'instrument-contract', component: () => import('../views/InstrumentContractEditorView.vue') },
         { path: 'analysts', name: 'analysts', component: () => import('../views/AnalystsView.vue') },
         { path: 'analysts/:id/performance', name: 'analyst-performance', component: () => import('../views/AnalystPerformanceView.vue') },
         { path: 'analysts/:id/contract', name: 'analyst-contract', component: () => import('../views/ContractEditorView.vue') },

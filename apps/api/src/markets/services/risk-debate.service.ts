@@ -5,6 +5,8 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
 import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
 import { MarketsLlmService } from './markets-llm.service';
 import { loadContractFragment } from '../utils/contract-loader';
+import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
+import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import type {
   BlueAssessment,
@@ -95,10 +97,43 @@ export class RiskDebateService {
 
     const assessmentSummary = this.formatAssessmentsForDebate(input.dimensionAssessments, input.overallScore);
 
-    // Load org-specific debate prompts from DB, fall back to built-in defaults
-    const bluePrompt = await this.loadDebatePrompt('blue', DEFAULT_BLUE_PROMPT);
-    const redPrompt = await this.loadDebatePrompt('red', DEFAULT_RED_PROMPT);
-    const arbiterPrompt = await this.loadArbiterPrompt();
+    // Load org-specific debate prompts from DB, fall back to built-in defaults.
+    // In parallel, load the instrument contract's Risk Debate fragment — it is
+    // merged into each participant's system prompt so Blue/Red/Arbiter share the
+    // instrument-specific framing (per instrument-contracts effort Phase 4).
+    const [bluePrompt, redPrompt, arbiterPrompt, instrumentLoad] = await Promise.all([
+      this.loadDebatePrompt('blue', DEFAULT_BLUE_PROMPT),
+      this.loadDebatePrompt('red', DEFAULT_RED_PROMPT),
+      this.loadArbiterPrompt(),
+      loadInstrumentContractFragment(
+        { db: this.db, logger: this.logger, observability: this.observability },
+        { id: input.instrumentId, symbol: input.instrumentSymbol },
+        WorkflowStage.RiskAssessment,
+        'debate',
+      ),
+    ]);
+    const { stageFragment: instrumentFragment } = instrumentLoad;
+    const mergeInstr = (analystSlug: string, analystFragment: string): string =>
+      instrumentFragment
+        ? buildMergedSystemPrompt({
+            instrumentSymbol: input.instrumentSymbol,
+            instrumentFragment,
+            analystSlug,
+            analystFragment,
+          })
+        : analystFragment;
+    const blueSystemPrompt = mergeInstr('blue', bluePrompt);
+    const redSystemPrompt = mergeInstr('red', redPrompt);
+    const arbiterSystemPrompt = mergeInstr('arbiter', arbiterPrompt);
+    for (const [slug, prompt] of [['blue', blueSystemPrompt], ['red', redSystemPrompt], ['arbiter', arbiterSystemPrompt]] as const) {
+      emitPromptTokenEstimate(this.observability, this.logger, {
+        prompt,
+        stage: WorkflowStage.RiskAssessment,
+        subStage: 'debate',
+        analystSlug: slug,
+        instrumentSymbol: input.instrumentSymbol,
+      });
+    }
 
     let blueAssessment: BlueAssessment;
     let redChallenges: RedChallenges;
@@ -110,7 +145,7 @@ export class RiskDebateService {
       // 1. Blue Agent: Defend
       const blueResult = await this.llmService.generateText(
         input.context,
-        bluePrompt,
+        blueSystemPrompt,
         `Defend this risk assessment for ${input.instrumentSymbol}:\n\n${assessmentSummary}`,
       );
       blueAssessment = this.parseBlue(blueResult.text);
@@ -119,7 +154,7 @@ export class RiskDebateService {
       // 2. Red Agent: Challenge
       const redResult = await this.llmService.generateText(
         input.context,
-        redPrompt,
+        redSystemPrompt,
         `Challenge this risk assessment for ${input.instrumentSymbol}:\n\nAssessment:\n${assessmentSummary}\n\nBlue Agent's defense:\n${JSON.stringify(blueAssessment)}`,
       );
       redChallenges = this.parseRed(redResult.text);
@@ -131,7 +166,7 @@ export class RiskDebateService {
       // Blue/red are still findable via the transcript and via run_id in llm_usage.
       const arbiterResult = await this.llmService.generateText(
         input.context,
-        arbiterPrompt,
+        arbiterSystemPrompt,
         `Synthesize the debate for ${input.instrumentSymbol}:\n\nOriginal score: ${input.overallScore}/100\n\nBlue defense:\n${JSON.stringify(blueAssessment)}\n\nRed challenges:\n${JSON.stringify(redChallenges)}`,
       );
       arbiterSynthesis = this.parseArbiter(arbiterResult.text);

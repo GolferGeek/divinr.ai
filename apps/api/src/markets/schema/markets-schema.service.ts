@@ -42,6 +42,7 @@ export class MarketsSchemaService {
       ${this.evaluationsDdl()}
       ${this.replaysDdl()}
       ${this.analystVersioningDdl()}
+      ${this.instrumentConfigVersionsDdl()}
       ${this.riskDimensionsDdl()}
       ${this.riskDebatesDdl()}
       ${this.learningSystemDdl()}
@@ -71,8 +72,32 @@ export class MarketsSchemaService {
     await this.seedPortfolioManagerAnalyst();
     await this.seedPortfolioFoundation();
     await this.dropOrganizationSlugColumns();
+    await this.verifyBaseInstrumentsHaveContracts();
     this.schemaReady = true;
     this.logger.log('Prediction schema ready');
+  }
+
+  /**
+   * Warns on each active base instrument that has no current_config_version_id.
+   * Non-blocking: API still starts. Stage 1 and 2–4 fall back to their
+   * pre-instrument-contracts behavior via the loader's fallback path.
+   * Effort: instrument-contracts (Phase 6).
+   */
+  private async verifyBaseInstrumentsHaveContracts(): Promise<void> {
+    const result = await this.db.rawQuery(
+      `SELECT id, symbol FROM prediction.instruments
+       WHERE is_active = true AND current_config_version_id IS NULL`,
+    );
+    if (result.error) {
+      this.logger.warn(`Instrument contract verification query failed: ${result.error.message}`);
+      return;
+    }
+    const rows = (result.data as Array<{ id: string; symbol: string }> | null) ?? [];
+    for (const row of rows) {
+      this.logger.warn(
+        `Base instrument ${row.symbol} (${row.id}) has no contract — Stage 1 will use the hardcoded fallback prompt`,
+      );
+    }
   }
 
   // ─── DDL Sections ────────────────────────────────────────────
@@ -116,7 +141,32 @@ export class MarketsSchemaService {
       );
       alter table prediction.instruments add column if not exists universe_slug text not null default 'stocks';
       alter table prediction.instruments add column if not exists current_state jsonb not null default '{}'::jsonb;
+      alter table prediction.instruments add column if not exists current_config_version_id text;
       create unique index if not exists instruments_symbol_unique_idx on prediction.instruments (symbol);
+    `;
+  }
+
+  private instrumentConfigVersionsDdl(): string {
+    return `
+      create table if not exists prediction.instrument_config_versions (
+        id text primary key,
+        instrument_id text not null references prediction.instruments(id) on delete cascade,
+        version_number integer not null default 1,
+        context_markdown text not null,
+        source text not null default 'manual',
+        change_reason text,
+        parent_version_id text,
+        is_active boolean not null default true,
+        created_by text not null,
+        created_at timestamptz not null default now(),
+        llm_usage_id uuid,
+        constraint instrument_config_versions_source_check
+          check (source = any (array['manual', 'tier1_auto', 'tier2_approved', 'tier3_strategic']))
+      );
+      create index if not exists prediction_instrument_config_versions_instrument_idx
+        on prediction.instrument_config_versions (instrument_id, is_active);
+      create index if not exists prediction_instrument_config_versions_llm_usage_idx
+        on prediction.instrument_config_versions (llm_usage_id) where llm_usage_id is not null;
     `;
   }
 

@@ -12,6 +12,8 @@ import { DataSourceService } from './data-source.service';
 import { TradeRecommendationService } from './trade-recommendation.service';
 import { ConvictionTraderService } from './conviction-trader.service';
 import { loadContractFragment } from '../utils/contract-loader';
+import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
+import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import type {
   MarketRun,
@@ -238,20 +240,44 @@ export class PredictionRunnerService {
       }
     } catch { /* no risk data available */ }
 
-    // Load contract sections and assemble stage fragment (stage-keyed-analyst-contracts effort).
-    // Falls back to legacy persona_prompt path if the stage section is missing.
+    // Load analyst (v4) contract fragment in parallel with the instrument (v1)
+    // contract fragment — they are independent DB queries (instrument-contracts
+    // effort Phase 4). Instrument contract is read live regardless of isPaper;
+    // only the analyst contract has a paper variant.
     const configId = isPaper ? analyst.paper_config_version_id : analyst.current_config_version_id;
-    const { stageFragment, adaptationsText, fallback: contractFallback } = await loadContractFragment(
-      { db: this.db, logger: this.logger, observability: this.observability },
-      analyst, configId, WorkflowStage.PredictionGeneration,
-    );
+    const deps = { db: this.db, logger: this.logger, observability: this.observability };
+    const [analystLoad, instrumentLoad] = await Promise.all([
+      loadContractFragment(deps, analyst, configId, WorkflowStage.PredictionGeneration),
+      loadInstrumentContractFragment(
+        deps,
+        { id: instrument.id, symbol: instrument.symbol },
+        WorkflowStage.PredictionGeneration,
+      ),
+    ]);
+    const { stageFragment, adaptationsText, fallback: contractFallback } = analystLoad;
+    const { stageFragment: instrumentFragment } = instrumentLoad;
 
-    const systemPrompt = contractFallback
+    const analystBlock = contractFallback
       ? this.buildLegacyAnalystSystemPrompt(analyst, adaptationsText)
       : this.buildAnalystSystemPrompt(analyst, stageFragment);
+    const systemPrompt = instrumentFragment
+      ? buildMergedSystemPrompt({
+          instrumentSymbol: instrument.symbol,
+          instrumentFragment,
+          analystSlug: analyst.slug,
+          analystFragment: analystBlock,
+        })
+      : analystBlock;
     const userPrompt = this.buildAnalystUserPrompt(
       instrument, analyst, sharedContext, contextProviderText, dataSourceText + analystPredictorContext + analystRiskContext,
     );
+    emitPromptTokenEstimate(this.observability, this.logger, {
+      prompt: systemPrompt,
+      stage: WorkflowStage.PredictionGeneration,
+      subStage: null,
+      analystSlug: analyst.slug,
+      instrumentSymbol: instrument.symbol,
+    });
 
     let outputText: string;
     let modelProvider = 'deterministic_local';
