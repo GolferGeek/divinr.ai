@@ -77,11 +77,13 @@ async function main(): Promise<void> {
       recent_bars: Array.from({ length: RECENT_BARS_CAP - 1 }, (_, i) => ({ t: `t${i}`, o: 1, h: 1, l: 1, c: 1, v: 0 })),
     };
     const updateFn = (svc as any).updateInstrumentPrice.bind(svc);
-    await updateFn('inst-1', { price: 42, change: 1, changePercent: 1 });
+    const bars1 = Array.from({ length: RECENT_BARS_CAP }, (_, i) => ({ t: `b${i}`, o: 42, h: 42, l: 42, c: 42, v: 0 }));
+    await updateFn('inst-1', { price: 42, change: 1, changePercent: 1, bars: bars1 });
     assert(db.state.recent_bars!.length === RECENT_BARS_CAP, `length is exactly ${RECENT_BARS_CAP} after first append`);
 
     // Append again — should still be capped, oldest dropped
-    await updateFn('inst-1', { price: 99, change: 2, changePercent: 2 });
+    const bars2 = [...bars1.slice(1), { t: 'bN', o: 99, h: 99, l: 99, c: 99, v: 0 }];
+    await updateFn('inst-1', { price: 99, change: 2, changePercent: 2, bars: bars2 });
     assert(db.state.recent_bars!.length === RECENT_BARS_CAP, `length stays at ${RECENT_BARS_CAP} after another append`);
     const last = db.state.recent_bars![RECENT_BARS_CAP - 1];
     assert(last.c === 99, 'newest bar is at the end');
@@ -93,9 +95,9 @@ async function main(): Promise<void> {
     const db = new MockDb();
     const svc = new OutcomeTrackingService(db as any, mockObservability, mockStopLoss);
     const updateFn = (svc as any).updateInstrumentPrice.bind(svc);
-    await updateFn('inst-1', { price: 50, change: 0, changePercent: 0 });
+    await updateFn('inst-1', { price: 50, change: 0, changePercent: 0, bars: [{ t: 't0', o: 50, h: 50, l: 50, c: 50, v: 0 }] });
     assert(db.state.recent_bars!.length === 1, 'first append yields 1 bar');
-    assert(db.state.recent_bars![0].o === 50 && db.state.recent_bars![0].c === 50, 'o=c=price for synthetic bar');
+    assert(db.state.recent_bars![0].o === 50 && db.state.recent_bars![0].c === 50, 'o=c=price for bar');
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

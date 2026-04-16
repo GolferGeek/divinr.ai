@@ -298,7 +298,7 @@ export class OutcomeTrackingService {
     } catch { /* no prediction data */ }
 
     // Replace the ring buffer with the full set of real OHLC bars from Polygon.
-    const nextBars = priceData.bars.slice(-RECENT_BARS_CAP);
+    const nextBars = (priceData.bars ?? []).slice(-RECENT_BARS_CAP);
 
     // Update ALL instruments with the same symbol (across all orgs including __base__)
     const result = await this.db.rawQuery(
