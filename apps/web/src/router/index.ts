@@ -1,5 +1,22 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router';
 import { useAuthStore } from '../stores/auth.store';
+import { useOnboardingStore } from '../stores/onboarding.store';
+import { tourContent } from '../onboarding/tour-content';
+
+// Routes that are always accessible during the tour regardless of step state.
+// Covers: the tour's own redirect target, the notifications page, and admin-only
+// System routes (which are already admin-gated and not part of the tour).
+const ALWAYS_UNLOCKED_DURING_TOUR = new Set([
+  '/',
+  '/notifications',
+  '/runs',
+  '/sources',
+  '/evaluations',
+  '/learning',
+  '/proposals',
+  '/terms',
+  '/fear-greed-alerts',
+]);
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -98,4 +115,34 @@ router.beforeEach((to) => {
   const auth = useAuthStore();
   if (!auth.isConfigured()) return '/welcome';
   return true;
+});
+
+// Onboarding guard: during an active tour, prevent direct-URL bypass of locked
+// nav items. Admin System routes are always allowed. Prevents redirect loops
+// by short-circuiting when `to.path` is already the current step's route.
+router.beforeEach((to) => {
+  if (to.meta.public) return true;
+  const auth = useAuthStore();
+  if (!auth.isConfigured()) return true; // let the auth guard handle unconfigured
+  const onboarding = useOnboardingStore();
+  if (!onboarding.active) return true;
+
+  // Allowlist: root, notifications, admin System routes, tour's redirect target.
+  if (ALWAYS_UNLOCKED_DURING_TOUR.has(to.path)) return true;
+  if (to.path === onboarding.currentStepPath) return true;
+
+  // Per-step escape hatch: action-gated steps can declare which paths need to
+  // be reachable to trigger their completion action.
+  const currentStepContent = tourContent[onboarding.currentStep];
+  const allowed = currentStepContent.allowedPaths;
+  if (allowed && allowed.some((p) => to.path === p || to.path.startsWith(p + '/'))) {
+    return true;
+  }
+
+  // Check the unlock rule (handles nested routes via matchNavRoot in the store).
+  if (onboarding.isUnlocked(to.path, auth.isAdmin)) return true;
+
+  onboarding.flashLocked("Let's get through this first.");
+  onboarding.openDocent();
+  return onboarding.currentStepPath;
 });

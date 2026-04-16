@@ -197,7 +197,7 @@ function timeAgo(dateStr: string): string {
     <ion-note>{{ domain.activeDomain }} / {{ domain.activeUniverse }}</ion-note>
 
     <!-- Your Clubs -->
-    <IonCard v-if="clubStore.myClubs.length > 0" class="club-dashboard-card">
+    <IonCard v-if="clubStore.myClubs.length > 0" class="club-dashboard-card" data-tour="dashboard-club-card">
       <IonCardHeader>
         <IonCardTitle>Your Clubs</IonCardTitle>
       </IonCardHeader>
@@ -278,7 +278,7 @@ function timeAgo(dateStr: string): string {
     <ion-grid v-else>
       <ion-row>
         <ion-col v-for="pred in predictions" :key="pred.instrument_id" size="12" size-md="6" size-lg="4" style="display:flex">
-          <ion-card class="prediction-card" style="display:flex;flex-direction:column;height:100%" button @click="router.push(`/instruments/${pred.instrument_id}`)">
+          <ion-card class="prediction-card" data-tour="dashboard-prediction-card" style="display:flex;flex-direction:column;height:100%" button @click="router.push(`/instruments/${pred.instrument_id}`)">
             <ion-card-header>
               <div class="prediction-header">
                 <div>

@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle,
   IonContent, IonIcon, IonLabel, IonChip, IonButton,
-  IonButtons, IonRouterOutlet,
+  IonButtons, IonRouterOutlet, IonPopover, IonList, IonItem,
 } from '@ionic/vue';
 import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
@@ -12,7 +12,7 @@ import {
   menuOutline, constructOutline, heartOutline, notificationsOutline,
   warningOutline, gitNetworkOutline, trendingUpOutline,
   chatbubblesOutline, trophyOutline, peopleCircleOutline,
-  chevronDownOutline, chevronForwardOutline,
+  chevronDownOutline, chevronForwardOutline, compassOutline,
 } from 'ionicons/icons';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -22,7 +22,12 @@ import { useAffinityStore } from '../stores/affinity.store';
 import { useNotificationStore } from '../stores/notification.store';
 import { useFearGreedStore } from '../stores/fear-greed.store';
 import { useMessagingStore } from '../stores/messaging.store';
+import { useOnboardingStore } from '../stores/onboarding.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
+import WelcomeModal from '../components/WelcomeModal.vue';
+import DocentPanel from '../components/DocentPanel.vue';
+import CompletionModal from '../components/CompletionModal.vue';
+import ElementHighlighter from '../components/ElementHighlighter.vue';
 
 const auth = useAuthStore();
 const domain = useDomainStore();
@@ -31,6 +36,7 @@ const affinityStore = useAffinityStore();
 const notificationStore = useNotificationStore();
 const fearGreedStore = useFearGreedStore();
 const messagingStore = useMessagingStore();
+const onboarding = useOnboardingStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
@@ -110,10 +116,43 @@ affinityStore.fetchContrarianAlerts(true);
 notificationStore.fetchUnreadCount();
 fearGreedStore.fetchUnreadCount();
 messagingStore.fetchUnreadCounts();
+onboarding.fetch().catch(() => { /* non-fatal if API down; welcome modal simply stays hidden */ });
 
 function logout() {
   auth.clear();
+  onboarding.clear();
   router.push('/login');
+}
+
+function handleNavClick(path: string) {
+  sidebarOpen.value = false;
+  if (onboarding.isUnlocked(path, auth.isAdmin)) {
+    router.push(path);
+  } else {
+    onboarding.flashLocked("Let's get through this first.");
+    onboarding.openDocent();
+    router.push(onboarding.currentStepPath);
+  }
+}
+
+async function retakeOnboarding() {
+  if (onboarding.active) {
+    if (!window.confirm('Restart the tour? Your current progress will be reset.')) return;
+  }
+  await onboarding.restart();
+  await router.push(onboarding.currentStepPath);
+  onboarding.openDocent();
+}
+
+async function resetUserOnboarding() {
+  const userId = window.prompt('Enter the user ID to reset onboarding for:');
+  if (!userId || !userId.trim()) return;
+  try {
+    await onboarding.resetForUser(userId.trim());
+    window.alert(`Onboarding reset for user ${userId.trim()}.`);
+  } catch (err) {
+    window.alert(`Failed to reset: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 </script>
 
@@ -140,14 +179,16 @@ function logout() {
                 v-for="item in group.items"
                 :key="item.to"
                 class="sidebar-item"
-                :class="{ active: $route.path === item.to }"
+                :class="{ active: $route.path === item.to, locked: !onboarding.isUnlocked(item.to, auth.isAdmin) }"
                 role="link"
                 tabindex="0"
-                @click="router.push(item.to); sidebarOpen = false"
-                @keyup.enter="router.push(item.to); sidebarOpen = false"
+                :aria-label="!onboarding.isUnlocked(item.to, auth.isAdmin) ? item.title + ' — locked, complete current tour step to unlock' : item.title"
+                @click="handleNavClick(item.to)"
+                @keyup.enter="handleNavClick(item.to)"
               >
                 <ion-icon :icon="item.icon" />
                 <span>{{ item.title }}</span>
+                <span v-if="!onboarding.isUnlocked(item.to, auth.isAdmin)" class="lock-icon" aria-hidden="true">🔒</span>
               </li>
             </template>
           </template>
@@ -193,12 +234,51 @@ function logout() {
               <ion-chip v-if="auth.isBetaReader" color="warning" outline>
                 <ion-label>Read Only</ion-label>
               </ion-chip>
-              <ion-chip color="medium" class="header-user-chip">
-                <ion-label>{{ auth.displayName }}</ion-label>
-              </ion-chip>
-              <ion-button fill="clear" @click="logout">
-                <ion-icon :icon="logOutOutline" />
+              <ion-button
+                v-if="onboarding.active"
+                fill="clear"
+                class="tour-compass-btn"
+                aria-label="Reopen onboarding tour"
+                @click="onboarding.openDocent()"
+              >
+                <ion-icon :icon="compassOutline" />
+                <span v-if="!onboarding.docentVisible" class="tour-progress-badge">
+                  {{ onboarding.progress.done }}/{{ onboarding.progress.total }}
+                </span>
               </ion-button>
+              <ion-chip
+                id="user-menu-trigger"
+                color="medium"
+                class="header-user-chip"
+                role="button"
+                tabindex="0"
+              >
+                <ion-label>{{ auth.displayName }}</ion-label>
+                <ion-icon :icon="chevronDownOutline" />
+              </ion-chip>
+              <ion-popover trigger="user-menu-trigger" trigger-action="click" dismiss-on-select>
+                <ion-content>
+                  <ion-list>
+                    <ion-item button :detail="false" @click="retakeOnboarding">
+                      <ion-icon slot="start" :icon="compassOutline" />
+                      <ion-label>Retake onboarding tour</ion-label>
+                    </ion-item>
+                    <ion-item
+                      v-if="auth.isSuperAdmin"
+                      button
+                      :detail="false"
+                      @click="resetUserOnboarding"
+                    >
+                      <ion-icon slot="start" :icon="constructOutline" />
+                      <ion-label>Reset onboarding for user…</ion-label>
+                    </ion-item>
+                    <ion-item button :detail="false" @click="logout">
+                      <ion-icon slot="start" :icon="logOutOutline" />
+                      <ion-label>Log out</ion-label>
+                    </ion-item>
+                  </ion-list>
+                </ion-content>
+              </ion-popover>
             </ion-buttons>
           </ion-toolbar>
         </ion-header>
@@ -213,6 +293,10 @@ function logout() {
     </div>
     <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false" />
     <ActivityPanel />
+    <WelcomeModal />
+    <DocentPanel />
+    <CompletionModal />
+    <ElementHighlighter />
   </ion-page>
 </template>
 
@@ -296,6 +380,42 @@ function logout() {
   background: #e8f0fe;
   color: var(--ion-color-primary, #3880ff);
   font-weight: 600;
+}
+
+.sidebar-item.locked {
+  color: #b0b0b0;
+  cursor: not-allowed;
+}
+
+.tour-compass-btn {
+  position: relative;
+}
+
+.header-user-chip {
+  cursor: pointer;
+}
+
+.tour-progress-badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  background: var(--ion-color-primary, #3880ff);
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.sidebar-item.locked:hover {
+  background: #fafafa;
+}
+
+.sidebar-item .lock-icon {
+  margin-left: auto;
+  font-size: 0.85rem;
+  opacity: 0.7;
 }
 
 .sidebar-item ion-icon {
