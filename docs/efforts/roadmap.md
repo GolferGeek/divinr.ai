@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-16
+**Last updated:** 2026-04-16 (stage-keyed-analyst-contracts shipped; instrument-contracts in progress)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -42,48 +42,53 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Current Effort
 
-**[workflow-stages-article-pipeline](current/workflow-stages-article-pipeline/intention.md)** — first phase of the architecture restructure block: named workflow stages, two-step article pipeline (relevance check → analyst fanout), predictor → risk → prediction reorder. Foundation that the other architecture efforts depend on.
+**[instrument-contracts](current/instrument-contracts/intention.md)** — second phase of the architecture restructure block: first-class contract entity for instruments (parallel shape to analysts, plus article-processing section). Builds on stage-keyed-analyst-contracts.
 
 ---
 
-## Next — Queued Efforts (17)
+## Recently Shipped
+
+- **[stage-keyed-analyst-contracts](stage-keyed-analyst-contracts/intention.md)** (2026-04-16, PR #48) — restructured analyst contracts to General + 5 stage-keyed sections + Adaptations. Every LLM call now injects `General + stage-section + Adaptations` via shared `loadContractFragment` helper; `persona_prompt` retired as the runtime driver; audit findings carry stage attribution. 7 base analysts migrated to v4; completion report in the archived effort folder.
+- **[workflow-stages-article-pipeline](workflow-stages-article-pipeline/intention.md)** — named workflow stages, two-step article pipeline (relevance check → analyst fanout), predictor → risk → prediction reorder. Foundation that the other architecture efforts depend on.
+
+---
+
+## Next — Queued Efforts (15)
 
 Grouped by logical dependency; each block mostly sequential, some efforts within a block may parallelize.
 
-### Architecture Restructure Block (5 efforts, sequential)
+### Architecture Restructure Block (3 efforts remaining, sequential)
 
-1. [stage-keyed-analyst-contracts](next/stage-keyed-analyst-contracts/intention.md) — restructure contracts: General + per-stage sections + Adaptations; close documented-vs-runtime gap
-2. [instrument-contracts](next/instrument-contracts/intention.md) — first-class contract entity for instruments (parallel shape to analysts, plus article-processing section)
-3. [user-authored-custom-content](next/user-authored-custom-content/intention.md) — individual authorship of analysts, instrument contracts, instruments; per-item pricing
-4. [triple-model-reasoning-continuity](next/triple-model-reasoning-continuity/intention.md) — (user, analyst, instrument) becomes the atom of reasoning continuity
-5. [slot-based-enablement-ui](next/slot-based-enablement-ui/intention.md) — user-facing triple selection
+1. [user-authored-custom-content](next/user-authored-custom-content/intention.md) — individual authorship of analysts, instrument contracts, instruments; per-item pricing
+2. [triple-model-reasoning-continuity](next/triple-model-reasoning-continuity/intention.md) — (user, analyst, instrument) becomes the atom of reasoning continuity
+3. [slot-based-enablement-ui](next/slot-based-enablement-ui/intention.md) — user-facing triple selection
 
 ### Economics & Evaluation Substrate (4 efforts)
 
-6. [llm-usage-logging](next/llm-usage-logging/intention.md) — capture every LLM call with full dimensional context (triple, stage, sub-stage, model, tokens, cost, BYO flag); load-bearing infrastructure that every economics/attribution/billing/regression effort consumes
-7. [cost-modeling-system](next/cost-modeling-system/intention.md) — calibration, prediction, pricing defensibility, experimentation mode; pure consumer of llm-usage-logging data
-8. [entity-level-performance-attribution](next/entity-level-performance-attribution/intention.md) — multi-dimensional P&L (per analyst / instrument / source / article / author / any combination); load-bearing for graduation decisions and author retention
-9. [regression-testing-harness](next/regression-testing-harness/intention.md) — historical-day replay system; validate contract changes, model upgrades, and graduation candidates against real past data
+4. [llm-usage-logging](next/llm-usage-logging/intention.md) — capture every LLM call with full dimensional context (triple, stage, sub-stage, model, tokens, cost, BYO flag); load-bearing infrastructure that every economics/attribution/billing/regression effort consumes
+5. [cost-modeling-system](next/cost-modeling-system/intention.md) — calibration, prediction, pricing defensibility, experimentation mode; pure consumer of llm-usage-logging data
+6. [entity-level-performance-attribution](next/entity-level-performance-attribution/intention.md) — multi-dimensional P&L (per analyst / instrument / source / article / author / any combination); load-bearing for graduation decisions and author retention
+7. [regression-testing-harness](next/regression-testing-harness/intention.md) — historical-day replay system; validate contract changes, model upgrades, and graduation candidates against real past data
 
 ### Billing Surface (3 efforts)
 
-10. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics, social-only clubs (effort name predates the simplification; the scope is now single-tier user billing)
-11. [stripe-integration](next/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
-12. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing (depends on cost-modeling-system)
+8. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics, social-only clubs (effort name predates the simplification; the scope is now single-tier user billing)
+9. [stripe-integration](next/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
+10. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing (depends on cost-modeling-system)
 
 ### Graduation & Contribution Layer (1 effort)
 
-13. [custom-to-base-graduation](next/custom-to-base-graduation/intention.md) — opt-in donation from user-authored to base, with cost-reduction-on-donation reward and community board attribution
+11. [custom-to-base-graduation](next/custom-to-base-graduation/intention.md) — opt-in donation from user-authored to base, with cost-reduction-on-donation reward and community board attribution
 
 ### Experience Polish (2 efforts)
 
-14. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
-15. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
+12. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
+13. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
 
 ### Operations & Validation (2 efforts)
 
-16. [live-prediction-pnl](next/live-prediction-pnl/intention.md) — run prediction cycles during market hours to validate intraday flow
-17. [spark-beta-hardening](next/spark-beta-hardening/intention.md) — power protection, service reliability, offsite backups, monitoring, recovery docs
+14. [live-prediction-pnl](next/live-prediction-pnl/intention.md) — run prediction cycles during market hours to validate intraday flow
+15. [spark-beta-hardening](next/spark-beta-hardening/intention.md) — power protection, service reliability, offsite backups, monitoring, recovery docs
 
 ---
 
