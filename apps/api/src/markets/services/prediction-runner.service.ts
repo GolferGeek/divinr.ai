@@ -11,7 +11,7 @@ import { ContextProviderService } from './context-provider.service';
 import { DataSourceService } from './data-source.service';
 import { TradeRecommendationService } from './trade-recommendation.service';
 import { ConvictionTraderService } from './conviction-trader.service';
-import { parseContractMarkdown } from '../utils/parse-contract-markdown';
+import { loadContractFragment } from '../utils/contract-loader';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import type {
   MarketRun,
@@ -238,29 +238,17 @@ export class PredictionRunnerService {
       }
     } catch { /* no risk data available */ }
 
-    // Load adaptations from context_markdown (effort: tier-1-structured-writes)
-    let adaptationsText = '';
+    // Load contract sections and assemble stage fragment (stage-keyed-analyst-contracts effort).
+    // Falls back to legacy persona_prompt path if the stage section is missing.
     const configId = isPaper ? analyst.paper_config_version_id : analyst.current_config_version_id;
-    if (configId) {
-      try {
-        const cmResult = await this.db.rawQuery(
-          `SELECT context_markdown FROM prediction.analyst_config_versions WHERE id = $1`,
-          [configId],
-        );
-        const cmRows = (cmResult.data as Array<{ context_markdown: string | null }> | null) ?? [];
-        const cm = cmRows[0]?.context_markdown;
-        if (cm) {
-          const sections = parseContractMarkdown(cm);
-          if (sections.adaptations) {
-            adaptationsText = sections.adaptations;
-          }
-        }
-      } catch (err) {
-        this.logger.debug(`Failed to load adaptations for config ${configId}: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
+    const { stageFragment, adaptationsText, fallback: contractFallback } = await loadContractFragment(
+      { db: this.db, logger: this.logger, observability: this.observability },
+      analyst, configId, WorkflowStage.PredictionGeneration,
+    );
 
-    const systemPrompt = this.buildAnalystSystemPrompt(analyst, adaptationsText);
+    const systemPrompt = contractFallback
+      ? this.buildLegacyAnalystSystemPrompt(analyst, adaptationsText)
+      : this.buildAnalystSystemPrompt(analyst, stageFragment);
     const userPrompt = this.buildAnalystUserPrompt(
       instrument, analyst, sharedContext, contextProviderText, dataSourceText + analystPredictorContext + analystRiskContext,
     );
@@ -440,8 +428,34 @@ Respond ONLY with valid JSON.`;
 
   // ─── Prompt Building ─────────────────────────────────────────
 
-  private buildAnalystSystemPrompt(analyst: MarketAnalyst, adaptationsText?: string): string {
-    const tierKey = 'silver'; // Default tier — can be made configurable
+  /**
+   * New v4 prompt shape: display name + stage fragment (General + stage-section + Adaptations)
+   * + JSON output schema. Called when the analyst has a v4 stage-keyed contract.
+   */
+  private buildAnalystSystemPrompt(analyst: MarketAnalyst, stageFragment: string): string {
+    return `You are ${analyst.display_name}.
+
+${stageFragment}
+
+Respond with valid JSON:
+{
+  "direction": "up" | "down" | "flat",
+  "confidence": <0-100>,
+  "rationale": "<your analysis>",
+  "key_factors": ["<factor 1>", ...],
+  "risks": ["<risk 1>", ...]
+}
+
+Respond ONLY with valid JSON.`;
+  }
+
+  /**
+   * Legacy prompt shape: persona_prompt + tier_instructions + adaptations.
+   * Used as fallback when the analyst has no v4 contract or lacks the required
+   * stage section (e.g., day-trader analysts during the incremental rollout).
+   */
+  private buildLegacyAnalystSystemPrompt(analyst: MarketAnalyst, adaptationsText: string): string {
+    const tierKey = 'silver';
     const tierInstruction = analyst.tier_instructions?.[tierKey] || '';
 
     return `You are ${analyst.display_name}. ${analyst.persona_prompt}

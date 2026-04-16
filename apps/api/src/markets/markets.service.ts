@@ -23,7 +23,13 @@ import { PositionSizingService } from './services/position-sizing.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
 import { TradeRecommendationService } from './services/trade-recommendation.service';
 import { AffinityService } from './services/affinity.service';
-import { parseContractMarkdown as parseContractMarkdownUtil } from './utils/parse-contract-markdown';
+import {
+  parseContractMarkdown as parseContractMarkdownUtil,
+  validateContractSections,
+  REQUIRED_SECTIONS_BY_TYPE,
+  type AnalystType as ContractAnalystType,
+  type ContractValidationResult,
+} from './utils/parse-contract-markdown';
 import type {
   AssignAnalystInput,
   CreateAnalystInput,
@@ -1228,17 +1234,19 @@ export class MarketsService {
   async getAnalystContract(analystId: string, userId: string) {
     await this.schema.ensureSchema();
 
-    // Fetch analyst metadata
+    // Fetch analyst metadata (including analyst_type so the editor can filter
+    // required stage panels per PRD §4.3).
     const analystResult = await this.db.rawQuery(
-      `SELECT id, display_name, current_config_version_id
+      `SELECT id, display_name, current_config_version_id, analyst_type
        FROM prediction.market_analysts
        WHERE id = $1 AND (user_id IS NULL OR user_id = $2)`,
       [analystId, userId],
     );
     if (analystResult.error) throw new Error(analystResult.error.message);
-    const analysts = (analystResult.data as Array<{ id: string; display_name: string; current_config_version_id: string | null }> | null) ?? [];
+    const analysts = (analystResult.data as Array<{ id: string; display_name: string; current_config_version_id: string | null; analyst_type: string }> | null) ?? [];
     if (analysts.length === 0) throw new BadRequestException('Analyst not found');
     const analyst = analysts[0];
+    const contractAnalystType = this.coerceAnalystType(analyst.analyst_type);
 
     // Fetch all config versions
     const versionsResult = await this.db.rawQuery(
@@ -1258,9 +1266,15 @@ export class MarketsService {
       ? { markdown: activeMarkdown, sections: this.parseContractMarkdown(activeMarkdown) }
       : null;
 
+    const requiredSections = contractAnalystType
+      ? REQUIRED_SECTIONS_BY_TYPE[contractAnalystType]
+      : null;
+
     return {
       analystId: analyst.id,
       displayName: analyst.display_name,
+      analystType: contractAnalystType,
+      requiredSections,
       activeVersionId: analyst.current_config_version_id,
       contract,
       versions: versionRows.map(v => ({
@@ -1276,6 +1290,48 @@ export class MarketsService {
     };
   }
 
+  /**
+   * Coerce a DB `analyst_type` value to the contract-validator's `AnalystType`.
+   * Day-traders and context-providers return null — they do not use v4
+   * stage-keyed contracts (out of scope for this effort).
+   */
+  private coerceAnalystType(raw: string): ContractAnalystType | null {
+    if (raw === 'personality' || raw === 'arbitrator' || raw === 'portfolio_manager') {
+      return raw;
+    }
+    return null;
+  }
+
+  /**
+   * Validate a contract markdown string against the required-section policy
+   * for an analyst without creating a new version. Used by the editor for
+   * on-blur preflight checks. Effort: stage-keyed-analyst-contracts.
+   */
+  async validateAnalystContract(
+    analystId: string,
+    userId: string,
+    markdown: string,
+  ): Promise<ContractValidationResult & { analystType: ContractAnalystType | null }> {
+    await this.schema.ensureSchema();
+    const analystResult = await this.db.rawQuery(
+      `SELECT analyst_type FROM prediction.market_analysts
+       WHERE id = $1 AND (user_id IS NULL OR user_id = $2)`,
+      [analystId, userId],
+    );
+    if (analystResult.error) throw new Error(analystResult.error.message);
+    const rows = (analystResult.data as Array<{ analyst_type: string }> | null) ?? [];
+    if (rows.length === 0) throw new BadRequestException('Analyst not found');
+    const analystType = this.coerceAnalystType(rows[0].analyst_type);
+    if (!analystType) {
+      // Out-of-scope analyst types get a pass-through: parse but don't enforce
+      // the v4 policy. Legacy ## Role: contracts still work.
+      return { valid: true, missingSections: [], forbiddenPhrases: [], extraSections: [], analystType: null };
+    }
+    const sections = parseContractMarkdownUtil(markdown);
+    const result = validateContractSections(sections, analystType);
+    return { ...result, analystType };
+  }
+
   async saveAnalystContract(input: {
     analystId: string;
     userId: string;
@@ -1287,7 +1343,7 @@ export class MarketsService {
 
     // Load current analyst + active version
     const analystResult = await this.db.rawQuery(
-      `SELECT ma.id, ma.current_config_version_id,
+      `SELECT ma.id, ma.current_config_version_id, ma.analyst_type,
               acv.persona_prompt, acv.tier_instructions, acv.default_weight, acv.version_number
        FROM prediction.market_analysts ma
        LEFT JOIN prediction.analyst_config_versions acv ON acv.id = ma.current_config_version_id
@@ -1299,6 +1355,24 @@ export class MarketsService {
     if (rows.length === 0) throw new BadRequestException('Analyst not found');
     const current = rows[0];
     const oldVersionId = current.current_config_version_id ? String(current.current_config_version_id) : null;
+
+    // v4 validation (stage-keyed-analyst-contracts effort): if the analyst type
+    // is in the v4 policy set, reject malformed contracts with a structured 400.
+    // Analysts outside the policy (day-traders, etc.) skip this check.
+    const policyAnalystType = this.coerceAnalystType(String(current.analyst_type ?? ''));
+    if (policyAnalystType) {
+      const sections = parseContractMarkdownUtil(input.markdown);
+      const validation = validateContractSections(sections, policyAnalystType);
+      if (!validation.valid) {
+        throw new BadRequestException({
+          message: 'Contract validation failed',
+          analystType: policyAnalystType,
+          missingSections: validation.missingSections,
+          forbiddenPhrases: validation.forbiddenPhrases,
+          extraSections: validation.extraSections,
+        });
+      }
+    }
 
     // Deactivate current version
     if (oldVersionId) {

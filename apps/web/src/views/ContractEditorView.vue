@@ -18,15 +18,27 @@ interface ContractVersion {
   contextMarkdown: string | null;
 }
 
+type AnalystType = 'personality' | 'arbitrator' | 'portfolio_manager' | null;
+
 interface ContractData {
   analystId: string;
   displayName: string;
+  analystType: AnalystType;
+  requiredSections: string[] | null;
   activeVersionId: string | null;
   contract: {
     markdown: string;
     sections: { general: string; roles: Record<string, string>; adaptations: string };
   } | null;
   versions: ContractVersion[];
+}
+
+interface ValidationError {
+  message: string;
+  analystType: AnalystType;
+  missingSections: string[];
+  forbiddenPhrases: string[];
+  extraSections: string[];
 }
 
 const route = useRoute();
@@ -43,6 +55,7 @@ const editing = ref(false);
 const editMarkdown = ref('');
 const editChangeReason = ref('');
 const saving = ref(false);
+const validationError = ref<ValidationError | null>(null);
 
 // Diff mode
 const diffMode = ref(false);
@@ -125,6 +138,7 @@ function cancelEdit() {
 async function saveEdit() {
   if (!data.value) return;
   saving.value = true;
+  validationError.value = null;
   try {
     const id = route.params.id as string;
     data.value = await api.put<ContractData>(`/analysts/${id}/contract`, {
@@ -134,7 +148,16 @@ async function saveEdit() {
     editing.value = false;
     error.value = null;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err);
+    // The v4 save endpoint returns a structured 400 when validation fails
+    // (stage-keyed-analyst-contracts effort). Surface the per-section errors
+    // instead of a flat message.
+    const maybeStructured = (err as { body?: unknown; response?: { data?: unknown } } | null);
+    const payload = maybeStructured?.body ?? maybeStructured?.response?.data;
+    if (payload && typeof payload === 'object' && 'missingSections' in payload) {
+      validationError.value = payload as ValidationError;
+    } else {
+      error.value = err instanceof Error ? err.message : String(err);
+    }
   }
   saving.value = false;
 }
@@ -231,6 +254,7 @@ const diffLines = computed<{ left: DiffLine[]; right: DiffLine[] }>(() => {
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
         <router-link to="/analysts" style="text-decoration:none;color:var(--ion-color-primary);font-size:0.85rem">&larr; Analysts</router-link>
         <h1 style="margin:0">{{ data.displayName }} — Contract</h1>
+        <ion-chip v-if="data.analystType" color="tertiary" style="font-size:0.7rem;height:22px">{{ data.analystType }}</ion-chip>
         <span style="flex:1" />
         <template v-if="canWrite && !editing && !diffMode">
           <ion-button size="small" fill="outline" color="primary" @click="startEdit">Edit</ion-button>
@@ -239,6 +263,26 @@ const diffLines = computed<{ left: DiffLine[]; right: DiffLine[] }>(() => {
             {{ rollingBack ? 'Rolling back...' : 'Rollback' }}
           </ion-button>
         </template>
+      </div>
+
+      <!-- Required-sections hint (v4 stage-keyed contracts) -->
+      <div v-if="data.requiredSections && data.requiredSections.length > 0 && editing" style="background:var(--ion-color-step-50);padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:0.8rem">
+        <strong>Required sections ({{ data.analystType }}):</strong>
+        General, {{ data.requiredSections.map(s => s.replace('Stage: ', '')).join(', ') }}, Adaptations.
+      </div>
+
+      <!-- Save-time validation errors -->
+      <div v-if="validationError" style="background:var(--ion-color-danger-tint);color:var(--ion-color-danger-contrast);padding:10px 12px;border-radius:6px;margin-bottom:12px;font-size:0.85rem">
+        <strong>Contract validation failed.</strong>
+        <div v-if="validationError.missingSections.length > 0" style="margin-top:4px">
+          Missing: {{ validationError.missingSections.join(', ') }}
+        </div>
+        <div v-if="validationError.forbiddenPhrases.length > 0" style="margin-top:4px">
+          Forbidden phrases: {{ validationError.forbiddenPhrases.join(', ') }}
+        </div>
+        <div v-if="validationError.extraSections.length > 0" style="margin-top:4px">
+          Unexpected sections for this analyst type: {{ validationError.extraSections.join(', ') }}
+        </div>
       </div>
 
       <!-- Preview banner -->

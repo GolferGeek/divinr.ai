@@ -8,6 +8,7 @@ import { ObservabilityEventsService } from '@orchestratorai/planes/observability
 import { MarketsLlmService } from './markets-llm.service';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import { instrumentKeywordScore } from '../utils/instrument-keyword-match';
+import { loadContractFragment } from '../utils/contract-loader';
 
 interface UnscoredArticle {
   id: string;
@@ -30,6 +31,7 @@ interface ScoringAnalyst {
   slug: string;
   display_name: string;
   scoring_focus: string;
+  current_config_version_id: string | null;
 }
 
 interface PredictorGenResult {
@@ -42,14 +44,15 @@ interface PredictorGenResult {
   errors: string[];
 }
 
-/** Per-analyst scoring focus — determines how each analyst evaluates article relevance */
-const ANALYST_SCORING_FOCUS: Record<string, string> = {
-  'technical-analyst': 'Score relevance for technical analysis — price levels, volume, chart patterns, support/resistance, technical indicators like RSI, MACD, moving averages.',
-  'fundamentals-analyst': 'Score relevance for fundamental analysis — earnings, revenue, margins, valuation metrics, balance sheet, filings, competitive position.',
-  'sentiment-analyst': 'Score sentiment signals — analyst ratings, insider activity, crowd behavior, social media buzz, contrarian indicators.',
-  'macro-strategist': 'Score macro relevance — economic indicators, Fed policy, interest rates, inflation, employment, GDP, yield curves, sector rotation.',
-  'momentum-analyst': 'Score momentum signals — breakouts, volume spikes, trend changes, earnings acceleration, relative strength.',
-};
+/**
+ * Generic fallback prompt body for analysts that don't have a v4 stage-keyed
+ * contract's Predictor Generation section. In production, every base
+ * personality analyst has one after the stage-keyed-analyst-contracts effort,
+ * so this path is dead for the 7 base analysts. It remains for rollback
+ * safety and for future analysts seeded without a v4 contract.
+ */
+const GENERIC_FALLBACK_SCORING_FOCUS =
+  'Score the relevance of this article to the instrument from your analytical perspective. Focus on signals aligned with your specialty.';
 
 /**
  * PredictorGeneratorService — Scores new articles against active instruments
@@ -201,15 +204,15 @@ export class PredictorGeneratorService {
    */
   private async getPersonalityAnalysts(): Promise<ScoringAnalyst[]> {
     const result = await this.db.rawQuery(
-      `select id, slug, display_name from prediction.market_analysts
+      `select id, slug, display_name, current_config_version_id from prediction.market_analysts
        where analyst_type = 'personality'
          and is_enabled = true and is_active = true
        order by slug`,
     );
-    const rows = (result.data as Array<{ id: string; slug: string; display_name: string }> | null) ?? [];
+    const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null }> | null) ?? [];
     return rows.map(r => ({
       ...r,
-      scoring_focus: ANALYST_SCORING_FOCUS[r.slug] ?? 'Score general relevance to this instrument.',
+      scoring_focus: GENERIC_FALLBACK_SCORING_FOCUS,
     }));
   }
 
@@ -310,10 +313,20 @@ Include these extra fields in your JSON response:
   "estimated_reaction_window_minutes": <integer 15-120, how many minutes before the crowd prices it in>`
         : '';
 
+      // v4 stage-keyed contract injection (stage-keyed-analyst-contracts effort).
+      // Falls back to the legacy scoring_focus map when no v4 contract is present.
+      const { stageFragment, fallback: contractFallback } = await loadContractFragment(
+        { db: this.db, logger: this.logger, observability: this.observability },
+        { id: analyst.id, slug: analyst.slug },
+        analyst.current_config_version_id,
+        WorkflowStage.PredictorGeneration,
+      );
+      const legacyPersonaBlock = `You are the ${analyst.display_name}. ${analyst.scoring_focus}`;
+      const v4PersonaBlock = `You are the ${analyst.display_name}.\n\n${stageFragment}`;
       try {
         const llmResult = await this.marketsLlm.generateText(
           context,
-          `You are the ${analyst.display_name}. ${analyst.scoring_focus}
+          `${contractFallback ? legacyPersonaBlock : v4PersonaBlock}
 Score the relevance of this news article to a specific financial instrument from YOUR perspective.
 Respond with valid JSON only:
 {

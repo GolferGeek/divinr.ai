@@ -2,7 +2,10 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { ExecutionContext } from '@orchestrator-ai/transport-types';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
 import { MarketsLlmService } from './markets-llm.service';
+import { loadContractFragment } from '../utils/contract-loader';
+import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import type {
   BlueAssessment,
   RedChallenges,
@@ -50,9 +53,7 @@ Respond with valid JSON:
   "understated_risks": ["<understated risk>", ...]
 }`;
 
-const DEFAULT_ARBITER_PROMPT = `You are the Arbiter in a risk assessment debate.
-You have seen the Blue Agent's defense and the Red Agent's challenges.
-Synthesize both perspectives and propose a score adjustment between -30 and +30.
+const DEFAULT_ARBITER_PROMPT_JSON_SCHEMA = `You have seen the Blue Agent's defense and the Red Agent's challenges. Synthesize both perspectives and propose a score adjustment between -30 and +30.
 
 Respond with valid JSON:
 {
@@ -62,6 +63,9 @@ Respond with valid JSON:
   "adjustment_reasoning": "<why you propose this adjustment>",
   "recommended_adjustment": <integer between -30 and +30>
 }`;
+
+const DEFAULT_ARBITER_PROMPT = `You are the Arbiter in a risk assessment debate.
+${DEFAULT_ARBITER_PROMPT_JSON_SCHEMA}`;
 
 /**
  * Three-agent adversarial debate: Blue (defend) → Red (challenge) → Arbiter (synthesize).
@@ -74,6 +78,7 @@ export class RiskDebateService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(MarketsLlmService) private readonly llmService: MarketsLlmService,
+    @Inject(ObservabilityEventsService) private readonly observability: ObservabilityEventsService,
   ) {}
 
   async runDebate(input: DebateInput): Promise<DebateResult> {
@@ -93,7 +98,7 @@ export class RiskDebateService {
     // Load org-specific debate prompts from DB, fall back to built-in defaults
     const bluePrompt = await this.loadDebatePrompt('blue', DEFAULT_BLUE_PROMPT);
     const redPrompt = await this.loadDebatePrompt('red', DEFAULT_RED_PROMPT);
-    const arbiterPrompt = await this.loadDebatePrompt('arbiter', DEFAULT_ARBITER_PROMPT);
+    const arbiterPrompt = await this.loadArbiterPrompt();
 
     let blueAssessment: BlueAssessment;
     let redChallenges: RedChallenges;
@@ -221,6 +226,42 @@ export class RiskDebateService {
       // Fall through to default
     }
     return fallback;
+  }
+
+  /**
+   * Arbiter prompt resolution order (stage-keyed-analyst-contracts effort):
+   *   1. Arbitrator analyst's v4 `## Stage: Risk Assessment — Debate (3b)` section
+   *      (+ General + Adaptations) if the analyst exists and has a stage-keyed contract.
+   *   2. Override from `prediction.risk_debate_contexts` table (legacy mechanism).
+   *   3. Built-in `DEFAULT_ARBITER_PROMPT` constant.
+   * Blue/Red prompts stay on the legacy loader — per-analyst Blue/Red assignment
+   * is a future architectural refactor outside this effort's scope.
+   */
+  private async loadArbiterPrompt(): Promise<string> {
+    try {
+      const result = await this.db.rawQuery(
+        `select id, slug, current_config_version_id
+         from prediction.market_analysts
+         where slug = 'arbitrator' and user_id is null
+         limit 1`,
+      );
+      const rows = (result.data as Array<{ id: string; slug: string; current_config_version_id: string | null }> | null) ?? [];
+      if (rows.length > 0 && rows[0].current_config_version_id) {
+        const { stageFragment, fallback } = await loadContractFragment(
+          { db: this.db, logger: this.logger, observability: this.observability },
+          { id: rows[0].id, slug: rows[0].slug },
+          rows[0].current_config_version_id,
+          WorkflowStage.RiskAssessment,
+          'debate',
+        );
+        if (!fallback && stageFragment) {
+          return `${stageFragment}\n\n${DEFAULT_ARBITER_PROMPT_JSON_SCHEMA}`;
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`loadArbiterPrompt: contract lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return this.loadDebatePrompt('arbiter', DEFAULT_ARBITER_PROMPT);
   }
 
   private formatAssessmentsForDebate(
