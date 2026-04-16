@@ -13,17 +13,26 @@ import { PredictionGeneratorService } from './prediction-generator.service';
 import { OutcomeTrackingService } from './outcome-tracking.service';
 import { AffinityService } from './affinity.service';
 import { FearGreedAlertService } from './fear-greed-alert.service';
+import { ArticleRelevanceService } from './article-relevance.service';
 
 /**
  * Analyst Pipeline — runs every 30 minutes.
  *
- * Automated pipeline steps:
- * 1. Query all active instruments from user watchlists across all tenants
- * 2. For each instrument, check entitled sources for new articles
- * 3. Score new articles as predictors
- * 4. Enqueue prediction runs for instruments with new predictors
- * 5. Enqueue risk runs for instruments with completed prediction runs
- * 6. Process all queued runs
+ * Five-stage flow (per PRD §4.1 of workflow-stages-article-pipeline):
+ * 1. Crawl new articles
+ * 2. Stage 1 — Article Processing: instrument-keyed relevance (keyword +
+ *    optional LLM) writes `article_instrument_relevance` without analyst fanout.
+ * 3. Stage 2 — Predictor Generation: per-analyst article scoring gated by
+ *    Stage 1; creates `market_predictors` only for relevant (article,
+ *    instrument) pairs.
+ * 4. (Fear/greed alert evaluation — unchanged side effect)
+ * 5. Stage 3 — Risk Assessment: per-analyst reflection (3a) then Blue/Red/
+ *    Arbiter debate (3b) per instrument whose predictors moved this cycle.
+ * 6. Stage 4 — Prediction Generation: reads just-written risk rows; logs a
+ *    warning if risk is stale relative to predictors.
+ * 7. (Contrarian alerts — unchanged side effect)
+ * 8. Outcome tracking
+ * 9. Stage 5 — Learning (downstream outcome evaluation; already post-outcome).
  *
  * Controlled by MARKETS_ENABLE_PIPELINE env var (default: false).
  * Uses Ollama local (qwen2.5:7b) by default, falls back to OpenRouter.
@@ -44,6 +53,7 @@ export class AnalystPipelineService {
     @Inject(OutcomeTrackingService) private readonly outcomeTracking: OutcomeTrackingService,
     @Inject(AffinityService) private readonly affinityService: AffinityService,
     @Inject(FearGreedAlertService) private readonly fearGreedAlertService: FearGreedAlertService,
+    @Inject(ArticleRelevanceService) private readonly articleRelevance: ArticleRelevanceService,
   ) {
     this.enabled = process.env.MARKETS_ENABLE_PIPELINE === 'true';
     if (this.enabled) {
@@ -100,16 +110,47 @@ export class AnalystPipelineService {
         result.errors.push(`Crawl failed: ${err instanceof Error ? err.message : String(err)}`);
       }
 
+      // Step 1a: Article relevance classification (Stage 1)
+      this.logger.log('Pipeline Step 1a: Article relevance classification');
+      const relStart = Date.now();
+      try {
+        const relResult = await this.articleRelevance.classifyNewArticles();
+        result.relevancePairsEvaluated = relResult.pairsEvaluated;
+        result.relevancePairsRelevant = relResult.relevantPairs;
+        this.logger.log(`Relevance: ${relResult.pairsEvaluated} pairs, ${relResult.relevantPairs} relevant (${Date.now() - relStart}ms)`);
+      } catch (err) {
+        result.errors.push(`Article relevance failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
       // Step 2: Per-analyst article scoring
       this.logger.log('Pipeline Step 2: Per-analyst article scoring');
       const scoringStart = Date.now();
+      let instrumentIdsAffected: string[] = [];
       try {
         const scoringResult = await this.predictorGenerator.runGeneration();
         result.predictorsScored = scoringResult.predictorsCreated;
         result.instrumentsProcessed = scoringResult.instrumentsAffected;
+        instrumentIdsAffected = scoringResult.instrumentIdsAffected;
         this.logger.log(`Scoring: ${scoringResult.predictorsCreated} predictors created (${Date.now() - scoringStart}ms)`);
       } catch (err) {
         result.errors.push(`Scoring failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      // Step 2c: Per-analyst risk reflection + Stage 3b debate (Stage 3)
+      if (instrumentIdsAffected.length > 0) {
+        this.logger.log('Pipeline Step 2c: Per-analyst risk assessment');
+        const riskStart = Date.now();
+        try {
+          const riskResult = await this.riskRunner.executePerAnalystRiskPass(instrumentIdsAffected);
+          result.riskAssessmentsWritten = riskResult.assessmentsWritten;
+          result.debatesRun = riskResult.debatesRun;
+          this.logger.log(`Risk pass: ${riskResult.assessmentsWritten} assessments, ${riskResult.debatesRun} debates (${Date.now() - riskStart}ms)`);
+          if (riskResult.errors.length > 0) {
+            for (const e of riskResult.errors) result.errors.push(`Risk pass: ${e}`);
+          }
+        } catch (err) {
+          result.errors.push(`Risk pass failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
 
       // Step 2b: Fear/greed alert evaluation on recently scored predictors
@@ -219,7 +260,11 @@ export class AnalystPipelineService {
 export interface PipelineResult {
   instrumentsProcessed: number;
   newArticlesFound: number;
+  relevancePairsEvaluated?: number;
+  relevancePairsRelevant?: number;
   predictorsScored: number;
+  riskAssessmentsWritten?: number;
+  debatesRun?: number;
   predictionRunsEnqueued: number;
   riskRunsEnqueued: number;
   runsProcessed: number;

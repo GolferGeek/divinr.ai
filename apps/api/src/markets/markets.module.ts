@@ -39,6 +39,7 @@ import { NotificationService } from './services/notification.service';
 import { FearGreedAlertService } from './services/fear-greed-alert.service';
 import { CoordinationService } from './services/coordination.service';
 import { PerformanceService } from './services/performance.service';
+import { ArticleRelevanceService } from './services/article-relevance.service';
 import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { TournamentModule } from '../tournaments/tournament.module';
@@ -99,6 +100,7 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     FearGreedAlertService,
     CoordinationService,
     PerformanceService,
+    ArticleRelevanceService,
     MarketsService,
     MessagingSchemaService,
     MessagingService,

@@ -6,6 +6,8 @@ import {
 } from '@orchestratorai/planes/database';
 import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
 import { MarketsLlmService } from './markets-llm.service';
+import { WorkflowStage } from '../workflow-stages/workflow-stage';
+import { instrumentKeywordScore } from '../utils/instrument-keyword-match';
 
 interface UnscoredArticle {
   id: string;
@@ -35,6 +37,8 @@ interface PredictorGenResult {
   predictorsCreated: number;
   predictorsDismissed: number;
   instrumentsAffected: number;
+  instrumentIdsAffected: string[];
+  articlesSkippedByRelevanceGate: number;
   errors: string[];
 }
 
@@ -80,7 +84,7 @@ export class PredictorGeneratorService {
       message,
       progress: null,
       step: null,
-      payload: data ?? {},
+      payload: { workflow_stage: WorkflowStage.PredictorGeneration, ...(data ?? {}) },
       timestamp: Date.now(),
     }).catch(() => {});
   }
@@ -104,7 +108,7 @@ export class PredictorGeneratorService {
   async runGeneration(): Promise<PredictorGenResult> {
     if (this.isRunning) {
       this.logger.warn('Skipping predictor generation — previous run still in progress');
-      return { articlesProcessed: 0, predictorsCreated: 0, predictorsDismissed: 0, instrumentsAffected: 0, errors: [] };
+      return { articlesProcessed: 0, predictorsCreated: 0, predictorsDismissed: 0, instrumentsAffected: 0, instrumentIdsAffected: [], articlesSkippedByRelevanceGate: 0, errors: [] };
     }
 
     this.isRunning = true;
@@ -113,6 +117,7 @@ export class PredictorGeneratorService {
     let articlesProcessed = 0;
     let predictorsCreated = 0;
     let predictorsDismissed = 0;
+    let articlesSkippedByRelevanceGate = 0;
     const affectedInstruments = new Set<string>();
 
     try {
@@ -120,7 +125,7 @@ export class PredictorGeneratorService {
       const instruments = await this.getActiveInstruments();
       if (instruments.length === 0) {
         this.logger.debug('No active instruments');
-        return { articlesProcessed: 0, predictorsCreated: 0, predictorsDismissed: 0, instrumentsAffected: 0, errors: [] };
+        return { articlesProcessed: 0, predictorsCreated: 0, predictorsDismissed: 0, instrumentsAffected: 0, instrumentIdsAffected: [], articlesSkippedByRelevanceGate: 0, errors: [] };
       }
 
       // Load personality analysts for per-analyst scoring
@@ -130,10 +135,18 @@ export class PredictorGeneratorService {
       for (const instrument of instruments) {
         try {
           const unscoredArticles = await this.getUnscoredArticles(instrument, analysts);
-          if (unscoredArticles.length === 0) continue;
 
-          this.emit('instrument.scoring', `Scoring ${unscoredArticles.length} articles for ${instrument.symbol} (${analysts.length} analysts)`, { symbol: instrument.symbol, articleCount: unscoredArticles.length });
-          for (const article of unscoredArticles) {
+          const gatedArticles = await this.filterByRelevance(instrument, unscoredArticles);
+          const skipped = unscoredArticles.length - gatedArticles.length;
+          if (skipped > 0) {
+            articlesSkippedByRelevanceGate += skipped;
+            this.emit('relevance_gate', `Relevance gate skipped ${skipped} articles for ${instrument.symbol}`, { symbol: instrument.symbol, skipped, remaining: gatedArticles.length });
+          }
+
+          if (gatedArticles.length === 0) continue;
+
+          this.emit('instrument.scoring', `Scoring ${gatedArticles.length} articles for ${instrument.symbol} (${analysts.length} analysts)`, { symbol: instrument.symbol, articleCount: gatedArticles.length });
+          for (const article of gatedArticles) {
             try {
               // Score through each analyst's lens
               for (const analyst of analysts) {
@@ -167,13 +180,15 @@ export class PredictorGeneratorService {
           `${predictorsCreated} predictors created, ${predictorsDismissed} dismissed, ` +
           `${affectedInstruments.size} instruments affected (${duration}ms)`,
       );
-      this.emit('complete', `Predictor generation: ${predictorsCreated} created, ${predictorsDismissed} dismissed from ${articlesProcessed} articles`, { articlesProcessed, predictorsCreated, predictorsDismissed, instrumentsAffected: affectedInstruments.size, duration });
+      this.emit('complete', `Predictor generation: ${predictorsCreated} created, ${predictorsDismissed} dismissed from ${articlesProcessed} articles`, { articlesProcessed, predictorsCreated, predictorsDismissed, instrumentsAffected: affectedInstruments.size, articlesSkippedByRelevanceGate, duration });
 
       return {
         articlesProcessed,
         predictorsCreated,
         predictorsDismissed,
         instrumentsAffected: affectedInstruments.size,
+        instrumentIdsAffected: Array.from(affectedInstruments),
+        articlesSkippedByRelevanceGate,
         errors,
       };
     } finally {
@@ -358,31 +373,29 @@ Respond with valid JSON only:
     return { relevanceScore, rationale, dismissed };
   }
 
-  /**
-   * Quick keyword check — does the article mention the instrument at all?
-   * Returns a preliminary relevance score (0 = no mention, 0.5-1.0 = mentioned).
-   */
   private quickKeywordCheck(article: UnscoredArticle, instrument: ActiveInstrument): number {
-    const text = [article.title, article.summary, article.content?.slice(0, 3000)]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
+    return instrumentKeywordScore(article, instrument);
+  }
 
-    const symbol = instrument.symbol.toLowerCase();
-    const name = instrument.name.toLowerCase();
-
-    // Direct symbol match (word boundary)
-    const symbolRegex = new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-    if (symbolRegex.test(text)) return 1.0;
-
-    // Full company name match
-    if (text.includes(name)) return 0.9;
-
-    // First word of company name (if > 3 chars)
-    const firstName = name.split(/\s+/)[0];
-    if (firstName && firstName.length > 3 && text.includes(firstName)) return 0.7;
-
-    return 0;
+  /**
+   * Flag-gated relevance filter: keep only articles marked is_relevant=true
+   * for this instrument in article_instrument_relevance.
+   */
+  private async filterByRelevance(
+    instrument: ActiveInstrument,
+    articles: UnscoredArticle[],
+  ): Promise<UnscoredArticle[]> {
+    if (articles.length === 0) return articles;
+    const ids = articles.map(a => a.id);
+    const result = await this.db.rawQuery(
+      `select article_id from prediction.article_instrument_relevance
+       where instrument_id = $1 and is_relevant = true and article_id = any($2::text[])`,
+      [instrument.id, ids],
+    );
+    const relevantIds = new Set(
+      ((result.data as Array<{ article_id: string }> | null) ?? []).map(r => r.article_id),
+    );
+    return articles.filter(a => relevantIds.has(a.id));
   }
 
   /**

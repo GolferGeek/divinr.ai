@@ -35,6 +35,7 @@ export class MarketsSchemaService {
       ${this.sourcesDdl()}
       ${this.articlesDdl()}
       ${this.predictorsDdl()}
+      ${this.articleInstrumentRelevanceDdl()}
       ${this.artifactsDdl()}
       ${this.predictionsDdl()}
       ${this.riskAssessmentsDdl()}
@@ -200,6 +201,23 @@ export class MarketsSchemaService {
       alter table prediction.market_instrument_analyst_assignments add column if not exists analyst_id text;
       alter table prediction.market_instrument_analyst_assignments add column if not exists assigned_by text;
       alter table prediction.market_instrument_analyst_assignments add column if not exists created_at timestamptz not null default now();
+
+      -- Viewer-scoped analyst participation: lets a user opt their custom
+      -- analyst into the debate for a (base or custom) instrument. The
+      -- market_instrument_analyst_assignments table above is the global
+      -- participation set; this table layers viewer-specific additions on top.
+      create table if not exists prediction.viewer_instrument_analyst_assignments (
+        id text primary key default gen_random_uuid()::text,
+        viewer_user_id text not null,
+        instrument_id text not null references prediction.instruments(id) on delete cascade,
+        analyst_id text not null references prediction.market_analysts(id) on delete cascade,
+        created_at timestamptz not null default now(),
+        unique (viewer_user_id, instrument_id, analyst_id)
+      );
+      create index if not exists viewer_instrument_analyst_assignments_viewer_instrument_idx
+        on prediction.viewer_instrument_analyst_assignments (viewer_user_id, instrument_id);
+      create index if not exists viewer_instrument_analyst_assignments_instrument_idx
+        on prediction.viewer_instrument_analyst_assignments (instrument_id);
     `;
   }
 
@@ -308,6 +326,28 @@ export class MarketsSchemaService {
     `;
   }
 
+  private articleInstrumentRelevanceDdl(): string {
+    return `
+      create table if not exists prediction.article_instrument_relevance (
+        id text primary key,
+        article_id text not null references prediction.market_articles(id) on delete cascade,
+        instrument_id text not null references prediction.instruments(id) on delete cascade,
+        is_relevant boolean not null,
+        relevance_method text not null check (relevance_method in ('keyword', 'llm')),
+        keyword_score numeric,
+        llm_rationale text,
+        llm_usage_id uuid,
+        created_at timestamptz not null default now(),
+        unique (article_id, instrument_id)
+      );
+      create index if not exists article_instrument_relevance_article_idx
+        on prediction.article_instrument_relevance (article_id);
+      create index if not exists article_instrument_relevance_relevant_idx
+        on prediction.article_instrument_relevance (instrument_id, is_relevant)
+        where is_relevant = true;
+    `;
+  }
+
   private artifactsDdl(): string {
     return `
       create table if not exists prediction.market_run_artifacts (
@@ -322,6 +362,10 @@ export class MarketsSchemaService {
         created_at timestamptz not null default now()
       );
       alter table prediction.market_run_artifacts add column if not exists role text not null default 'analyst';
+      alter table prediction.market_run_artifacts add column if not exists workflow_stage text;
+      create index if not exists market_run_artifacts_workflow_stage_idx
+        on prediction.market_run_artifacts (workflow_stage)
+        where workflow_stage is not null;
     `;
   }
 
@@ -525,6 +569,14 @@ export class MarketsSchemaService {
       alter table prediction.risk_debates add column if not exists llm_usage_id uuid;
       create index if not exists prediction_risk_debates_llm_usage_idx
         on prediction.risk_debates (llm_usage_id) where llm_usage_id is not null;
+
+      -- Viewer scope: NULL = shared base debate; NOT NULL = viewer-scoped fanout
+      -- (either a custom-instrument author or a viewer with custom-analyst
+      -- associations on a base instrument).
+      alter table prediction.risk_debates add column if not exists viewer_user_id text;
+      create index if not exists prediction_risk_debates_viewer_idx
+        on prediction.risk_debates (instrument_id, viewer_user_id)
+        where viewer_user_id is not null;
 
       create table if not exists prediction.risk_debate_contexts (
         id text primary key,

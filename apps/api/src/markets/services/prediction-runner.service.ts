@@ -12,6 +12,7 @@ import { DataSourceService } from './data-source.service';
 import { TradeRecommendationService } from './trade-recommendation.service';
 import { ConvictionTraderService } from './conviction-trader.service';
 import { parseContractMarkdown } from '../utils/parse-contract-markdown';
+import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import type {
   MarketRun,
   MarketInstrument,
@@ -79,6 +80,9 @@ export class PredictionRunnerService {
     const latestRisk = await this.getLatestRiskComposite(run.instrument_id);
     const predictorLines = await this.loadPredictorLines(run.instrument_id);
     const sharedContext = this.buildSharedContext(planeContext, latestRisk, predictorLines);
+
+    // Freshness check — warn if risk is stale vs predictors.
+    await this.warnIfRiskStale(run.instrument_id);
 
     // 3. Get all enabled personality analysts
     const analysts = await this.getAnalystsForRun(run.instrument_id);
@@ -286,9 +290,9 @@ export class PredictionRunnerService {
     const artifactId = randomUUID();
     await this.db.rawQuery(
       `insert into prediction.market_run_artifacts
-        (id, run_id, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, created_at)
-       values ($1, $2, 'prediction', $3, 'analyst', $4, $5, $6, $7, $8)`,
-      [artifactId, run.id, analyst.id, modelProvider, modelName, userPrompt, outputText, new Date().toISOString()],
+        (id, run_id, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, workflow_stage, created_at)
+       values ($1, $2, 'prediction', $3, 'analyst', $4, $5, $6, $7, $8, $9)`,
+      [artifactId, run.id, analyst.id, modelProvider, modelName, userPrompt, outputText, WorkflowStage.PredictionGeneration, new Date().toISOString()],
     );
 
     // Parse output
@@ -387,9 +391,9 @@ Respond ONLY with valid JSON.`;
     const artifactId = randomUUID();
     await this.db.rawQuery(
       `insert into prediction.market_run_artifacts
-        (id, run_id, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, created_at)
-       values ($1, $2, 'prediction', null, 'arbitrator', $3, $4, $5, $6, $7)`,
-      [artifactId, run.id, modelProvider, modelName, userPrompt, outputText, new Date().toISOString()],
+        (id, run_id, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, workflow_stage, created_at)
+       values ($1, $2, 'prediction', null, 'arbitrator', $3, $4, $5, $6, $7, $8)`,
+      [artifactId, run.id, modelProvider, modelName, userPrompt, outputText, WorkflowStage.PredictionGeneration, new Date().toISOString()],
     );
 
     // Parse output
@@ -703,6 +707,38 @@ Respond ONLY with valid JSON.`;
     };
   }
 
+  /**
+   * Phase 5 freshness check: warn when the latest risk assessment for an
+   * (analyst, instrument) predates the latest predictor by more than 5
+   * minutes, which indicates Stage 3 missed this cycle.
+   */
+  private async warnIfRiskStale(instrumentId: string): Promise<void> {
+    const result = await this.db.rawQuery(
+      `with latest_predictor as (
+         select max(updated_at) as max_updated_at
+         from prediction.market_predictors
+         where instrument_id = $1
+       )
+       select ara.analyst_id, ma.slug as analyst_slug, max(ara.created_at) as latest_risk_at,
+              (select max_updated_at from latest_predictor) as latest_predictor_at
+       from prediction.analyst_risk_assessments ara
+       join prediction.market_analysts ma on ma.id = ara.analyst_id
+       where ara.instrument_id = $1
+       group by ara.analyst_id, ma.slug`,
+      [instrumentId],
+    );
+    const rows = (result.data as Array<{ analyst_id: string; analyst_slug: string; latest_risk_at: string | null; latest_predictor_at: string | null }> | null) ?? [];
+    for (const row of rows) {
+      if (!row.latest_risk_at || !row.latest_predictor_at) continue;
+      const riskMs = Date.parse(row.latest_risk_at);
+      const predMs = Date.parse(row.latest_predictor_at);
+      if (Number.isNaN(riskMs) || Number.isNaN(predMs)) continue;
+      if (predMs - riskMs > 5 * 60 * 1000) {
+        this.logger.warn(`Risk stale relative to predictors for analyst=${row.analyst_slug} instrument=${instrumentId}`);
+      }
+    }
+  }
+
   private async emitProgress(
     context: ExecutionContext,
     runId: string,
@@ -719,7 +755,7 @@ Respond ONLY with valid JSON.`;
         message,
         progress: Math.round((current / total) * 100),
         step: `analyst_${current + 1}_of_${total}`,
-        payload: { runId, current, total },
+        payload: { runId, current, total, workflow_stage: WorkflowStage.PredictionGeneration },
         timestamp: Date.now(),
       } as never);
     } catch {

@@ -6,6 +6,7 @@ import {
 } from '@orchestratorai/planes/database';
 import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
 import { PredictionRunnerService } from './prediction-runner.service';
+import { WorkflowStage } from '../workflow-stages/workflow-stage';
 
 interface InstrumentWithPredictors {
   instrument_id: string;
@@ -65,7 +66,7 @@ export class PredictionGeneratorService {
       message,
       progress: null,
       step: null,
-      payload: data ?? {},
+      payload: { workflow_stage: WorkflowStage.PredictionGeneration, ...(data ?? {}) },
       timestamp: Date.now(),
     }).catch(() => {});
   }

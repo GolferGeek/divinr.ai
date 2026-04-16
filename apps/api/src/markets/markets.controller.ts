@@ -1489,16 +1489,7 @@ export class MarketsController {
   async triggerFullPipeline(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
     await this.requireAdmin(user);
-    const crawlResult = await this.crawler.runCrawl();
-    const predictorResult = await this.predictorGenerator.runGeneration();
-    const predictionResult = await this.predictionGenerator.runGeneration();
-    const outcomeResult = await this.outcomeTracking.runTracking();
-    return {
-      crawl: crawlResult,
-      predictors: predictorResult,
-      predictions: predictionResult,
-      outcomes: outcomeResult,
-    };
+    return this.analystPipeline.runPipeline();
   }
 
   // ─── Coordination ───────────────────────────────────────────

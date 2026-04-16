@@ -19,6 +19,7 @@ interface DebateInput {
   compositeScoreId: string;
   overallScore: number;
   dimensionAssessments: RiskDimensionAssessment[];
+  viewerUserId?: string | null;
 }
 
 interface DebateResult {
@@ -82,9 +83,9 @@ export class RiskDebateService {
     // Create pending debate record
     await this.db.rawQuery(
       `insert into prediction.risk_debates
-        (id, run_id, instrument_id, composite_score_id, original_score, status, created_at)
-       values ($1, $2, $3, $4, $5, 'in_progress', $6)`,
-      [debateId, input.runId, input.instrumentId, input.compositeScoreId, input.overallScore, now],
+        (id, run_id, instrument_id, composite_score_id, original_score, status, viewer_user_id, created_at)
+       values ($1, $2, $3, $4, $5, 'in_progress', $6, $7)`,
+      [debateId, input.runId, input.instrumentId, input.compositeScoreId, input.overallScore, input.viewerUserId ?? null, now],
     );
 
     const assessmentSummary = this.formatAssessmentsForDebate(input.dimensionAssessments, input.overallScore);

@@ -7,7 +7,7 @@
     "build": "turbo run build",
     "ci:compliance": "pnpm -w run test:compliance",
     "ci:full-markets": "pnpm -w run ci:compliance && pnpm -w run ci:markets",
-    "ci:markets": "pnpm -w run test:markets && pnpm -w run verify:markets",
+    "ci:markets": "pnpm -w run test:markets && pnpm --filter @divinr/api run test:markets:stages-v2 && pnpm -w run verify:markets",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
     "test": "turbo run test",

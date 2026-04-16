@@ -20,12 +20,30 @@ import type {
   RiskCompositeScore,
   RiskAssessment,
 } from '../markets.types';
+import { WorkflowStage } from '../workflow-stages/workflow-stage';
 
 export interface RiskRunResult {
   compositeScore: RiskCompositeScore;
   dimensionAssessments: RiskDimensionAssessment[];
   legacyAssessment: RiskAssessment;
   debateId: string | null;
+}
+
+interface AnalystRef {
+  id: string;
+  slug: string;
+  display_name: string;
+  persona_prompt: string;
+  default_weight: number;
+  user_id?: string | null;
+}
+
+interface InstrumentScope {
+  instrument: MarketInstrument;
+  analysts: AnalystRef[];
+  baseAnalystIds: Set<string>;
+  viewerCustoms: Map<string, string[]>;
+  ownerUserId: string | null;
 }
 
 /**
@@ -277,6 +295,483 @@ export class RiskRunnerService {
       adjustedScore: debateResult.adjustedScore,
       originalScore: input.overallScore,
     };
+  }
+
+  /**
+   * Stage 3 per-analyst risk reflection pass + Stage 3b Blue/Red/Arbiter
+   * debate fanout.
+   *
+   * For each instrument whose predictors moved this cycle:
+   *  1. Determine the analyst set that will participate in any debate scope:
+   *     - Custom instrument (instrument.user_id IS NOT NULL) → analysts in
+   *       `market_instrument_analyst_assignments` for that instrument.
+   *     - Base instrument → all enabled base (user_id IS NULL) personality
+   *       analysts in risk scope, plus any custom analyst any viewer has
+   *       associated with this instrument via
+   *       `viewer_instrument_analyst_assignments`.
+   *  2. Run one reflection per (instrument × analyst) in the union — writes
+   *     `analyst_risk_assessments` + `market_run_artifacts` with
+   *     workflow_stage=risk_assessment.
+   *  3. Fan out Stage 3b debates (writes `risk_debates` with viewer_user_id):
+   *     - Custom instrument → one debate, viewer_user_id = instrument.user_id,
+   *       participants = all assigned analysts.
+   *     - Base instrument → one shared debate (viewer_user_id=null,
+   *       participants = base analysts only), plus one additional debate per
+   *       distinct viewer with custom-analyst assignments for this instrument
+   *       (viewer_user_id = viewer, participants = base + that viewer's
+   *       custom analysts).
+   *
+   * Reflection workload is capped by MARKETS_RISK_BATCH_LIMIT (default 50)
+   * to respect the Ollama-serial constraint on Spark. Debates run once per
+   * scope regardless of the cap.
+   */
+  async executePerAnalystRiskPass(
+    instrumentIds: string[],
+  ): Promise<{ assessmentsWritten: number; debatesRun: number; errors: string[] }> {
+    await this.schema.ensureSchema();
+
+    const errors: string[] = [];
+    let assessmentsWritten = 0;
+    let debatesRun = 0;
+
+    if (instrumentIds.length === 0) {
+      return { assessmentsWritten, debatesRun, errors };
+    }
+
+    // Load per-instrument analyst sets + viewer-scope metadata in one pass.
+    const instrumentScopes = await this.resolveInstrumentScopes(instrumentIds);
+    if (instrumentScopes.length === 0) {
+      return { assessmentsWritten, debatesRun, errors };
+    }
+
+    const batchLimit = parseInt(process.env.MARKETS_RISK_BATCH_LIMIT ?? '50', 10);
+    const workload: Array<{ instrumentId: string; analyst: AnalystRef }> = [];
+    for (const scope of instrumentScopes) {
+      for (const analyst of scope.analysts) {
+        workload.push({ instrumentId: scope.instrument.id, analyst });
+      }
+    }
+    const truncated = workload.length > batchLimit;
+    const batch = truncated ? workload.slice(0, batchLimit) : workload;
+    if (truncated) {
+      this.logger.warn(`Risk pass workload truncated from ${workload.length} to ${batchLimit} (MARKETS_RISK_BATCH_LIMIT)`);
+    }
+
+    const runIdByInstrument = new Map<string, string>();
+    const assessmentsByInstrumentAnalyst = new Map<string, { analystId: string; analystSlug: string; score: number; confidence: number; reasoning: string }>();
+
+    for (const item of batch) {
+      try {
+        let runId = runIdByInstrument.get(item.instrumentId);
+        if (!runId) {
+          runId = await this.createRiskOrchestrationRun(item.instrumentId);
+          runIdByInstrument.set(item.instrumentId, runId);
+        }
+
+        const scope = instrumentScopes.find(s => s.instrument.id === item.instrumentId)!;
+        const parsed = await this.runPerAnalystReflection(
+          runId,
+          {
+            instrumentId: item.instrumentId,
+            analystId: item.analyst.id,
+            analystSlug: item.analyst.slug,
+            analystDisplayName: item.analyst.display_name,
+            analystPersona: item.analyst.persona_prompt,
+          },
+          scope.instrument,
+        );
+        assessmentsWritten++;
+        assessmentsByInstrumentAnalyst.set(`${item.instrumentId}:${item.analyst.id}`, {
+          analystId: item.analyst.id,
+          analystSlug: item.analyst.slug,
+          score: parsed.score,
+          confidence: parsed.confidence,
+          reasoning: parsed.reasoning,
+        });
+      } catch (err) {
+        const msg = `Per-analyst reflection failed for instrument=${item.instrumentId} analyst=${item.analyst.slug}: ${err instanceof Error ? err.message : String(err)}`;
+        errors.push(msg);
+        this.logger.warn(msg);
+      }
+    }
+
+    // Stage 3b: fan out debates per scope.
+    for (const scope of instrumentScopes) {
+      const runId = runIdByInstrument.get(scope.instrument.id);
+      if (!runId) continue;
+
+      const debates = this.planDebates(scope);
+      for (const debate of debates) {
+        try {
+          const participants: Array<{ analystId: string; analystSlug: string; score: number; confidence: number; reasoning: string }> = [];
+          for (const analystId of debate.analystIds) {
+            const row = assessmentsByInstrumentAnalyst.get(`${scope.instrument.id}:${analystId}`);
+            if (row) participants.push(row);
+          }
+          if (participants.length === 0) continue;
+
+          await this.runStage3bDebate(runId, scope.instrument, participants, debate.viewerUserId);
+          debatesRun++;
+        } catch (err) {
+          const viewerTag = debate.viewerUserId ? ` viewer=${debate.viewerUserId}` : ' (shared)';
+          const msg = `Stage 3b debate failed for instrument=${scope.instrument.id}${viewerTag}: ${err instanceof Error ? err.message : String(err)}`;
+          errors.push(msg);
+          this.logger.warn(msg);
+        }
+      }
+    }
+
+    this.logger.log(`Per-analyst risk pass: ${assessmentsWritten} assessments, ${debatesRun} debates, ${errors.length} errors`);
+    return { assessmentsWritten, debatesRun, errors };
+  }
+
+  /**
+   * For each input instrument, resolve:
+   *   - the instrument row (including user_id for custom-ownership)
+   *   - the analyst set that may participate in any debate scope
+   *   - the per-viewer custom-analyst map for base instruments
+   */
+  private async resolveInstrumentScopes(instrumentIds: string[]): Promise<InstrumentScope[]> {
+    const scopes: InstrumentScope[] = [];
+    for (const instrumentId of instrumentIds) {
+      const instrument = await this.loadInstrument(instrumentId);
+      if (!instrument) continue;
+
+      const instrumentUserId = (instrument as MarketInstrument & { user_id?: string | null }).user_id ?? null;
+
+      if (instrumentUserId !== null) {
+        // Case 3: custom instrument — participants are explicitly assigned.
+        const assigned = await this.loadAssignedAnalystsForInstrument(instrumentId);
+        scopes.push({
+          instrument,
+          analysts: assigned,
+          baseAnalystIds: new Set(assigned.filter(a => !a.user_id).map(a => a.id)),
+          viewerCustoms: new Map(),
+          ownerUserId: instrumentUserId,
+        });
+        continue;
+      }
+
+      // Case 1 + 2: base instrument. Base analysts = all enabled base (user_id IS NULL)
+      // personality analysts in risk scope. Viewer customs come from the bridge table.
+      const baseAnalysts = await this.loadBasePersonalityAnalysts();
+      const viewerCustoms = await this.loadViewerCustomsForInstrument(instrumentId);
+
+      // Union: base + every custom referenced by any viewer for this instrument.
+      const customAnalystIds = new Set<string>();
+      for (const analystIds of viewerCustoms.values()) {
+        for (const id of analystIds) customAnalystIds.add(id);
+      }
+      const customAnalysts = customAnalystIds.size > 0
+        ? await this.loadAnalystsByIds(Array.from(customAnalystIds))
+        : [];
+
+      const analystUnion = [...baseAnalysts, ...customAnalysts];
+      const baseAnalystIds = new Set(baseAnalysts.map(a => a.id));
+
+      scopes.push({
+        instrument,
+        analysts: analystUnion,
+        baseAnalystIds,
+        viewerCustoms,
+        ownerUserId: null,
+      });
+    }
+    return scopes;
+  }
+
+  /**
+   * Given a resolved scope, return the list of debates to run:
+   *   - Custom instrument → one debate, participants = all scope analysts,
+   *     viewerUserId = instrument.user_id
+   *   - Base instrument → shared debate (base analysts, viewerUserId=null)
+   *     plus one additional debate per viewer with viewer-customs (base +
+   *     that viewer's customs, viewerUserId = viewer)
+   */
+  private planDebates(scope: InstrumentScope): Array<{ analystIds: string[]; viewerUserId: string | null }> {
+    const debates: Array<{ analystIds: string[]; viewerUserId: string | null }> = [];
+
+    if (scope.ownerUserId !== null) {
+      debates.push({
+        analystIds: scope.analysts.map(a => a.id),
+        viewerUserId: scope.ownerUserId,
+      });
+      return debates;
+    }
+
+    // Base instrument.
+    const baseAnalystIds = Array.from(scope.baseAnalystIds);
+    if (baseAnalystIds.length > 0) {
+      debates.push({ analystIds: baseAnalystIds, viewerUserId: null });
+    }
+
+    for (const [viewerId, customAnalystIds] of scope.viewerCustoms) {
+      const participants = [...baseAnalystIds, ...customAnalystIds];
+      debates.push({ analystIds: participants, viewerUserId: viewerId });
+    }
+
+    return debates;
+  }
+
+  private async loadBasePersonalityAnalysts(): Promise<AnalystRef[]> {
+    const result = await this.db.rawQuery(
+      `select id, slug, display_name, persona_prompt, default_weight, user_id
+       from prediction.market_analysts
+       where analyst_type = 'personality' and is_enabled = true and is_active = true
+         and workflow_scope in ('risk', 'both')
+         and user_id is null
+       order by default_weight desc`,
+    );
+    return (result.data as AnalystRef[] | null) ?? [];
+  }
+
+  private async loadAssignedAnalystsForInstrument(instrumentId: string): Promise<AnalystRef[]> {
+    const result = await this.db.rawQuery(
+      `select ma.id, ma.slug, ma.display_name, ma.persona_prompt, ma.default_weight, ma.user_id
+       from prediction.market_instrument_analyst_assignments mia
+       join prediction.market_analysts ma on ma.id = mia.analyst_id
+       where mia.instrument_id = $1
+         and ma.is_enabled = true and ma.is_active = true
+         and ma.workflow_scope in ('risk', 'both')
+       order by ma.default_weight desc`,
+      [instrumentId],
+    );
+    return (result.data as AnalystRef[] | null) ?? [];
+  }
+
+  private async loadAnalystsByIds(ids: string[]): Promise<AnalystRef[]> {
+    if (ids.length === 0) return [];
+    const result = await this.db.rawQuery(
+      `select id, slug, display_name, persona_prompt, default_weight, user_id
+       from prediction.market_analysts
+       where id = any($1::text[])
+         and is_enabled = true and is_active = true
+         and workflow_scope in ('risk', 'both')`,
+      [ids],
+    );
+    return (result.data as AnalystRef[] | null) ?? [];
+  }
+
+  private async loadViewerCustomsForInstrument(instrumentId: string): Promise<Map<string, string[]>> {
+    const result = await this.db.rawQuery(
+      `select viewer_user_id, analyst_id
+       from prediction.viewer_instrument_analyst_assignments
+       where instrument_id = $1`,
+      [instrumentId],
+    );
+    const rows = (result.data as Array<{ viewer_user_id: string; analyst_id: string }> | null) ?? [];
+    const map = new Map<string, string[]>();
+    for (const row of rows) {
+      const existing = map.get(row.viewer_user_id) ?? [];
+      existing.push(row.analyst_id);
+      map.set(row.viewer_user_id, existing);
+    }
+    return map;
+  }
+
+  private async createRiskOrchestrationRun(instrumentId: string): Promise<string> {
+    const runId = randomUUID();
+    await this.db.rawQuery(
+      `insert into prediction.orchestration_runs
+        (id, instrument_id, run_type, status, requested_by, created_at, started_at)
+       values ($1, $2, 'risk', 'running', 'stages-v2-pipeline', now(), now())
+       on conflict do nothing`,
+      [runId, instrumentId],
+    );
+    return runId;
+  }
+
+  private async loadInstrument(instrumentId: string): Promise<MarketInstrument | null> {
+    const result = await this.db.rawQuery(
+      `select * from prediction.instruments where id = $1 limit 1`,
+      [instrumentId],
+    );
+    const rows = (result.data as MarketInstrument[] | null) ?? [];
+    return rows[0] ?? null;
+  }
+
+  private async runPerAnalystReflection(
+    runId: string,
+    item: { instrumentId: string; analystId: string; analystSlug: string; analystDisplayName: string; analystPersona: string },
+    instrument: MarketInstrument,
+  ): Promise<{ score: number; confidence: number; reasoning: string }> {
+    const priorResult = await this.db.rawQuery(
+      `select score, confidence, reasoning from prediction.analyst_risk_assessments
+       where instrument_id = $1 and analyst_id = $2
+       order by created_at desc limit 1`,
+      [item.instrumentId, item.analystId],
+    );
+    const priorRows = (priorResult.data as Array<{ score: number; confidence: number; reasoning: string | null }> | null) ?? [];
+    const prior = priorRows[0];
+
+    const predictorLines = await this.loadPerAnalystPredictorLines(item.instrumentId, item.analystId);
+
+    const systemPrompt = `You are ${item.analystDisplayName}. ${item.analystPersona}
+Produce your holistic risk assessment for ${instrument.symbol} (${instrument.name}) as a first-person analysis of how the latest signals shift your prior risk view. Use the language "analysis" and "signal" — never "advice" or "recommendation".
+Respond with valid JSON only:
+{
+  "score": <integer 0-100, where 0 = no risk from your perspective, 100 = extreme risk>,
+  "confidence": <number 0.0-1.0>,
+  "reasoning": "<your reasoning>",
+  "evidence": ["<evidence 1>", "<evidence 2>"]
+}`;
+
+    const priorText = prior
+      ? `Your previous risk view: score=${prior.score}, confidence=${Number(prior.confidence).toFixed(2)}. Reasoning: ${prior.reasoning ?? '(none)'}`
+      : 'You have no prior risk view for this instrument.';
+
+    const userPrompt = [
+      `Reflect on the risk for ${instrument.symbol} (${instrument.name}).`,
+      priorText,
+      predictorLines.length > 0 ? `New predictor signals:\n${predictorLines.slice(0, 10).join('\n')}` : 'No new predictor signals this cycle.',
+    ].join('\n\n');
+
+    let score = prior?.score ?? 50;
+    let confidence = prior?.confidence ?? 0.5;
+    let reasoning = prior?.reasoning ?? '';
+    let evidence: string[] = [];
+    let llmUsageId: string | null = null;
+    let modelProvider = 'deterministic_local';
+    let modelName = 'rules-v1';
+    let outputText = '';
+
+    if (this.llmService.isLlmEnabled()) {
+      const context = this.llmService.buildExecutionContext('stages-v2-pipeline', 'risk');
+      const llmResult = await this.llmService.generateText(context, systemPrompt, userPrompt);
+      outputText = llmResult.text;
+      modelProvider = llmResult.provider;
+      modelName = llmResult.model;
+      llmUsageId = llmResult.llmUsageId ?? null;
+      const match = llmResult.text.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+          score = Math.min(100, Math.max(0, Math.round(Number(parsed['score']) || score)));
+          confidence = Math.min(1, Math.max(0, Number(parsed['confidence']) || confidence));
+          reasoning = String(parsed['reasoning'] ?? reasoning);
+          evidence = Array.isArray(parsed['evidence']) ? (parsed['evidence'] as string[]).map(String) : [];
+        } catch {
+          // Parse failure — keep prior values as fallback.
+          reasoning = `(parse failure; keeping prior) ${reasoning}`;
+        }
+      }
+    } else {
+      outputText = JSON.stringify({ score, confidence, reasoning: 'LLM disabled — carried forward from prior', evidence: [] });
+    }
+
+    await this.db.rawQuery(
+      `insert into prediction.analyst_risk_assessments
+        (id, run_id, instrument_id, analyst_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, llm_usage_id, created_at)
+       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, '{}', $8, $9, $10, now())`,
+      [runId, item.instrumentId, item.analystId, score, confidence, reasoning, JSON.stringify(evidence), modelProvider, modelName, llmUsageId],
+    );
+
+    await this.db.rawQuery(
+      `insert into prediction.market_run_artifacts
+        (id, run_id, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, workflow_stage, created_at)
+       values ($1, $2, 'risk', $3, 'analyst', $4, $5, $6, $7, $8, now())`,
+      [randomUUID(), runId, item.analystId, modelProvider, modelName, userPrompt, outputText, WorkflowStage.RiskAssessment],
+    );
+
+    return { score, confidence, reasoning };
+  }
+
+  private async loadPerAnalystPredictorLines(instrumentId: string, analystId: string): Promise<string[]> {
+    const result = await this.db.rawQuery(
+      `select mp.relevance_score, mp.rationale, ma.title
+       from prediction.market_predictors mp
+       join prediction.market_articles ma on ma.id = mp.article_id
+       where mp.instrument_id = $1 and mp.status = 'active' and mp.scored_by_analyst_id = $2
+       order by mp.updated_at desc limit 20`,
+      [instrumentId, analystId],
+    );
+    const rows = (result.data as Array<{ relevance_score: number; rationale: string | null; title: string | null }> | null) ?? [];
+    return rows.map((r, i) => {
+      const title = r.title ?? '(untitled)';
+      const note = r.rationale ? ` — ${r.rationale.slice(0, 200)}` : '';
+      return `${i + 1}. relevance=${Number(r.relevance_score).toFixed(2)} ${title}${note}`;
+    });
+  }
+
+  private async runStage3bDebate(
+    runId: string,
+    instrument: MarketInstrument,
+    assessments: Array<{ analystSlug: string; score: number; confidence: number; reasoning: string }>,
+    viewerUserId: string | null = null,
+  ): Promise<void> {
+    if (!this.llmService.isLlmEnabled()) {
+      this.logger.log(`Stage 3b debate skipped for ${instrument.symbol}${viewerUserId ? ` viewer=${viewerUserId}` : ''} — LLM disabled`);
+      return;
+    }
+
+    const totalWeight = assessments.length;
+    const overallScore = totalWeight > 0
+      ? Math.round(assessments.reduce((sum, a) => sum + a.score, 0) / totalWeight)
+      : 50;
+    const avgConfidence = totalWeight > 0
+      ? assessments.reduce((sum, a) => sum + a.confidence, 0) / totalWeight
+      : 0.5;
+
+    // Persist pre-debate composite for this Stage 3 run.
+    const compositeId = randomUUID();
+    const dimensionScores: Record<string, number> = {};
+    for (const a of assessments) dimensionScores[a.analystSlug] = a.score;
+    await this.persistCompositeScore({
+      id: compositeId,
+      runId,
+      instrumentId: instrument.id,
+      overallScore,
+      dimensionScores,
+      confidence: avgConfidence,
+    });
+
+    // Adapt analyst reflections into RiskDimensionAssessment shape for the debate.
+    const debateAssessments: RiskDimensionAssessment[] = assessments.map(a => ({
+      id: randomUUID(),
+      run_id: runId,
+      instrument_id: instrument.id,
+      dimension_id: a.analystSlug,
+      score: a.score,
+      confidence: a.confidence,
+      reasoning: a.reasoning || '',
+      evidence: [],
+      signals: [],
+      model_provider: 'stage3a',
+      model_name: 'per-analyst-reflection',
+      llm_usage_id: null,
+      created_at: new Date().toISOString(),
+    } as RiskDimensionAssessment));
+
+    const context = this.llmService.buildExecutionContext('stages-v2-pipeline', 'risk');
+    const debateResult = await this.debateService.runDebate({
+      context,
+      runId,
+      instrumentId: instrument.id,
+      instrumentSymbol: instrument.symbol,
+      compositeScoreId: compositeId,
+      overallScore,
+      dimensionAssessments: debateAssessments,
+      viewerUserId,
+    });
+
+    // Persist a Stage 3b artifact for traceability.
+    await this.db.rawQuery(
+      `insert into prediction.market_run_artifacts
+        (id, run_id, run_type, analyst_id, role, model_provider, model_name, prompt, output_text, workflow_stage, created_at)
+       values ($1, $2, 'risk', null, 'arbitrator', 'debate', 'blue-red-arbiter', $3, $4, $5, now())`,
+      [
+        randomUUID(), runId,
+        `Stage 3b debate for ${instrument.symbol}${viewerUserId ? ` (viewer=${viewerUserId})` : ' (shared)'}`,
+        JSON.stringify({
+          debateId: debateResult.debate.id,
+          adjustment: debateResult.adjustment,
+          adjustedScore: debateResult.adjustedScore,
+          preDebateScore: overallScore,
+          viewerUserId,
+        }),
+        WorkflowStage.RiskAssessment,
+      ],
+    );
   }
 
   // ─── Helpers ─────────────────────────────────────────────────
