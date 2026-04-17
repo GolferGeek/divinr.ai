@@ -34,6 +34,7 @@ import {
   ANALYST_SCAFFOLD_PROMPT,
   INSTRUMENT_SCAFFOLD_PROMPT,
 } from './utils/scaffold-prompts';
+import { BillingService } from '../billing/billing.service';
 import type {
   AssignAnalystInput,
   CreateAnalystInput,
@@ -189,6 +190,8 @@ export class MarketsService {
     private readonly tradeRecommendation: TradeRecommendationService,
     @Inject(AffinityService)
     private readonly affinity: AffinityService,
+    @Inject(BillingService)
+    private readonly billing: BillingService,
   ) {}
 
   private isExternalCrawlerSyncEnabled(force = false): boolean {
@@ -423,7 +426,18 @@ export class MarketsService {
       throw new Error(result.error.message);
     }
     const rows = (result.data as MarketInstrument[] | null) ?? [];
-    return rows[0] as MarketInstrument;
+    const created = rows[0] as MarketInstrument;
+
+    // Billing: track authored instrument
+    if (created.user_id) {
+      try {
+        await this.billing.addAuthoredItem(created.user_id, 'custom_instrument', created.id);
+      } catch (err: any) {
+        this.logger.warn(`Billing item creation failed for instrument ${created.id}: ${err.message}`);
+      }
+    }
+
+    return created;
   }
 
   async createAnalyst(input: CreateAnalystInput): Promise<MarketAnalyst> {
@@ -509,6 +523,15 @@ export class MarketsService {
       `update prediction.market_analysts set current_config_version_id = $1 where id = $2`,
       [versionId, created.id],
     );
+
+    // Billing: track authored analyst
+    if (created.user_id) {
+      try {
+        await this.billing.addAuthoredItem(created.user_id, 'custom_analyst', created.id);
+      } catch (err: any) {
+        this.logger.warn(`Billing item creation failed for analyst ${created.id}: ${err.message}`);
+      }
+    }
 
     return created;
   }
@@ -4237,6 +4260,13 @@ Respond ONLY with valid JSON.`,
       [analystId],
     );
     if (result.error) throw new Error(result.error.message);
+
+    // Billing: cancel authored analyst item
+    try {
+      await this.billing.cancelAuthoredItem(userId, 'custom_analyst', analystId);
+    } catch (err: any) {
+      this.logger.warn(`Billing item cancellation failed for analyst ${analystId}: ${err.message}`);
+    }
   }
 
   async updateAnalystMetadata(
@@ -4286,6 +4316,13 @@ Respond ONLY with valid JSON.`,
       [instrumentId],
     );
     if (result.error) throw new Error(result.error.message);
+
+    // Billing: cancel authored instrument item
+    try {
+      await this.billing.cancelAuthoredItem(userId, 'custom_instrument', instrumentId);
+    } catch (err: any) {
+      this.logger.warn(`Billing item cancellation failed for instrument ${instrumentId}: ${err.message}`);
+    }
   }
 
   // ─── Scaffold Methods (effort: user-authored-custom-content) ────

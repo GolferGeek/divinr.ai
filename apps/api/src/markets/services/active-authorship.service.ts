@@ -12,11 +12,19 @@ export class ActiveAuthorshipService {
   ) {}
 
   /**
-   * Pre-billing placeholder: all authors are active.
-   * When billing integration ships, this will check subscription status.
+   * Checks whether the author's billing subscription is in an active state.
+   * Returns true for trial/active subscriptions and for users with no
+   * subscription row (pre-billing state).
    */
   async isAuthorActive(userId: string): Promise<boolean> {
-    return userId !== null && userId !== undefined;
+    if (!userId) return false;
+    const result = await this.db.rawQuery(
+      `SELECT status FROM billing.subscriptions WHERE user_id = $1`,
+      [userId],
+    );
+    const rows = (result.data as Array<{ status: string }> | null) ?? [];
+    if (rows.length === 0) return true; // No subscription row yet = pre-billing, treat as active
+    return ['trial', 'active'].includes(rows[0].status);
   }
 
   /**

@@ -1,5 +1,13 @@
 import { useApi } from '../composables/useApi';
 
+export function useBillingApi() {
+  const api = useApi('/api');
+  return {
+    getBillingPreview: () => api.get<any>('/billing/preview'),
+    getSubscription: () => api.get<any>('/billing/subscription'),
+  };
+}
+
 export function useAuthoredContentApi() {
   const api = useApi();
 

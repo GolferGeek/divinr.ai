@@ -24,6 +24,7 @@ import { TournamentModule } from './tournaments/tournament.module';
 import { ClubModule } from './clubs/club.module';
 import { CurriculumModule } from './curriculum/curriculum.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { BillingModule } from './billing/billing.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuthController } from './auth/auth.controller';
 import { InviteService } from './auth/invite.service';
@@ -47,6 +48,7 @@ import { InviteService } from './auth/invite.service';
     ClubModule,
     CurriculumModule,
     OnboardingModule,
+    BillingModule,
   ],
   controllers: [HealthController, AuthController],
   providers: [

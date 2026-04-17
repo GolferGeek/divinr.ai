@@ -45,6 +45,7 @@ import { ActiveAuthorshipService } from './services/active-authorship.service';
 import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { TournamentModule } from '../tournaments/tournament.module';
+import { BillingModule } from '../billing/billing.module';
 import { PolygonAdapter } from './adapters/polygon.adapter';
 import { FmpAdapter } from './adapters/fmp.adapter';
 import { TwelveDataAdapter } from './adapters/twelve-data.adapter';
@@ -54,7 +55,7 @@ import { SecEdgarAdapter } from './adapters/sec-edgar.adapter';
 import { RedditAdapter } from './adapters/reddit.adapter';
 
 @Module({
-  imports: [TournamentModule],
+  imports: [TournamentModule, BillingModule],
   controllers: [MarketsController],
   providers: [
     PolygonAdapter,

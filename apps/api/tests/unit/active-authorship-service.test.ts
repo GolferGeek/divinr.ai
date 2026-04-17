@@ -53,9 +53,37 @@ async function main(): Promise<void> {
 
   // ─── isAuthorActive ────────────────────────────────────────
   {
+    // No subscription row → pre-billing → active
     const { service } = createService();
     const result = await service.isAuthorActive('user-123');
-    assert(result === true, 'isAuthorActive returns true for any userId (pre-billing)');
+    assert(result === true, 'isAuthorActive returns true when no billing.subscriptions row (pre-billing)');
+  }
+
+  {
+    // Trial subscription → active
+    const { service } = createService({
+      'billing.subscriptions': [{ status: 'trial' }],
+    });
+    const result = await service.isAuthorActive('user-123');
+    assert(result === true, 'isAuthorActive returns true for trial subscription');
+  }
+
+  {
+    // Active subscription → active
+    const { service } = createService({
+      'billing.subscriptions': [{ status: 'active' }],
+    });
+    const result = await service.isAuthorActive('user-123');
+    assert(result === true, 'isAuthorActive returns true for active subscription');
+  }
+
+  {
+    // Canceled subscription → inactive
+    const { service } = createService({
+      'billing.subscriptions': [{ status: 'canceled' }],
+    });
+    const result = await service.isAuthorActive('user-123');
+    assert(result === false, 'isAuthorActive returns false for canceled subscription');
   }
 
   {
