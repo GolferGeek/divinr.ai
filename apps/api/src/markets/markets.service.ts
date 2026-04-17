@@ -1253,13 +1253,13 @@ export class MarketsService {
     // Fetch analyst metadata (including analyst_type so the editor can filter
     // required stage panels per PRD §4.3).
     const analystResult = await this.db.rawQuery(
-      `SELECT id, display_name, current_config_version_id, analyst_type
+      `SELECT id, display_name, current_config_version_id, analyst_type, user_id
        FROM prediction.market_analysts
        WHERE id = $1 AND (user_id IS NULL OR user_id = $2)`,
       [analystId, userId],
     );
     if (analystResult.error) throw new Error(analystResult.error.message);
-    const analysts = (analystResult.data as Array<{ id: string; display_name: string; current_config_version_id: string | null; analyst_type: string }> | null) ?? [];
+    const analysts = (analystResult.data as Array<{ id: string; display_name: string; current_config_version_id: string | null; analyst_type: string; user_id: string | null }> | null) ?? [];
     if (analysts.length === 0) throw new BadRequestException('Analyst not found');
     const analyst = analysts[0];
     const contractAnalystType = this.coerceAnalystType(analyst.analyst_type);
@@ -1290,6 +1290,7 @@ export class MarketsService {
       analystId: analyst.id,
       displayName: analyst.display_name,
       analystType: contractAnalystType,
+      userId: analyst.user_id,
       requiredSections,
       activeVersionId: analyst.current_config_version_id,
       contract,

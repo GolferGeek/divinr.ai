@@ -99,6 +99,7 @@ export const router = createRouter({
         { path: 'tournaments/invite/:token', name: 'tournament-invite', component: () => import('../views/TournamentInviteView.vue') },
         { path: 'tournaments/:id', name: 'tournament-detail', component: () => import('../views/TournamentDetailView.vue') },
         { path: 'tournaments/:id/results', name: 'tournament-results', component: () => import('../views/TournamentResultsView.vue') },
+        { path: 'settings/authored-content', name: 'authored-content', component: () => import('../views/AuthoredContentView.vue') },
       ],
     },
     {

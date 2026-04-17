@@ -9,7 +9,7 @@
 <!-- run-plan uses this section to track where we are -->
 - [x] Phase 1: Schema Integrity + `createAnalyst` / `createInstrument` Fix
 - [x] Phase 2: Authored Analyst + Instrument Creation API
-- [ ] Phase 3: Authored Content UI (Create + Edit Contracts)
+- [x] Phase 3: Authored Content UI (Create + Edit Contracts)
 - [ ] Phase 4: Wiring Matrix UI + API
 - [ ] Phase 5: Runtime Integration (Viewer-Scoped Debate + Authored-Triple Pipeline)
 - [ ] Phase 6: Billing Plumbing (Stripe + per-item ledger)
@@ -195,7 +195,7 @@ Before moving to Phase 3, ALL of the following must pass:
 ---
 
 ## Phase 3: Authored Content UI (Create + Edit Contracts)
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Ship the `/settings/authored-content` surface with Analysts and Instruments tabs. Users can create, list, edit (via existing contract editors), and delete their authored content. Override affordance on base-entity contract views. No wiring UI yet (Phase 4), no billing preview yet (Phase 6).
 
 ### Steps

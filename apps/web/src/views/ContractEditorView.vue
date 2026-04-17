@@ -3,6 +3,7 @@ import { onMounted, ref, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '../composables/useApi';
 import { useCanWrite } from '../composables/useCanWrite';
+import { useAuthStore } from '../stores/auth.store';
 import {
   IonButton, IonChip, IonNote, IonProgressBar, IonInput,
 } from '@ionic/vue';
@@ -24,6 +25,7 @@ interface ContractData {
   analystId: string;
   displayName: string;
   analystType: AnalystType;
+  userId: string | null;
   requiredSections: string[] | null;
   activeVersionId: string | null;
   contract: {
@@ -43,6 +45,7 @@ interface ValidationError {
 
 const route = useRoute();
 const api = useApi();
+const auth = useAuthStore();
 const { canWrite } = useCanWrite();
 const data = ref<ContractData | null>(null);
 const loading = ref(true);
@@ -64,6 +67,22 @@ const diffRightId = ref<string | null>(null);
 
 // Rollback
 const rollingBack = ref(false);
+
+async function saveAsOverride() {
+  if (!data.value?.contract?.markdown) return;
+  saving.value = true;
+  try {
+    const id = route.params.id as string;
+    await api.put(`/analysts/${id}/contract`, {
+      markdown: data.value.contract.markdown,
+      changeReason: 'User override of base analyst contract',
+    });
+    await fetchContract();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err);
+  }
+  saving.value = false;
+}
 
 async function fetchContract() {
   const id = route.params.id as string;
@@ -263,6 +282,15 @@ const diffLines = computed<{ left: DiffLine[]; right: DiffLine[] }>(() => {
             {{ rollingBack ? 'Rolling back...' : 'Rollback' }}
           </ion-button>
         </template>
+      </div>
+
+      <!-- Authorship banner -->
+      <div v-if="data.userId && data.userId === auth.user?.id" style="background:var(--ion-color-primary-tint);padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:0.85rem;color:var(--ion-color-primary-contrast)">
+        Your authored analyst
+      </div>
+      <div v-else-if="data.userId === null && canWrite" style="background:var(--ion-color-step-50);padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:0.85rem;display:flex;align-items:center;gap:8px">
+        <span>This is a base analyst.</span>
+        <ion-button size="small" fill="outline" @click="saveAsOverride">Create my override</ion-button>
       </div>
 
       <!-- Required-sections hint (v4 stage-keyed contracts) -->

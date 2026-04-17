@@ -13,6 +13,7 @@ import {
   warningOutline, gitNetworkOutline, trendingUpOutline,
   chatbubblesOutline, trophyOutline, peopleCircleOutline,
   chevronDownOutline, chevronForwardOutline, compassOutline,
+  createOutline,
 } from 'ionicons/icons';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -82,6 +83,12 @@ const navGroups: NavGroup[] = [
       { title: 'Clubs', icon: peopleCircleOutline, to: '/clubs' },
       { title: 'Tournaments', icon: trophyOutline, to: '/tournaments' },
       { title: 'Messages', icon: chatbubblesOutline, to: '/messages' },
+    ],
+  },
+  {
+    label: 'Settings',
+    items: [
+      { title: 'Your Content', icon: createOutline, to: '/settings/authored-content' },
     ],
   },
   {
