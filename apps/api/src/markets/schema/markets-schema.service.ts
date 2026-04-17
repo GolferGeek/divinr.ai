@@ -59,6 +59,7 @@ export class MarketsSchemaService {
       ${this.authorUserIdColumnsDdl()}
       ${this.sharingPlumbingDdl()}
       ${this.baseContentImmutabilityTriggerDdl()}
+      ${this.enablementDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -2066,6 +2067,30 @@ export class MarketsSchemaService {
       );
       create index if not exists notifications_user_unread_idx
         on prediction.notifications (user_id, is_read, created_at desc);
+    `;
+  }
+
+  private enablementDdl(): string {
+    return `
+      create table if not exists prediction.user_enabled_triples (
+        id              text        primary key default gen_random_uuid()::text,
+        user_id         text        not null,
+        author_user_id  text,
+        analyst_id      text        not null references prediction.market_analysts(id),
+        instrument_id   text        not null references prediction.instruments(id),
+        enabled_at      timestamptz not null default now(),
+        disabled_at     timestamptz
+      );
+      create unique index if not exists uq_user_enabled_triple
+        on prediction.user_enabled_triples (
+          user_id,
+          coalesce(author_user_id, 'base'),
+          analyst_id,
+          instrument_id
+        );
+      create index if not exists idx_user_enabled_triples_active
+        on prediction.user_enabled_triples (user_id)
+        where disabled_at is null;
     `;
   }
 }

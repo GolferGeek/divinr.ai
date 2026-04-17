@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
 import { usePortfolioStore, type PortfolioSummary } from '../stores/portfolio.store';
+import { useEnablementStore, type EnabledTriple } from '../stores/enablement.store';
 import { useCanWrite } from '../composables/useCanWrite';
 import { useApi } from '../composables/useApi';
+import { useRouter } from 'vue-router';
+import AddTripleFlow from '../components/AddTripleFlow.vue';
 import EquitySparkline from '../components/EquitySparkline.vue';
 import EquityCurveChart from '../components/EquityCurveChart.vue';
 import CalibrationChart from '../components/CalibrationChart.vue';
@@ -15,8 +18,10 @@ import {
 } from '@ionic/vue';
 
 const portfolio = usePortfolioStore();
+const enablement = useEnablementStore();
 const { canWrite } = useCanWrite();
 const api = useApi();
+const router = useRouter();
 const decisions = ref<Array<Record<string, unknown>>>([]);
 const expandedKey = ref<string | null>(null);
 
@@ -86,9 +91,9 @@ const sortDir = ref<'asc' | 'desc'>('desc');
 const search = ref('');
 const ALL_KINDS: Array<PortfolioSummary['kind']> = ['user', 'analyst', 'arbitrator', 'day_trader'];
 const activeKinds = ref<Set<PortfolioSummary['kind']>>(new Set(ALL_KINDS));
-const portfolioTab = ref<'mine' | 'analysts'>('mine');
+const portfolioTab = ref<'mine' | 'analysts' | 'triples'>('mine');
 
-function applyTab(tab: 'mine' | 'analysts') {
+function applyTab(tab: 'mine' | 'analysts' | 'triples') {
   portfolioTab.value = tab;
   if (tab === 'mine') {
     activeKinds.value = new Set(['user']);
@@ -100,10 +105,31 @@ function applyTab(tab: 'mine' | 'analysts') {
         portfolio.fetchPortfolioDetail('user', myId).catch(() => {});
       }
     }
+  } else if (tab === 'triples') {
+    enablement.fetchEnabledTriples().catch(() => {});
   } else {
     activeKinds.value = new Set(['analyst', 'arbitrator', 'day_trader']);
     expandedKey.value = null;
   }
+}
+
+function authorshipLabel(triple: EnabledTriple): string {
+  if (triple.isAuthoredAnalyst || triple.isAuthoredInstrument) return '(yours)';
+  return '(base)';
+}
+
+async function handleDisableTriple(triple: EnabledTriple) {
+  await enablement.disableTriple(triple.analystId, triple.instrumentId, triple.authorUserId ?? undefined);
+}
+
+function navigateToTriple(triple: EnabledTriple) {
+  router.push({
+    path: `/instruments/${triple.instrumentId}`,
+    query: {
+      analystId: triple.analystId,
+      authorUserId: triple.authorUserId ?? '',
+    },
+  });
 }
 
 function toggleKind(k: PortfolioSummary['kind']) {
@@ -246,13 +272,65 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
     <h1 style="margin-bottom:16px">Portfolios</h1>
 
     <!-- Portfolio Tabs -->
-    <IonSegment :value="portfolioTab" @ionChange="applyTab(($event.detail.value as 'mine' | 'analysts'))" style="margin-bottom:12px;max-width:400px">
+    <IonSegment :value="portfolioTab" @ionChange="applyTab(($event.detail.value as 'mine' | 'analysts' | 'triples'))" style="margin-bottom:12px;max-width:500px">
       <IonSegmentButton value="mine"><IonLabel>My Portfolio</IonLabel></IonSegmentButton>
       <IonSegmentButton value="analysts"><IonLabel>Analyst Portfolios</IonLabel></IonSegmentButton>
+      <IonSegmentButton value="triples"><IonLabel>My Triples</IonLabel></IonSegmentButton>
     </IonSegment>
 
-    <!-- Filters -->
-    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
+    <!-- My Triples Panel -->
+    <div v-if="portfolioTab === 'triples'">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <span style="font-size:0.82rem;opacity:0.6">{{ enablement.enabledCount }} active triple{{ enablement.enabledCount === 1 ? '' : 's' }}</span>
+      </div>
+
+      <div v-if="enablement.loading" style="opacity:0.6;padding:16px">Loading triples...</div>
+
+      <div v-else-if="enablement.groupedByInstrument.length === 0" style="padding:16px">
+        <IonNote color="primary">No triples enabled yet. Add instruments to your portfolio to get started.</IonNote>
+      </div>
+
+      <div v-else style="display:flex;flex-direction:column;gap:0">
+        <div v-for="group in enablement.groupedByInstrument" :key="group.instrumentId" style="border-bottom:1px solid var(--ion-color-step-100)">
+          <div style="padding:12px 16px 4px 16px;font-weight:600;font-size:0.95rem">
+            {{ group.instrumentSymbol }}
+            <span style="font-weight:400;font-size:0.82rem;opacity:0.6;margin-left:8px">{{ group.instrumentName }}</span>
+            <span v-if="group.isAuthoredInstrument" style="font-size:0.72rem;opacity:0.5;margin-left:6px">(yours)</span>
+          </div>
+          <div
+            v-for="triple in group.triples"
+            :key="triple.id"
+            class="triple-row"
+            style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px 8px 32px;cursor:pointer"
+            @click="navigateToTriple(triple)"
+          >
+            <div>
+              <span style="font-size:0.88rem">{{ triple.analystName }}</span>
+              <span style="font-size:0.75rem;opacity:0.5;margin-left:6px">{{ authorshipLabel(triple) }}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span
+                v-if="triple.isAuthoredAnalyst || triple.isAuthoredInstrument"
+                style="font-size:0.68rem;opacity:0.45;max-width:200px"
+              >Billing continues until content is deleted</span>
+              <IonButton
+                size="small"
+                fill="outline"
+                color="medium"
+                @click.stop="handleDisableTriple(triple)"
+              >Disable</IonButton>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <AddTripleFlow />
+      </div>
+    </div>
+
+    <!-- Filters (only for portfolio/analyst tabs) -->
+    <div v-if="portfolioTab !== 'triples'" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
       <input
         v-model="search"
         type="text"
@@ -299,7 +377,7 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
     </div>
 
     <!-- Portfolio rows grouped by kind -->
-    <div style="display:flex;flex-direction:column;gap:0">
+    <div v-if="portfolioTab !== 'triples'" style="display:flex;flex-direction:column;gap:0">
       <template v-for="group in groupedPortfolios" :key="group.kind">
         <!-- Group header -->
         <div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 0.5fr;gap:4px;padding:10px 16px 4px 16px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;opacity:0.45;border-bottom:1px solid var(--ion-color-step-100);margin-top:8px">
@@ -483,7 +561,7 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
       </template>
     </div>
 
-    <ion-note v-if="sortedPortfolios.length === 0" color="primary" style="display:block;padding:12px">
+    <ion-note v-if="portfolioTab !== 'triples' && sortedPortfolios.length === 0" color="primary" style="display:block;padding:12px">
       No portfolios yet.
     </ion-note>
   </div>
@@ -495,6 +573,9 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
   transition: background 0.15s ease, border-left-color 0.15s ease;
 }
 .portfolio-row:hover {
+  background: var(--ion-color-step-50);
+}
+.triple-row:hover {
   background: var(--ion-color-step-50);
 }
 </style>

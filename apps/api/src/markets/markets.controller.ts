@@ -44,6 +44,7 @@ import { FearGreedAlertService } from './services/fear-greed-alert.service';
 import { CoordinationService } from './services/coordination.service';
 import { PerformanceService } from './services/performance.service';
 import { WiringService } from './services/wiring.service';
+import { EnablementService } from './services/enablement.service';
 import { MessagingService } from '../messaging/messaging.service';
 import type { ChannelScope } from '../messaging/messaging.types';
 import type {
@@ -98,6 +99,7 @@ export class MarketsController {
     @Inject(CoordinationService) private readonly coordination: CoordinationService,
     @Inject(PerformanceService) private readonly performance: PerformanceService,
     @Inject(WiringService) private readonly wiring: WiringService,
+    @Inject(EnablementService) private readonly enablement: EnablementService,
     @Inject(MessagingService) private readonly messaging: MessagingService,
   ) {
     this.markets = markets;
@@ -212,15 +214,20 @@ export class MarketsController {
   async listInstrumentAnalysts(
     @Req() req: { user?: AuthenticatedUser },
     @Param('instrumentId') instrumentId: string,
+    @Query('analystId') analystId?: string,
   ) {
     const user = this.getUser(req);
     if (!instrumentId) {
       throw new BadRequestException('instrumentId is required');
     }
-    return this.markets.listAnalystsForInstrument(
+    let results = await this.markets.listAnalystsForInstrument(
       user.id,
       instrumentId,
     );
+    if (analystId) {
+      results = (results as any[]).filter((a: any) => a['id'] === analystId);
+    }
+    return results;
   }
 
   @Post('analysts')
@@ -786,21 +793,33 @@ export class MarketsController {
     @Query('runId') runId?: string,
     @Query('instrumentId') instrumentId?: string,
     @Query('role') role?: 'analyst' | 'arbitrator' | 'all',
+    @Query('analystId') analystId?: string,
+    @Query('authorUserId') authorUserId?: string,
   ) {
     const user = this.getUser(req);
+    let results: any[];
     if (role) {
-      return this.markets.listPredictionsWithRole({
+      results = await this.markets.listPredictionsWithRole({
         userId: user.id,
         runId,
         instrumentId,
         role,
       });
+    } else {
+      results = await this.markets.listPredictionOutcomes({
+        userId: user.id,
+        runId,
+        instrumentId,
+      });
     }
-    return this.markets.listPredictionOutcomes({
-      userId: user.id,
-      runId,
-      instrumentId,
-    });
+    if (analystId) {
+      results = results.filter((r) => r['analyst_id'] === analystId);
+    }
+    if (authorUserId !== undefined) {
+      const target = authorUserId || null;
+      results = results.filter((r) => (r['author_user_id'] ?? null) === target);
+    }
+    return results;
   }
 
   @Get('risk-assessments')
@@ -809,18 +828,27 @@ export class MarketsController {
     @Query('runId') runId?: string,
     @Query('instrumentId') instrumentId?: string,
     @Query('role') role?: string,
+    @Query('analystId') analystId?: string,
+    @Query('authorUserId') authorUserId?: string,
   ) {
     const user = this.getUser(req);
-    // When no filters provided, return composite scores across all instruments
     if (!runId && !instrumentId) {
       return this.markets.getDashboardRiskSummary(user.id);
     }
-    return this.markets.listRiskAssessments({
+    let results = await this.markets.listRiskAssessments({
       userId: user.id,
       runId,
       instrumentId,
       role,
     });
+    if (analystId) {
+      results = results.filter((r: any) => r['analyst_id'] === analystId);
+    }
+    if (authorUserId !== undefined) {
+      const target = authorUserId || null;
+      results = results.filter((r: any) => (r['author_user_id'] ?? null) === target);
+    }
+    return results;
   }
 
   @Get('runs/:runId/evaluations')
@@ -1726,6 +1754,48 @@ export class MarketsController {
       throw new BadRequestException('analystId and instrumentId are required');
     }
     return this.wiring.removeWiring(user.id, body.analystId, body.instrumentId);
+  }
+
+  // ─── Triple Enablement (portfolio composition) ──────────────
+
+  @Get('portfolio/enabled-triples')
+  async listEnabledTriples(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    return this.enablement.listEnabledTriples(user.id);
+  }
+
+  @Post('portfolio/enable-triple')
+  async enableTriple(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { analystId: string; instrumentId: string; authorUserId?: string },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.analystId || !body?.instrumentId) {
+      throw new BadRequestException('analystId and instrumentId are required');
+    }
+    return this.enablement.enableTriple(user.id, body.analystId, body.instrumentId, body.authorUserId);
+  }
+
+  @Post('portfolio/disable-triple')
+  async disableTriple(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { analystId: string; instrumentId: string; authorUserId?: string },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.analystId || !body?.instrumentId) {
+      throw new BadRequestException('analystId and instrumentId are required');
+    }
+    await this.enablement.disableTriple(user.id, body.analystId, body.instrumentId, body.authorUserId);
+    return { disabled: true };
+  }
+
+  @Get('portfolio/available-triples')
+  async listAvailableTriples(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('instrumentId') instrumentId?: string,
+  ) {
+    const user = this.getUser(req);
+    return this.enablement.listAvailableTriples(user.id, instrumentId || undefined);
   }
 
   // ─── Messaging ──────────────────────────────────────────────

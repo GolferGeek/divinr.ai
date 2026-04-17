@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '../composables/useApi';
 import { useCanWrite } from '../composables/useCanWrite';
 import { useOnboardingStore } from '../stores/onboarding.store';
 import PredictorScoringPanel from '../components/PredictorScoringPanel.vue';
 import InstrumentAnalystPanel from '../components/InstrumentAnalystPanel.vue';
+import TripleVariantSwitcher from '../components/TripleVariantSwitcher.vue';
 import {
   IonButton, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonSegment, IonSegmentButton, IonLabel, IonNote,
@@ -23,6 +24,13 @@ const riskAssessments = ref<Record<string, unknown>[]>([]);
 const predictions = ref<Record<string, unknown>[]>([]);
 const tab = ref('analysts');
 
+const tripleAnalystId = computed(() => (route.query.analystId as string) || undefined);
+const tripleAuthorUserId = computed(() => {
+  const v = route.query.authorUserId;
+  return v === '' || v === undefined || v === null ? undefined : (v as string);
+});
+const isTripleFiltered = computed(() => !!tripleAnalystId.value);
+
 const arbitratorPrediction = computed(
   () => predictions.value.find(p => p['role'] === 'arbitrator') ?? null,
 );
@@ -30,32 +38,56 @@ const arbitratorPrediction = computed(
 function fmtConfidence(v: unknown): string {
   const n = Number(v);
   if (!Number.isFinite(n)) return '—';
-  // API returns integer percentages (e.g. 78 for 78%), not decimals
   return n > 1 ? `${Math.round(n)}%` : `${Math.round(n * 100)}%`;
 }
 
-onMounted(async () => {
+function buildTripleQs(base: string): string {
+  if (!tripleAnalystId.value) return base;
+  const sep = base.includes('?') ? '&' : '?';
+  let qs = `${base}${sep}analystId=${tripleAnalystId.value}`;
+  if (tripleAuthorUserId.value !== undefined) {
+    qs += `&authorUserId=${tripleAuthorUserId.value}`;
+  } else {
+    qs += `&authorUserId=`;
+  }
+  return qs;
+}
+
+async function loadData() {
   const id = route.params.id as string;
-  // Notify onboarding that the user opened an instrument detail page.
-  // No-op unless the current tour step is waiting on this action.
-  onboarding.notifyAction('opened-instrument-detail').catch(() => { /* non-fatal */ });
   try {
     const all = await api.get<Record<string, unknown>[]>('/instruments');
     instrument.value = all.find(i => i['id'] === id) ?? null;
-    analysts.value = await api.get<Record<string, unknown>[]>(`/instruments/${id}/analysts`);
+
+    const analystQs = tripleAnalystId.value ? `?analystId=${tripleAnalystId.value}` : '';
+    analysts.value = await api.get<Record<string, unknown>[]>(`/instruments/${id}/analysts${analystQs}`);
     compositeScore.value = await api.get<Record<string, unknown>>(`/instruments/${id}/composite-score`);
-    riskAssessments.value = await api.get<Record<string, unknown>[]>(`/risk-assessments?instrumentId=${id}&role=all`);
-    predictions.value = await api.get<Record<string, unknown>[]>(`/predictions?instrumentId=${id}&role=all`);
+    riskAssessments.value = await api.get<Record<string, unknown>[]>(
+      buildTripleQs(`/risk-assessments?instrumentId=${id}&role=all`),
+    );
+    predictions.value = await api.get<Record<string, unknown>[]>(
+      buildTripleQs(`/predictions?instrumentId=${id}&role=all`),
+    );
   } catch { /* instrument may not exist */ }
+}
+
+onMounted(() => {
+  onboarding.notifyAction('opened-instrument-detail').catch(() => {});
+  loadData();
+});
+
+watch(() => route.query, () => {
+  if (route.params.id) loadData();
 });
 </script>
 
 <template>
   <div>
-    <ion-button fill="clear" router-link="/instruments" style="margin-bottom:8px">
+    <ion-button fill="clear" router-link="/portfolios" style="margin-bottom:8px">
       <ion-icon slot="start" :icon="arrowBackOutline" />
       Back
     </ion-button>
+    <TripleVariantSwitcher v-if="instrument" :instrument-id="String(instrument['id'])" />
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <h1 style="margin:0">{{ instrument?.['symbol'] ?? 'Loading...' }}</h1>
       <span style="flex:1" />
