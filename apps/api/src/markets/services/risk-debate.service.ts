@@ -147,6 +147,8 @@ export class RiskDebateService {
         input.context,
         blueSystemPrompt,
         `Defend this risk assessment for ${input.instrumentSymbol}:\n\n${assessmentSummary}`,
+        undefined,
+        { stage: 'risk_debate', subStage: 'blue', instrumentId: input.instrumentId, cycleId: input.runId },
       );
       blueAssessment = this.parseBlue(blueResult.text);
       transcript.push({ role: 'blue', content: blueResult.text, llm_usage_id: blueResult.llmUsageId ?? null });
@@ -156,6 +158,8 @@ export class RiskDebateService {
         input.context,
         redSystemPrompt,
         `Challenge this risk assessment for ${input.instrumentSymbol}:\n\nAssessment:\n${assessmentSummary}\n\nBlue Agent's defense:\n${JSON.stringify(blueAssessment)}`,
+        undefined,
+        { stage: 'risk_debate', subStage: 'red', instrumentId: input.instrumentId, cycleId: input.runId },
       );
       redChallenges = this.parseRed(redResult.text);
       transcript.push({ role: 'red', content: redResult.text, llm_usage_id: redResult.llmUsageId ?? null });
@@ -168,6 +172,8 @@ export class RiskDebateService {
         input.context,
         arbiterSystemPrompt,
         `Synthesize the debate for ${input.instrumentSymbol}:\n\nOriginal score: ${input.overallScore}/100\n\nBlue defense:\n${JSON.stringify(blueAssessment)}\n\nRed challenges:\n${JSON.stringify(redChallenges)}`,
+        undefined,
+        { stage: 'risk_debate', subStage: 'arbiter', instrumentId: input.instrumentId, cycleId: input.runId },
       );
       arbiterSynthesis = this.parseArbiter(arbiterResult.text);
       arbiterLlmUsageId = arbiterResult.llmUsageId ?? null;

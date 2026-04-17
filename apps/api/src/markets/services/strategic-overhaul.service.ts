@@ -214,7 +214,10 @@ RECENT FINDINGS:
 ${findingsSummary}`;
 
     const context = this.llmService.buildExecutionContext('system', 'prediction');
-    const result = await this.llmService.generateText(context, systemPrompt, userPrompt);
+    const result = await this.llmService.generateText(context, systemPrompt, userPrompt, undefined, {
+      stage: 'audit',
+      analystId,
+    });
 
     const parts = result.text.split('---RATIONALE---');
     const proposedContextMarkdown = (parts[0] ?? '').trim();

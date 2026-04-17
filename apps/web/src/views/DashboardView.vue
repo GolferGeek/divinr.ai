@@ -16,6 +16,7 @@ import { useTournamentStore } from '../stores/tournament.store';
 import { useClubStore } from '../stores/club.store';
 import ContrarianAlert from '../components/ContrarianAlert.vue';
 import DailyAnalystSummary from '../components/DailyAnalystSummary.vue';
+import UserUsageWidget from '../components/UserUsageWidget.vue';
 
 interface AnalystStance {
   prediction_id: string;
@@ -196,6 +197,8 @@ function timeAgo(dateStr: string): string {
   <div>
     <h1>{{ domain.dashboardLayout?.title ?? 'Dashboard' }}</h1>
     <ion-note>{{ domain.activeDomain }} / {{ domain.activeUniverse }}</ion-note>
+
+    <UserUsageWidget />
 
     <!-- Pathway Cards -->
     <div class="pathway-grid">

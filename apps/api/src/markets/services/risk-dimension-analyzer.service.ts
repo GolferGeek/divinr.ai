@@ -53,6 +53,13 @@ export class RiskDimensionAnalyzerService {
         input.context,
         systemPrompt,
         userPrompt,
+        undefined,
+        {
+          stage: 'risk_assessment',
+          subStage: 'reflection',
+          instrumentId: input.instrumentId,
+          cycleId: input.runId,
+        },
       );
 
       const parsed = this.parseOutput(result.text);

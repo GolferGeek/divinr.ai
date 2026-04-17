@@ -170,7 +170,11 @@ export class ArticleRelevanceService {
 
     try {
       const context = { conversationId: 'pipeline', userId: 'system', agentSlug: 'article-relevance' } as never;
-      const res = await this.llmService.generateText(context, systemPrompt, userPrompt);
+      const res = await this.llmService.generateText(context, systemPrompt, userPrompt, undefined, {
+        stage: 'article_processing',
+        articleId: article.id,
+        instrumentId: instrument.id,
+      });
       const parsed = JSON.parse(res.text);
       return {
         isRelevant: !!parsed.is_relevant,

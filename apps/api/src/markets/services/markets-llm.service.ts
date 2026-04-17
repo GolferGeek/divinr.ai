@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { ExecutionContext } from '@orchestrator-ai/transport-types';
 import { LLM_SERVICE, type LLMServiceProvider } from '@orchestratorai/planes/llm';
 import type { RunType } from '../markets.types';
+import { LlmUsageLogger } from './llm-usage-logger.service';
 
 export interface LlmConfig {
   provider: string;
@@ -10,6 +11,18 @@ export interface LlmConfig {
   commercialFallbackProvider: string;
   commercialFallbackModel: string;
   allowCommercialFallback: boolean;
+}
+
+export interface LlmUsageContext {
+  stage: string;
+  subStage?: string;
+  articleId?: string;
+  instrumentId?: string;
+  analystId?: string;
+  billedUserId?: string;
+  analystAuthorUserId?: string;
+  instrumentAuthorUserId?: string;
+  cycleId?: string;
 }
 
 export interface LlmTextResult {
@@ -32,6 +45,7 @@ export class MarketsLlmService {
 
   constructor(
     @Inject(LLM_SERVICE) private readonly llm: LLMServiceProvider,
+    @Inject(LlmUsageLogger) private readonly usageLogger: LlmUsageLogger,
   ) {}
 
   isLlmEnabled(): boolean {
@@ -75,8 +89,8 @@ export class MarketsLlmService {
     systemPrompt: string,
     userPrompt: string,
     analystConfig?: { llmProvider?: string; llmModel?: string; byoCredentialId?: string },
+    usageContext?: LlmUsageContext,
   ): Promise<LlmTextResult> {
-    // BYO credential routing placeholder — actual provider clients TBD
     if (analystConfig?.byoCredentialId) {
       this.logger.log(
         `BYO credential routing: would use credential ${analystConfig.byoCredentialId} ` +
@@ -85,6 +99,8 @@ export class MarketsLlmService {
     }
 
     const config = this.getPreferredConfig();
+    const startMs = Date.now();
+    const promptText = systemPrompt + '\n' + userPrompt;
 
     try {
       const response = await this.llm.generateResponse(systemPrompt, userPrompt, {
@@ -92,20 +108,37 @@ export class MarketsLlmService {
         executionContext: context,
         includeMetadata: true,
       });
-      return this.unwrapResponse(response, config.provider, config.model);
+      const result = this.unwrapResponse(response, config.provider, config.model);
+      const meta = this.extractMetadata(response);
+      await this.recordUsage(result, usageContext, startMs, promptText, meta);
+      return result;
     } catch (error) {
-      if (!config.allowCommercialFallback) throw error;
+      if (!config.allowCommercialFallback) {
+        await this.recordUsageError(config.provider, config.model, usageContext, startMs, promptText, error);
+        throw error;
+      }
 
-      const response = await this.llm.generateResponse(systemPrompt, userPrompt, {
-        provider: config.commercialFallbackProvider,
-        executionContext: context,
-        includeMetadata: true,
-      });
-      return this.unwrapResponse(
-        response,
-        config.commercialFallbackProvider,
-        config.commercialFallbackModel,
-      );
+      try {
+        const response = await this.llm.generateResponse(systemPrompt, userPrompt, {
+          provider: config.commercialFallbackProvider,
+          executionContext: context,
+          includeMetadata: true,
+        });
+        const result = this.unwrapResponse(
+          response,
+          config.commercialFallbackProvider,
+          config.commercialFallbackModel,
+        );
+        const meta = this.extractMetadata(response);
+        await this.recordUsage(result, usageContext, startMs, promptText, meta);
+        return result;
+      } catch (fallbackError) {
+        await this.recordUsageError(
+          config.commercialFallbackProvider, config.commercialFallbackModel,
+          usageContext, startMs, promptText, fallbackError,
+        );
+        throw fallbackError;
+      }
     }
   }
 
@@ -124,5 +157,46 @@ export class MarketsLlmService {
       reasoning: response?.metadata?.thinking,
       llmUsageId: response?.metadata?.requestId,
     };
+  }
+
+  private extractMetadata(
+    response: unknown,
+  ): { tokensIn: number; tokensOut: number } {
+    const meta = (response as { metadata?: { usage?: { inputTokens?: number; outputTokens?: number } } })?.metadata;
+    return {
+      tokensIn: meta?.usage?.inputTokens ?? 0,
+      tokensOut: meta?.usage?.outputTokens ?? 0,
+    };
+  }
+
+  private async recordUsage(
+    result: LlmTextResult,
+    usageContext: LlmUsageContext | undefined,
+    startMs: number,
+    promptText: string,
+    meta: { tokensIn: number; tokensOut: number },
+  ): Promise<void> {
+    if (!usageContext) return;
+    await this.usageLogger.record(
+      result, usageContext, Date.now() - startMs,
+      promptText, meta.tokensIn, meta.tokensOut,
+    );
+  }
+
+  private async recordUsageError(
+    provider: string,
+    model: string,
+    usageContext: LlmUsageContext | undefined,
+    startMs: number,
+    promptText: string,
+    error: unknown,
+  ): Promise<void> {
+    if (!usageContext) return;
+    const errorResult: LlmTextResult = { text: '', provider, model };
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    await this.usageLogger.record(
+      errorResult, usageContext, Date.now() - startMs,
+      promptText, 0, 0, errorMsg,
+    );
   }
 }

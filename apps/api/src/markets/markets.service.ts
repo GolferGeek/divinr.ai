@@ -1644,7 +1644,12 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     let llmUsageId: string | null = null;
 
     if (this.marketsLlm.isLlmEnabled()) {
-      const result = await this.marketsLlm.generateText(context, systemPrompt, `Challenge the ${pred.predicted_direction} analysis for ${pred.symbol}.`);
+      const result = await this.marketsLlm.generateText(context, systemPrompt, `Challenge the ${pred.predicted_direction} analysis for ${pred.symbol}.`, undefined, {
+        stage: 'risk_debate',
+        subStage: 'red',
+        instrumentId: String(pred.instrument_id ?? ''),
+        analystId: challenger.id,
+      });
       llmUsageId = result.llmUsageId ?? null;
       const match = result.text.match(/\{[\s\S]*\}/);
       if (match) {
@@ -2344,6 +2349,8 @@ Respond with valid JSON:
 }
 Respond ONLY with valid JSON.`,
         `Score this article's relevance to ${instrument.symbol} (${instrument.name}, ${instrument.asset_type}):\n\n${articleText}`,
+        undefined,
+        { stage: 'article_processing', articleId: input.articleId, instrumentId: input.instrumentId },
       );
 
       try {
@@ -4410,6 +4417,8 @@ Respond ONLY with valid JSON.`,
       context,
       'You are a financial analysis contract generator.',
       prompt,
+      undefined,
+      { stage: 'other', analystId, billedUserId: userId },
     );
     const contextMarkdown = llmResult.text;
 
@@ -4484,6 +4493,8 @@ Respond ONLY with valid JSON.`,
       context,
       'You are a financial analysis contract generator.',
       prompt,
+      undefined,
+      { stage: 'other', instrumentId, billedUserId: userId },
     );
     const contextMarkdown = llmResult.text;
 
@@ -4637,7 +4648,10 @@ Respond ONLY with valid JSON.`,
     ].filter(Boolean).join('\n');
 
     const ctx = this.marketsLlm.buildExecutionContext(userId, 'chat');
-    const result = await this.marketsLlm.generateText(ctx, systemPrompt, trimmed);
+    const result = await this.marketsLlm.generateText(ctx, systemPrompt, trimmed, undefined, {
+      stage: 'other',
+      billedUserId: userId,
+    });
 
     return {
       response: result.text,

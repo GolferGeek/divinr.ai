@@ -96,7 +96,7 @@ export class PredictionRunnerService {
     // 4. Load and execute context providers
     const providers = await this.contextProviders.loadContextProviders(run.instrument_id);
     const providerOutputs = await this.contextProviders.executeContextProviders(
-      context, providers, instrument.symbol, instrument.name, planeContext,
+      context, providers, instrument.symbol, instrument.name, planeContext, instrument.id,
     );
     const contextProviderText = this.contextProviders.formatContextForPrompt(providerOutputs);
 
@@ -286,7 +286,14 @@ export class PredictionRunnerService {
     let llmUsageId: string | null = null;
 
     if (this.llmService.isLlmEnabled()) {
-      const result = await this.llmService.generateText(context, systemPrompt, userPrompt);
+      const result = await this.llmService.generateText(context, systemPrompt, userPrompt, undefined, {
+        stage: 'prediction_generation',
+        instrumentId: instrument.id,
+        analystId: analyst.id,
+        analystAuthorUserId: analyst.user_id ?? undefined,
+        instrumentAuthorUserId: instrument.user_id ?? undefined,
+        cycleId: run.id,
+      });
       outputText = result.text;
       modelProvider = result.provider;
       modelName = result.model;
@@ -386,7 +393,12 @@ Respond ONLY with valid JSON.`;
     let llmUsageId: string | null = null;
 
     if (this.llmService.isLlmEnabled()) {
-      const result = await this.llmService.generateText(context, systemPrompt, userPrompt);
+      const result = await this.llmService.generateText(context, systemPrompt, userPrompt, undefined, {
+        stage: 'prediction_generation',
+        subStage: 'arbitrator_synthesis',
+        instrumentId: instrument.id,
+        cycleId: run.id,
+      });
       outputText = result.text;
       modelProvider = result.provider;
       modelName = result.model;

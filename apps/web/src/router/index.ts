@@ -16,6 +16,7 @@ const ALWAYS_UNLOCKED_DURING_TOUR = new Set([
   '/proposals',
   '/terms',
   '/fear-greed-alerts',
+  '/usage',
 ]);
 
 export const router = createRouter({
@@ -101,6 +102,7 @@ export const router = createRouter({
         { path: 'tournaments/:id', name: 'tournament-detail', component: () => import('../views/TournamentDetailView.vue') },
         { path: 'tournaments/:id/results', name: 'tournament-results', component: () => import('../views/TournamentResultsView.vue') },
         { path: 'settings/authored-content', name: 'authored-content', component: () => import('../views/AuthoredContentView.vue') },
+        { path: 'usage', name: 'usage', component: () => import('../views/UsageDashboardView.vue') },
       ],
     },
     {

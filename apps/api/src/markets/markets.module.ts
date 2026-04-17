@@ -43,6 +43,8 @@ import { ArticleRelevanceService } from './services/article-relevance.service';
 import { WiringService } from './services/wiring.service';
 import { ActiveAuthorshipService } from './services/active-authorship.service';
 import { EnablementService } from './services/enablement.service';
+import { LlmUsageLogger } from './services/llm-usage-logger.service';
+import { LlmUsageQueryService } from './services/llm-usage-query.service';
 import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { TournamentModule } from '../tournaments/tournament.module';
@@ -108,6 +110,8 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     WiringService,
     ActiveAuthorshipService,
     EnablementService,
+    LlmUsageLogger,
+    LlmUsageQueryService,
     MarketsService,
     MessagingSchemaService,
     MessagingService,

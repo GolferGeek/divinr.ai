@@ -45,6 +45,7 @@ import { CoordinationService } from './services/coordination.service';
 import { PerformanceService } from './services/performance.service';
 import { WiringService } from './services/wiring.service';
 import { EnablementService } from './services/enablement.service';
+import { LlmUsageQueryService } from './services/llm-usage-query.service';
 import { MessagingService } from '../messaging/messaging.service';
 import type { ChannelScope } from '../messaging/messaging.types';
 import type {
@@ -101,6 +102,7 @@ export class MarketsController {
     @Inject(WiringService) private readonly wiring: WiringService,
     @Inject(EnablementService) private readonly enablement: EnablementService,
     @Inject(MessagingService) private readonly messaging: MessagingService,
+    @Inject(LlmUsageQueryService) private readonly usageQuery: LlmUsageQueryService,
   ) {
     this.markets = markets;
   }
@@ -1992,5 +1994,85 @@ export class MarketsController {
     const user = this.getUser(req);
     await this.requireWriteAccess(user);
     return this.markets.chatAsk(user.id, body.message, body.instrumentId);
+  }
+
+  // ─── LLM Usage Endpoints ────────────────────────────────────
+
+  @Get('usage/summary')
+  async usageSummary(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('userId') userId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('stage') stage?: string,
+    @Query('model') model?: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireAdmin(user);
+    return this.usageQuery.getSummary({ userId, startDate, endDate, stage, model });
+  }
+
+  @Get('usage/by-user')
+  async usageByUser(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireAdmin(user);
+    return this.usageQuery.getByUser(startDate, endDate);
+  }
+
+  @Get('usage/by-stage')
+  async usageByStage(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireAdmin(user);
+    return this.usageQuery.getByStage(startDate, endDate);
+  }
+
+  @Get('usage/by-model')
+  async usageByModel(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireAdmin(user);
+    return this.usageQuery.getByModel(startDate, endDate);
+  }
+
+  @Get('usage/by-triple')
+  async usageByTriple(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('userId') userId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireAdmin(user);
+    return this.usageQuery.getByTriple(userId, startDate, endDate);
+  }
+
+  @Get('usage/base-vs-extension')
+  async usageBaseVsExtension(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const user = this.getUser(req);
+    await this.requireAdmin(user);
+    return this.usageQuery.getBaseVsExtension(startDate, endDate);
+  }
+
+  @Get('usage/my-usage')
+  async usageMyUsage(
+    @Req() req: { user?: AuthenticatedUser },
+  ) {
+    const user = this.getUser(req);
+    return this.usageQuery.getMyUsage(user.id);
   }
 }

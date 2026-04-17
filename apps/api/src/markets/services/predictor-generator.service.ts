@@ -415,7 +415,14 @@ Respond with valid JSON only:
         instrumentSymbol: instrument.symbol,
       });
       try {
-        const llmResult = await this.marketsLlm.generateText(context, systemPrompt, userPrompt);
+        const llmResult = await this.marketsLlm.generateText(context, systemPrompt, userPrompt, undefined, {
+          stage: 'predictor_generation',
+          articleId: article.id,
+          instrumentId: instrument.id,
+          analystId: analyst.id,
+          analystAuthorUserId: analyst.user_id ?? undefined,
+          instrumentAuthorUserId: instrument.user_id ?? undefined,
+        });
 
         llmUsageId = llmResult.llmUsageId ?? null;
         const match = llmResult.text.match(/\{[\s\S]*\}/);

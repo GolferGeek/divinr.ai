@@ -164,7 +164,10 @@ Respond ONLY with valid JSON.`;
 ${riskLine}
 ${articleContext ? `\nRelevant articles:\n${articleContext}` : ''}`;
 
-        const result = await this.llmService.generateText(context, systemPrompt, userPrompt);
+        const result = await this.llmService.generateText(context, systemPrompt, userPrompt, undefined, {
+          stage: 'learning',
+          analystId: input.analystId,
+        });
 
         // Parse direction
         try {

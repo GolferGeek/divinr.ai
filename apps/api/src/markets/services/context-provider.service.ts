@@ -58,6 +58,7 @@ export class ContextProviderService {
     instrumentSymbol: string,
     instrumentName: string,
     planeContext: string,
+    instrumentId?: string,
   ): Promise<ContextProviderOutput[]> {
     if (!this.llmService.isLlmEnabled() || providers.length === 0) {
       return [];
@@ -78,7 +79,11 @@ Be concise and factual. Focus on information that would help a decision-making a
 
         const userPrompt = `Provide your domain expertise for ${instrumentSymbol}.\n\n${planeContext}`;
 
-        const result = await this.llmService.generateText(context, systemPrompt, userPrompt);
+        const result = await this.llmService.generateText(context, systemPrompt, userPrompt, undefined, {
+          stage: 'context_provider',
+          instrumentId,
+          analystId: provider.id,
+        });
 
         outputs.push({
           analystId: provider.id,
