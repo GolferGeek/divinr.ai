@@ -36,6 +36,7 @@ import { OutcomeTrackingService } from './services/outcome-tracking.service';
 import { StopLossWatcherService } from './services/stop-loss-watcher.service';
 import { EodForcedBuyService } from './services/eod-forced-buy.service';
 import { DayTraderRunnerService } from './services/day-trader-runner.service';
+import { DayTraderSchedulerService } from './services/day-trader-scheduler.service';
 import { AuditService } from './services/audit.service';
 import { StrategicOverhaulService } from './services/strategic-overhaul.service';
 import { AffinityService } from './services/affinity.service';
@@ -92,6 +93,7 @@ export class MarketsController {
     @Inject(StopLossWatcherService) private readonly stopLossWatcher: StopLossWatcherService,
     @Inject(EodForcedBuyService) private readonly eodForcedBuy: EodForcedBuyService,
     @Inject(DayTraderRunnerService) private readonly dayTraderRunner: DayTraderRunnerService,
+    @Inject(DayTraderSchedulerService) private readonly dayTraderScheduler: DayTraderSchedulerService,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(StrategicOverhaulService) private readonly strategicOverhaul: StrategicOverhaulService,
     @Inject(AffinityService) private readonly affinityService: AffinityService,
@@ -1629,11 +1631,20 @@ export class MarketsController {
     return this.benchmarkIngest.ingestSpy();
   }
 
+  // Deprecated: prefer POST /markets/admin/day-trader/run-now which also
+  // refreshes intraday bars, respects market hours, and writes an audit row.
   @Post('admin/run-day-trader-strategies')
   async triggerDayTraderStrategies(@Req() req: { user?: AuthenticatedUser }) {
     const user = this.getUser(req);
     await this.requireAdmin(user);
     return this.dayTraderRunner.runStrategies();
+  }
+
+  @Post('admin/day-trader/run-now')
+  async triggerDayTraderRunNow(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    await this.requireAdmin(user);
+    return this.dayTraderScheduler.handleCron({ manual: true });
   }
 
   @Post('admin/run-eod-forced-buy')

@@ -41,6 +41,7 @@ const PORTFOLIOS: DayTraderPortfolioRow[] = [
     id: 'pf-portfolio-momentum-breakout',
     analyst_id: 'pf-base-day-trader-momentum',
     user_id: null,
+    analyst_user_id: null,
     current_balance: 1_000_000,
     strategy_name: 'momentum_breakout',
     strategy_state: { momentum_breakout: { last_seen: 'prior-tick' } },
@@ -49,6 +50,7 @@ const PORTFOLIOS: DayTraderPortfolioRow[] = [
     id: 'pf-portfolio-mean-reversion',
     analyst_id: 'pf-base-day-trader-mean_reversion',
     user_id: null,
+    analyst_user_id: null,
     current_balance: 1_000_000,
     strategy_name: 'mean_reversion',
     strategy_state: {},
@@ -57,6 +59,7 @@ const PORTFOLIOS: DayTraderPortfolioRow[] = [
     id: 'pf-portfolio-gap-and-go',
     analyst_id: 'pf-base-day-trader-gap_and_go',
     user_id: null,
+    analyst_user_id: null,
     current_balance: 1_000_000,
     strategy_name: 'gap_and_go',
     strategy_state: {},
@@ -443,6 +446,7 @@ async function main(): Promise<void> {
                 id: 'pf-portfolio-momentum-breakout',
                 analyst_id: 'pf-base-day-trader-momentum',
                 user_id: null,
+                analyst_user_id: null,
                 current_balance: 1_000_000,
                 strategy_name: 'momentum_breakout',
                 strategy_state: this.momState,
@@ -496,6 +500,291 @@ async function main(): Promise<void> {
     assert(strat.seenStates.length === 2, 'strategy decide called twice');
     assert(strat.seenStates[0].foo === undefined, 'tick 1 saw empty state slice');
     assert(strat.seenStates[1].foo === 'bar', 'tick 2 saw state.foo from tick 1');
+  }
+
+  // 9. Phase 3 — analyst scoping: base analyst (analyst_user_id=null) loads
+  // ALL active instruments via the distinct-on symbol query.
+  console.log('\nBase analyst scoping (analyst_user_id=null):');
+  {
+    class BaseDb {
+      public calls: MockDbCall[] = [];
+      async rawQuery(sql: string, params: unknown[] = []): Promise<ScriptedResponse> {
+        this.calls.push({ sql, params });
+        if (sql.includes("kind = 'day_trader'")) {
+          return {
+            data: [{
+              id: 'pf-1',
+              analyst_id: 'a-base',
+              user_id: null,
+              analyst_user_id: null,
+              current_balance: 1_000_000,
+              strategy_name: 'momentum_breakout',
+              strategy_state: {},
+            }],
+            error: null,
+          };
+        }
+        if (sql.includes('from prediction.user_enabled_triples')) {
+          return { data: [], error: null };
+        }
+        if (sql.includes('from prediction.instruments') && sql.includes('distinct on (symbol)')) {
+          return {
+            data: [
+              { id: 'inst-A', symbol: 'AAA', current_state: { price: 100 } },
+              { id: 'inst-B', symbol: 'BBB', current_state: { price: 200 } },
+            ],
+            error: null,
+          };
+        }
+        if (sql.includes('from prediction.instruments') && sql.includes('id = ANY($1)')) {
+          return {
+            data: [
+              { id: 'inst-A', current_state: { price: 100, recent_bars: [] } },
+              { id: 'inst-B', current_state: { price: 200, recent_bars: [] } },
+            ],
+            error: null,
+          };
+        }
+        if (sql.startsWith('update prediction.analyst_portfolios')) return { data: [], error: null };
+        if (sql.includes('from prediction.analyst_positions')) return { data: [], error: null };
+        if (sql.includes('from prediction.market_predictions')) return { data: [], error: null };
+        return { data: [], error: null };
+      }
+    }
+
+    const db = new BaseDb();
+    const helper = new AutotradeOpenHelper(db as any);
+    const svc = new DayTraderRunnerService(db as any, helper, stubPortfolios);
+    const strat = new FixedDecide({ action: 'noop', newState: {} });
+    svc.strategies.set('momentum_breakout', strat);
+
+    await svc.runStrategies();
+
+    const distinctCalls = db.calls.filter(c =>
+      c.sql.includes('from prediction.instruments') && c.sql.includes('distinct on (symbol)'),
+    );
+    assert(distinctCalls.length === 1, 'base analyst loads active instruments via distinct-on');
+
+    const tripleCalls = db.calls.filter(c => c.sql.includes('from prediction.user_enabled_triples'));
+    assert(tripleCalls.length === 0, 'base analyst does NOT query user_enabled_triples');
+  }
+
+  // 10. Phase 3 — authored analyst (analyst_user_id='u-1') loads only
+  // the instruments named in user_enabled_triples.
+  console.log('\nAuthored analyst scoping (analyst_user_id=u-1):');
+  {
+    class AuthoredDb {
+      public calls: MockDbCall[] = [];
+      async rawQuery(sql: string, params: unknown[] = []): Promise<ScriptedResponse> {
+        this.calls.push({ sql, params });
+        if (sql.includes("kind = 'day_trader'")) {
+          return {
+            data: [{
+              id: 'pf-u1',
+              analyst_id: 'a-authored',
+              user_id: 'u-1',
+              analyst_user_id: 'u-1',
+              current_balance: 1_000_000,
+              strategy_name: 'momentum_breakout',
+              strategy_state: {},
+            }],
+            error: null,
+          };
+        }
+        if (sql.includes('from prediction.user_enabled_triples')) {
+          return {
+            data: [
+              { instrument_id: 'inst-X' },
+              { instrument_id: 'inst-Y' },
+            ],
+            error: null,
+          };
+        }
+        if (sql.includes('from prediction.instruments') && sql.includes('id = ANY($1)') && sql.includes('is_active = true')) {
+          const ids = params[0] as string[];
+          return {
+            data: ids.map(id => ({ id, symbol: id.toUpperCase(), current_state: { price: 100 } })),
+            error: null,
+          };
+        }
+        if (sql.includes('from prediction.instruments') && sql.includes('id = ANY($1)')) {
+          const ids = params[0] as string[];
+          return {
+            data: ids.map(id => ({ id, current_state: { price: 100, recent_bars: [] } })),
+            error: null,
+          };
+        }
+        if (sql.includes('from prediction.instruments') && sql.includes('distinct on (symbol)')) {
+          return { data: [], error: null };
+        }
+        if (sql.startsWith('update prediction.analyst_portfolios')) return { data: [], error: null };
+        if (sql.includes('from prediction.analyst_positions')) return { data: [], error: null };
+        if (sql.includes('from prediction.market_predictions')) return { data: [], error: null };
+        return { data: [], error: null };
+      }
+    }
+
+    const db = new AuthoredDb();
+    const helper = new AutotradeOpenHelper(db as any);
+    const svc = new DayTraderRunnerService(db as any, helper, stubPortfolios);
+    const strat = new FixedDecide({ action: 'noop', newState: {} });
+    svc.strategies.set('momentum_breakout', strat);
+
+    await svc.runStrategies();
+
+    const tripleCalls = db.calls.filter(c => c.sql.includes('from prediction.user_enabled_triples'));
+    assert(tripleCalls.length === 1, 'authored analyst queries user_enabled_triples once');
+    const tripleParams = tripleCalls[0]?.params ?? [];
+    assert(tripleParams[0] === 'u-1', 'user_enabled_triples scoped to author u-1');
+    assert(tripleParams[1] === 'a-authored', 'user_enabled_triples scoped to analyst a-authored');
+
+    const distinctCalls = db.calls.filter(c =>
+      c.sql.includes('from prediction.instruments') && c.sql.includes('distinct on (symbol)'),
+    );
+    assert(distinctCalls.length === 0, 'authored analyst does NOT call distinct-on instruments');
+
+    const scopedCalls = db.calls.filter(c =>
+      c.sql.includes('from prediction.instruments') &&
+      c.sql.includes('id = ANY($1)') &&
+      c.sql.includes('is_active = true'),
+    );
+    assert(scopedCalls.length === 1, 'authored analyst fetches scoped instruments by id list');
+    assert(JSON.stringify(scopedCalls[0].params[0]) === JSON.stringify(['inst-X', 'inst-Y']), 'scoped fetch carries enabled instrument ids');
+  }
+
+  // 11. Phase 3 — authored analyst with zero enabled triples no-ops cleanly.
+  console.log('\nAuthored analyst with zero triples no-ops:');
+  {
+    class ZeroTriplesDb {
+      public calls: MockDbCall[] = [];
+      async rawQuery(sql: string, params: unknown[] = []): Promise<ScriptedResponse> {
+        this.calls.push({ sql, params });
+        if (sql.includes("kind = 'day_trader'")) {
+          return {
+            data: [{
+              id: 'pf-u2',
+              analyst_id: 'a-empty',
+              user_id: 'u-2',
+              analyst_user_id: 'u-2',
+              current_balance: 1_000_000,
+              strategy_name: 'momentum_breakout',
+              strategy_state: {},
+            }],
+            error: null,
+          };
+        }
+        if (sql.includes('from prediction.user_enabled_triples')) {
+          return { data: [], error: null };
+        }
+        if (sql.startsWith('update prediction.analyst_portfolios')) return { data: [], error: null };
+        if (sql.includes('from prediction.analyst_positions')) return { data: [], error: null };
+        if (sql.includes('from prediction.market_predictions')) return { data: [], error: null };
+        return { data: [], error: null };
+      }
+    }
+
+    const db = new ZeroTriplesDb();
+    const helper = new AutotradeOpenHelper(db as any);
+    const svc = new DayTraderRunnerService(db as any, helper, stubPortfolios);
+
+    let strategySaw: Record<string, unknown> | null = null;
+    class ObservingStrategy implements DayTraderStrategy {
+      decide(ctx: DecideContext): DecideAction {
+        strategySaw = { recentBarsSize: ctx.recentBars.size };
+        return { action: 'noop', newState: {} };
+      }
+    }
+    svc.strategies.set('momentum_breakout', new ObservingStrategy());
+
+    const result = await svc.runStrategies();
+    assert(result.opensWritten === 0, 'zero-triple authored analyst writes no opens');
+    assert(strategySaw !== null, 'strategy still consulted with empty candidate set');
+    assert((strategySaw as any).recentBarsSize === 0, 'strategy received empty recentBars map');
+
+    const scopedCalls = db.calls.filter(c =>
+      c.sql.includes('from prediction.instruments') && c.sql.includes('id = ANY($1)'),
+    );
+    assert(scopedCalls.length === 0, 'zero-triple analyst skips scoped instrument fetch');
+  }
+
+  // 12. Phase 3 — intraday/daily bar fallback. Instruments with 20+ intraday
+  // bars prefer intraday; instruments with empty intraday but populated daily
+  // recent_bars fall back to daily.
+  console.log('\nIntraday/daily bar fallback:');
+  {
+    type FBar = { t: string; o: number; h: number; l: number; c: number; v: number };
+    const mk = (n: number, v: number): FBar[] =>
+      Array.from({ length: n }, (_, i) => ({ t: `${i}`, o: v, h: v, l: v, c: v, v: 0 }));
+
+    const intradayTwentyOne: FBar[] = mk(21, 100);
+    const dailyOnly: FBar[] = mk(10, 50);
+
+    class FallbackDb {
+      public calls: MockDbCall[] = [];
+      async rawQuery(sql: string, params: unknown[] = []): Promise<ScriptedResponse> {
+        this.calls.push({ sql, params });
+        if (sql.includes("kind = 'day_trader'")) {
+          return {
+            data: [{
+              id: 'pf-fb',
+              analyst_id: 'a-base',
+              user_id: null,
+              analyst_user_id: null,
+              current_balance: 1_000_000,
+              strategy_name: 'momentum_breakout',
+              strategy_state: {},
+            }],
+            error: null,
+          };
+        }
+        if (sql.includes('from prediction.instruments') && sql.includes('distinct on (symbol)')) {
+          return {
+            data: [
+              { id: 'inst-intra', symbol: 'INT', current_state: { price: 100 } },
+              { id: 'inst-daily', symbol: 'DAY', current_state: { price: 50 } },
+            ],
+            error: null,
+          };
+        }
+        if (sql.includes('from prediction.instruments') && sql.includes('id = ANY($1)')) {
+          return {
+            data: [
+              { id: 'inst-intra', current_state: { price: 100, intraday_bars: intradayTwentyOne, recent_bars: [] } },
+              { id: 'inst-daily', current_state: { price: 50, intraday_bars: [], recent_bars: dailyOnly } },
+            ],
+            error: null,
+          };
+        }
+        if (sql.startsWith('update prediction.analyst_portfolios')) return { data: [], error: null };
+        if (sql.includes('from prediction.analyst_positions')) return { data: [], error: null };
+        if (sql.includes('from prediction.market_predictions')) return { data: [], error: null };
+        if (sql.includes('from prediction.user_enabled_triples')) return { data: [], error: null };
+        return { data: [], error: null };
+      }
+    }
+
+    const db = new FallbackDb();
+    const helper = new AutotradeOpenHelper(db as any);
+    const svc = new DayTraderRunnerService(db as any, helper, stubPortfolios);
+
+    let seen: Map<string, unknown[]> | null = null;
+    class ObservingStrategy implements DayTraderStrategy {
+      decide(ctx: DecideContext): DecideAction {
+        seen = ctx.recentBars as Map<string, unknown[]>;
+        return { action: 'noop', newState: {} };
+      }
+    }
+    svc.strategies.set('momentum_breakout', new ObservingStrategy());
+
+    await svc.runStrategies();
+
+    assert(seen !== null, 'strategy consulted');
+    const intraBars = (seen as Map<string, unknown[]>).get('inst-intra') ?? [];
+    const dailyBars = (seen as Map<string, unknown[]>).get('inst-daily') ?? [];
+    assert(intraBars.length === 21, 'instrument with 21 intraday bars uses intraday (length 21)');
+    assert((intraBars[0] as FBar).c === 100, 'intraday bars close at 100');
+    assert(dailyBars.length === 10, 'instrument with empty intraday + 10 daily falls back to daily');
+    assert((dailyBars[0] as FBar).c === 50, 'daily fallback bars close at 50');
   }
 
   console.log(`\n=== ${passed} passed, ${failed} failed ===\n`);
