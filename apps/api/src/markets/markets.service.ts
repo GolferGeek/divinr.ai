@@ -4272,10 +4272,26 @@ Respond ONLY with valid JSON.`,
   async updateAnalystMetadata(
     analystId: string,
     userId: string,
-    patch: { displayName?: string },
+    patch: {
+      displayName?: string;
+      llmProvider?: string | null;
+      llmModel?: string | null;
+      byoCredentialId?: string | null;
+    },
   ): Promise<void> {
     await this.schema.ensureSchema();
     await this.assertOwnsAnalyst(analystId, userId);
+
+    // Validation: BYO provider requires credential; divinr/null must not have credential
+    if (patch.llmProvider !== undefined) {
+      const isByo = patch.llmProvider && patch.llmProvider.startsWith('byo_');
+      if (isByo && !patch.byoCredentialId) {
+        throw new Error('byoCredentialId is required when llmProvider starts with byo_');
+      }
+      if (!isByo && patch.byoCredentialId) {
+        throw new Error('byoCredentialId must be null when llmProvider is not a BYO provider');
+      }
+    }
 
     const setClauses: string[] = [];
     const params: unknown[] = [];
@@ -4284,6 +4300,18 @@ Respond ONLY with valid JSON.`,
     if (patch.displayName !== undefined) {
       setClauses.push(`display_name = $${paramIdx++}`);
       params.push(patch.displayName);
+    }
+    if (patch.llmProvider !== undefined) {
+      setClauses.push(`llm_provider = $${paramIdx++}`);
+      params.push(patch.llmProvider);
+    }
+    if (patch.llmModel !== undefined) {
+      setClauses.push(`llm_model = $${paramIdx++}`);
+      params.push(patch.llmModel);
+    }
+    if (patch.byoCredentialId !== undefined) {
+      setClauses.push(`byo_credential_id = $${paramIdx++}`);
+      params.push(patch.byoCredentialId);
     }
 
     if (setClauses.length === 0) return;

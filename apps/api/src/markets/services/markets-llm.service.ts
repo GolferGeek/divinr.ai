@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { ExecutionContext } from '@orchestrator-ai/transport-types';
 import { LLM_SERVICE, type LLMServiceProvider } from '@orchestratorai/planes/llm';
@@ -28,6 +28,8 @@ export interface LlmTextResult {
  */
 @Injectable()
 export class MarketsLlmService {
+  private readonly logger = new Logger(MarketsLlmService.name);
+
   constructor(
     @Inject(LLM_SERVICE) private readonly llm: LLMServiceProvider,
   ) {}
@@ -72,7 +74,16 @@ export class MarketsLlmService {
     context: ExecutionContext,
     systemPrompt: string,
     userPrompt: string,
+    analystConfig?: { llmProvider?: string; llmModel?: string; byoCredentialId?: string },
   ): Promise<LlmTextResult> {
+    // BYO credential routing placeholder — actual provider clients TBD
+    if (analystConfig?.byoCredentialId) {
+      this.logger.log(
+        `BYO credential routing: would use credential ${analystConfig.byoCredentialId} ` +
+        `with provider=${analystConfig.llmProvider} model=${analystConfig.llmModel} (not yet implemented)`,
+      );
+    }
+
     const config = this.getPreferredConfig();
 
     try {

@@ -309,6 +309,11 @@ export class MarketsSchemaService {
       alter table prediction.market_analysts add column if not exists memory_corrections jsonb not null default '[]';
       alter table prediction.market_analysts add column if not exists memory_instrument_notes jsonb not null default '{}';
       alter table prediction.market_analysts add column if not exists memory_calibration jsonb not null default '{}';
+
+      -- BYO LLM credential columns (Phase 7: user-authored-custom-content)
+      alter table prediction.market_analysts add column if not exists llm_provider text;
+      alter table prediction.market_analysts add column if not exists llm_model text;
+      alter table prediction.market_analysts add column if not exists byo_credential_id text;
     `;
   }
 

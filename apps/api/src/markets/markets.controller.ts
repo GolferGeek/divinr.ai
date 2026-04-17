@@ -256,7 +256,12 @@ export class MarketsController {
   async updateAnalystMetadata(
     @Req() req: { user?: AuthenticatedUser },
     @Param('analystId') analystId: string,
-    @Body() body: { displayName?: string },
+    @Body() body: {
+      displayName?: string;
+      llmProvider?: string | null;
+      llmModel?: string | null;
+      byoCredentialId?: string | null;
+    },
   ) {
     const user = this.getUser(req);
     await this.requireWriteAccess(user);
