@@ -20,6 +20,9 @@ interface PendingPrediction {
   predicted_direction: string;
   confidence: number;
   horizon_minutes: number;
+  analyst_id: string | null;
+  run_id: string | null;
+  author_user_id: string | null;
   created_at: string;
 }
 
@@ -363,6 +366,7 @@ export class OutcomeTrackingService {
       `
       select mp.id, mp.instrument_id,
              mp.predicted_direction, mp.confidence, mp.horizon_minutes,
+             mp.analyst_id, mp.run_id, mp.author_user_id,
              mp.created_at
       from prediction.market_predictions mp
       where mp.created_at + (mp.horizon_minutes || ' minutes')::interval <= now()
@@ -412,16 +416,19 @@ export class OutcomeTrackingService {
           `
           insert into prediction.prediction_horizon_evaluations
             (id, prediction_id, run_id, instrument_id,
-             analyst_id, horizon_window, prediction_date, evaluation_date,
+             analyst_id, author_user_id, horizon_window, prediction_date, evaluation_date,
              predicted_direction, created_at)
-          values (gen_random_uuid()::text, $1, null, $2,
-                  null, $3, $4, now(),
-                  $5, now())
+          values (gen_random_uuid()::text, $1, $2, $3,
+                  $4, $5, $6, $7, now(),
+                  $8, now())
           on conflict do nothing
           `,
           [
             pred.id,
+            pred.run_id ?? null,
             pred.instrument_id,
+            pred.analyst_id ?? null,
+            pred.author_user_id ?? null,
             horizonWindow,
             pred.created_at,
             pred.predicted_direction,

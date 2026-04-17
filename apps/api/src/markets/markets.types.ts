@@ -141,6 +141,7 @@ export interface MarketRun {
   run_type: RunType;
   status: RunStatus;
   requested_by: string;
+  author_user_id?: string | null;
   created_at: string;
   updated_at: string;
   started_at: string | null;
@@ -199,6 +200,7 @@ export interface PredictionOutcome {
   run_id: string;
   instrument_id: string;
   analyst_id: string | null;
+  author_user_id?: string | null;
   predicted_direction: 'up' | 'down' | 'flat';
   confidence: number;
   horizon_minutes: number;
@@ -220,6 +222,7 @@ export interface MarketPredictor {
   created_by: string;
   created_at: string;
   updated_at: string;
+  author_user_id?: string | null;
   crowd_reaction?: CrowdReaction | null;
   crowd_reaction_confidence?: number | null;
   crowd_reaction_rationale?: string | null;
@@ -233,12 +236,14 @@ export interface UpsertPredictorInput {
   relevanceScore: number;
   rationale?: string;
   status?: PredictorStatus;
+  authorUserId?: string | null;
 }
 
 export interface ListPredictorsInput {
   userId: string;
   instrumentId: string;
   status?: PredictorStatus | 'all';
+  authorUserId?: string | null;
 }
 
 export interface RiskAssessment {
@@ -248,6 +253,7 @@ export interface RiskAssessment {
   risk_score: number;
   verdict: 'low' | 'medium' | 'high';
   rationale: string;
+  author_user_id?: string | null;
   created_at: string;
 }
 
@@ -290,6 +296,7 @@ export interface ListPredictionOutcomesInput {
   userId: string;
   runId?: string;
   instrumentId?: string;
+  authorUserId?: string | null;
 }
 
 export interface ListRiskAssessmentsInput {
@@ -297,6 +304,7 @@ export interface ListRiskAssessmentsInput {
   runId?: string;
   instrumentId?: string;
   role?: string;
+  authorUserId?: string | null;
 }
 
 export interface MarketArticle {
@@ -587,12 +595,14 @@ export interface ScorePredictorInput {
   userId: string;
   instrumentId: string;
   articleId: string;
+  authorUserId?: string | null;
 }
 
 export interface ScorePredictorBatchInput {
   userId: string;
   instrumentId: string;
   articleIds: string[];
+  authorUserId?: string | null;
 }
 
 export interface ScorePredictorResult {

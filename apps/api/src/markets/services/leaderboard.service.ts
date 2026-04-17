@@ -324,6 +324,30 @@ export class LeaderboardService {
     return { score, buckets };
   }
 
+  async computeTripleCalibration(authorUserId: string | null, analystId: string, instrumentId: string): Promise<{
+    score: number | null;
+    sampleSize: number;
+  }> {
+    const res = await this.db.rawQuery(
+      `select confidence_at_prediction::float8 as conf,
+              case when was_correct then 1 else 0 end as hit
+       from prediction.prediction_horizon_evaluations
+       where analyst_id = $1
+         and instrument_id = $2
+         and coalesce(author_user_id, 'base') = coalesce($3, 'base')
+         and confidence_at_prediction is not null`,
+      [analystId, instrumentId, authorUserId],
+    );
+    if (res.error) throw new Error(res.error.message);
+    const rows = (res.data as Array<{ conf: number; hit: number }> | null) ?? [];
+    if (rows.length < 20) return { score: null, sampleSize: rows.length };
+    let err = 0;
+    for (const row of rows) {
+      err += Math.abs(Number(row.hit) - Number(row.conf) / 100);
+    }
+    return { score: 1 - err / rows.length, sampleSize: rows.length };
+  }
+
   async getPortfolioDetail(input: { kind: string; id: string; days?: number }): Promise<{
     portfolio: Record<string, unknown>;
     positions: Array<Record<string, unknown>>;

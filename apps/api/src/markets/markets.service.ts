@@ -2439,13 +2439,14 @@ Respond ONLY with valid JSON.`,
     const insert = await this.db.rawQuery(
       `
       insert into prediction.market_predictors
-        (id, instrument_id, article_id, relevance_score, status, rationale, created_by, created_at, updated_at)
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        (id, instrument_id, article_id, relevance_score, status, rationale, created_by, author_user_id, created_at, updated_at)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       on conflict (id)
       do update set
         relevance_score = excluded.relevance_score,
         status = excluded.status,
         rationale = excluded.rationale,
+        author_user_id = excluded.author_user_id,
         updated_at = now()
       returning *
       `,
@@ -2457,6 +2458,7 @@ Respond ONLY with valid JSON.`,
         status,
         input.rationale ?? null,
         input.userId,
+        input.authorUserId ?? null,
         now,
         now,
       ],
@@ -2965,13 +2967,14 @@ Respond ONLY with valid JSON.`,
       risk_score: riskScore,
       verdict,
       rationale: outputText.slice(0, 1200),
+      author_user_id: run.author_user_id ?? null,
       created_at: new Date().toISOString(),
     };
     const insert = await this.db.rawQuery(
       `
       insert into prediction.market_risk_assessments
-        (id, run_id, instrument_id, risk_score, verdict, rationale, created_at)
-      values ($1, $2, $3, $4, $5, $6, $7)
+        (id, run_id, instrument_id, risk_score, verdict, rationale, author_user_id, created_at)
+      values ($1, $2, $3, $4, $5, $6, $7, $8)
       returning *
       `,
       [
@@ -2981,6 +2984,7 @@ Respond ONLY with valid JSON.`,
         assessment.risk_score,
         assessment.verdict,
         assessment.rationale,
+        assessment.author_user_id ?? null,
         assessment.created_at,
       ],
     );

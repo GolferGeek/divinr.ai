@@ -259,8 +259,8 @@ export class PredictionGeneratorService {
     const result = await this.db.rawQuery(
       `
       insert into prediction.orchestration_runs
-        (id, instrument_id, run_type, status, requested_by, updated_at)
-      values ($1, $2, 'prediction', 'queued', 'pipeline', now())
+        (id, instrument_id, run_type, status, requested_by, author_user_id, updated_at)
+      values ($1, $2, 'prediction', 'queued', 'pipeline', null, now())
       returning id
       `,
       [runId, instrumentId],

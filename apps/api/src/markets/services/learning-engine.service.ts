@@ -457,6 +457,7 @@ export class LearningEngineService {
   private async persistProposal(input: {
     analystId: string;
     instrumentId: string | null;
+    authorUserId?: string | null;
     proposalType: string;
     description: string;
     rationale: string;
@@ -469,12 +470,13 @@ export class LearningEngineService {
     const now = new Date().toISOString();
     await this.db.rawQuery(
       `insert into prediction.learning_proposals
-        (id, tier, analyst_id, instrument_id, proposal_type,
+        (id, tier, analyst_id, instrument_id, user_id, proposal_type,
          description, rationale, proposed_change, canonical_test_results,
          net_score, has_severity_regression, status, proposed_at, tested_at)
-       values ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+       values ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         randomUUID(), input.analystId, input.instrumentId,
+        input.authorUserId ?? null,
         input.proposalType, input.description, input.rationale,
         JSON.stringify(input.proposedChange), JSON.stringify(input.canonicalTestResults),
         input.netScore, input.hasSeverityRegression, input.status, now, now,

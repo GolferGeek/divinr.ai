@@ -24,6 +24,7 @@ import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import { loadContractFragment } from '../utils/contract-loader';
 import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
 import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
+import { resolveTripleContext } from '../utils/resolve-triple-context';
 
 export interface RiskRunResult {
   compositeScore: RiskCompositeScore;
@@ -366,13 +367,18 @@ export class RiskRunnerService {
 
     for (const item of batch) {
       try {
+        const scope = instrumentScopes.find(s => s.instrument.id === item.instrumentId)!;
+        const triple = resolveTripleContext(
+          { id: item.analyst.id, user_id: item.analyst.user_id ?? null },
+          { id: scope.instrument.id, user_id: scope.instrument.user_id ?? null },
+        );
+
         let runId = runIdByInstrument.get(item.instrumentId);
         if (!runId) {
-          runId = await this.createRiskOrchestrationRun(item.instrumentId);
+          runId = await this.createRiskOrchestrationRun(item.instrumentId, triple.authorUserId);
           runIdByInstrument.set(item.instrumentId, runId);
         }
 
-        const scope = instrumentScopes.find(s => s.instrument.id === item.instrumentId)!;
         const parsed = await this.runPerAnalystReflection(
           runId,
           {
@@ -382,6 +388,7 @@ export class RiskRunnerService {
             analystDisplayName: item.analyst.display_name,
             analystPersona: item.analyst.persona_prompt,
             configVersionId: item.analyst.current_config_version_id ?? null,
+            authorUserId: triple.authorUserId,
           },
           scope.instrument,
         );
@@ -574,14 +581,14 @@ export class RiskRunnerService {
     return map;
   }
 
-  private async createRiskOrchestrationRun(instrumentId: string): Promise<string> {
+  private async createRiskOrchestrationRun(instrumentId: string, authorUserId: string | null = null): Promise<string> {
     const runId = randomUUID();
     await this.db.rawQuery(
       `insert into prediction.orchestration_runs
-        (id, instrument_id, run_type, status, requested_by, created_at, started_at)
-       values ($1, $2, 'risk', 'running', 'stages-v2-pipeline', now(), now())
+        (id, instrument_id, run_type, status, requested_by, author_user_id, created_at, started_at)
+       values ($1, $2, 'risk', 'running', 'stages-v2-pipeline', $3, now(), now())
        on conflict do nothing`,
-      [runId, instrumentId],
+      [runId, instrumentId, authorUserId],
     );
     return runId;
   }
@@ -597,14 +604,15 @@ export class RiskRunnerService {
 
   private async runPerAnalystReflection(
     runId: string,
-    item: { instrumentId: string; analystId: string; analystSlug: string; analystDisplayName: string; analystPersona: string; configVersionId: string | null },
+    item: { instrumentId: string; analystId: string; analystSlug: string; analystDisplayName: string; analystPersona: string; configVersionId: string | null; authorUserId: string | null },
     instrument: MarketInstrument,
   ): Promise<{ score: number; confidence: number; reasoning: string }> {
     const priorResult = await this.db.rawQuery(
       `select score, confidence, reasoning from prediction.analyst_risk_assessments
        where instrument_id = $1 and analyst_id = $2
+         and coalesce(user_id, 'base') = coalesce($3, 'base')
        order by created_at desc limit 1`,
-      [item.instrumentId, item.analystId],
+      [item.instrumentId, item.analystId, item.authorUserId],
     );
     const priorRows = (priorResult.data as Array<{ score: number; confidence: number; reasoning: string | null }> | null) ?? [];
     const prior = priorRows[0];
@@ -705,9 +713,9 @@ Respond with valid JSON only:
 
     await this.db.rawQuery(
       `insert into prediction.analyst_risk_assessments
-        (id, run_id, instrument_id, analyst_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, llm_usage_id, created_at)
-       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, '{}', $8, $9, $10, now())`,
-      [runId, item.instrumentId, item.analystId, score, confidence, reasoning, JSON.stringify(evidence), modelProvider, modelName, llmUsageId],
+        (id, run_id, instrument_id, analyst_id, user_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, llm_usage_id, created_at)
+       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, '{}', $9, $10, $11, now())`,
+      [runId, item.instrumentId, item.analystId, item.authorUserId, score, confidence, reasoning, JSON.stringify(evidence), modelProvider, modelName, llmUsageId],
     );
 
     await this.db.rawQuery(
@@ -832,7 +840,7 @@ Respond with valid JSON only:
   ): Promise<Array<{ analystId: string; analystSlug: string; score: number; confidence: number; weight: number; reasoning: string | null; evidence: string[]; }>> {
     // Load personality analysts
     const result = await this.db.rawQuery(
-      `select id, slug, display_name, persona_prompt, default_weight, current_config_version_id
+      `select id, slug, display_name, persona_prompt, default_weight, current_config_version_id, user_id
        from prediction.market_analysts
        where analyst_type = 'personality' and is_enabled = true and is_active = true
          and workflow_scope in ('risk', 'both')
@@ -840,7 +848,7 @@ Respond with valid JSON only:
     );
     const analysts = (result.data as Array<{
       id: string; slug: string; display_name: string; persona_prompt: string; default_weight: number;
-      current_config_version_id: string | null;
+      current_config_version_id: string | null; user_id: string | null;
     }> | null) ?? [];
 
     if (analysts.length === 0) return [];
@@ -930,11 +938,15 @@ Respond with valid JSON only:
         }
 
         // Persist to analyst_risk_assessments table
+        const tripleCtx = resolveTripleContext(
+          { id: analyst.id, user_id: analyst.user_id ?? null },
+          { id: instrument.id, user_id: instrument.user_id ?? null },
+        );
         await this.db.rawQuery(
           `insert into prediction.analyst_risk_assessments
-            (id, run_id, instrument_id, analyst_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, llm_usage_id, created_at)
-           values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, '{}', null, null, $8, now())`,
-          [run.id, run.instrument_id, analyst.id, score, confidence, reasoning, JSON.stringify(evidence), llmUsageId],
+            (id, run_id, instrument_id, analyst_id, user_id, score, confidence, reasoning, evidence, source_data, model_provider, model_name, llm_usage_id, created_at)
+           values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, '{}', null, null, $9, now())`,
+          [run.id, run.instrument_id, analyst.id, tripleCtx.authorUserId, score, confidence, reasoning, JSON.stringify(evidence), llmUsageId],
         );
 
         assessments.push({
@@ -1088,15 +1100,16 @@ Respond with valid JSON only:
       risk_score: compositeScore,
       verdict,
       rationale: rationale.slice(0, 1200),
+      author_user_id: run.author_user_id ?? null,
       created_at: new Date().toISOString(),
     };
 
     const result = await this.db.rawQuery(
       `insert into prediction.market_risk_assessments
-        (id, run_id, instrument_id, risk_score, verdict, rationale, created_at)
-       values ($1, $2, $3, $4, $5, $6, $7)
+        (id, run_id, instrument_id, risk_score, verdict, rationale, author_user_id, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
        returning *`,
-      [assessment.id, assessment.run_id, assessment.instrument_id, assessment.risk_score, assessment.verdict, assessment.rationale, assessment.created_at],
+      [assessment.id, assessment.run_id, assessment.instrument_id, assessment.risk_score, assessment.verdict, assessment.rationale, assessment.author_user_id ?? null, assessment.created_at],
     );
     if (result.error) throw new Error(result.error.message);
     return ((result.data as RiskAssessment[] | null) ?? [])[0] ?? assessment;

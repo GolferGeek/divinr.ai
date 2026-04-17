@@ -14,6 +14,7 @@ import { ConvictionTraderService } from './conviction-trader.service';
 import { loadContractFragment } from '../utils/contract-loader';
 import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
 import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
+import { resolveTripleContext } from '../utils/resolve-triple-context';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import type {
   MarketRun,
@@ -317,17 +318,21 @@ export class PredictionRunnerService {
 
     // Persist per-analyst prediction
     const predictionId = randomUUID();
+    const triple = resolveTripleContext(
+      { id: analyst.id, user_id: analyst.user_id ?? null },
+      { id: instrument.id, user_id: instrument.user_id ?? null },
+    );
     await this.db.rawQuery(
       `insert into prediction.market_predictions
         (id, run_id, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
-         key_factors, risks, config_version_id, is_paper, source_context, llm_usage_id, created_at)
-       values ($1, $2, $3, $4, 'analyst', $5, $6, 240, $7, $8, $9, $10, $11, $12, $13, $14)`,
+         key_factors, risks, config_version_id, is_paper, source_context, llm_usage_id, author_user_id, created_at)
+       values ($1, $2, $3, $4, 'analyst', $5, $6, 240, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
         predictionId, run.id, run.instrument_id,
         analyst.id, parsed.direction, parsed.confidence, parsed.rationale,
         JSON.stringify(parsed.key_factors), JSON.stringify(parsed.risks),
-        configVersionId, isPaper, JSON.stringify(sourceContext), llmUsageId, new Date().toISOString(),
+        configVersionId, isPaper, JSON.stringify(sourceContext), llmUsageId, triple.authorUserId, new Date().toISOString(),
       ],
     );
 
@@ -336,6 +341,7 @@ export class PredictionRunnerService {
       run_id: run.id,
       instrument_id: run.instrument_id,
       analyst_id: analyst.id,
+      author_user_id: triple.authorUserId,
       predicted_direction: parsed.direction,
       confidence: parsed.confidence,
       horizon_minutes: 240,
@@ -427,13 +433,13 @@ Respond ONLY with valid JSON.`;
       `insert into prediction.market_predictions
         (id, run_id, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
-         key_factors, risks, lineage_json, llm_usage_id, created_at)
-       values ($1, $2, $3, null, 'arbitrator', $4, $5, 240, $6, $7, $8, $9, $10, $11)`,
+         key_factors, risks, lineage_json, llm_usage_id, author_user_id, created_at)
+       values ($1, $2, $3, null, 'arbitrator', $4, $5, 240, $6, $7, $8, $9, $10, $11, $12)`,
       [
         predictionId, run.id, run.instrument_id,
         parsed.direction, parsed.confidence, parsed.rationale,
         JSON.stringify(parsed.key_factors), JSON.stringify(parsed.risks),
-        JSON.stringify(lineage), llmUsageId, new Date().toISOString(),
+        JSON.stringify(lineage), llmUsageId, run.author_user_id ?? null, new Date().toISOString(),
       ],
     );
 

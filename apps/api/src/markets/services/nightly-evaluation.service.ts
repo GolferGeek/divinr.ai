@@ -310,10 +310,11 @@ export class NightlyEvaluationService {
   // ─── Phase 2: Profiling ──────────────────────────────────────
 
   private async updatePerformanceProfiles(): Promise<number> {
-    // Compute rolling accuracy for each analyst × instrument × horizon × period
+    // Compute rolling accuracy for each triple × horizon × period
     const result = await this.db.rawQuery(`
       insert into prediction.analyst_performance_profiles
         (id, analyst_id, instrument_id, horizon_window, period,
+         author_user_id,
          accuracy_rate, avg_confidence, calibration_score, systematic_biases, sample_size, computed_at)
       select
         gen_random_uuid()::text,
@@ -321,6 +322,7 @@ export class NightlyEvaluationService {
         phe.instrument_id,
         phe.horizon_window,
         '30d',
+        phe.author_user_id,
         avg(case when phe.was_correct then 1.0 else 0.0 end),
         avg(phe.confidence_at_prediction),
         1.0 - avg(abs(
@@ -336,7 +338,7 @@ export class NightlyEvaluationService {
       from prediction.prediction_horizon_evaluations phe
       where phe.analyst_id is not null
         and phe.created_at >= now() - interval '30 days'
-      group by phe.analyst_id, phe.instrument_id, phe.horizon_window
+      group by phe.analyst_id, phe.instrument_id, phe.horizon_window, phe.author_user_id
       on conflict do nothing
     `);
     if (result.error) {

@@ -11,6 +11,7 @@ import { instrumentKeywordScore } from '../utils/instrument-keyword-match';
 import { loadContractFragment } from '../utils/contract-loader';
 import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
 import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
+import { resolveTripleContext } from '../utils/resolve-triple-context';
 
 interface UnscoredArticle {
   id: string;
@@ -26,6 +27,7 @@ interface ActiveInstrument {
   symbol: string;
   name: string;
   asset_type: string;
+  user_id: string | null;
 }
 
 interface ScoringAnalyst {
@@ -34,6 +36,7 @@ interface ScoringAnalyst {
   display_name: string;
   scoring_focus: string;
   current_config_version_id: string | null;
+  user_id: string | null;
 }
 
 interface PredictorGenResult {
@@ -232,13 +235,13 @@ export class PredictorGeneratorService {
    */
   private async getPersonalityAnalysts(): Promise<ScoringAnalyst[]> {
     const result = await this.db.rawQuery(
-      `select id, slug, display_name, current_config_version_id from prediction.market_analysts
+      `select id, slug, display_name, current_config_version_id, user_id from prediction.market_analysts
        where analyst_type = 'personality'
          and is_enabled = true and is_active = true
          and user_id is null
        order by slug`,
     );
-    const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null }> | null) ?? [];
+    const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null; user_id: string | null }> | null) ?? [];
     return rows.map(r => ({
       ...r,
       scoring_focus: GENERIC_FALLBACK_SCORING_FOCUS,
@@ -261,7 +264,7 @@ export class PredictorGeneratorService {
          AND ma.user_id IS NOT NULL`,
       [instrumentId],
     );
-    const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null }> | null) ?? [];
+    const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null; user_id: string | null }> | null) ?? [];
     return rows.map(r => ({
       ...r,
       scoring_focus: GENERIC_FALLBACK_SCORING_FOCUS,
@@ -274,7 +277,7 @@ export class PredictorGeneratorService {
    */
   private async getActiveInstruments(): Promise<ActiveInstrument[]> {
     const result = await this.db.rawQuery(
-      `select id, symbol, name, asset_type
+      `select id, symbol, name, asset_type, user_id
        from prediction.instruments
        where is_active = true
        order by symbol`,
@@ -445,6 +448,7 @@ Respond with valid JSON only:
     // Dismiss if very low relevance
     if (relevanceScore < 0.2) dismissed = true;
 
+    const triple = resolveTripleContext(analyst, instrument);
     await this.upsertPredictor(
       instrument.id,
       article.id,
@@ -454,6 +458,7 @@ Respond with valid JSON only:
       'system',
       analyst.id,
       llmUsageId,
+      triple.authorUserId,
       crowdReaction,
       crowdReactionConfidence,
       crowdReactionRationale,
@@ -500,6 +505,7 @@ Respond with valid JSON only:
     createdBy: string,
     scoredByAnalystId: string,
     llmUsageId: string | null,
+    authorUserId: string | null,
     crowdReaction: string | null = null,
     crowdReactionConfidence: number | null = null,
     crowdReactionRationale: string | null = null,
@@ -510,16 +516,18 @@ Respond with valid JSON only:
       insert into prediction.market_predictors
         (id, instrument_id, article_id, relevance_score,
          status, rationale, created_by, scored_by_analyst_id, llm_usage_id,
+         author_user_id,
          crowd_reaction, crowd_reaction_confidence, crowd_reaction_rationale,
          estimated_reaction_window_minutes,
          created_at, updated_at)
-      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())
-      on conflict (instrument_id, article_id, scored_by_analyst_id)
+      values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())
+      on conflict ((coalesce(author_user_id, 'base')), instrument_id, article_id, scored_by_analyst_id)
       do update set
         relevance_score = excluded.relevance_score,
         status = excluded.status,
         rationale = excluded.rationale,
         llm_usage_id = excluded.llm_usage_id,
+        author_user_id = excluded.author_user_id,
         crowd_reaction = excluded.crowd_reaction,
         crowd_reaction_confidence = excluded.crowd_reaction_confidence,
         crowd_reaction_rationale = excluded.crowd_reaction_rationale,
@@ -527,7 +535,7 @@ Respond with valid JSON only:
         updated_at = now()
       `,
       [instrumentId, articleId, relevanceScore, status, rationale, createdBy, scoredByAnalystId, llmUsageId,
-       crowdReaction, crowdReactionConfidence, crowdReactionRationale, estimatedReactionWindowMinutes],
+       authorUserId, crowdReaction, crowdReactionConfidence, crowdReactionRationale, estimatedReactionWindowMinutes],
     );
     if (result.error) {
       throw new Error(result.error.message);

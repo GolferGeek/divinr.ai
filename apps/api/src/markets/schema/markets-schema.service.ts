@@ -290,11 +290,12 @@ export class MarketsSchemaService {
       alter table prediction.orchestration_runs add column if not exists completed_at timestamptz;
       alter table prediction.orchestration_runs add column if not exists last_error text;
 
-      -- Replace old org-scoped dedup index with user-scoped version
+      -- Effort: triple-model-reasoning-continuity — triple-scoped queued run dedup
+      alter table prediction.orchestration_runs add column if not exists author_user_id text;
       drop index if exists prediction.prediction_one_queued_run_per_key_idx;
-      create unique index if not exists prediction_one_queued_run_per_key_idx
-      on prediction.orchestration_runs (instrument_id, run_type)
-      where status = 'queued';
+      create unique index if not exists orchestration_runs_queued_triple_idx
+        on prediction.orchestration_runs (coalesce(author_user_id, 'base'), instrument_id, run_type)
+        where status = 'queued';
     `;
   }
 
@@ -474,12 +475,16 @@ export class MarketsSchemaService {
       -- Per-analyst article scoring: add scored_by_analyst_id and update unique constraint
       alter table prediction.market_predictors add column if not exists scored_by_analyst_id text;
 
-      -- Replace original unique constraints with per-analyst version (no org_slug)
+      -- Replace original unique constraints with triple-scoped version (effort: triple-model-reasoning-continuity)
       alter table prediction.market_predictors
         drop constraint if exists market_predictors_organization_slug_instrument_id_article_i_key;
       drop index if exists prediction.market_predictors_org_instrument_article_analyst_key;
-      create unique index if not exists market_predictors_instrument_article_analyst_key
-        on prediction.market_predictors (instrument_id, article_id, scored_by_analyst_id);
+      drop index if exists prediction.market_predictors_instrument_article_analyst_key;
+      alter table prediction.market_predictors add column if not exists author_user_id text;
+      create unique index if not exists market_predictors_triple_article_key
+        on prediction.market_predictors (coalesce(author_user_id, 'base'), instrument_id, article_id, scored_by_analyst_id);
+      create index if not exists market_predictors_triple_lookup_idx
+        on prediction.market_predictors (coalesce(author_user_id, 'base'), scored_by_analyst_id, instrument_id);
       alter table prediction.market_predictors add column if not exists llm_usage_id uuid;
       create index if not exists prediction_market_predictors_llm_usage_idx
         on prediction.market_predictors (llm_usage_id) where llm_usage_id is not null;
@@ -562,13 +567,16 @@ export class MarketsSchemaService {
       create index if not exists prediction_market_predictions_unsettled_idx
         on prediction.market_predictions (instrument_id, created_at desc) where settled_at is null;
 
-      create unique index if not exists prediction_market_predictions_active_analyst_instrument_idx
-      on prediction.market_predictions (analyst_id, instrument_id)
-      where settled_at is null and analyst_id is not null;
-
-      create unique index if not exists prediction_market_predictions_run_analyst_idx
-      on prediction.market_predictions (run_id, analyst_id)
-      where analyst_id is not null and role = 'analyst';
+      -- Effort: triple-model-reasoning-continuity — replace active/run indexes with triple-scoped versions
+      alter table prediction.market_predictions add column if not exists author_user_id text;
+      drop index if exists prediction.prediction_market_predictions_active_analyst_instrument_idx;
+      create unique index if not exists market_predictions_active_triple_idx
+        on prediction.market_predictions (coalesce(author_user_id, 'base'), analyst_id, instrument_id)
+        where settled_at is null and analyst_id is not null;
+      drop index if exists prediction.prediction_market_predictions_run_analyst_idx;
+      create unique index if not exists market_predictions_run_triple_idx
+        on prediction.market_predictions (run_id, coalesce(author_user_id, 'base'), analyst_id)
+        where analyst_id is not null and role = 'analyst';
 
       create unique index if not exists prediction_market_predictions_run_arbitrator_idx
       on prediction.market_predictions (run_id)
@@ -593,6 +601,13 @@ export class MarketsSchemaService {
       );
       alter table prediction.market_risk_assessments add column if not exists analyst_id text;
       alter table prediction.market_risk_assessments add column if not exists role text not null default 'composite';
+
+      -- Effort: triple-model-reasoning-continuity
+      alter table prediction.market_risk_assessments add column if not exists author_user_id text;
+      create index if not exists market_risk_assessments_triple_idx
+        on prediction.market_risk_assessments (
+          coalesce(author_user_id, 'base'), analyst_id, instrument_id
+        );
     `;
   }
 
@@ -781,6 +796,13 @@ export class MarketsSchemaService {
       drop index if exists prediction.prediction_horizon_evals_analyst_idx;
       create index if not exists prediction_horizon_evals_analyst_idx on prediction.prediction_horizon_evaluations (analyst_id);
 
+      -- Effort: triple-model-reasoning-continuity
+      alter table prediction.prediction_horizon_evaluations add column if not exists author_user_id text;
+      create index if not exists prediction_horizon_evals_triple_idx
+        on prediction.prediction_horizon_evaluations (
+          coalesce(author_user_id, 'base'), analyst_id, instrument_id
+        );
+
       create table if not exists prediction.analyst_performance_profiles (
         id text primary key,
         analyst_id text not null,
@@ -794,8 +816,12 @@ export class MarketsSchemaService {
         sample_size integer not null default 0,
         computed_at timestamptz not null default now()
       );
+      -- Effort: triple-model-reasoning-continuity — replace analyst-only index with triple-scoped unique
+      -- Dedup runs in the standalone migration file, not here.
+      alter table prediction.analyst_performance_profiles add column if not exists author_user_id text;
       drop index if exists prediction.prediction_perf_profiles_analyst_idx;
-      create index if not exists prediction_perf_profiles_analyst_idx on prediction.analyst_performance_profiles (analyst_id);
+      create unique index if not exists analyst_performance_profiles_triple_key
+        on prediction.analyst_performance_profiles (coalesce(author_user_id, 'base'), analyst_id, instrument_id, horizon_window, period);
 
       create table if not exists prediction.canonical_test_days (
         id text primary key,
