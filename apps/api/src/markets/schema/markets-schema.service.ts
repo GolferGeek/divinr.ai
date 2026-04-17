@@ -66,6 +66,7 @@ export class MarketsSchemaService {
       ${this.costExperimentsDdl()}
       ${this.outcomeAttributionDdl()}
       ${this.outcomeAttributionViewsDdl()}
+      ${this.dayTraderRunsDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -2498,6 +2499,25 @@ export class MarketsSchemaService {
         with no data;
       create unique index if not exists attribution_per_author_monthly_key
         on prediction.attribution_per_author_monthly (author_user_id, year_month);
+    `;
+  }
+
+  private dayTraderRunsDdl(): string {
+    return `
+      create table if not exists prediction.market_day_trader_runs (
+        id                  text        primary key default gen_random_uuid()::text,
+        fired_at            timestamptz not null default now(),
+        market_open         boolean     not null,
+        bars_refreshed      int         not null default 0,
+        bars_refresh_failed int         not null default 0,
+        portfolios_run      int         not null default 0,
+        opens_written       int         not null default 0,
+        closes_written      int         not null default 0,
+        duration_ms         int         not null default 0,
+        error               text
+      );
+      create index if not exists idx_day_trader_runs_fired_at
+        on prediction.market_day_trader_runs (fired_at desc);
     `;
   }
 }

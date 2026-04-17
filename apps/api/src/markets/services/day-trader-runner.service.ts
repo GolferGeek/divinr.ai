@@ -25,11 +25,13 @@ import { GapAndGoStrategy } from '../strategies/gap-and-go.strategy';
  */
 
 const BASE_SIZE_PCT = 0.05;
+const LOOKBACK_MIN = 20;
 
 export interface DayTraderPortfolioRow {
   id: string;
   analyst_id: string;
   user_id: string | null;
+  analyst_user_id: string | null;
   current_balance: number | string;
   strategy_name: string | null;
   strategy_state: Record<string, unknown> | null;
@@ -133,11 +135,9 @@ export class DayTraderRunnerService {
     let closesRequested = 0;
     let closesWritten = 0;
 
-    // Ambient context fetched once per tick.
-    const instruments = await this.loadCandidateInstruments();
-    const instrumentIds = instruments.map(i => i.id);
-    const recentBarsMap = await this.loadRecentBarsMap(instruments);
-    const latestSignals = await this.loadLatestSignals(instrumentIds);
+    // Per-tick caches so base-analyst candidates (which are identical
+    // across all base portfolios) are loaded once.
+    const candidateCache = new Map<string, Array<{ id: string; symbol: string; price: number }>>();
 
     for (const portfolio of portfolios) {
       const strategyName = portfolio.strategy_name ?? '';
@@ -148,6 +148,17 @@ export class DayTraderRunnerService {
         );
         continue;
       }
+
+      const analyst = { id: portfolio.analyst_id, user_id: portfolio.analyst_user_id };
+      const cacheKey = analyst.user_id === null ? 'base' : `${analyst.user_id}:${analyst.id}`;
+      let instruments = candidateCache.get(cacheKey);
+      if (!instruments) {
+        instruments = await this.loadCandidateInstruments(analyst);
+        candidateCache.set(cacheKey, instruments);
+      }
+      const instrumentIds = instruments.map(i => i.id);
+      const recentBarsMap = await this.loadRecentBarsMap(instruments);
+      const latestSignals = await this.loadLatestSignals(instrumentIds);
 
       const openPositions = await this.loadOpenPositions(portfolio.id);
       const fullState = (portfolio.strategy_state ?? {}) as Record<string, unknown>;
@@ -230,14 +241,19 @@ export class DayTraderRunnerService {
 
   private async loadDayTraderPortfolios(): Promise<DayTraderPortfolioRow[]> {
     const result = await this.db.rawQuery(
-      `select id, analyst_id, user_id, current_balance, strategy_name, strategy_state
-         from prediction.analyst_portfolios
-        where kind = 'day_trader'
-          and status = 'active'
-        order by id`,
+      `select p.id, p.analyst_id, p.user_id, a.user_id as analyst_user_id,
+              p.current_balance, p.strategy_name, p.strategy_state
+         from prediction.analyst_portfolios p
+         join prediction.market_analysts a on a.id = p.analyst_id
+        where p.kind = 'day_trader'
+          and p.status = 'active'
+        order by p.id`,
       [],
     );
-    return ((result.data as DayTraderPortfolioRow[] | null) ?? []);
+    return ((result.data as DayTraderPortfolioRow[] | null) ?? []).map(r => ({
+      ...r,
+      analyst_user_id: r.analyst_user_id ?? null,
+    }));
   }
 
   private async loadOpenPositions(portfolioId: string): Promise<OpenPositionRow[]> {
@@ -256,7 +272,40 @@ export class DayTraderRunnerService {
     }));
   }
 
-  private async loadCandidateInstruments(): Promise<Array<{ id: string; symbol: string; price: number }>> {
+  private async loadCandidateInstruments(
+    analyst: { id: string; user_id: string | null },
+  ): Promise<Array<{ id: string; symbol: string; price: number }>> {
+    if (analyst.user_id === null) {
+      return this.loadActiveInstruments();
+    }
+
+    const enabledResult = await this.db.rawQuery(
+      `select instrument_id
+         from prediction.user_enabled_triples
+        where author_user_id = $1
+          and analyst_id = $2
+          and disabled_at is null`,
+      [analyst.user_id, analyst.id],
+    );
+    const enabled = ((enabledResult.data as Array<{ instrument_id: string }> | null) ?? [])
+      .map(r => r.instrument_id);
+    if (enabled.length === 0) {
+      this.logger.log(
+        `loadCandidateInstruments: authored analyst ${analyst.id} (user=${analyst.user_id}) has zero enabled triples — no-op`,
+      );
+      return [];
+    }
+
+    const result = await this.db.rawQuery(
+      `select id, symbol, current_state
+         from prediction.instruments
+        where id = ANY($1) and is_active = true`,
+      [enabled],
+    );
+    return this.projectPricedInstruments(result.data);
+  }
+
+  private async loadActiveInstruments(): Promise<Array<{ id: string; symbol: string; price: number }>> {
     const result = await this.db.rawQuery(
       `select distinct on (symbol) id, symbol, current_state
          from prediction.instruments
@@ -264,7 +313,13 @@ export class DayTraderRunnerService {
         order by symbol`,
       [],
     );
-    const rows = (result.data as Array<{
+    return this.projectPricedInstruments(result.data);
+  }
+
+  private projectPricedInstruments(
+    data: unknown,
+  ): Array<{ id: string; symbol: string; price: number }> {
+    const rows = (data as Array<{
       id: string;
       symbol: string;
       current_state: Record<string, unknown> | null;
@@ -300,9 +355,13 @@ export class DayTraderRunnerService {
     }> | null) ?? [];
     const map = new Map<string, RecentBar[]>();
     for (const r of rows) {
-      const bars = Array.isArray(r.current_state?.recent_bars)
+      const intraday = Array.isArray(r.current_state?.intraday_bars)
+        ? (r.current_state!.intraday_bars as RecentBar[])
+        : [];
+      const daily = Array.isArray(r.current_state?.recent_bars)
         ? (r.current_state!.recent_bars as RecentBar[])
         : [];
+      const bars = intraday.length >= LOOKBACK_MIN ? intraday : daily;
       map.set(r.id, bars);
     }
     return map;
