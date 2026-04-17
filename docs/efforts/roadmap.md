@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-17 (entity-level-performance-attribution shipped; live-prediction-pnl promoted to current)
+**Last updated:** 2026-04-17 (live-prediction-pnl shipped; club-tournament-experience-polish promoted to current)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -42,12 +42,13 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Current Effort
 
-**[live-prediction-pnl](current/live-prediction-pnl/intention.md)** — run prediction cycles during market hours so day-trader strategies produce real intraday P&L (not $0 from same-price open/close). First of the beta-coolness block: the engine needs to visibly *do something* during the day, not only at 00:00.
+**[club-tournament-experience-polish](current/club-tournament-experience-polish/intention.md)** — polish-and-tighten pass on club + tournament surfaces for the St. Thomas intern cohort. Scope is stubbed pending a deliberate walkthrough with the intern's perspective before the PRD is written.
 
 ---
 
 ## Recently Shipped
 
+- **[live-prediction-pnl](live-prediction-pnl/intention.md)** (2026-04-17, PR #57) — day-trader strategies now have a real intraday runtime. `DayTraderSchedulerService` hourly cron during market hours + dedicated 3:55 PM ET EOD-flat cron, DST-aware `MarketHoursService` via `Intl.DateTimeFormat('America/New_York')`, `TwelveDataAdapter.fetchIntradayBars` routed through the existing 8rpm rate limiter, `IntradayBarRefresherService` merging hourly OHLC into `instruments.current_state.intraday_bars` (cap 24), `prediction.market_day_trader_runs` audit table, runner scoping per base vs. authored analyst, `OutcomeTrackingService` decoupled from day-trader runtime, admin `POST /markets/admin/day-trader/run-now`. 140 new unit assertions across 6 suites.
 - **[entity-level-performance-attribution](entity-level-performance-attribution/intention.md)** (2026-04-17, PR #56) — multi-dimensional paper P&L attribution across triple/analyst/instrument/source/article/author. `prediction.outcome_records` table + 6 materialized views, 10 endpoints (8 admin-gated + 2 author), 5 views + banner + widget extensions. Feeds graduation candidate ranking, author retention surfaces, and cost-defensibility value-per-$ estimate.
 - **[cost-modeling-system](cost-modeling-system/intention.md)** (2026-04-17, PR #55) — analytical layer on top of llm-usage-logging: per-model cost calibration with weekly cron + drift alerts, per-user prediction with cold-start + headroom, pricing defensibility (per-item-kind margin), student billing accrual, experimentation mode (serial-execute alternative models on saved prompts), 4 admin views + user billing summary + student widget.
 - **[llm-usage-logging](llm-usage-logging/intention.md)** (2026-04-17, PR #54) — structured `prediction.llm_usage_log` table with 18 dimensional columns + 7 indexes; `LlmUsageLogger` with cost-on-write from `public.llm_models`; all 18 `generateText()` call sites instrumented with stage/sub_stage/IDs; 8 materialized views + nightly refresh + 90d retention; 7 API endpoints + admin dashboard + per-user widget.
@@ -60,28 +61,27 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ---
 
-## Next — Queued Efforts (7)
+## Next — Queued Efforts (6)
 
 Reordered 2026-04-17 around beta-phase priorities: beta testers are already active, so **coolness comes before billing, and ops/validation comes last**. (Prior ordering — Economics first → Billing → Graduation → Polish → Ops — would have locked in the engine before users saw it working; wrong phase for that.)
 
-### Beta Coolness (2 efforts — the current block)
+### Beta Coolness (1 effort — remainder of the current block)
 
-1. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
-2. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
+1. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
 
 ### Billing Surface (3 efforts)
 
-3. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics, social-only clubs
-4. [stripe-integration](next/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
-5. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing (depends on cost-modeling-system)
+2. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics, social-only clubs
+3. [stripe-integration](next/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
+4. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing (depends on cost-modeling-system)
 
 ### Graduation & Contribution Layer (1 effort)
 
-6. [custom-to-base-graduation](next/custom-to-base-graduation/intention.md) — opt-in donation from user-authored to base, with cost-reduction-on-donation reward and community board attribution
+5. [custom-to-base-graduation](next/custom-to-base-graduation/intention.md) — opt-in donation from user-authored to base, with cost-reduction-on-donation reward and community board attribution
 
 ### Operations & Validation (1 effort — last)
 
-7. [regression-testing-harness](next/regression-testing-harness/intention.md) — historical-day replay system; validate contract changes, model upgrades, and graduation candidates against real past data
+6. [regression-testing-harness](next/regression-testing-harness/intention.md) — historical-day replay system; validate contract changes, model upgrades, and graduation candidates against real past data
 
 ---
 
