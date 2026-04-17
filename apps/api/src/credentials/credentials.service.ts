@@ -125,14 +125,17 @@ export class CredentialsService {
     }
   }
 
-  async resolveSecret(credentialId: string): Promise<{ provider: string; secret: string }> {
+  async resolveSecret(credentialId: string, userId?: string): Promise<{ provider: string; secret: string }> {
     await this.schema.ensureSchema();
-    const result = await this.db.rawQuery(
-      `SELECT provider, encrypted_secret, encryption_iv, encryption_tag
-       FROM credentials.user_llm_credentials
-       WHERE id = $1 AND revoked_at IS NULL`,
-      [credentialId],
-    );
+    const sql = userId
+      ? `SELECT provider, encrypted_secret, encryption_iv, encryption_tag
+         FROM credentials.user_llm_credentials
+         WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`
+      : `SELECT provider, encrypted_secret, encryption_iv, encryption_tag
+         FROM credentials.user_llm_credentials
+         WHERE id = $1 AND revoked_at IS NULL`;
+    const params = userId ? [credentialId, userId] : [credentialId];
+    const result = await this.db.rawQuery(sql, params);
     if (result.error) throw new Error(`resolveSecret failed: ${result.error.message}`);
     const rows = (result.data as any[]) ?? [];
     if (rows.length === 0) throw new Error(`Credential ${credentialId} not found or revoked`);

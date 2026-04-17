@@ -163,7 +163,7 @@ export class MarketsSchemaService {
 
   /**
    * Prevents accidental mutation of base content (rows where user_id IS NULL).
-   * The trigger fires BEFORE UPDATE only — INSERTs and DDL (ALTER TABLE) are unaffected.
+   * The trigger fires BEFORE UPDATE and BEFORE DELETE — INSERTs and DDL are unaffected.
    * Admin scripts can bypass via: SET LOCAL divinr.admin_override = 'true';
    */
   private baseContentImmutabilityTriggerDdl(): string {
@@ -176,19 +176,20 @@ export class MarketsSchemaService {
         THEN
           RAISE EXCEPTION 'Base content (user_id IS NULL) is immutable; set divinr.admin_override=true for admin operations.';
         END IF;
+        IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
         RETURN NEW;
       END; $$;
 
       DO $$ BEGIN
         CREATE TRIGGER market_analysts_base_immutable
-          BEFORE UPDATE ON prediction.market_analysts
+          BEFORE UPDATE OR DELETE ON prediction.market_analysts
           FOR EACH ROW EXECUTE FUNCTION prediction.guard_base_content_immutability();
       EXCEPTION WHEN duplicate_object THEN NULL;
       END $$;
 
       DO $$ BEGIN
         CREATE TRIGGER instruments_base_immutable
-          BEFORE UPDATE ON prediction.instruments
+          BEFORE UPDATE OR DELETE ON prediction.instruments
           FOR EACH ROW EXECUTE FUNCTION prediction.guard_base_content_immutability();
       EXCEPTION WHEN duplicate_object THEN NULL;
       END $$;

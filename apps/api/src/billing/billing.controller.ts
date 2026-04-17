@@ -10,13 +10,13 @@ import {
 import { JwtAuthGuard } from '@orchestratorai/planes/auth';
 import { BillingService } from './billing.service';
 
-@UseGuards(JwtAuthGuard)
 @Controller('billing')
 export class BillingController {
   constructor(
     @Inject(BillingService) private readonly billing: BillingService,
   ) {}
 
+  @UseGuards(JwtAuthGuard)
   @Get('preview')
   async getPreview(@Req() req: any) {
     const userId = req.user?.id;
@@ -24,6 +24,7 @@ export class BillingController {
     return this.billing.getBillingPreview(userId);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get('subscription')
   async getSubscription(@Req() req: any) {
     const userId = req.user?.id;
@@ -31,12 +32,14 @@ export class BillingController {
     return this.billing.getSubscription(userId);
   }
 
-  // Stripe checkout/portal/webhook endpoints — stubs until Stripe SDK is integrated
+  // Stripe checkout/portal — require auth; webhook is unauthenticated (Stripe signature verified when wired)
+  @UseGuards(JwtAuthGuard)
   @Post('checkout-session')
   async createCheckoutSession() {
     return { url: null, message: 'Stripe not configured — billing preview only' };
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post('portal-session')
   async createPortalSession() {
     return { url: null, message: 'Stripe not configured — billing preview only' };
