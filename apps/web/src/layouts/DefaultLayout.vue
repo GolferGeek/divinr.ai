@@ -13,7 +13,7 @@ import {
   warningOutline, gitNetworkOutline, trendingUpOutline,
   chatbubblesOutline, trophyOutline, peopleCircleOutline,
   chevronDownOutline, chevronForwardOutline, compassOutline,
-  createOutline,
+  createOutline, analyticsOutline,
 } from 'ionicons/icons';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -101,6 +101,7 @@ const navGroups: NavGroup[] = [
       { title: 'Evaluations', icon: ribbonOutline, to: '/evaluations' },
       { title: 'Learning', icon: bulbOutline, to: '/learning' },
       { title: 'Proposals', icon: constructOutline, to: '/proposals' },
+      { title: 'LLM Usage', icon: analyticsOutline, to: '/usage' },
     ],
   },
 ];

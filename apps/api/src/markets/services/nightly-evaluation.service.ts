@@ -7,6 +7,7 @@ import type { PredictionPlaneEvaluation } from '@divinr/prediction-planes';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 import { AffinityService } from './affinity.service';
 import { NotificationService } from './notification.service';
+import { LlmUsageQueryService } from './llm-usage-query.service';
 
 interface PendingEvaluation {
   prediction_id: string;
@@ -47,6 +48,7 @@ export class NightlyEvaluationService {
     @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
     @Inject(AffinityService) private readonly affinityService: AffinityService,
     @Inject(NotificationService) private readonly notifications: NotificationService,
+    @Inject(LlmUsageQueryService) private readonly usageQuery: LlmUsageQueryService,
   ) {
     this.planeEval = new StocksPredictionPlane().evaluation;
   }
@@ -203,6 +205,13 @@ export class NightlyEvaluationService {
     this.logger.log(
       `Nightly evaluation complete: ${totalEvaluated} evaluated (${totalCorrect} correct, ${totalIncorrect} incorrect), ${totalSkipped} skipped, ${totalErrors} errors, ${canonicalCandidates} canonical candidates, ${profilesUpdated} profiles updated`,
     );
+
+    try {
+      await this.usageQuery.refreshViews();
+      await this.usageQuery.cleanupRetention();
+    } catch (err) {
+      this.logger.warn(`LLM usage view refresh/cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     return summary;
   }

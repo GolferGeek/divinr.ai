@@ -689,7 +689,13 @@ Respond with valid JSON only:
 
     if (this.llmService.isLlmEnabled()) {
       const context = this.llmService.buildExecutionContext('stages-v2-pipeline', 'risk');
-      const llmResult = await this.llmService.generateText(context, systemPrompt, userPrompt);
+      const llmResult = await this.llmService.generateText(context, systemPrompt, userPrompt, undefined, {
+        stage: 'risk_assessment',
+        subStage: 'reflection',
+        instrumentId: item.instrumentId,
+        analystId: item.analystId,
+        cycleId: runId,
+      });
       outputText = llmResult.text;
       modelProvider = llmResult.provider;
       modelName = llmResult.model;
@@ -925,7 +931,13 @@ Respond with valid JSON only:
         let llmUsageId: string | null = null;
 
         if (this.llmService.isLlmEnabled()) {
-          const llmResult = await this.llmService.generateText(context, systemPrompt, userPrompt);
+          const llmResult = await this.llmService.generateText(context, systemPrompt, userPrompt, undefined, {
+            stage: 'risk_assessment',
+            subStage: 'reflection',
+            instrumentId: instrument.id,
+            analystId: analyst.id,
+            cycleId: run.id,
+          });
           llmUsageId = llmResult.llmUsageId ?? null;
           const match = llmResult.text.match(/\{[\s\S]*\}/);
           if (match) {
