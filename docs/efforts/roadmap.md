@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-17 (slot-based-enablement-ui promoted to current)
+**Last updated:** 2026-04-17 (slot-based-enablement-ui shipped)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -42,12 +42,13 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Current Effort
 
-**[slot-based-enablement-ui](current/slot-based-enablement-ui/intention.md)** — user-facing UI for selecting which analyst × instrument triples to run. Completes the architecture restructure block by giving users control over their reasoning slots.
+*(empty — ready for next effort)*
 
 ---
 
 ## Recently Shipped
 
+- **[slot-based-enablement-ui](slot-based-enablement-ui/intention.md)** (2026-04-17, PR #53) — portfolio composition via (author, analyst, instrument) triples. Enablement table + API, "My Triples" tab with instrument-grouped display, inline add-to-portfolio flow with naming collision disambiguation, per-triple filtered instrument detail views, variant switcher chip bar.
 - **[triple-model-reasoning-continuity](triple-model-reasoning-continuity/intention.md)** (2026-04-17, PR #51) — all reasoning records (predictors, predictions, risk assessments, performance profiles, horizon evaluations) keyed by (author_user_id, analyst_id, instrument_id) triple. `resolveTripleContext()` utility, COALESCE-based triple indexes, per-triple calibration drill-down. Foundation for user-authored content producing independent reasoning streams.
 - **[user-authored-custom-content](user-authored-custom-content/intention.md)** (2026-04-17, PR #50) — individual authorship of analysts, instrument contracts, instruments; per-item pricing; BYO LLM credentials; sharing plumbing; base-content immutability guards.
 - **[instrument-contracts](instrument-contracts/intention.md)** (2026-04-16, PR #49) — first-class instrument contracts with General + 6 stage-keyed sections + Adaptations. Stage 1 pulls the instrument's Article Processing fragment; Stages 2–4 merge instrument + analyst fragments at every LLM call site.
@@ -107,6 +108,7 @@ Let power users attach their own article-ingestion sources (custom RSS, APIs, ma
 ### Core Engine
 | Effort | What it did |
 |---|---|
+| `slot-based-enablement-ui` | Portfolio triple enablement UI — add/disable/navigate triples, variant switcher |
 | `triple-model-reasoning-continuity` | All reasoning records keyed by (author_user_id, analyst_id, instrument_id) triple |
 | `user-authored-custom-content` | Individual authorship of analysts, instruments, contracts; per-item pricing; BYO LLM |
 | `auth-bootstrap` | JWT auth, RBAC, admin middleware |
