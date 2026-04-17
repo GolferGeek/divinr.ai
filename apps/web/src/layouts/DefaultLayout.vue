@@ -90,6 +90,7 @@ const navGroups: NavGroup[] = [
     label: 'Settings',
     items: [
       { title: 'Your Content', icon: createOutline, to: '/settings/authored-content' },
+      { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary' },
     ],
   },
   {
@@ -102,6 +103,15 @@ const navGroups: NavGroup[] = [
       { title: 'Learning', icon: bulbOutline, to: '/learning' },
       { title: 'Proposals', icon: constructOutline, to: '/proposals' },
       { title: 'LLM Usage', icon: analyticsOutline, to: '/usage' },
+    ],
+  },
+  {
+    label: 'Cost Modeling',
+    adminOnly: true,
+    items: [
+      { title: 'Calibration', icon: analyticsOutline, to: '/admin/cost/calibration' },
+      { title: 'Defensibility', icon: analyticsOutline, to: '/admin/cost/defensibility' },
+      { title: 'Experiments', icon: analyticsOutline, to: '/admin/cost/experiments' },
     ],
   },
 ];

@@ -103,6 +103,11 @@ export const router = createRouter({
         { path: 'tournaments/:id/results', name: 'tournament-results', component: () => import('../views/TournamentResultsView.vue') },
         { path: 'settings/authored-content', name: 'authored-content', component: () => import('../views/AuthoredContentView.vue') },
         { path: 'usage', name: 'usage', component: () => import('../views/UsageDashboardView.vue') },
+        { path: 'billing/summary', name: 'billing-summary', component: () => import('../views/BillingSummaryView.vue') },
+        { path: 'admin/cost/calibration', name: 'cost-calibration', component: () => import('../views/CostCalibrationView.vue') },
+        { path: 'admin/cost/defensibility', name: 'cost-defensibility', component: () => import('../views/CostDefensibilityView.vue') },
+        { path: 'admin/cost/experiments', name: 'cost-experiments', component: () => import('../views/CostExperimentsView.vue') },
+        { path: 'admin/cost/experiments/:id', name: 'cost-experiment-detail', component: () => import('../views/CostExperimentsView.vue') },
       ],
     },
     {

@@ -17,6 +17,7 @@ import { useClubStore } from '../stores/club.store';
 import ContrarianAlert from '../components/ContrarianAlert.vue';
 import DailyAnalystSummary from '../components/DailyAnalystSummary.vue';
 import UserUsageWidget from '../components/UserUsageWidget.vue';
+import StudentAccrualWidget from '../components/StudentAccrualWidget.vue';
 
 interface AnalystStance {
   prediction_id: string;
@@ -199,6 +200,7 @@ function timeAgo(dateStr: string): string {
     <ion-note>{{ domain.activeDomain }} / {{ domain.activeUniverse }}</ion-note>
 
     <UserUsageWidget />
+    <StudentAccrualWidget />
 
     <!-- Pathway Cards -->
     <div class="pathway-grid">

@@ -62,6 +62,8 @@ export class MarketsSchemaService {
       ${this.enablementDdl()}
       ${this.llmUsageLogDdl()}
       ${this.llmUsageViewsDdl()}
+      ${this.costCalibrationDdl()}
+      ${this.costExperimentsDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -2266,6 +2268,82 @@ export class MarketsSchemaService {
       with no data;
       create unique index if not exists idx_mv_usage_base_ext_daily
         on prediction.llm_usage_base_vs_extension_daily (date, is_base);
+    `;
+  }
+
+  private costCalibrationDdl(): string {
+    return `
+      create table if not exists prediction.model_pricing_calibration (
+        model text not null,
+        provider text not null,
+        last_calibrated_at timestamptz not null,
+        samples_count integer not null,
+        window_start timestamptz not null,
+        window_end timestamptz not null,
+        rolling_avg_cost_cents_per_call numeric(10,4),
+        rolling_avg_tokens_in numeric(12,2) not null,
+        rolling_avg_tokens_out numeric(12,2) not null,
+        rolling_avg_latency_ms numeric(10,2) not null,
+        per_million_tokens_in_usd numeric(10,6),
+        per_million_tokens_out_usd numeric(10,6),
+        previous_avg_cost_cents_per_call numeric(10,4),
+        drift_pct numeric(6,2),
+        primary key (model, provider)
+      );
+
+      create table if not exists prediction.model_pricing_drift_alerts (
+        id text primary key default gen_random_uuid()::text,
+        model text not null,
+        provider text not null,
+        detected_at timestamptz not null default now(),
+        previous_avg_cost_cents_per_call numeric(10,4) not null,
+        new_avg_cost_cents_per_call numeric(10,4) not null,
+        drift_pct numeric(6,2) not null,
+        threshold_pct numeric(6,2) not null,
+        samples_count integer not null,
+        acknowledged_at timestamptz,
+        acknowledged_by_user_id text
+      );
+
+      create index if not exists idx_pricing_drift_unack
+        on prediction.model_pricing_drift_alerts (detected_at)
+        where acknowledged_at is null;
+    `;
+  }
+
+  private costExperimentsDdl(): string {
+    return `
+      create table if not exists prediction.cost_experiments (
+        id text primary key default gen_random_uuid()::text,
+        created_at timestamptz not null default now(),
+        created_by_user_id text not null,
+        name text not null,
+        stage text not null,
+        input_payload jsonb not null,
+        models jsonb not null,
+        status text not null,
+        notes text
+      );
+
+      create table if not exists prediction.cost_experiment_runs (
+        id text primary key default gen_random_uuid()::text,
+        experiment_id text not null references prediction.cost_experiments (id) on delete cascade,
+        provider text not null,
+        model text not null,
+        started_at timestamptz not null default now(),
+        completed_at timestamptz,
+        cost_cents numeric(10,4),
+        tokens_in integer not null default 0,
+        tokens_out integer not null default 0,
+        latency_ms integer not null default 0,
+        output_text text,
+        output_hash text,
+        error text,
+        usage_log_id text
+      );
+
+      create index if not exists idx_experiment_runs_by_exp
+        on prediction.cost_experiment_runs (experiment_id);
     `;
   }
 }
