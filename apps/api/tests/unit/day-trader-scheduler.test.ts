@@ -247,7 +247,48 @@ async function main(): Promise<void> {
     );
   }
 
-  // 6. Outcome-tracking no longer invokes the day-trader runner.
+  // 6. forceEodFlat=true → runner called with isLastTickOfSession=true regardless of time.
+  console.log('\nforceEodFlat=true forces eod-flat branch:');
+  {
+    const db = new MockDb();
+    const runner = new MockRunner();
+    runner.nextResult = { strategiesRun: 3, opensWritten: 0, closesWritten: 4 };
+    const refresher = new MockRefresher();
+    refresher.nextResult = { refreshed: 2, failed: 0 };
+    const hours = new MockMarketHours(true);
+    const svc = new DayTraderSchedulerService(
+      db as any,
+      runner as any,
+      refresher as any,
+      hours as any,
+    );
+
+    const row = await svc.handleCron({ forceEodFlat: true });
+
+    assert(runner.calls.length === 1, 'runner called once');
+    assert(runner.calls[0].isLastTickOfSession === true, 'runner received isLastTickOfSession=true');
+    assert(row.market_open === true, 'audit market_open=true');
+    assert(row.closes_written === 4, 'audit closes_written reflects forced flat');
+  }
+
+  // 7. Second @Cron method exists for EOD flat with America/New_York timezone.
+  console.log('\nEOD @Cron is registered with America/New_York timezone:');
+  {
+    const file = resolve(
+      process.cwd(),
+      'src/markets/services/day-trader-scheduler.service.ts',
+    );
+    const src = readFileSync(file, 'utf8');
+    assert(src.includes('scheduledEodFlat'), 'scheduledEodFlat method present');
+    assert(
+      src.includes("timeZone: EOD_CRON_TZ") || src.includes("timeZone: 'America/New_York'"),
+      'EOD cron decorated with America/New_York timezone',
+    );
+    assert(src.includes('DAY_TRADER_EOD_CRON'), 'DAY_TRADER_EOD_CRON env override supported');
+    assert(src.includes('forceEodFlat'), 'forceEodFlat path threaded through handleCron');
+  }
+
+  // 8. Outcome-tracking no longer invokes the day-trader runner.
   console.log('\nOutcomeTrackingService decoupled from day-trader runner:');
   {
     const file = resolve(

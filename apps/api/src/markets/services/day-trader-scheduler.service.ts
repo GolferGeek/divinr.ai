@@ -19,6 +19,8 @@ export interface MarketDayTraderRunRow {
 }
 
 const DEFAULT_CRON = '0 14-21 * * 1-5';
+const DEFAULT_EOD_CRON = '55 15 * * 1-5';
+const EOD_CRON_TZ = 'America/New_York';
 
 @Injectable()
 export class DayTraderSchedulerService {
@@ -43,7 +45,21 @@ export class DayTraderSchedulerService {
     }
   }
 
-  async handleCron(_opts: { manual?: boolean } = {}): Promise<MarketDayTraderRunRow> {
+  @Cron(process.env.DAY_TRADER_EOD_CRON ?? DEFAULT_EOD_CRON, { timeZone: EOD_CRON_TZ })
+  async scheduledEodFlat(): Promise<void> {
+    if (process.env.DAY_TRADER_DISABLE_CRON === 'true') return;
+    try {
+      await this.handleCron({ forceEodFlat: true });
+    } catch (err) {
+      this.logger.error(
+        `scheduledEodFlat failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  async handleCron(
+    opts: { manual?: boolean; forceEodFlat?: boolean } = {},
+  ): Promise<MarketDayTraderRunRow> {
     const startedAt = Date.now();
     const now = new Date();
     const open = this.marketHours.isUsEquityMarketOpen(now);
@@ -75,7 +91,8 @@ export class DayTraderSchedulerService {
       barsRefreshed = refresh.refreshed;
       barsRefreshFailed = refresh.failed;
 
-      const isLastTick = DayTraderRunnerService.isLastTickOfSession(now);
+      const isLastTick = opts.forceEodFlat === true
+        || DayTraderRunnerService.isLastTickOfSession(now);
       const runResult = await this.runner.runStrategies({ isLastTickOfSession: isLastTick });
       portfoliosRun = runResult.strategiesRun;
       opensWritten = runResult.opensWritten;
