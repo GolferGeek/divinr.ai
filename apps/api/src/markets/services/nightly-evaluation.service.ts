@@ -38,10 +38,13 @@ interface EvaluationSummary {
  *
  * Designed to run as a scheduled job (cron) or manually via CLI/endpoint.
  */
+export type EvaluationCycleCompleteCallback = (runStartedAt: Date) => Promise<void>;
+
 @Injectable()
 export class NightlyEvaluationService {
   private readonly logger = new Logger(NightlyEvaluationService.name);
   private readonly planeEval: PredictionPlaneEvaluation;
+  private onEvaluationCycleComplete: EvaluationCycleCompleteCallback | null = null;
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
@@ -51,6 +54,14 @@ export class NightlyEvaluationService {
     @Inject(LlmUsageQueryService) private readonly usageQuery: LlmUsageQueryService,
   ) {
     this.planeEval = new StocksPredictionPlane().evaluation;
+  }
+
+  /**
+   * Register a callback to run after every evaluation cycle completes.
+   * The attribution module uses this to derive outcome_records from new evaluations.
+   */
+  setOnEvaluationCycleComplete(cb: EvaluationCycleCompleteCallback | null): void {
+    this.onEvaluationCycleComplete = cb;
   }
 
   /**
@@ -73,6 +84,7 @@ export class NightlyEvaluationService {
    */
   async runNightlyEvaluation(): Promise<EvaluationSummary> {
     await this.schema.ensureSchema();
+    const runStartedAt = new Date();
     this.logger.log('Starting nightly evaluation cycle');
 
     const horizons = await this.loadEvaluationHorizons();
@@ -211,6 +223,14 @@ export class NightlyEvaluationService {
       await this.usageQuery.cleanupRetention();
     } catch (err) {
       this.logger.warn(`LLM usage view refresh/cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    if (this.onEvaluationCycleComplete) {
+      try {
+        await this.onEvaluationCycleComplete(runStartedAt);
+      } catch (err) {
+        this.logger.warn(`onEvaluationCycleComplete hook failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     return summary;
