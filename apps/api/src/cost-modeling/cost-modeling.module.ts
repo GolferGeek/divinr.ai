@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { AdminCostController } from './admin-cost.controller';
 import { BillingCostController } from './billing-cost.controller';
 import { CostCalibrationService } from './cost-calibration.service';
@@ -9,7 +9,7 @@ import { CostExperimentationService } from './cost-experimentation.service';
 import { MarketsModule } from '../markets/markets.module';
 
 @Module({
-  imports: [forwardRef(() => MarketsModule)],
+  imports: [MarketsModule],
   controllers: [AdminCostController, BillingCostController],
   providers: [
     CostCalibrationService,
