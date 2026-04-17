@@ -1,3 +1,10 @@
+// Key rotation procedure:
+// 1. Set CREDENTIAL_ENCRYPTION_KEY_NEW in env
+// 2. Run: tsx apps/api/scripts/rotate-credential-key.ts
+//    (Stub — decrypts with old key, re-encrypts with new)
+// 3. Swap: CREDENTIAL_ENCRYPTION_KEY = CREDENTIAL_ENCRYPTION_KEY_NEW
+// 4. Remove CREDENTIAL_ENCRYPTION_KEY_NEW
+
 import { Injectable } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 

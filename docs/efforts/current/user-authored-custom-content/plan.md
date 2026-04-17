@@ -14,8 +14,8 @@
 - [x] Phase 5: Runtime Integration (Viewer-Scoped Debate + Authored-Triple Pipeline)
 - [x] Phase 6: Billing Plumbing (Stripe + per-item ledger)
 - [x] Phase 7: BYO LLM Credentials
-- [ ] Phase 8: Integration Testing + Polish
-- [ ] Phase 9: Hardening
+- [x] Phase 8: Integration Testing + Polish
+- [x] Phase 9: Hardening
 
 ---
 

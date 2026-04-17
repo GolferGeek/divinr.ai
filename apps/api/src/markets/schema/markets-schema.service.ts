@@ -58,6 +58,7 @@ export class MarketsSchemaService {
       ${this.coordinationDdl()}
       ${this.authorUserIdColumnsDdl()}
       ${this.sharingPlumbingDdl()}
+      ${this.baseContentImmutabilityTriggerDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -157,6 +158,40 @@ export class MarketsSchemaService {
         shared_at timestamptz not null default now(),
         primary key (content_kind, content_id, shared_with_user_id)
       );
+    `;
+  }
+
+  /**
+   * Prevents accidental mutation of base content (rows where user_id IS NULL).
+   * The trigger fires BEFORE UPDATE only — INSERTs and DDL (ALTER TABLE) are unaffected.
+   * Admin scripts can bypass via: SET LOCAL divinr.admin_override = 'true';
+   */
+  private baseContentImmutabilityTriggerDdl(): string {
+    return `
+      CREATE OR REPLACE FUNCTION prediction.guard_base_content_immutability()
+      RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF OLD.user_id IS NULL
+           AND current_setting('divinr.admin_override', true) IS DISTINCT FROM 'true'
+        THEN
+          RAISE EXCEPTION 'Base content (user_id IS NULL) is immutable; set divinr.admin_override=true for admin operations.';
+        END IF;
+        RETURN NEW;
+      END; $$;
+
+      DO $$ BEGIN
+        CREATE TRIGGER market_analysts_base_immutable
+          BEFORE UPDATE ON prediction.market_analysts
+          FOR EACH ROW EXECUTE FUNCTION prediction.guard_base_content_immutability();
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TRIGGER instruments_base_immutable
+          BEFORE UPDATE ON prediction.instruments
+          FOR EACH ROW EXECUTE FUNCTION prediction.guard_base_content_immutability();
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
     `;
   }
 

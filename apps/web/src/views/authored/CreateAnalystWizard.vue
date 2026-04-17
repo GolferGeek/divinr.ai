@@ -20,9 +20,15 @@ const error = ref<string | null>(null);
 const creating = ref(false);
 const scaffolding = ref(false);
 
+const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 async function submit() {
   if (!slug.value.trim() || !displayName.value.trim() || !personaPrompt.value.trim()) {
     error.value = 'All fields are required.';
+    return;
+  }
+  if (!slugPattern.test(slug.value.trim())) {
+    error.value = 'Slug must be lowercase letters, numbers, and hyphens (e.g. contrarian-tech).';
     return;
   }
 

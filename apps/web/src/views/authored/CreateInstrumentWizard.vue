@@ -28,9 +28,15 @@ const assetTypes = [
   { value: 'forex', label: 'Forex' },
 ];
 
+const symbolPattern = /^[A-Za-z0-9.^-]+$/;
+
 async function submit() {
   if (!symbol.value.trim() || !name.value.trim()) {
     error.value = 'Symbol and name are required.';
+    return;
+  }
+  if (!symbolPattern.test(symbol.value.trim())) {
+    error.value = 'Symbol must contain only letters, numbers, dots, carets, or hyphens (e.g. AAPL, BTC-USD, ^GSPC).';
     return;
   }
 
