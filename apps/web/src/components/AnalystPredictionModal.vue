@@ -413,21 +413,26 @@ async function loadChallenges() {
 
           <!-- Analysis Tab -->
           <div v-if="activeTab === 'analysis'">
-            <div class="section">
-              <h3>Analysis</h3>
-              <p class="rationale-text">{{ analyst.rationale || 'No detailed rationale provided.' }}</p>
-            </div>
-            <div v-if="formatFactors(analyst.key_factors).length > 0" class="section">
-              <h3>Key Factors</h3>
+            <!-- What the Reports Say (fact-based) -->
+            <div v-if="formatFactors(analyst.key_factors).length > 0" class="section facts-section">
+              <h3 class="section-category-label">What the Reports Say</h3>
+              <p class="section-category-desc">Key observations extracted from recent articles and data</p>
               <ul class="factor-list">
                 <li v-for="(factor, i) in formatFactors(analyst.key_factors)" :key="i">{{ factor }}</li>
               </ul>
             </div>
-            <div v-if="formatFactors(analyst.risks).length > 0" class="section">
-              <h3>Risks</h3>
-              <ul class="factor-list risk">
-                <li v-for="(risk, i) in formatFactors(analyst.risks)" :key="i">{{ risk }}</li>
-              </ul>
+
+            <!-- What This Actually Means (interpretation) -->
+            <div class="section meaning-section">
+              <h3 class="section-category-label">What This Actually Means</h3>
+              <p class="section-category-desc">{{ analyst.analyst_name }}'s interpretation and guidance</p>
+              <p class="rationale-text">{{ analyst.rationale || 'No detailed rationale provided.' }}</p>
+              <div v-if="formatFactors(analyst.risks).length > 0" style="margin-top:12px">
+                <h4 style="font-size:0.85rem;opacity:0.7;margin-bottom:6px">Risks to Watch</h4>
+                <ul class="factor-list risk">
+                  <li v-for="(risk, i) in formatFactors(analyst.risks)" :key="i">{{ risk }}</li>
+                </ul>
+              </div>
             </div>
           </div>
 
@@ -792,6 +797,32 @@ async function loadChallenges() {
   line-height: 1.6;
   color: #333;
   margin: 0;
+}
+
+.section-category-label {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.section-category-desc {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  margin-bottom: 10px;
+}
+
+.facts-section {
+  background: rgba(33, 150, 243, 0.04);
+  border-left: 3px solid var(--ion-color-primary, #3880ff);
+  padding: 12px 16px;
+  border-radius: 4px;
+}
+
+.meaning-section {
+  background: rgba(76, 175, 80, 0.04);
+  border-left: 3px solid var(--ion-color-success, #2dd36f);
+  padding: 12px 16px;
+  border-radius: 4px;
 }
 
 .factor-list {

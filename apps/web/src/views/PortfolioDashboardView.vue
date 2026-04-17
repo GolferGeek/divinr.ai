@@ -11,6 +11,7 @@ import type { SnapshotHistoryPoint, BenchmarkPoint, CalibrationBucket } from '..
 import {
   IonCard, IonCardContent, IonGrid, IonRow, IonCol,
   IonChip, IonList, IonItem, IonLabel, IonButton, IonNote,
+  IonSegment, IonSegmentButton,
 } from '@ionic/vue';
 
 const portfolio = usePortfolioStore();
@@ -21,7 +22,6 @@ const expandedKey = ref<string | null>(null);
 
 onMounted(async () => {
   try {
-    // Fetch user portfolio first to avoid deadlock with leaderboard query
     await portfolio.fetchMyPortfolio();
     await Promise.all([
       portfolio.fetchAllPortfolios(),
@@ -29,6 +29,7 @@ onMounted(async () => {
       portfolio.fetchMyQueue(),
       api.get<Array<Record<string, unknown>>>('/trades/decisions').then(d => decisions.value = d).catch(() => {}),
     ]);
+    applyTab('mine');
   } catch (err) {
     console.error('Failed to load portfolio data', err);
   }
@@ -85,6 +86,25 @@ const sortDir = ref<'asc' | 'desc'>('desc');
 const search = ref('');
 const ALL_KINDS: Array<PortfolioSummary['kind']> = ['user', 'analyst', 'arbitrator', 'day_trader'];
 const activeKinds = ref<Set<PortfolioSummary['kind']>>(new Set(ALL_KINDS));
+const portfolioTab = ref<'mine' | 'analysts'>('mine');
+
+function applyTab(tab: 'mine' | 'analysts') {
+  portfolioTab.value = tab;
+  if (tab === 'mine') {
+    activeKinds.value = new Set(['user']);
+    const myId = String(portfolio.myPortfolio?.['id'] ?? '');
+    if (myId) {
+      const k = `user:${myId}`;
+      expandedKey.value = k;
+      if (!portfolio.portfolioDetails[k]) {
+        portfolio.fetchPortfolioDetail('user', myId).catch(() => {});
+      }
+    }
+  } else {
+    activeKinds.value = new Set(['analyst', 'arbitrator', 'day_trader']);
+    expandedKey.value = null;
+  }
+}
 
 function toggleKind(k: PortfolioSummary['kind']) {
   const next = new Set(activeKinds.value);
@@ -224,6 +244,12 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
 <template>
   <div>
     <h1 style="margin-bottom:16px">Portfolios</h1>
+
+    <!-- Portfolio Tabs -->
+    <IonSegment :value="portfolioTab" @ionChange="applyTab(($event.detail.value as 'mine' | 'analysts'))" style="margin-bottom:12px;max-width:400px">
+      <IonSegmentButton value="mine"><IonLabel>My Portfolio</IonLabel></IonSegmentButton>
+      <IonSegmentButton value="analysts"><IonLabel>Analyst Portfolios</IonLabel></IonSegmentButton>
+    </IonSegment>
 
     <!-- Filters -->
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">

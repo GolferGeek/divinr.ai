@@ -1889,7 +1889,12 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     const direction = input.direction === 'short' ? 'short' : 'long';
 
     if (quantity <= 0) {
-      return { error: 'Confidence too low for a position', effectiveConfidence, positionPercent: 0 };
+      const minConf = await this.positionSizing.getMinimumConfidence();
+      return {
+        error: `Analyst confidence is ${Math.round(effectiveConfidence * 100)}% (minimum ${minConf}% required for a position). You can skip this trade or wait for a higher-confidence signal.`,
+        effectiveConfidence,
+        positionPercent: 0,
+      };
     }
 
     // Queue trade
@@ -4554,5 +4559,122 @@ Respond ONLY with valid JSON.`,
       contextMarkdown: v.context_markdown ? String(v.context_markdown) : null,
       authorUserId: v.author_user_id ? String(v.author_user_id) : null,
     }));
+  }
+
+  async chatAsk(userId: string, message: string, instrumentId?: string) {
+    if (!message || typeof message !== 'string') {
+      return { response: 'Please provide a message.', reasoning: null };
+    }
+    const trimmed = message.trim().slice(0, 2000);
+    if (!trimmed) {
+      return { response: 'Please provide a message.', reasoning: null };
+    }
+
+    const contextParts: string[] = [];
+
+    if (instrumentId) {
+      const instResult = await this.db.rawQuery(
+        `select i.symbol, i.name, mp.direction, mp.confidence, mp.rationale, ma.display_name as analyst_name
+         from prediction.market_predictions mp
+         join prediction.instruments i on i.id = mp.instrument_id
+         join prediction.market_analysts ma on ma.id = mp.analyst_id
+         where mp.instrument_id = $1
+         order by mp.created_at desc limit 10`,
+        [instrumentId],
+      );
+      const predictions = (instResult.data as Array<Record<string, unknown>> | null) ?? [];
+      if (predictions.length > 0) {
+        contextParts.push(`Recent predictions for ${predictions[0].symbol} (${predictions[0].name}):`);
+        for (const p of predictions) {
+          contextParts.push(`- ${p.analyst_name}: ${p.direction} at ${p.confidence}% confidence. "${String(p.rationale ?? '').slice(0, 200)}"`);
+        }
+      }
+    }
+
+    const summaryResult = await this.db.rawQuery(`
+      select ma.display_name, count(mp.id) as pred_count,
+             round(avg(mp.confidence)::numeric, 1) as avg_conf,
+             mode() within group (order by mp.direction) as direction
+      from prediction.market_analysts ma
+      left join prediction.market_predictions mp on mp.analyst_id = ma.id and mp.created_at >= current_date
+      where ma.is_active = true and ma.analyst_type = 'personality'
+      group by ma.id, ma.display_name
+      having count(mp.id) > 0
+    `, []);
+    const dailySummary = (summaryResult.data as Array<Record<string, unknown>> | null) ?? [];
+    if (dailySummary.length > 0) {
+      contextParts.push('\nToday\'s analyst activity:');
+      for (const a of dailySummary) {
+        contextParts.push(`- ${a.display_name}: ${a.pred_count} predictions, avg confidence ${a.avg_conf}%, leaning ${a.direction}`);
+      }
+    }
+
+    const systemPrompt = [
+      'You are the Divinr market analysis assistant. You help users understand their instruments, analyst predictions, risk assessments, and market signals.',
+      'Use the language "analysis" and "signal" — never "advice" or "recommendation".',
+      'Be concise and educational. Help the user understand what the analysts are seeing and why.',
+      contextParts.length > 0 ? '\nCurrent market context:\n' + contextParts.join('\n') : '',
+    ].filter(Boolean).join('\n');
+
+    const ctx = this.marketsLlm.buildExecutionContext(userId, 'chat');
+    const result = await this.marketsLlm.generateText(ctx, systemPrompt, trimmed);
+
+    return {
+      response: result.text,
+      reasoning: result.reasoning ?? null,
+    };
+  }
+
+  async getDailyAnalystSummary(_userId: string) {
+    const now = new Date();
+    const isWeekday = now.getUTCDay() >= 1 && now.getUTCDay() <= 5;
+    const etHour = Number(now.toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
+    const marketsOpen = isWeekday && etHour >= 9 && etHour < 16;
+
+    const analystSummary = await this.db.rawQuery(`
+      select
+        ma.id as analyst_id,
+        ma.display_name as analyst_name,
+        ma.slug as analyst_slug,
+        count(distinct mp.instrument_id) as instruments_covered,
+        count(mp.id) as predictions_today,
+        round(avg(mp.confidence)::numeric, 1) as avg_confidence,
+        mode() within group (order by mp.direction) as dominant_direction,
+        array_agg(distinct i.symbol) filter (where i.symbol is not null) as symbols,
+        (select ara.reasoning
+         from prediction.analyst_risk_assessments ara
+         where ara.analyst_id = ma.id
+           and ara.created_at >= current_date
+         order by ara.created_at desc limit 1
+        ) as latest_risk_reasoning
+      from prediction.market_analysts ma
+      left join prediction.market_predictions mp
+        on mp.analyst_id = ma.id
+        and mp.created_at >= current_date
+      left join prediction.instruments i
+        on i.id = mp.instrument_id
+      where ma.is_active = true
+        and ma.analyst_type in ('personality', 'arbitrator')
+      group by ma.id, ma.display_name, ma.slug
+      order by count(mp.id) desc
+    `, []);
+
+    const rows = (analystSummary.data as Array<Record<string, unknown>> | null) ?? [];
+
+    return {
+      date: now.toISOString().split('T')[0],
+      marketsOpen,
+      analysts: rows.map(r => ({
+        analystId: String(r.analyst_id),
+        analystName: String(r.analyst_name),
+        analystSlug: String(r.analyst_slug),
+        instrumentsCovered: Number(r.instruments_covered) || 0,
+        predictionsToday: Number(r.predictions_today) || 0,
+        avgConfidence: Number(r.avg_confidence) || 0,
+        dominantDirection: String(r.dominant_direction || 'flat'),
+        symbols: (r.symbols as string[] | null) ?? [],
+        latestRiskReasoning: r.latest_risk_reasoning ? String(r.latest_risk_reasoning) : null,
+      })),
+    };
   }
 }

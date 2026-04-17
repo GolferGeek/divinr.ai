@@ -14,6 +14,7 @@ const tab = ref<'leaderboard' | 'positions' | 'trade' | 'info'>('leaderboard');
 const tradeSymbol = ref('');
 const tradeDirection = ref<'long' | 'short'>('long');
 const tradeQuantity = ref(1);
+const tradeError = ref('');
 const inviteToken = ref('');
 const showInvite = ref(false);
 
@@ -24,6 +25,7 @@ onMounted(async () => {
 });
 
 async function queueTrade() {
+  tradeError.value = '';
   if (!tradeSymbol.value || tradeQuantity.value <= 0) return;
   try {
     await store.queueTrade(id.value, {
@@ -35,7 +37,7 @@ async function queueTrade() {
     tradeQuantity.value = 1;
     await store.fetchPositions(id.value, 'open');
   } catch (e: unknown) {
-    alert(e instanceof Error ? e.message : String(e));
+    tradeError.value = e instanceof Error ? e.message : String(e);
   }
 }
 
@@ -142,6 +144,7 @@ function typeLabel(t: string): string {
       <IonCard v-if="canWrite && store.activeTournament.status === 'active'">
         <IonCardHeader><IonCardTitle>Queue Trade</IonCardTitle></IonCardHeader>
         <IonCardContent>
+          <div v-if="tradeError" style="color:var(--ion-color-danger);font-size:0.85rem;margin-bottom:8px;padding:8px;background:var(--ion-color-danger-tint);border-radius:4px">{{ tradeError }}</div>
           <div class="trade-form">
             <input v-model="tradeSymbol" placeholder="Symbol (e.g. AAPL)" class="trade-input" />
             <select v-model="tradeDirection" class="trade-input">
