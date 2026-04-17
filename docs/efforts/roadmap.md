@@ -42,7 +42,7 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Current Effort
 
-*(empty — ready for next effort)*
+**[llm-usage-logging](current/llm-usage-logging/intention.md)** — capture every LLM call with full dimensional context (triple, stage, sub-stage, model, tokens, cost, BYO flag). Load-bearing infrastructure for economics, attribution, billing, and regression testing.
 
 ---
 
