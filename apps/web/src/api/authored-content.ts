@@ -19,5 +19,17 @@ export function useAuthoredContentApi() {
     deleteInstrument: (id: string) => api.delete(`/instruments/${id}`),
     scaffoldInstrumentContract: (id: string) =>
       api.post<{ contextMarkdown: string; versionId: string }>(`/instruments/${id}/contract/scaffold`),
+
+    // Wiring (analyst↔instrument assignments)
+    listMyWirings: () =>
+      api.get<{
+        analysts: any[];
+        instruments: any[];
+        wirings: { analystId: string; instrumentId: string }[];
+      }>('/wiring/mine'),
+    addWiring: (analystId: string, instrumentId: string) =>
+      api.post('/wiring', { analystId, instrumentId }),
+    removeWiring: (analystId: string, instrumentId: string) =>
+      api.post('/wiring/remove', { analystId, instrumentId }),
   };
 }

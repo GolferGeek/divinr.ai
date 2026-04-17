@@ -10,7 +10,7 @@
 - [x] Phase 1: Schema Integrity + `createAnalyst` / `createInstrument` Fix
 - [x] Phase 2: Authored Analyst + Instrument Creation API
 - [x] Phase 3: Authored Content UI (Create + Edit Contracts)
-- [ ] Phase 4: Wiring Matrix UI + API
+- [x] Phase 4: Wiring Matrix UI + API
 - [ ] Phase 5: Runtime Integration (Viewer-Scoped Debate + Authored-Triple Pipeline)
 - [ ] Phase 6: Billing Plumbing (Stripe + per-item ledger)
 - [ ] Phase 7: BYO LLM Credentials

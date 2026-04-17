@@ -43,6 +43,7 @@ import { NotificationService } from './services/notification.service';
 import { FearGreedAlertService } from './services/fear-greed-alert.service';
 import { CoordinationService } from './services/coordination.service';
 import { PerformanceService } from './services/performance.service';
+import { WiringService } from './services/wiring.service';
 import { MessagingService } from '../messaging/messaging.service';
 import type { ChannelScope } from '../messaging/messaging.types';
 import type {
@@ -96,6 +97,7 @@ export class MarketsController {
     @Inject(FearGreedAlertService) private readonly fearGreedAlertService: FearGreedAlertService,
     @Inject(CoordinationService) private readonly coordination: CoordinationService,
     @Inject(PerformanceService) private readonly performance: PerformanceService,
+    @Inject(WiringService) private readonly wiring: WiringService,
     @Inject(MessagingService) private readonly messaging: MessagingService,
   ) {
     this.markets = markets;
@@ -1687,6 +1689,38 @@ export class MarketsController {
     const user = this.getUser(req);
     const days = Math.max(1, Math.min(365, Number(daysParam) || 30));
     return this.performance.getDashboardData(user.id, days);
+  }
+
+  // ─── Wiring (analyst↔instrument assignments) ───────────────
+
+  @Get('wiring/mine')
+  async listMyWirings(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    return this.wiring.listMyWirings(user.id);
+  }
+
+  @Post('wiring')
+  async addWiring(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { analystId: string; instrumentId: string },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.analystId || !body?.instrumentId) {
+      throw new BadRequestException('analystId and instrumentId are required');
+    }
+    return this.wiring.addWiring(user.id, body.analystId, body.instrumentId);
+  }
+
+  @Post('wiring/remove')
+  async removeWiring(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { analystId: string; instrumentId: string },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.analystId || !body?.instrumentId) {
+      throw new BadRequestException('analystId and instrumentId are required');
+    }
+    return this.wiring.removeWiring(user.id, body.analystId, body.instrumentId);
   }
 
   // ─── Messaging ──────────────────────────────────────────────
