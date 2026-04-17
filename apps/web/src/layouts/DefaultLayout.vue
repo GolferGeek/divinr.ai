@@ -90,6 +90,7 @@ const navGroups: NavGroup[] = [
     label: 'Settings',
     items: [
       { title: 'Your Content', icon: createOutline, to: '/settings/authored-content' },
+      { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine' },
       { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary' },
     ],
   },
@@ -112,6 +113,15 @@ const navGroups: NavGroup[] = [
       { title: 'Calibration', icon: analyticsOutline, to: '/admin/cost/calibration' },
       { title: 'Defensibility', icon: analyticsOutline, to: '/admin/cost/defensibility' },
       { title: 'Experiments', icon: analyticsOutline, to: '/admin/cost/experiments' },
+    ],
+  },
+  {
+    label: 'Attribution',
+    adminOnly: true,
+    items: [
+      { title: 'Overview', icon: trendingUpOutline, to: '/admin/attribution' },
+      { title: 'Sources', icon: newspaperOutline, to: '/admin/attribution/sources' },
+      { title: 'Graduation Candidates', icon: ribbonOutline, to: '/admin/attribution/graduation-candidates' },
     ],
   },
 ];

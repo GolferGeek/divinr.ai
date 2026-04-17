@@ -1,9 +1,34 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, computed } from 'vue';
 import { useUsageStore } from '../stores/usage.store';
+import { useAttributionStore } from '../stores/attribution.store';
 
 const store = useUsageStore();
-onMounted(() => store.fetchDefensibility());
+const attribution = useAttributionStore();
+
+function currentYearMonth(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+onMounted(async () => {
+  await store.fetchDefensibility();
+  try {
+    await attribution.fetchPerAuthor({ yearMonth: currentYearMonth(), limit: 1000 });
+  } catch { /* attribution extension is optional */ }
+});
+
+const totalPaperPnlCents = computed(() =>
+  attribution.perAuthor.reduce((s, r) => s + Number(r.total_pnl_cents ?? 0), 0),
+);
+const hasAttribution = computed(() => attribution.perAuthor.length > 0);
+
+function valuePerComputeDollar(costCents: number): string {
+  if (!hasAttribution.value) return '—';
+  if (!costCents || costCents <= 0) return '—';
+  const ratio = totalPaperPnlCents.value / costCents;
+  return ratio.toFixed(2);
+}
 
 function formatCost(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -29,6 +54,10 @@ function formatKind(k: string): string {
       <code>ANALYST_AUTHORSHIP_USD</code>, <code>INSTRUMENT_AUTHORSHIP_USD</code>, <code>CONTRACT_OVERRIDE_USD</code>, <code>BYO_PLATFORM_FEE_USD</code>.
     </p>
 
+    <p v-if="hasAttribution" style="color: var(--ion-color-medium); font-size: 12px; font-style: italic;">
+      "Value / Compute $" is an estimate: aggregate paper P&amp;L across all authored items this month divided by each kind's compute cost. Paper P&amp;L, no cash.
+    </p>
+
     <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
       <thead>
         <tr style="text-align: left; border-bottom: 2px solid var(--ion-color-medium);">
@@ -36,6 +65,7 @@ function formatKind(k: string): string {
           <th style="padding: 8px; text-align: right;">Avg monthly cost</th>
           <th style="padding: 8px; text-align: right;">Current monthly fee</th>
           <th style="padding: 8px; text-align: right;">Margin %</th>
+          <th style="padding: 8px; text-align: right;">Value / Compute $</th>
           <th style="padding: 8px; text-align: right;">Under-priced</th>
           <th style="padding: 8px; text-align: right;">Over-priced</th>
         </tr>
@@ -50,11 +80,12 @@ function formatKind(k: string): string {
           <td style="padding: 8px; text-align: right;">{{ formatCost(row.avgMonthlyCostCents) }}</td>
           <td style="padding: 8px; text-align: right;">{{ formatCost(row.currentMonthlyFeeCents) }}</td>
           <td style="padding: 8px; text-align: right;">{{ row.marginPct.toFixed(1) }}%</td>
+          <td style="padding: 8px; text-align: right;">{{ valuePerComputeDollar(row.avgMonthlyCostCents) }}</td>
           <td style="padding: 8px; text-align: right;">{{ row.underPricedCount }}</td>
           <td style="padding: 8px; text-align: right;">{{ row.overPricedCount }}</td>
         </tr>
         <tr v-if="store.defensibility.length === 0">
-          <td colspan="6" style="padding: 16px; text-align: center; color: var(--ion-color-medium);">No defensibility data yet.</td>
+          <td colspan="7" style="padding: 16px; text-align: center; color: var(--ion-color-medium);">No defensibility data yet.</td>
         </tr>
       </tbody>
     </table>

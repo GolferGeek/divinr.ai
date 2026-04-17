@@ -108,6 +108,11 @@ export const router = createRouter({
         { path: 'admin/cost/defensibility', name: 'cost-defensibility', component: () => import('../views/CostDefensibilityView.vue') },
         { path: 'admin/cost/experiments', name: 'cost-experiments', component: () => import('../views/CostExperimentsView.vue') },
         { path: 'admin/cost/experiments/:id', name: 'cost-experiment-detail', component: () => import('../views/CostExperimentsView.vue') },
+        { path: 'attribution/mine', name: 'attribution-mine', component: () => import('../views/AttributionMineView.vue') },
+        { path: 'attribution/instrument/:id', name: 'attribution-instrument', component: () => import('../views/InstrumentAttributionView.vue') },
+        { path: 'admin/attribution', name: 'admin-attribution', component: () => import('../views/AttributionAdminView.vue') },
+        { path: 'admin/attribution/sources', name: 'admin-attribution-sources', component: () => import('../views/SourceQualityView.vue') },
+        { path: 'admin/attribution/graduation-candidates', name: 'admin-attribution-graduation', component: () => import('../views/GraduationCandidatesView.vue') },
       ],
     },
     {
