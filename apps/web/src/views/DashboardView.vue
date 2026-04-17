@@ -5,7 +5,7 @@ import {
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonGrid, IonRow, IonCol,
   IonChip, IonNote, IonButton, IonIcon,
 } from '@ionic/vue';
-import { arrowUpOutline, arrowDownOutline, removeOutline, trendingDownOutline } from 'ionicons/icons';
+import { arrowUpOutline, arrowDownOutline, removeOutline, trendingDownOutline, trophyOutline, peopleOutline, searchOutline, walletOutline, chatbubblesOutline } from 'ionicons/icons';
 import { useApi } from '../composables/useApi';
 import { useCanWrite } from '../composables/useCanWrite';
 import { useInstrumentsStore } from '../stores/instruments.store';
@@ -15,6 +15,7 @@ import { useAffinityStore } from '../stores/affinity.store';
 import { useTournamentStore } from '../stores/tournament.store';
 import { useClubStore } from '../stores/club.store';
 import ContrarianAlert from '../components/ContrarianAlert.vue';
+import DailyAnalystSummary from '../components/DailyAnalystSummary.vue';
 
 interface AnalystStance {
   prediction_id: string;
@@ -196,6 +197,35 @@ function timeAgo(dateStr: string): string {
     <h1>{{ domain.dashboardLayout?.title ?? 'Dashboard' }}</h1>
     <ion-note>{{ domain.activeDomain }} / {{ domain.activeUniverse }}</ion-note>
 
+    <!-- Pathway Cards -->
+    <div class="pathway-grid">
+      <div class="pathway-card" @click="router.push('/tournaments')">
+        <ion-icon :icon="trophyOutline" class="pathway-icon" />
+        <div class="pathway-label">Tournaments</div>
+        <div class="pathway-desc">Compete with other traders</div>
+      </div>
+      <div class="pathway-card" @click="router.push('/clubs')">
+        <ion-icon :icon="peopleOutline" class="pathway-icon" />
+        <div class="pathway-label">Clubs</div>
+        <div class="pathway-desc">Your groups &amp; social</div>
+      </div>
+      <div class="pathway-card" @click="router.push('/instruments')">
+        <ion-icon :icon="searchOutline" class="pathway-icon" />
+        <div class="pathway-label">Research</div>
+        <div class="pathway-desc">Instruments &amp; analysis</div>
+      </div>
+      <div class="pathway-card" @click="router.push('/portfolios')">
+        <ion-icon :icon="walletOutline" class="pathway-icon" />
+        <div class="pathway-label">Portfolios</div>
+        <div class="pathway-desc">Your trades &amp; positions</div>
+      </div>
+      <div class="pathway-card" @click="router.push('/chat')">
+        <ion-icon :icon="chatbubblesOutline" class="pathway-icon" />
+        <div class="pathway-label">Assistant</div>
+        <div class="pathway-desc">Ask about the market</div>
+      </div>
+    </div>
+
     <!-- Your Clubs -->
     <IonCard v-if="clubStore.myClubs.length > 0" class="club-dashboard-card" data-tour="dashboard-club-card">
       <IonCardHeader>
@@ -225,6 +255,9 @@ function timeAgo(dateStr: string): string {
         </div>
       </IonCardContent>
     </IonCard>
+
+    <!-- Daily Analyst Summary (most visible when markets are closed) -->
+    <DailyAnalystSummary />
 
     <!-- Contrarian Alerts -->
     <ContrarianAlert />
@@ -423,6 +456,59 @@ function timeAgo(dateStr: string): string {
 </style>
 
 <style scoped>
+.pathway-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin: 16px 0 24px;
+}
+
+@media (max-width: 900px) {
+  .pathway-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .pathway-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.pathway-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 12px;
+  background: var(--ion-color-light, #f4f5f8);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  text-align: center;
+}
+
+.pathway-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.pathway-icon {
+  font-size: 2rem;
+  color: var(--ion-color-primary);
+  margin-bottom: 4px;
+}
+
+.pathway-label {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.pathway-desc {
+  font-size: 0.75rem;
+  color: var(--ion-color-medium);
+}
+
 .stat-value {
   font-size: 2rem;
   font-weight: bold;

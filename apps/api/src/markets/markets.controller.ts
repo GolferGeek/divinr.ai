@@ -1919,4 +1919,20 @@ export class MarketsController {
     const users = await this.messaging.searchUsers(query || '');
     return { data: users };
   }
+
+  @Get('reports/daily-analyst-summary')
+  async getDailyAnalystSummary(@Req() req: { user?: AuthenticatedUser }) {
+    const user = this.getUser(req);
+    return this.markets.getDailyAnalystSummary(user.id);
+  }
+
+  @Post('chat/ask')
+  async chatAsk(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: { message: string; instrumentId?: string },
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    return this.markets.chatAsk(user.id, body.message, body.instrumentId);
+  }
 }
