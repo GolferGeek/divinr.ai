@@ -49,17 +49,21 @@ export const useEnablementStore = defineStore('enablement', () => {
   }
 
   async function enableTriple(analystId: string, instrumentId: string, authorUserId?: string) {
+    const source = availableTriples.value.find(
+      (t) => t.analystId === analystId && t.instrumentId === instrumentId &&
+        (t.authorUserId ?? null) === (authorUserId ?? null),
+    );
     const optimistic: EnabledTriple = {
       id: `temp-${Date.now()}`,
       authorUserId: authorUserId ?? null,
       analystId,
-      analystName: '',
-      analystSlug: '',
-      isAuthoredAnalyst: !!authorUserId,
+      analystName: source?.analystName ?? '',
+      analystSlug: source?.analystSlug ?? '',
+      isAuthoredAnalyst: source?.isAuthoredAnalyst ?? !!authorUserId,
       instrumentId,
-      instrumentSymbol: '',
-      instrumentName: '',
-      isAuthoredInstrument: false,
+      instrumentSymbol: source?.instrumentSymbol ?? '',
+      instrumentName: source?.instrumentName ?? '',
+      isAuthoredInstrument: source?.isAuthoredInstrument ?? false,
       enabledAt: new Date().toISOString(),
     };
     enabledTriples.value.push(optimistic);

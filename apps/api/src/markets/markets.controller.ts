@@ -1770,6 +1770,7 @@ export class MarketsController {
     @Body() body: { analystId: string; instrumentId: string; authorUserId?: string },
   ) {
     const user = this.getUser(req);
+    await this.requireWriteAccess(user);
     if (!body?.analystId || !body?.instrumentId) {
       throw new BadRequestException('analystId and instrumentId are required');
     }
@@ -1782,6 +1783,7 @@ export class MarketsController {
     @Body() body: { analystId: string; instrumentId: string; authorUserId?: string },
   ) {
     const user = this.getUser(req);
+    await this.requireWriteAccess(user);
     if (!body?.analystId || !body?.instrumentId) {
       throw new BadRequestException('analystId and instrumentId are required');
     }
