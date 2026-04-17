@@ -96,7 +96,7 @@ export class PredictionRunnerService {
     // 4. Load and execute context providers
     const providers = await this.contextProviders.loadContextProviders(run.instrument_id);
     const providerOutputs = await this.contextProviders.executeContextProviders(
-      context, providers, instrument.symbol, instrument.name, planeContext,
+      context, providers, instrument.symbol, instrument.name, planeContext, instrument.id,
     );
     const contextProviderText = this.contextProviders.formatContextForPrompt(providerOutputs);
 

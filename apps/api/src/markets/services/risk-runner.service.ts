@@ -124,6 +124,7 @@ export class RiskRunnerService {
       instrument.symbol,
       instrument.name,
       planeContext,
+      instrument.id,
     );
     const contextProviderText = this.contextProviders.formatContextForPrompt(providerOutputs);
 

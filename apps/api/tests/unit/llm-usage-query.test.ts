@@ -120,7 +120,7 @@ async function main(): Promise<void> {
     (svc as any).logger = { log: () => {}, warn: () => {} };
     await svc.refreshViews();
     assert(db.calls.length === 8, 'refreshes all 8 views');
-    assert(db.calls[0].sql.includes('REFRESH MATERIALIZED VIEW'), 'uses REFRESH');
+    assert(db.calls[0].sql.includes('REFRESH MATERIALIZED VIEW CONCURRENTLY'), 'uses REFRESH CONCURRENTLY');
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

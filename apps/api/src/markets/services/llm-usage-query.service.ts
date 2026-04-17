@@ -127,9 +127,13 @@ export class LlmUsageQueryService {
 
     for (const view of views) {
       try {
-        await this.db.rawQuery(`REFRESH MATERIALIZED VIEW ${view}`);
-      } catch (err) {
-        this.logger.warn(`Failed to refresh ${view}: ${err instanceof Error ? err.message : String(err)}`);
+        await this.db.rawQuery(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${view}`);
+      } catch {
+        try {
+          await this.db.rawQuery(`REFRESH MATERIALIZED VIEW ${view}`);
+        } catch (err) {
+          this.logger.warn(`Failed to refresh ${view}: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
     }
     this.logger.log('LLM usage materialized views refreshed');
@@ -137,11 +141,10 @@ export class LlmUsageQueryService {
 
   async cleanupRetention(): Promise<void> {
     const retentionDays = parseInt(process.env.LLM_USAGE_RETENTION_DAYS ?? '90', 10);
-    const result = await this.db.rawQuery(
+    await this.db.rawQuery(
       `DELETE FROM prediction.llm_usage_log WHERE "timestamp" < now() - interval '1 day' * $1`,
       [retentionDays],
     );
     this.logger.log(`LLM usage retention cleanup: removed rows older than ${retentionDays} days`);
-    return;
   }
 }

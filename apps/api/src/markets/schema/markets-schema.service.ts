@@ -2159,6 +2159,8 @@ export class MarketsSchemaService {
         from prediction.llm_usage_log
         group by billed_user_id, to_char("timestamp", 'YYYY-MM')
       with no data;
+      create unique index if not exists idx_mv_usage_user_monthly
+        on prediction.llm_usage_per_user_monthly (coalesce(billed_user_id, ''), year_month);
 
       create materialized view if not exists prediction.llm_usage_per_triple_daily as
         select
@@ -2173,6 +2175,8 @@ export class MarketsSchemaService {
         from prediction.llm_usage_log
         group by billed_user_id, analyst_id, instrument_id, "timestamp"::date
       with no data;
+      create unique index if not exists idx_mv_usage_triple_daily
+        on prediction.llm_usage_per_triple_daily (coalesce(billed_user_id, ''), coalesce(analyst_id, ''), coalesce(instrument_id, ''), date);
 
       create materialized view if not exists prediction.llm_usage_per_stage_daily as
         select
@@ -2186,6 +2190,8 @@ export class MarketsSchemaService {
         from prediction.llm_usage_log
         group by stage, sub_stage, "timestamp"::date
       with no data;
+      create unique index if not exists idx_mv_usage_stage_daily
+        on prediction.llm_usage_per_stage_daily (stage, coalesce(sub_stage, ''), date);
 
       create materialized view if not exists prediction.llm_usage_per_model_daily as
         select
@@ -2199,6 +2205,8 @@ export class MarketsSchemaService {
         from prediction.llm_usage_log
         group by model, provider, "timestamp"::date
       with no data;
+      create unique index if not exists idx_mv_usage_model_daily
+        on prediction.llm_usage_per_model_daily (model, provider, date);
 
       create materialized view if not exists prediction.llm_usage_per_source_monthly as
         select
@@ -2212,6 +2220,8 @@ export class MarketsSchemaService {
         join prediction.market_articles a on a.id = l.article_id
         group by a.source_id, to_char(l."timestamp", 'YYYY-MM')
       with no data;
+      create unique index if not exists idx_mv_usage_source_monthly
+        on prediction.llm_usage_per_source_monthly (coalesce(source_id, ''), year_month);
 
       create materialized view if not exists prediction.llm_usage_per_analyst_authorship_monthly as
         select
@@ -2225,6 +2235,8 @@ export class MarketsSchemaService {
         where analyst_author_user_id is not null
         group by analyst_author_user_id, to_char("timestamp", 'YYYY-MM')
       with no data;
+      create unique index if not exists idx_mv_usage_analyst_auth_monthly
+        on prediction.llm_usage_per_analyst_authorship_monthly (analyst_author_user_id, year_month);
 
       create materialized view if not exists prediction.llm_usage_per_instrument_authorship_monthly as
         select
@@ -2238,6 +2250,8 @@ export class MarketsSchemaService {
         where instrument_author_user_id is not null
         group by instrument_author_user_id, to_char("timestamp", 'YYYY-MM')
       with no data;
+      create unique index if not exists idx_mv_usage_instrument_auth_monthly
+        on prediction.llm_usage_per_instrument_authorship_monthly (instrument_author_user_id, year_month);
 
       create materialized view if not exists prediction.llm_usage_base_vs_extension_daily as
         select
@@ -2250,6 +2264,8 @@ export class MarketsSchemaService {
         from prediction.llm_usage_log
         group by "timestamp"::date, (analyst_author_user_id is null and instrument_author_user_id is null)
       with no data;
+      create unique index if not exists idx_mv_usage_base_ext_daily
+        on prediction.llm_usage_base_vs_extension_daily (date, is_base);
     `;
   }
 }
