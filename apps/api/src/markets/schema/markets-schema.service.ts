@@ -60,6 +60,7 @@ export class MarketsSchemaService {
       ${this.sharingPlumbingDdl()}
       ${this.baseContentImmutabilityTriggerDdl()}
       ${this.enablementDdl()}
+      ${this.llmUsageLogDdl()}
     `;
 
     const result = await this.db.rawQuery(ddl);
@@ -239,6 +240,9 @@ export class MarketsSchemaService {
       alter table prediction.instruments add column if not exists universe_slug text not null default 'stocks';
       alter table prediction.instruments add column if not exists current_state jsonb not null default '{}'::jsonb;
       alter table prediction.instruments add column if not exists current_config_version_id text;
+      -- user_id must exist before the user-scoped unique index below;
+      -- userScopingMigrationDdl also adds it (IF NOT EXISTS = safe duplicate).
+      alter table prediction.instruments add column if not exists user_id text;
       -- User-scoped uniqueness: two users can author instruments with the same
       -- symbol. Base content uses user_id IS NULL; COALESCE maps that to 'base'
       -- so the index treats all base rows as one scope.
@@ -321,6 +325,9 @@ export class MarketsSchemaService {
       -- Drop legacy org-scoped unique indexes
       drop index if exists prediction.prediction_analysts_org_slug_unique_idx;
 
+      -- user_id must exist before the user-scoped unique index below;
+      -- userScopingMigrationDdl also adds it (IF NOT EXISTS = safe duplicate).
+      alter table prediction.market_analysts add column if not exists user_id text;
       -- User-scoped uniqueness: two users can author analysts with the same slug.
       -- Base content uses user_id IS NULL; COALESCE maps that to 'base' so the
       -- index treats all base rows as one scope. Backs the ON CONFLICT
@@ -2091,6 +2098,50 @@ export class MarketsSchemaService {
       create index if not exists idx_user_enabled_triples_active
         on prediction.user_enabled_triples (user_id)
         where disabled_at is null;
+    `;
+  }
+
+  private llmUsageLogDdl(): string {
+    return `
+      create table if not exists prediction.llm_usage_log (
+        id text primary key default gen_random_uuid()::text,
+        "timestamp" timestamptz not null default now(),
+        article_id text,
+        instrument_id text,
+        analyst_id text,
+        billed_user_id text,
+        analyst_author_user_id text,
+        instrument_author_user_id text,
+        stage text not null,
+        sub_stage text,
+        model text not null,
+        provider text not null,
+        via_byo_key boolean not null default false,
+        tokens_in integer not null default 0,
+        tokens_out integer not null default 0,
+        cost_cents integer,
+        latency_ms integer not null default 0,
+        prompt_hash text,
+        output_hash text,
+        cycle_id text,
+        error text,
+        metadata jsonb
+      );
+
+      create index if not exists idx_llm_usage_billed_user_ts
+        on prediction.llm_usage_log (billed_user_id, "timestamp");
+      create index if not exists idx_llm_usage_analyst_author_ts
+        on prediction.llm_usage_log (analyst_author_user_id, "timestamp");
+      create index if not exists idx_llm_usage_instrument_author_ts
+        on prediction.llm_usage_log (instrument_author_user_id, "timestamp");
+      create index if not exists idx_llm_usage_instrument_ts
+        on prediction.llm_usage_log (instrument_id, "timestamp");
+      create index if not exists idx_llm_usage_analyst_ts
+        on prediction.llm_usage_log (analyst_id, "timestamp");
+      create index if not exists idx_llm_usage_stage_ts
+        on prediction.llm_usage_log (stage, "timestamp");
+      create index if not exists idx_llm_usage_cycle
+        on prediction.llm_usage_log (cycle_id);
     `;
   }
 }
