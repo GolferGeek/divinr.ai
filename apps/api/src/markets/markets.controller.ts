@@ -797,29 +797,21 @@ export class MarketsController {
     @Query('authorUserId') authorUserId?: string,
   ) {
     const user = this.getUser(req);
-    let results: any[];
     if (role) {
-      results = await this.markets.listPredictionsWithRole({
+      return this.markets.listPredictionsWithRole({
         userId: user.id,
         runId,
         instrumentId,
         role,
-      });
-    } else {
-      results = await this.markets.listPredictionOutcomes({
-        userId: user.id,
-        runId,
-        instrumentId,
+        analystId,
+        authorUserId: authorUserId !== undefined ? (authorUserId || null) : undefined,
       });
     }
-    if (analystId) {
-      results = results.filter((r) => r['analyst_id'] === analystId);
-    }
-    if (authorUserId !== undefined) {
-      const target = authorUserId || null;
-      results = results.filter((r) => (r['author_user_id'] ?? null) === target);
-    }
-    return results;
+    return this.markets.listPredictionOutcomes({
+      userId: user.id,
+      runId,
+      instrumentId,
+    });
   }
 
   @Get('risk-assessments')
@@ -835,20 +827,14 @@ export class MarketsController {
     if (!runId && !instrumentId) {
       return this.markets.getDashboardRiskSummary(user.id);
     }
-    let results = await this.markets.listRiskAssessments({
+    return this.markets.listRiskAssessments({
       userId: user.id,
       runId,
       instrumentId,
       role,
+      analystId,
+      authorUserId: authorUserId !== undefined ? (authorUserId || null) : undefined,
     });
-    if (analystId) {
-      results = results.filter((r: any) => r['analyst_id'] === analystId);
-    }
-    if (authorUserId !== undefined) {
-      const target = authorUserId || null;
-      results = results.filter((r: any) => (r['author_user_id'] ?? null) === target);
-    }
-    return results;
   }
 
   @Get('runs/:runId/evaluations')

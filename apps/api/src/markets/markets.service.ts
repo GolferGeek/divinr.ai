@@ -3445,6 +3445,14 @@ Respond ONLY with valid JSON.`,
       filters.push(`role = $${values.length + 1}`);
       values.push(input.role);
     }
+    if (input.analystId) {
+      filters.push(`analyst_id = $${values.length + 1}`);
+      values.push(input.analystId);
+    }
+    if (input.authorUserId !== undefined) {
+      filters.push(`COALESCE(author_user_id, '') = $${values.length + 1}`);
+      values.push(input.authorUserId || '');
+    }
     const result = await this.db.rawQuery(
       `
       select *
@@ -3852,6 +3860,8 @@ Respond ONLY with valid JSON.`,
     runId?: string;
     instrumentId?: string;
     role?: 'analyst' | 'arbitrator' | 'all';
+    analystId?: string;
+    authorUserId?: string | null;
   }) {
     await this.schema.ensureSchema();
     await this.requireRead(input.userId);
@@ -3876,6 +3886,16 @@ Respond ONLY with valid JSON.`,
     if (input.role && input.role !== 'all') {
       query += ` and mp.role = $${idx}`;
       params.push(input.role);
+      idx++;
+    }
+    if (input.analystId) {
+      query += ` and mp.analyst_id = $${idx}`;
+      params.push(input.analystId);
+      idx++;
+    }
+    if (input.authorUserId !== undefined) {
+      query += ` and COALESCE(mp.author_user_id, '') = $${idx}`;
+      params.push(input.authorUserId || '');
       idx++;
     }
     query += ' order by mp.created_at desc';

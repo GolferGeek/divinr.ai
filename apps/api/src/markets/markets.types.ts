@@ -304,6 +304,7 @@ export interface ListRiskAssessmentsInput {
   runId?: string;
   instrumentId?: string;
   role?: string;
+  analystId?: string;
   authorUserId?: string | null;
 }
 

@@ -7,7 +7,6 @@ const enablement = useEnablementStore();
 const step = ref<'closed' | 'pick-instrument' | 'pick-triples'>('closed');
 const search = ref('');
 const selectedInstrumentId = ref<string | null>(null);
-const selectedAuthorUserId = ref<string | null>(null);
 const toggled = ref<Set<string>>(new Set());
 
 function tripleKey(t: AvailableTriple): string {
@@ -24,7 +23,6 @@ function closeFlow() {
   step.value = 'closed';
   search.value = '';
   selectedInstrumentId.value = null;
-  selectedAuthorUserId.value = null;
   toggled.value = new Set();
 }
 
@@ -84,7 +82,6 @@ function instrumentSubLabel(opt: InstrumentOption): string {
 
 function selectInstrument(opt: InstrumentOption) {
   selectedInstrumentId.value = opt.instrumentId;
-  selectedAuthorUserId.value = opt.authorUserId;
   step.value = 'pick-triples';
   toggled.value = new Set();
   enablement.fetchAvailableTriples(opt.instrumentId);

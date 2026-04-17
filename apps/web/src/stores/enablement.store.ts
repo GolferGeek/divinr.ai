@@ -9,6 +9,7 @@ export const useEnablementStore = defineStore('enablement', () => {
   const enabledTriples = ref<EnabledTriple[]>([]);
   const availableTriples = ref<AvailableTriple[]>([]);
   const loading = ref(false);
+  const pendingOps = ref<Set<string>>(new Set());
 
   const enabledCount = computed(() => enabledTriples.value.length);
 
@@ -48,7 +49,14 @@ export const useEnablementStore = defineStore('enablement', () => {
     }
   }
 
+  function opKey(analystId: string, instrumentId: string, authorUserId?: string): string {
+    return `${analystId}::${instrumentId}::${authorUserId ?? 'base'}`;
+  }
+
   async function enableTriple(analystId: string, instrumentId: string, authorUserId?: string) {
+    const key = opKey(analystId, instrumentId, authorUserId);
+    if (pendingOps.value.has(key)) return;
+    pendingOps.value.add(key);
     const source = availableTriples.value.find(
       (t) => t.analystId === analystId && t.instrumentId === instrumentId &&
         (t.authorUserId ?? null) === (authorUserId ?? null),
@@ -75,10 +83,15 @@ export const useEnablementStore = defineStore('enablement', () => {
       const idx = enabledTriples.value.indexOf(optimistic);
       if (idx >= 0) enabledTriples.value.splice(idx, 1);
       throw new Error('Failed to enable triple');
+    } finally {
+      pendingOps.value.delete(key);
     }
   }
 
   async function disableTriple(analystId: string, instrumentId: string, authorUserId?: string) {
+    const key = opKey(analystId, instrumentId, authorUserId);
+    if (pendingOps.value.has(key)) return;
+    pendingOps.value.add(key);
     const idx = enabledTriples.value.findIndex(
       (t) => t.analystId === analystId && t.instrumentId === instrumentId &&
         (t.authorUserId ?? null) === (authorUserId ?? null),
@@ -89,6 +102,8 @@ export const useEnablementStore = defineStore('enablement', () => {
     } catch {
       if (removed && idx >= 0) enabledTriples.value.splice(idx, 0, removed);
       throw new Error('Failed to disable triple');
+    } finally {
+      pendingOps.value.delete(key);
     }
   }
 
