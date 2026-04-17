@@ -158,16 +158,16 @@ export class BillingService {
     if (result.error) throw new Error(`getBillingPreview failed: ${result.error.message}`);
     const rows = (result.data as Array<{ item_kind: string; item_id: string | null; monthly_usd_cents: number; status: string }> | null) ?? [];
 
-    const authoredItems = rows.map(r => ({
+    const contentRows = rows.filter(r => r.item_kind !== 'byo_platform_fee');
+    const authoredItems = contentRows.map(r => ({
       kind: r.item_kind,
       itemId: r.item_id,
       monthlyUsd: r.monthly_usd_cents / 100,
       status: r.status,
     }));
 
-    const authoredTotal = rows.reduce((sum, r) => sum + r.monthly_usd_cents, 0) / 100;
+    const contentTotal = contentRows.reduce((sum, r) => sum + r.monthly_usd_cents, 0) / 100;
     const basic = this.basicMonthlyUsd;
-    // BYO platform fee is zero unless the user has a byo_platform_fee item
     const hasByo = rows.some(r => r.item_kind === 'byo_platform_fee');
     const byoFee = hasByo ? this.byoPlatformFeeUsd : 0;
 
@@ -175,7 +175,7 @@ export class BillingService {
       basicMonthlyUsd: basic,
       authoredItems,
       byoPlatformFeeUsd: byoFee,
-      totalMonthlyUsd: basic + authoredTotal,
+      totalMonthlyUsd: basic + contentTotal + byoFee,
     };
   }
 }

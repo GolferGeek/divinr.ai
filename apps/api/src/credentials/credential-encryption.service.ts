@@ -5,17 +5,21 @@
 // 3. Swap: CREDENTIAL_ENCRYPTION_KEY = CREDENTIAL_ENCRYPTION_KEY_NEW
 // 4. Remove CREDENTIAL_ENCRYPTION_KEY_NEW
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 @Injectable()
 export class CredentialEncryptionService {
   private readonly key: Buffer;
+  private readonly logger = new Logger(CredentialEncryptionService.name);
 
   constructor() {
     const keyBase64 = process.env.CREDENTIAL_ENCRYPTION_KEY;
     if (!keyBase64) {
-      // Dev mode: use a deterministic dev key (NOT for production)
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('CREDENTIAL_ENCRYPTION_KEY is required in production');
+      }
+      this.logger.error('CREDENTIAL_ENCRYPTION_KEY not set — using insecure dev key. DO NOT use in production.');
       this.key = Buffer.alloc(32, 'dev-credential-key-not-for-prod!');
     } else {
       this.key = Buffer.from(keyBase64, 'base64');

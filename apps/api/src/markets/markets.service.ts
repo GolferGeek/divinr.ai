@@ -428,8 +428,9 @@ export class MarketsService {
     const rows = (result.data as MarketInstrument[] | null) ?? [];
     const created = rows[0] as MarketInstrument;
 
-    // Billing: track authored instrument
-    if (created.user_id) {
+    // Billing: track authored instrument (only on true insert, not upsert-update)
+    const wasInserted = created.id === instrument.id;
+    if (wasInserted && created.user_id) {
       try {
         await this.billing.addAuthoredItem(created.user_id, 'custom_instrument', created.id);
       } catch (err: any) {
@@ -524,8 +525,9 @@ export class MarketsService {
       [versionId, created.id],
     );
 
-    // Billing: track authored analyst
-    if (created.user_id) {
+    // Billing: track authored analyst (only on true insert, not upsert-update)
+    const wasInserted = created.id === analyst.id;
+    if (wasInserted && created.user_id) {
       try {
         await this.billing.addAuthoredItem(created.user_id, 'custom_analyst', created.id);
       } catch (err: any) {
@@ -4511,6 +4513,14 @@ Respond ONLY with valid JSON.`,
     authorFilter?: string,
   ): Promise<Array<Record<string, unknown>>> {
     await this.schema.ensureSchema();
+
+    const analystCheck = await this.db.rawQuery(
+      `SELECT id FROM prediction.market_analysts WHERE id = $1 AND (user_id IS NULL OR user_id = $2)`,
+      [analystId, userId],
+    );
+    if (!analystCheck.data || (analystCheck.data as any[]).length === 0) {
+      throw new ForbiddenException('Analyst not found or not accessible');
+    }
 
     let sql = `SELECT id, version_number, source, change_reason, created_by, created_at,
                       is_active, context_markdown, author_user_id

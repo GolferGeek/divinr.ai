@@ -1,6 +1,7 @@
 import {
-  Controller, Get, Post, Delete, Body, Param, Req, UnauthorizedException, Inject,
+  Controller, Get, Post, Delete, Body, Param, Req, UnauthorizedException, Inject, UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '@orchestratorai/planes/auth';
 import { CredentialsService } from './credentials.service';
 
 interface AuthenticatedUser {
@@ -8,6 +9,7 @@ interface AuthenticatedUser {
   email?: string;
 }
 
+@UseGuards(JwtAuthGuard)
 @Controller('api/credentials')
 export class CredentialsController {
   constructor(
