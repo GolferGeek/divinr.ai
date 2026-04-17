@@ -24,6 +24,12 @@ export class PositionSizingService {
     return 0; // Below minimum confidence — no position
   }
 
+  async getMinimumConfidence(): Promise<number> {
+    const tiers = await this.loadTiers();
+    if (tiers.length === 0) return 60;
+    return Math.min(...tiers.map(t => t.min_confidence));
+  }
+
   calculatePositionSize(
     portfolioBalance: number,
     entryPrice: number,

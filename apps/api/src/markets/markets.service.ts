@@ -1889,8 +1889,9 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     const direction = input.direction === 'short' ? 'short' : 'long';
 
     if (quantity <= 0) {
+      const minConf = await this.positionSizing.getMinimumConfidence();
       return {
-        error: `Analyst confidence is ${Math.round(effectiveConfidence * 100)}% (minimum 60% required for a position). You can skip this trade or wait for a higher-confidence signal.`,
+        error: `Analyst confidence is ${Math.round(effectiveConfidence * 100)}% (minimum ${minConf}% required for a position). You can skip this trade or wait for a higher-confidence signal.`,
         effectiveConfidence,
         positionPercent: 0,
       };
@@ -4557,6 +4558,14 @@ Respond ONLY with valid JSON.`,
   }
 
   async chatAsk(userId: string, message: string, instrumentId?: string) {
+    if (!message || typeof message !== 'string') {
+      return { response: 'Please provide a message.', reasoning: null };
+    }
+    const trimmed = message.trim().slice(0, 2000);
+    if (!trimmed) {
+      return { response: 'Please provide a message.', reasoning: null };
+    }
+
     const contextParts: string[] = [];
 
     if (instrumentId) {
@@ -4604,7 +4613,7 @@ Respond ONLY with valid JSON.`,
     ].filter(Boolean).join('\n');
 
     const ctx = this.marketsLlm.buildExecutionContext(userId, 'chat');
-    const result = await this.marketsLlm.generateText(ctx, systemPrompt, message);
+    const result = await this.marketsLlm.generateText(ctx, systemPrompt, trimmed);
 
     return {
       response: result.text,
@@ -4615,8 +4624,8 @@ Respond ONLY with valid JSON.`,
   async getDailyAnalystSummary(_userId: string) {
     const now = new Date();
     const isWeekday = now.getUTCDay() >= 1 && now.getUTCDay() <= 5;
-    const marketCloseUTC = 21; // 4 PM ET ≈ 21:00 UTC (EDT)
-    const marketsOpen = isWeekday && now.getUTCHours() >= 14 && now.getUTCHours() < marketCloseUTC;
+    const etHour = Number(now.toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
+    const marketsOpen = isWeekday && etHour >= 9 && etHour < 16;
 
     const analystSummary = await this.db.rawQuery(`
       select
