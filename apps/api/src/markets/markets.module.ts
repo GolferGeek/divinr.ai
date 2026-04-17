@@ -41,6 +41,7 @@ import { CoordinationService } from './services/coordination.service';
 import { PerformanceService } from './services/performance.service';
 import { ArticleRelevanceService } from './services/article-relevance.service';
 import { WiringService } from './services/wiring.service';
+import { ActiveAuthorshipService } from './services/active-authorship.service';
 import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { TournamentModule } from '../tournaments/tournament.module';
@@ -103,6 +104,7 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     PerformanceService,
     ArticleRelevanceService,
     WiringService,
+    ActiveAuthorshipService,
     MarketsService,
     MessagingSchemaService,
     MessagingService,

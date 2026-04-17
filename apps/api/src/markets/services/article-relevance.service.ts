@@ -102,6 +102,7 @@ export class ArticleRelevanceService {
   }
 
   private async getActiveInstruments(): Promise<InstrumentRow[]> {
+    // Includes both base (user_id IS NULL) and authored (user_id IS NOT NULL) instruments
     const res = await this.db.rawQuery(
       `select id, symbol, name from prediction.instruments where is_active = true order by symbol`,
     );

@@ -11,7 +11,7 @@
 - [x] Phase 2: Authored Analyst + Instrument Creation API
 - [x] Phase 3: Authored Content UI (Create + Edit Contracts)
 - [x] Phase 4: Wiring Matrix UI + API
-- [ ] Phase 5: Runtime Integration (Viewer-Scoped Debate + Authored-Triple Pipeline)
+- [x] Phase 5: Runtime Integration (Viewer-Scoped Debate + Authored-Triple Pipeline)
 - [ ] Phase 6: Billing Plumbing (Stripe + per-item ledger)
 - [ ] Phase 7: BYO LLM Credentials
 - [ ] Phase 8: Integration Testing + Polish

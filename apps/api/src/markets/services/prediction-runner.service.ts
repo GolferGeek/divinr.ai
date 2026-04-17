@@ -620,18 +620,48 @@ Respond ONLY with valid JSON.`;
       [instrumentId],
     );
     const assignedRows = (assigned.data as MarketAnalyst[] | null) ?? [];
-    if (assignedRows.length > 0) return assignedRows;
 
-    // Fallback: all enabled personality analysts
-    const all = await this.db.rawQuery(
-      `select * from prediction.market_analysts
-       where analyst_type = 'personality'
-         and is_enabled = true
-         and is_active = true
-         and workflow_scope in ('prediction', 'both')
-       order by default_weight desc, created_at asc`,
+    let baseAnalysts: MarketAnalyst[];
+    if (assignedRows.length > 0) {
+      baseAnalysts = assignedRows;
+    } else {
+      // Fallback: all enabled base personality analysts
+      const all = await this.db.rawQuery(
+        `select * from prediction.market_analysts
+         where analyst_type = 'personality'
+           and is_enabled = true
+           and is_active = true
+           and workflow_scope in ('prediction', 'both')
+           and user_id is null
+         order by default_weight desc, created_at asc`,
+      );
+      baseAnalysts = (all.data as MarketAnalyst[] | null) ?? [];
+    }
+
+    // Also include viewer-scoped authored analysts wired to this instrument
+    const viewerAnalysts = await this.db.rawQuery(
+      `SELECT DISTINCT ma.*
+       FROM prediction.viewer_instrument_analyst_assignments viaa
+       JOIN prediction.market_analysts ma ON ma.id = viaa.analyst_id
+       WHERE viaa.instrument_id = $1
+         AND ma.is_active = true
+         AND ma.is_enabled = true
+         AND ma.user_id IS NOT NULL
+         AND ma.workflow_scope in ('prediction', 'both')`,
+      [instrumentId],
     );
-    return (all.data as MarketAnalyst[] | null) ?? [];
+    const viewerRows = (viewerAnalysts.data as MarketAnalyst[] | null) ?? [];
+
+    // Merge, deduplicating by analyst id
+    const seenIds = new Set(baseAnalysts.map(a => a.id));
+    for (const va of viewerRows) {
+      if (!seenIds.has(va.id)) {
+        baseAnalysts.push(va);
+        seenIds.add(va.id);
+      }
+    }
+
+    return baseAnalysts;
   }
 
   private async getLatestRiskComposite(

@@ -299,6 +299,43 @@ export class RiskDebateService {
     return this.loadDebatePrompt('arbiter', DEFAULT_ARBITER_PROMPT);
   }
 
+  /**
+   * Resolve debate participants: base analysts always participate;
+   * authored analysts participate only when a viewer owns them and
+   * they are wired to the instrument.
+   */
+  async resolveParticipants(
+    viewerUserId: string | null,
+    instrumentId: string,
+  ): Promise<{ baseAnalysts: any[]; authoredAnalysts: any[] }> {
+    // Base analysts: always included
+    const baseResult = await this.db.rawQuery(
+      `SELECT id, slug, display_name FROM prediction.market_analysts
+       WHERE user_id IS NULL AND is_active = true AND is_enabled = true
+         AND analyst_type = 'personality' AND workflow_scope IN ('risk', 'both')`,
+    );
+    const baseAnalysts = (baseResult.data as any[] | null) ?? [];
+
+    if (!viewerUserId) {
+      return { baseAnalysts, authoredAnalysts: [] };
+    }
+
+    // Viewer's authored analysts wired to this instrument
+    const authoredResult = await this.db.rawQuery(
+      `SELECT DISTINCT ma.id, ma.slug, ma.display_name
+       FROM prediction.viewer_instrument_analyst_assignments viaa
+       JOIN prediction.market_analysts ma ON ma.id = viaa.analyst_id
+       WHERE viaa.viewer_user_id = $1
+         AND viaa.instrument_id = $2
+         AND ma.is_active = true
+         AND ma.user_id IS NOT NULL`,
+      [viewerUserId, instrumentId],
+    );
+    const authoredAnalysts = (authoredResult.data as any[] | null) ?? [];
+
+    return { baseAnalysts, authoredAnalysts };
+  }
+
   private formatAssessmentsForDebate(
     assessments: RiskDimensionAssessment[],
     overallScore: number,

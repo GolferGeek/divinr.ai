@@ -172,6 +172,32 @@ export class PredictorGeneratorService {
               this.logger.error(msg);
             }
           }
+
+          // Also process authored analysts wired to this instrument
+          const authoredAnalysts = await this.getAuthoredAnalystsForInstrument(instrument.id);
+          if (authoredAnalysts.length > 0) {
+            this.emit('instrument.scoring', `Scoring ${gatedArticles.length} articles for ${instrument.symbol} (${authoredAnalysts.length} authored analysts)`, { symbol: instrument.symbol, articleCount: gatedArticles.length, authoredAnalystCount: authoredAnalysts.length });
+            for (const article of gatedArticles) {
+              try {
+                for (const analyst of authoredAnalysts) {
+                  const result = await this.scoreArticleForInstrument(article, instrument, analyst);
+                  articlesProcessed++;
+
+                  if (result.dismissed) {
+                    predictorsDismissed++;
+                  } else {
+                    predictorsCreated++;
+                    affectedInstruments.add(instrument.id);
+                    this.emit('predictor.created', `Predictor: ${analyst.display_name} (authored) → "${(article.title || 'untitled').slice(0, 50)}" → ${instrument.symbol} (${result.relevanceScore.toFixed(2)})`, { symbol: instrument.symbol, analyst: analyst.slug, relevance: result.relevanceScore, authored: true });
+                  }
+                }
+              } catch (err) {
+                const msg = `Error scoring article ${article.id} for ${instrument.symbol} (authored analyst): ${err instanceof Error ? err.message : String(err)}`;
+                errors.push(msg);
+                this.logger.error(msg);
+              }
+            }
+          }
         } catch (err) {
           const msg = `Error processing instrument ${instrument.symbol}: ${err instanceof Error ? err.message : String(err)}`;
           errors.push(msg);
@@ -202,14 +228,38 @@ export class PredictorGeneratorService {
   }
 
   /**
-   * Get all personality analysts from __base__ for per-analyst article scoring.
+   * Get base personality analysts (user_id IS NULL) for shared pipeline scoring.
    */
   private async getPersonalityAnalysts(): Promise<ScoringAnalyst[]> {
     const result = await this.db.rawQuery(
       `select id, slug, display_name, current_config_version_id from prediction.market_analysts
        where analyst_type = 'personality'
          and is_enabled = true and is_active = true
+         and user_id is null
        order by slug`,
+    );
+    const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null }> | null) ?? [];
+    return rows.map(r => ({
+      ...r,
+      scoring_focus: GENERIC_FALLBACK_SCORING_FOCUS,
+    }));
+  }
+
+  /**
+   * Get authored analysts wired to a specific instrument via
+   * viewer_instrument_analyst_assignments. These are user-created analysts
+   * (user_id IS NOT NULL) that participate alongside base analysts.
+   */
+  private async getAuthoredAnalystsForInstrument(instrumentId: string): Promise<ScoringAnalyst[]> {
+    const result = await this.db.rawQuery(
+      `SELECT DISTINCT ma.id, ma.slug, ma.display_name, ma.current_config_version_id,
+              ma.user_id, viaa.viewer_user_id
+       FROM prediction.viewer_instrument_analyst_assignments viaa
+       JOIN prediction.market_analysts ma ON ma.id = viaa.analyst_id
+       WHERE viaa.instrument_id = $1
+         AND ma.is_active = true
+         AND ma.user_id IS NOT NULL`,
+      [instrumentId],
     );
     const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null }> | null) ?? [];
     return rows.map(r => ({
