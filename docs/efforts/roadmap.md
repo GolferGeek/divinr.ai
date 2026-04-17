@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-17 (triple-model-reasoning-continuity shipped; no current effort)
+**Last updated:** 2026-04-17 (slot-based-enablement-ui promoted to current)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -42,7 +42,7 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Current Effort
 
-*None — ready to promote the next effort.*
+**[slot-based-enablement-ui](current/slot-based-enablement-ui/intention.md)** — user-facing UI for selecting which analyst × instrument triples to run. Completes the architecture restructure block by giving users control over their reasoning slots.
 
 ---
 
@@ -56,40 +56,35 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ---
 
-## Next — Queued Efforts (12)
+## Next — Queued Efforts (11)
 
 Grouped by logical dependency; each block mostly sequential, some efforts within a block may parallelize.
 
-### Architecture Restructure Block (1 effort remaining)
-
-1. [slot-based-enablement-ui](next/slot-based-enablement-ui/intention.md) — user-facing triple selection (which analyst × instrument combos to run)
-
 ### Economics & Evaluation Substrate (4 efforts)
 
-2. [llm-usage-logging](next/llm-usage-logging/intention.md) — capture every LLM call with full dimensional context (triple, stage, sub-stage, model, tokens, cost, BYO flag); load-bearing infrastructure that every economics/attribution/billing/regression effort consumes
-3. [cost-modeling-system](next/cost-modeling-system/intention.md) — calibration, prediction, pricing defensibility, experimentation mode; pure consumer of llm-usage-logging data
-4. [entity-level-performance-attribution](next/entity-level-performance-attribution/intention.md) — multi-dimensional P&L (per analyst / instrument / source / article / author / any combination); load-bearing for graduation decisions and author retention
-5. [regression-testing-harness](next/regression-testing-harness/intention.md) — historical-day replay system; validate contract changes, model upgrades, and graduation candidates against real past data
+1. [llm-usage-logging](next/llm-usage-logging/intention.md) — capture every LLM call with full dimensional context (triple, stage, sub-stage, model, tokens, cost, BYO flag); load-bearing infrastructure that every economics/attribution/billing/regression effort consumes
+2. [cost-modeling-system](next/cost-modeling-system/intention.md) — calibration, prediction, pricing defensibility, experimentation mode; pure consumer of llm-usage-logging data
+3. [entity-level-performance-attribution](next/entity-level-performance-attribution/intention.md) — multi-dimensional P&L (per analyst / instrument / source / article / author / any combination); load-bearing for graduation decisions and author retention
+4. [regression-testing-harness](next/regression-testing-harness/intention.md) — historical-day replay system; validate contract changes, model upgrades, and graduation candidates against real past data
 
 ### Billing Surface (3 efforts)
 
-6. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics, social-only clubs
-7. [stripe-integration](next/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
-8. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing (depends on cost-modeling-system)
+5. [divinr-basic-club-model](next/divinr-basic-club-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics, social-only clubs
+6. [stripe-integration](next/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
+7. [student-club-accounts](next/student-club-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing (depends on cost-modeling-system)
 
 ### Graduation & Contribution Layer (1 effort)
 
-9. [custom-to-base-graduation](next/custom-to-base-graduation/intention.md) — opt-in donation from user-authored to base, with cost-reduction-on-donation reward and community board attribution
+8. [custom-to-base-graduation](next/custom-to-base-graduation/intention.md) — opt-in donation from user-authored to base, with cost-reduction-on-donation reward and community board attribution
 
 ### Experience Polish (2 efforts)
 
-10. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
-11. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
+9. [club-tournament-experience-polish](next/club-tournament-experience-polish/intention.md) — UX polish on club + tournament surfaces (intern showcase)
+10. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
 
 ### Operations & Validation (2 efforts)
 
-12. [live-prediction-pnl](next/live-prediction-pnl/intention.md) — run prediction cycles during market hours to validate intraday flow
-13. [spark-beta-hardening](next/spark-beta-hardening/intention.md) — power protection, service reliability, offsite backups, monitoring, recovery docs
+11. [live-prediction-pnl](next/live-prediction-pnl/intention.md) — run prediction cycles during market hours to validate intraday flow
 
 ---
 
