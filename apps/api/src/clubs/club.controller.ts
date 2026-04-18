@@ -157,6 +157,16 @@ export class ClubController {
     return preview;
   }
 
+  @Post(':id/activities/viewed')
+  async markActivitiesViewed(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
+    const user = this.getUser(req);
+    // Intentionally NOT wrapped in handleError: the service throws a real
+    // ForbiddenException for non-members and NestJS's default exception
+    // filter maps that to 403. handleError's substring matching would
+    // mis-route it (e.g., 'Not a member' → NotFoundException).
+    return this.clubService.markActivitiesViewed(id, user.id);
+  }
+
   @Patch(':id')
   async updateClub(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string, @Body() body: UpdateClubInput) {
     const user = this.getUser(req);

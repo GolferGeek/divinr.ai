@@ -119,6 +119,7 @@ export class ClubSchemaService {
       ALTER TABLE prediction.clubs ADD COLUMN IF NOT EXISTS badges JSONB DEFAULT '[]';
       ALTER TABLE prediction.clubs ADD COLUMN IF NOT EXISTS ranking_score NUMERIC DEFAULT 0;
       ALTER TABLE prediction.clubs ADD COLUMN IF NOT EXISTS ranking_position INTEGER;
+      ALTER TABLE prediction.club_members ADD COLUMN IF NOT EXISTS last_viewed_at TIMESTAMPTZ;
 
       CREATE TABLE IF NOT EXISTS prediction.club_ranking_snapshots (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

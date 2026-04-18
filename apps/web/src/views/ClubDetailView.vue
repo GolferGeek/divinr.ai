@@ -9,6 +9,7 @@ import { useMentorStore } from '../stores/mentor.store';
 import ClubPreviewPanel from '../components/ClubPreviewPanel.vue';
 import ActiveTournamentBanner from '../components/ActiveTournamentBanner.vue';
 import MemberProfileDrawer from '../components/MemberProfileDrawer.vue';
+import { formatBadge } from '../utils/format';
 
 const store = useClubStore();
 const curriculumStore = useCurriculumStore();
@@ -47,7 +48,12 @@ function loadTab(t: string) {
     router.replace({ query: { ...route.query, tab: t } });
   }
   if (t === 'analysts') store.fetchAnalysts(id.value);
-  if (t === 'activities') { store.fetchChallenges(id.value); store.fetchPolls(id.value); store.fetchJournals(id.value); }
+  if (t === 'activities') {
+    store.fetchChallenges(id.value); store.fetchPolls(id.value); store.fetchJournals(id.value);
+    if (store.activeClub?.unread_count && store.activeClub.unread_count > 0) {
+      store.markActivitiesViewed(id.value);
+    }
+  }
   if (t === 'analytics') store.fetchAnalytics(id.value);
   if (t === 'curriculum') curriculumStore.fetchCurricula(id.value);
   if (t === 'mentoring') { mentorStore.fetchStatus(id.value); mentorStore.fetchLeaderboard(id.value); mentorStore.checkEligibility(id.value); mentorStore.fetchPendingFeedback(id.value); }
@@ -162,7 +168,15 @@ function fmtAnalyticsPct(v: number | null | undefined): string {
     <IonSegment class="club-tabs" scrollable :value="tab" @ionChange="loadTab(($event.detail.value ?? 'members') as string)">
       <IonSegmentButton value="members"><IonLabel>Members</IonLabel></IonSegmentButton>
       <IonSegmentButton value="analysts"><IonLabel>Analysts</IonLabel></IonSegmentButton>
-      <IonSegmentButton value="activities"><IonLabel>Activities</IonLabel></IonSegmentButton>
+      <IonSegmentButton value="activities">
+        <IonLabel>
+          Activities<span
+            v-if="store.activeClub?.unread_count && store.activeClub.unread_count > 0"
+            class="unread-badge"
+            :aria-label="`${store.activeClub.unread_count} unread activities`"
+          >({{ formatBadge(store.activeClub.unread_count) }})</span>
+        </IonLabel>
+      </IonSegmentButton>
       <IonSegmentButton value="analytics"><IonLabel>Analytics</IonLabel></IonSegmentButton>
       <IonSegmentButton value="curriculum"><IonLabel>Curriculum</IonLabel></IonSegmentButton>
       <IonSegmentButton value="mentoring"><IonLabel>Mentoring</IonLabel></IonSegmentButton>
@@ -445,6 +459,7 @@ h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1.1rem; }
 .time-window { padding: 0.4rem 0.6rem; border: 1px solid var(--ion-color-light-shade); border-radius: 4px; background: transparent; color: var(--ion-color-medium); font-size: 0.85rem; cursor: not-allowed; }
 .info-icon { font-size: 0.8rem; vertical-align: middle; margin-left: 0.25rem; color: var(--ion-color-medium); }
 .actions-mobile { display: none; }
+.unread-badge { margin-left: 0.3rem; font-size: inherit; color: var(--ion-color-primary); font-weight: 600; }
 
 @media (max-width: 600px) {
   .actions-desktop { display: none; }
