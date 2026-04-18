@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { TournamentSchemaService } from './tournament-schema.service';
 import type { Tournament, TournamentEntry } from './tournament.types';
@@ -11,6 +12,8 @@ export interface LeaderboardEntry {
   total_pnl: number;
   win_rate: number;
   sharpe_ratio: number | null;
+  prev_rank: number | null;
+  rank_delta: number | null;
 }
 
 export interface TournamentResults {
@@ -48,12 +51,22 @@ export class TournamentLeaderboardService {
          )::int as wins,
          (SELECT COUNT(*) FROM prediction.tournament_positions pos
           WHERE pos.portfolio_id = tp.id AND pos.status = 'closed'
-         )::int as total_closed
+         )::int as total_closed,
+         s.prev_rank
        FROM prediction.tournament_entries te
        JOIN prediction.tournament_portfolios tp ON tp.id = te.portfolio_id
        LEFT JOIN authz.users u ON u.id = te.user_id
+       LEFT JOIN LATERAL (
+         SELECT rank AS prev_rank
+         FROM prediction.tournament_rank_snapshots
+         WHERE tournament_id = $1
+           AND user_id = te.user_id
+           AND snapshot_date < CURRENT_DATE
+         ORDER BY snapshot_date DESC
+         LIMIT 1
+       ) s ON TRUE
        WHERE te.tournament_id = $1
-       ORDER BY (tp.total_realized_pnl + tp.total_unrealized_pnl) DESC`,
+       ORDER BY (tp.total_realized_pnl + tp.total_unrealized_pnl) DESC, te.user_id ASC`,
       [tournamentId],
     );
     if (result.error) throw new Error(result.error.message);
@@ -67,6 +80,7 @@ export class TournamentLeaderboardService {
       total_unrealized_pnl: number;
       wins: number;
       total_closed: number;
+      prev_rank: number | null;
     }> | null) ?? [];
 
     return rows.map((row, index) => {
@@ -78,14 +92,22 @@ export class TournamentLeaderboardService {
         ? (row.wins / row.total_closed) * 100
         : 0;
 
+      const rank = index + 1;
+      const prevRank = row.prev_rank === null || row.prev_rank === undefined
+        ? null
+        : Number(row.prev_rank);
+      const rankDelta = prevRank === null ? null : prevRank - rank;
+
       return {
-        rank: index + 1,
+        rank,
         user_id: row.user_id,
         display_name: row.display_name,
         return_pct: Math.round(returnPct * 100) / 100,
         total_pnl: Math.round(totalPnl * 100) / 100,
         win_rate: Math.round(winRate * 100) / 100,
         sharpe_ratio: null, // Requires daily return history — computed in finalizeResults
+        prev_rank: prevRank,
+        rank_delta: rankDelta,
       };
     });
   }
@@ -242,6 +264,53 @@ export class TournamentLeaderboardService {
       starts_at: row.starts_at,
       ends_at: row.ends_at,
     }));
+  }
+
+  /**
+   * Daily rank snapshot cron — fires 23:50 UTC, before the 03:00 UTC club-ranking recompute.
+   * Captures today's leaderboard rank for every active tournament entry so that the next
+   * day's read-path can compute a rank_delta via LATERAL join.
+   */
+  @Cron('50 23 * * *')
+  async handleDailyRankSnapshotCron(): Promise<void> {
+    if (process.env.MARKETS_DISABLE_RANK_SNAPSHOTS === 'true') return;
+    try {
+      const { snapshots } = await this.snapshotDaily();
+      this.logger.log(`Tournament rank snapshot cron: ${snapshots} rows`);
+    } catch (err) {
+      this.logger.error(`Tournament rank snapshot cron failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  async snapshotDaily(): Promise<{ snapshots: number }> {
+    await this.schema.ensureSchema();
+
+    const tResult = await this.db.rawQuery(
+      `SELECT id FROM prediction.tournaments
+       WHERE status = 'active' AND starts_at <= now()`,
+    );
+    if (tResult.error) throw new Error(tResult.error.message);
+
+    const tournaments = (tResult.data as Array<{ id: string }> | null) ?? [];
+    let totalSnapshots = 0;
+
+    for (const t of tournaments) {
+      const leaderboard = await this.getLeaderboard(t.id);
+      for (const entry of leaderboard) {
+        const insertResult = await this.db.rawQuery(
+          `INSERT INTO prediction.tournament_rank_snapshots
+             (tournament_id, user_id, snapshot_date, rank)
+           VALUES ($1, $2, CURRENT_DATE, $3)
+           ON CONFLICT (tournament_id, user_id, snapshot_date)
+             DO UPDATE SET rank = EXCLUDED.rank`,
+          [t.id, entry.user_id, entry.rank],
+        );
+        if (insertResult.error) throw new Error(insertResult.error.message);
+        totalSnapshots++;
+      }
+    }
+
+    return { snapshots: totalSnapshots };
   }
 
   private async getBestTrade(tournamentId: string): Promise<{ user_id: string; display_name: string | null; symbol: string; pnl: number } | null> {

@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonCard, IonCardContent, IonChip, IonNote, IonButton } from '@ionic/vue';
 import { useClubStore } from '../stores/club.store';
+import RankCell from '../components/RankCell.vue';
 
 const store = useClubStore();
 const router = useRouter();
@@ -16,6 +17,7 @@ interface RankedClub {
   id: string; name: string; ranking_position: number; ranking_score: number;
   badges: Array<{ badge: string; earned_at: string }>; member_count: number;
   avg_return_pct: number; club_win_rate: number; tournament_count: number;
+  prev_rank: number | null; rank_delta: number | null;
 }
 
 function badgeColor(badge: string): string {
@@ -45,7 +47,7 @@ function badgeLabel(badge: string): string {
       <thead><tr><th>#</th><th>Club</th><th>Score</th><th>Return</th><th>Win Rate</th><th>Members</th><th>Badges</th><th></th></tr></thead>
       <tbody>
         <tr v-for="club in (store.leaderboard as RankedClub[])" :key="club.id" @click="router.push(`/clubs/${club.id}`)">
-          <td class="rank">{{ club.ranking_position }}</td>
+          <td class="rank"><RankCell :rank="club.ranking_position" :delta="club.rank_delta ?? null" /></td>
           <td><strong>{{ club.name }}</strong></td>
           <td>{{ club.ranking_score.toFixed(1) }}</td>
           <td :class="club.avg_return_pct >= 0 ? 'positive' : 'negative'">{{ club.avg_return_pct }}%</td>

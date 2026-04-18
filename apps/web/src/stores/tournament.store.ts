@@ -72,6 +72,8 @@ export interface LeaderboardEntry {
   total_pnl: number;
   win_rate: number;
   sharpe_ratio: number | null;
+  prev_rank: number | null;
+  rank_delta: number | null;
 }
 
 export interface TournamentPosition {

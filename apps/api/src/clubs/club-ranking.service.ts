@@ -15,6 +15,8 @@ export interface RankedClub {
   avg_return_pct: number;
   club_win_rate: number;
   tournament_count: number;
+  prev_rank: number | null;
+  rank_delta: number | null;
 }
 
 export interface ClubComparison {
@@ -54,6 +56,65 @@ export class ClubRankingService {
     } catch (err) {
       this.logger.error(`Ranking cron failed: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  /**
+   * Daily snapshot at 23:50 UTC — fires before the 03:00 UTC recompute above so
+   * that "yesterday's EOD rank" is captured before `clubs.ranking_position` is overwritten.
+   */
+  @Cron('50 23 * * *')
+  async handleDailyRankSnapshotCron(): Promise<void> {
+    if (process.env.MARKETS_DISABLE_RANK_SNAPSHOTS === 'true') return;
+    try {
+      const { snapshots } = await this.snapshotDaily();
+      this.logger.log(`Club rank daily snapshot cron: ${snapshots} rows`);
+    } catch (err) {
+      this.logger.error(`Club rank daily snapshot failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  async snapshotDaily(): Promise<{ snapshots: number }> {
+    await this.schema.ensureSchema();
+
+    const now = new Date();
+    const periodLabel = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+
+    const result = await this.db.rawQuery(`
+      INSERT INTO prediction.club_ranking_snapshots
+        (club_id, period_type, period_label, ranking_position, ranking_score,
+         avg_return_pct, club_win_rate, member_count, tournament_count)
+      SELECT c.id, 'daily', $1, c.ranking_position, c.ranking_score,
+        COALESCE((
+          SELECT AVG(CASE WHEN tp.initial_balance > 0
+            THEN ((tp.total_realized_pnl + tp.total_unrealized_pnl) / tp.initial_balance) * 100 ELSE 0 END)::float8
+          FROM prediction.tournament_portfolios tp
+          JOIN prediction.tournaments t ON t.id = tp.tournament_id
+          WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived')
+        ), 0),
+        COALESCE((
+          SELECT CASE WHEN COUNT(*) > 0
+            THEN (COUNT(CASE WHEN tpos.realized_pnl > 0 THEN 1 END)::float8 / COUNT(*)::float8) * 100 ELSE 0 END
+          FROM prediction.tournament_positions tpos
+          JOIN prediction.tournaments t ON t.id = tpos.tournament_id
+          WHERE t.scope = 'club' AND t.scope_id = c.id AND tpos.status = 'closed'
+        ), 0),
+        (SELECT COUNT(*)::int FROM prediction.club_members cm WHERE cm.club_id = c.id),
+        (SELECT COUNT(*)::int FROM prediction.tournaments t WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived'))
+      FROM prediction.clubs c
+      WHERE c.is_public = true AND c.ranking_position IS NOT NULL
+      ON CONFLICT (club_id, period_type, period_label) DO UPDATE SET
+        ranking_position = excluded.ranking_position,
+        ranking_score = excluded.ranking_score,
+        avg_return_pct = excluded.avg_return_pct,
+        club_win_rate = excluded.club_win_rate,
+        member_count = excluded.member_count,
+        tournament_count = excluded.tournament_count
+      RETURNING id
+    `, [periodLabel]);
+    if (result.error) throw new Error(result.error.message);
+
+    const count = ((result.data as Array<unknown> | null) ?? []).length;
+    return { snapshots: count };
   }
 
   /** Monthly snapshot on 1st of each month at 4 AM UTC */
@@ -226,26 +287,46 @@ export class ClubRankingService {
         ), 0) as club_win_rate,
         (SELECT COUNT(*)::int FROM prediction.tournaments t
          WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived')
-        ) as tournament_count
+        ) as tournament_count,
+        s.prev_rank
       FROM prediction.clubs c
+      LEFT JOIN LATERAL (
+        SELECT ranking_position AS prev_rank
+        FROM prediction.club_ranking_snapshots
+        WHERE club_id = c.id
+          AND period_type = 'daily'
+          AND period_label < to_char(CURRENT_DATE, 'YYYY-MM-DD')
+        ORDER BY period_label DESC
+        LIMIT 1
+      ) s ON TRUE
       WHERE c.is_public = true
       ORDER BY ${orderBy}
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
     if (result.error) throw new Error(result.error.message);
 
-    return ((result.data as Array<Record<string, unknown>> | null) ?? []).map(row => ({
-      id: row.id as string,
-      name: row.name as string,
-      description: row.description as string | null,
-      ranking_position: Number(row.ranking_position ?? 0),
-      ranking_score: Number(row.ranking_score ?? 0),
-      badges: (row.badges as Array<{ badge: string; earned_at: string }>) ?? [],
-      member_count: Number(row.member_count ?? 0),
-      avg_return_pct: Math.round(Number(row.avg_return_pct ?? 0) * 100) / 100,
-      club_win_rate: Math.round(Number(row.club_win_rate ?? 0) * 100) / 100,
-      tournament_count: Number(row.tournament_count ?? 0),
-    }));
+    return ((result.data as Array<Record<string, unknown>> | null) ?? []).map(row => {
+      const rankingPosition = Number(row.ranking_position ?? 0);
+      const prevRank = row.prev_rank === null || row.prev_rank === undefined
+        ? null
+        : Number(row.prev_rank);
+      const rankDelta = prevRank === null ? null : prevRank - rankingPosition;
+
+      return {
+        id: row.id as string,
+        name: row.name as string,
+        description: row.description as string | null,
+        ranking_position: rankingPosition,
+        ranking_score: Number(row.ranking_score ?? 0),
+        badges: (row.badges as Array<{ badge: string; earned_at: string }>) ?? [],
+        member_count: Number(row.member_count ?? 0),
+        avg_return_pct: Math.round(Number(row.avg_return_pct ?? 0) * 100) / 100,
+        club_win_rate: Math.round(Number(row.club_win_rate ?? 0) * 100) / 100,
+        tournament_count: Number(row.tournament_count ?? 0),
+        prev_rank: prevRank,
+        rank_delta: rankDelta,
+      };
+    });
   }
 
   async compareClubs(clubIdA: string, clubIdB: string): Promise<ClubComparison> {

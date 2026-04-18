@@ -6,6 +6,7 @@ import { useTournamentStore } from '../stores/tournament.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useCanWrite } from '../composables/useCanWrite';
 import MemberProfileDrawer from '../components/MemberProfileDrawer.vue';
+import RankCell from '../components/RankCell.vue';
 import { colorClass as sharedColorClass } from '../utils/colorClass';
 
 const store = useTournamentStore();
@@ -257,7 +258,7 @@ function formatWithZone(iso?: string | null): string {
             :class="['leaderboard-row', entry.user_id === auth.userId ? 'is-you' : '']"
             @click="openMember(entry.user_id)"
           >
-            <td>{{ entry.rank }}</td>
+            <td><RankCell :rank="entry.rank" :delta="entry.rank_delta ?? null" /></td>
             <td>
               <span class="player-cell">
                 <span class="player-name">{{ entry.display_name || 'Player' }}</span>
@@ -439,6 +440,11 @@ function formatWithZone(iso?: string | null): string {
     left: 0;
     background: var(--ion-background-color, #fff);
     z-index: 2;
+    max-width: 48px;
+    overflow: hidden;
+    white-space: nowrap;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
   }
   .leaderboard-table th:nth-child(2),
   .leaderboard-table td:nth-child(2) {

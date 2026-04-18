@@ -123,7 +123,7 @@ export class ClubSchemaService {
       CREATE TABLE IF NOT EXISTS prediction.club_ranking_snapshots (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
         club_id TEXT NOT NULL REFERENCES prediction.clubs(id),
-        period_type TEXT NOT NULL CHECK (period_type IN ('monthly', 'quarterly')),
+        period_type TEXT NOT NULL CHECK (period_type IN ('daily', 'monthly', 'quarterly')),
         period_label TEXT NOT NULL,
         ranking_position INTEGER NOT NULL,
         ranking_score NUMERIC NOT NULL,
@@ -135,7 +135,16 @@ export class ClubSchemaService {
         UNIQUE (club_id, period_type, period_label)
       );
 
+      ALTER TABLE prediction.club_ranking_snapshots
+        DROP CONSTRAINT IF EXISTS club_ranking_snapshots_period_type_check;
+      ALTER TABLE prediction.club_ranking_snapshots
+        ADD CONSTRAINT club_ranking_snapshots_period_type_check
+        CHECK (period_type IN ('daily', 'monthly', 'quarterly'));
+
       CREATE INDEX IF NOT EXISTS idx_club_ranking_snapshots_club ON prediction.club_ranking_snapshots(club_id);
+      CREATE INDEX IF NOT EXISTS idx_club_ranking_snapshots_daily
+        ON prediction.club_ranking_snapshots(period_label DESC)
+        WHERE period_type = 'daily';
       CREATE INDEX IF NOT EXISTS idx_clubs_ranking ON prediction.clubs(ranking_score DESC) WHERE is_public = true;
 
       -- Mentor/mentee pairing system
