@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-18 (prediction-to-trade-intent promoted to current)
+**Last updated:** 2026-04-18 (intraday-pnl-on-positions promoted to current)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -42,12 +42,13 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Current Effort
 
-**[prediction-to-trade-intent](current/prediction-to-trade-intent/intention.md)** — "Trade this prediction" CTA on prediction cards/drawers that opens the tournament trade form with symbol + direction + suggested size pre-filled, quantity editable. Closes the loop between the analysis surface and the portfolio surface so users don't have to re-enter trade details by hand.
+**[intraday-pnl-on-positions](current/intraday-pnl-on-positions/intention.md)** — bulk `GET /markets/bars/latest?symbols=...` endpoint + intraday % column on MY POSITIONS. Closes the "is today green or red" gap left behind by PR #58; builds on `live-prediction-pnl`'s intraday bar cache.
 
 ---
 
 ## Recently Shipped
 
+- **[prediction-to-trade-intent](prediction-to-trade-intent/intention.md)** (2026-04-18, PR #59) — "Trade this prediction" CTA on prediction cards/drawers. Active-tournament resolver (`useActiveTournament`) handles none/one/many via `TournamentPicker.vue`; CTA routes to `/tournaments/:id?tab=trade&symbol&direction&qty&predictionId`. Sizing heuristic `floor((startingBalance * pct) / price)` where `pct = clamp(0.01 + confidence*0.04, 0.01, 0.05)`. Query-param parser with regex/whitelist/int guards + `router.replace` strip. Empty-state banner on `/tournaments?reason=no-active-entry`. Equity-only disabled state for options. Frontend-only — `prediction.tournament_trade_queue.prediction_id` was already nullable.
 - **[club-tournament-experience-polish](club-tournament-experience-polish/intention.md)** (2026-04-18, PR #58) — 6-phase polish pass across club + tournament surfaces for the St. Thomas cohort. 8 PRD-called-out bug fixes + 4 follow-ups (ClubPreviewPanel for non-members, analytics tournament-count filter, TRADE tab upcoming branch, IonSegment v-model bug, chat author display_name, dashboard pluralize, leaderboard em-dash standardization, DISCOVER filter hides joined). Empty-state + explainer pass (ACTIVITIES reorder, CURRICULUM/ANALYSTS explainers, MENTORING gating, analytics tooltip, tournament INFO). Default Activities tab + `ActiveTournamentBanner` + tournament list countdown + player count + prize line. Leaderboard storytelling — Risk-Adjusted Return label, neutral/green/red colorClass, YOU badge, clickable rows → `MemberProfileDrawer`, new `GET /clubs/:id/members/:userId` endpoint, MY POSITIONS size bar. Mobile (390px) responsiveness — scrollable IonSegments, mobile overflow chrome with aggregated unread, sticky Rank/Player leaderboard columns. Nav role-gating extended to SETTINGS items + disclaimer consolidation. 51 new API assertions. 5 feature-deferrals queued as their own efforts (below).
 - **[live-prediction-pnl](live-prediction-pnl/intention.md)** (2026-04-17, PR #57) — day-trader strategies now have a real intraday runtime. `DayTraderSchedulerService` hourly cron during market hours + dedicated 3:55 PM ET EOD-flat cron, DST-aware `MarketHoursService` via `Intl.DateTimeFormat('America/New_York')`, `TwelveDataAdapter.fetchIntradayBars` routed through the existing 8rpm rate limiter, `IntradayBarRefresherService` merging hourly OHLC into `instruments.current_state.intraday_bars` (cap 24), `prediction.market_day_trader_runs` audit table, runner scoping per base vs. authored analyst, `OutcomeTrackingService` decoupled from day-trader runtime, admin `POST /markets/admin/day-trader/run-now`. 140 new unit assertions across 6 suites.
 - **[entity-level-performance-attribution](entity-level-performance-attribution/intention.md)** (2026-04-17, PR #56) — multi-dimensional paper P&L attribution across triple/analyst/instrument/source/article/author. `prediction.outcome_records` table + 6 materialized views, 10 endpoints (8 admin-gated + 2 author), 5 views + banner + widget extensions. Feeds graduation candidate ranking, author retention surfaces, and cost-defensibility value-per-$ estimate.
@@ -66,13 +67,12 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 Reorganized 2026-04-18 around the remaining beta-phase coolness. The PR-58 polish pass surfaced feature-level deferrals that deserve their own small efforts rather than getting bolted onto unrelated work. Billing / graduation / ops / hardening all moved to `future/` until the experience is locked in and we're ready to commercialize.
 
-### Beta Coolness — Polish Follow-Ups (5 efforts — deferred from PR #58)
+### Beta Coolness — Polish Follow-Ups (4 efforts — deferred from PR #58)
 
 1. [activity-viewed-counter](next/activity-viewed-counter/intention.md) — `prediction.club_members.last_viewed_at` + `(N)` unread badge on ACTIVITIES tab and MY CLUBS cards
 2. [leaderboard-rank-delta](next/leaderboard-rank-delta/intention.md) — prior-period rank on leaderboard payload + ↑/↓ arrow next to Rank column
 3. [direct-message-intent](next/direct-message-intent/intention.md) — `/messages?to=<userId>` route that opens-or-creates a 1:1 thread; wires the Member Profile Drawer's Message button
-4. [intraday-pnl-on-positions](next/intraday-pnl-on-positions/intention.md) — bulk `/markets/bars/latest` endpoint + intraday % column on MY POSITIONS
-5. [tournament-avatar-stack](next/tournament-avatar-stack/intention.md) — first-3-entrants avatar stack on tournament list cards with single-query bulk fetch
+4. [tournament-avatar-stack](next/tournament-avatar-stack/intention.md) — first-3-entrants avatar stack on tournament list cards with single-query bulk fetch
 
 ### Beta Coolness — Teaching (1 effort)
 
