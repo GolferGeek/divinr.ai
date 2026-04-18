@@ -55,7 +55,7 @@ const props = withDefaults(defineProps<{
   instrumentId?: string;
   currentPrice?: number | null;
   assetType?: string;
-}>(), { mode: 'view', instrumentId: '', currentPrice: null, assetType: 'equity' });
+}>(), { mode: 'view', instrumentId: '', currentPrice: null, assetType: 'stock' });
 
 const emit = defineEmits<{
   close: [];
@@ -288,7 +288,11 @@ const pickerTournaments = ref<Tournament[]>([]);
 const pendingPickerResolve = ref<((id: string | null) => void) | null>(null);
 const ctaBusy = ref(false);
 
-const isEquity = computed(() => (props.assetType ?? 'equity') === 'equity');
+// DB canonical is 'stock'; 'equity' accepted as synonym for forward-compat
+const isEquity = computed(() => {
+  const at = props.assetType ?? 'stock';
+  return at === 'stock' || at === 'equity';
+});
 
 function onPickerSelect(tournamentId: string) {
   pickerOpen.value = false;
@@ -301,6 +305,16 @@ function onPickerDismiss() {
   pendingPickerResolve.value?.(null);
   pendingPickerResolve.value = null;
 }
+
+// Avoid stuck ctaBusy if the outer modal closes while the picker is awaiting a choice
+watch(() => props.isOpen, open => {
+  if (!open && pendingPickerResolve.value) {
+    pendingPickerResolve.value(null);
+    pendingPickerResolve.value = null;
+    pickerOpen.value = false;
+    ctaBusy.value = false;
+  }
+});
 
 async function handleTradeThisPrediction() {
   const a = analyst.value;

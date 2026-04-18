@@ -86,12 +86,12 @@ const modalInitialIndex = ref(0);
 const modalMode = ref<'view' | 'trade'>('view');
 const modalInstrumentId = ref('');
 const modalCurrentPrice = ref<number | null>(null);
-const modalAssetType = ref<string>('equity');
+const modalAssetType = ref<string>('stock');
 
 function lookupAssetType(instrumentId: string): string {
   const match = instruments.items.find(i => (i as Record<string, unknown>).id === instrumentId) as Record<string, unknown> | undefined;
   const at = match?.asset_type;
-  return typeof at === 'string' && at.length > 0 ? at : 'equity';
+  return typeof at === 'string' && at.length > 0 ? at : 'stock';
 }
 
 function openAnalystModal(pred: DashboardPrediction, analystIndex: number) {
