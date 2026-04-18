@@ -98,6 +98,16 @@ export class TournamentSchemaService {
         created_at TIMESTAMPTZ DEFAULT now()
       );
 
+      CREATE TABLE IF NOT EXISTS prediction.tournament_rank_snapshots (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tournament_id TEXT NOT NULL REFERENCES prediction.tournaments(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL,
+        snapshot_date DATE NOT NULL,
+        rank INTEGER NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        UNIQUE (tournament_id, user_id, snapshot_date)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_tournaments_status ON prediction.tournaments(status);
       CREATE INDEX IF NOT EXISTS idx_tournament_entries_tournament_user ON prediction.tournament_entries(tournament_id, user_id);
       CREATE INDEX IF NOT EXISTS idx_tournament_portfolios_tournament_user ON prediction.tournament_portfolios(tournament_id, user_id);
@@ -106,6 +116,8 @@ export class TournamentSchemaService {
       CREATE INDEX IF NOT EXISTS idx_tournament_trade_queue_status ON prediction.tournament_trade_queue(tournament_id, status);
       CREATE INDEX IF NOT EXISTS idx_tournament_invites_token ON prediction.tournament_invites(invite_token);
       CREATE INDEX IF NOT EXISTS idx_tournaments_created_by ON prediction.tournaments(created_by);
+      CREATE INDEX IF NOT EXISTS idx_tournament_rank_snapshots_tournament_date
+        ON prediction.tournament_rank_snapshots(tournament_id, snapshot_date DESC);
     `;
 
     const result = await this.db.rawQuery(ddl);
