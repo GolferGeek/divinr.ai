@@ -124,7 +124,7 @@ export const useTournamentStore = defineStore('tournament', () => {
     return request<TournamentEntry>(`/${id}/enter`, { method: 'POST' });
   }
 
-  async function queueTrade(id: string, input: { symbol: string; direction: string; quantity: number }) {
+  async function queueTrade(id: string, input: { symbol: string; direction: string; quantity: number; predictionId?: string }) {
     return request(`/${id}/queue-trade`, { method: 'POST', body: JSON.stringify(input) });
   }
 

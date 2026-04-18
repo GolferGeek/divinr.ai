@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote } from '@ionic/vue';
 import { useTournamentStore } from '../stores/tournament.store';
 import { useCanWrite } from '../composables/useCanWrite';
@@ -8,10 +8,17 @@ import { useCanWrite } from '../composables/useCanWrite';
 const store = useTournamentStore();
 const { canWrite } = useCanWrite();
 const router = useRouter();
+const route = useRoute();
 const scopeFilter = ref<string>('');
 const statusFilter = ref<string>('');
 const now = ref(Date.now());
 let tick: ReturnType<typeof setInterval> | null = null;
+
+const showNoActiveBanner = computed(() => route.query.reason === 'no-active-entry');
+
+function dismissBanner() {
+  router.replace({ path: route.path });
+}
 
 onMounted(() => {
   store.fetchTournaments();
@@ -64,6 +71,11 @@ function pluralPlayers(n: number): string {
     <div class="page-header">
       <h1>Tournaments</h1>
       <IonButton v-if="canWrite" size="small" @click="router.push('/tournaments/create')">Create Tournament</IonButton>
+    </div>
+
+    <div v-if="showNoActiveBanner" class="no-active-banner" role="status">
+      <span>Join a tournament to trade on predictions.</span>
+      <IonButton fill="clear" size="small" @click="dismissBanner">Dismiss</IonButton>
     </div>
 
     <p class="disclaimer">
@@ -128,6 +140,18 @@ function pluralPlayers(n: number): string {
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
 .page-header h1 { margin: 0; font-size: 1.5rem; }
 .disclaimer { font-size: 0.75rem; color: var(--ion-color-medium); font-style: italic; margin-bottom: 1rem; }
+.no-active-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--ion-color-primary-tint, #e6f0ff);
+  color: var(--ion-color-primary-shade, #1e4ba5);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+}
 .learn-more { color: inherit; text-decoration: underline; font-style: normal; margin-left: 0.25rem; }
 .learn-more:hover { color: var(--ion-color-primary); }
 .filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; }

@@ -56,26 +56,62 @@ const tradeSymbol = ref('');
 const tradeDirection = ref<'long' | 'short'>('long');
 const tradeQuantity = ref(1);
 const tradeError = ref('');
+const predictionIdForTrade = ref<string | null>(null);
 const inviteToken = ref('');
 const showInvite = ref(false);
+
+const SYMBOL_REGEX = /^[A-Z.]{1,10}$/;
+
+function applyTradePrefillFromQuery() {
+  const q = route.query;
+  const hasAnyPrefill = q.symbol || q.direction || q.qty || q.predictionId;
+  if (!hasAnyPrefill) return;
+  if (q.tab === 'trade') tab.value = 'trade';
+  const rawSymbol = typeof q.symbol === 'string' ? q.symbol.toUpperCase() : '';
+  if (rawSymbol && SYMBOL_REGEX.test(rawSymbol)) tradeSymbol.value = rawSymbol;
+  if (q.direction === 'long' || q.direction === 'short') tradeDirection.value = q.direction;
+  const rawQty = typeof q.qty === 'string' ? parseInt(q.qty, 10) : NaN;
+  if (Number.isFinite(rawQty) && rawQty > 0) tradeQuantity.value = rawQty;
+  if (typeof q.predictionId === 'string' && q.predictionId.length > 0) {
+    predictionIdForTrade.value = q.predictionId;
+  }
+  router.replace({ path: route.path });
+}
 
 onMounted(async () => {
   await store.fetchTournament(id.value);
   await store.fetchLeaderboard(id.value);
   await store.fetchPositions(id.value, 'open');
+  applyTradePrefillFromQuery();
 });
 
 async function queueTrade() {
   tradeError.value = '';
   if (!tradeSymbol.value || tradeQuantity.value <= 0) return;
+  const submittedSymbol = tradeSymbol.value.toUpperCase();
+  const submittedDirection = tradeDirection.value;
+  const submittedQuantity = tradeQuantity.value;
+  const submittedPredictionId = predictionIdForTrade.value;
   try {
     await store.queueTrade(id.value, {
-      symbol: tradeSymbol.value.toUpperCase(),
-      direction: tradeDirection.value,
-      quantity: tradeQuantity.value,
+      symbol: submittedSymbol,
+      direction: submittedDirection,
+      quantity: submittedQuantity,
+      ...(submittedPredictionId ? { predictionId: submittedPredictionId } : {}),
     });
+    if (submittedPredictionId) {
+      // observability for CTA funnel, see prediction-to-trade-intent effort
+      console.info('[prediction-to-trade-intent] trade_queued', {
+        predictionId: submittedPredictionId,
+        tournamentId: id.value,
+        symbol: submittedSymbol,
+        direction: submittedDirection,
+        quantity: submittedQuantity,
+      });
+    }
     tradeSymbol.value = '';
     tradeQuantity.value = 1;
+    predictionIdForTrade.value = null;
     await store.fetchPositions(id.value, 'open');
   } catch (e: unknown) {
     tradeError.value = e instanceof Error ? e.message : String(e);
