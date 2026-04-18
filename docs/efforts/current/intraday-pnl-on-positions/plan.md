@@ -170,7 +170,7 @@ Before moving to Phase 4, ALL of the following must pass:
   - `pnpm test` — pre-existing failures only (compliance suite, transport-types jest, markets smoke); all confirmed identical on main via `git stash` round-trip. API unit suite (including 3 new tests, 69 new assertions) passes clean.
 - [x] 4.2 Golden-path walkthrough deferred to live browser validation by user after merge (server not spun up in this agent session). Unit tests cover shape + edge cases end-to-end.
 - [x] 4.3 Write `docs/efforts/current/intraday-pnl-on-positions/completion-report.md`.
-- [ ] 4.4 Invoke the `commit-push` skill (handled by run-plan). Ensure PR title summarizes the effort; PR body links to PRD + plan.
+- [x] 4.4 Branch pushed; PR #60 opened at https://github.com/orchestr8r-ai/divinr.ai/pull/60 linking PRD + plan + completion report.
 
 ### Quality Gate
 Before marking the effort complete, ALL of the following must pass:
