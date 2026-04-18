@@ -37,6 +37,7 @@ import { StopLossWatcherService } from './services/stop-loss-watcher.service';
 import { EodForcedBuyService } from './services/eod-forced-buy.service';
 import { DayTraderRunnerService } from './services/day-trader-runner.service';
 import { DayTraderSchedulerService } from './services/day-trader-scheduler.service';
+import { MarketsBarsService } from './services/markets-bars.service';
 import { AuditService } from './services/audit.service';
 import { StrategicOverhaulService } from './services/strategic-overhaul.service';
 import { AffinityService } from './services/affinity.service';
@@ -66,6 +67,40 @@ interface AuthenticatedUser {
   id: string;
   email?: string;
   role?: string;
+}
+
+const SYMBOL_PATTERN = /^[A-Z0-9.\-]{1,10}$/;
+
+function parseSymbolsParam(raw: string | undefined): string[] {
+  if (!raw || typeof raw !== 'string') {
+    throw new BadRequestException('symbols query param is required');
+  }
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    throw new BadRequestException('symbols query param is required');
+  }
+  const parts = trimmed
+    .split(',')
+    .map(s => s.trim().toUpperCase())
+    .filter(s => s.length > 0);
+  if (parts.length === 0) {
+    throw new BadRequestException('symbols query param is required');
+  }
+  if (parts.length > 50) {
+    throw new BadRequestException('symbols supports at most 50 entries');
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const sym of parts) {
+    if (!SYMBOL_PATTERN.test(sym)) {
+      throw new BadRequestException(`invalid symbol: ${sym}`);
+    }
+    if (!seen.has(sym)) {
+      seen.add(sym);
+      out.push(sym);
+    }
+  }
+  return out;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -105,6 +140,7 @@ export class MarketsController {
     @Inject(EnablementService) private readonly enablement: EnablementService,
     @Inject(MessagingService) private readonly messaging: MessagingService,
     @Inject(LlmUsageQueryService) private readonly usageQuery: LlmUsageQueryService,
+    @Inject(MarketsBarsService) private readonly marketsBars: MarketsBarsService,
   ) {
     this.markets = markets;
   }
@@ -153,6 +189,24 @@ export class MarketsController {
     const writableRoles = ['super-admin', 'owner', 'member', 'admin'];
     if (role && writableRoles.includes(role)) return;
     throw new ForbiddenException('Read-only access — beta readers cannot perform this action');
+  }
+
+  // ─── Market Bars ───────────────────────────────────────────────
+
+  @Get('bars/latest')
+  async getLatestBars(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('symbols') symbolsParam?: string,
+  ): Promise<Record<string, unknown>> {
+    this.getUser(req);
+    const symbols = parseSymbolsParam(symbolsParam);
+    const barsMap = await this.marketsBars.getIntradayBarsForSymbols(symbols);
+    const out: Record<string, unknown> = {};
+    for (const sym of symbols) {
+      const bars = barsMap.get(sym) ?? [];
+      out[sym] = bars.length > 0 ? bars[bars.length - 1] : null;
+    }
+    return out;
   }
 
   // ─── Instruments ───────────────────────────────────────────────

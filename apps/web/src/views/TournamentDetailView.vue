@@ -6,6 +6,7 @@ import { useTournamentStore } from '../stores/tournament.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useCanWrite } from '../composables/useCanWrite';
 import MemberProfileDrawer from '../components/MemberProfileDrawer.vue';
+import { colorClass as sharedColorClass } from '../utils/colorClass';
 
 const store = useTournamentStore();
 const auth = useAuthStore();
@@ -18,11 +19,8 @@ const drawerClubId = computed<string | null>(() => {
 });
 
 function colorClass(v: number | null | undefined): string {
-  if (v == null) return '';
   if (v === 0 && isPreSprint()) return '';
-  if (v > 0) return 'positive';
-  if (v < 0) return 'negative';
-  return 'neutral';
+  return sharedColorClass(v);
 }
 
 function openMember(userId: string) {

@@ -11,6 +11,7 @@ import EquityCurveChart from '../components/EquityCurveChart.vue';
 import CalibrationChart from '../components/CalibrationChart.vue';
 import ProvenanceTooltip from '../components/ProvenanceTooltip.vue';
 import type { SnapshotHistoryPoint, BenchmarkPoint, CalibrationBucket } from '../stores/portfolio.store';
+import { colorClass } from '../utils/colorClass';
 import {
   IonCard, IonCardContent, IonGrid, IonRow, IonCol,
   IonChip, IonList, IonItem, IonLabel, IonButton, IonNote,
@@ -464,6 +465,11 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
                           <span v-if="pos.exit_price"> | Exit: ${{ Number(pos.exit_price).toFixed(2) }}</span>
                           <span v-if="pos.unrealized_pnl != null" :style="pnlColor(pos.unrealized_pnl)"> | Unrealized: {{ formatCurrency(pos.unrealized_pnl) }}</span>
                           <span v-if="pos.realized_pnl != null && pos.status === 'closed'" :style="pnlColor(pos.realized_pnl)"> | Realized: {{ formatCurrency(pos.realized_pnl) }}</span>
+                          <span v-if="p.kind === 'user' && pos.status === 'open'">
+                            | Today:
+                            <span v-if="pos.intraday_pct != null" :class="colorClass(pos.intraday_pct as number)">{{ (Number(pos.intraday_pct) * 100).toFixed(2) }}%</span>
+                            <span v-else>—</span>
+                          </span>
                         </p>
                         <!-- 5.6a reference levels for user open positions only -->
                         <p v-if="p.kind === 'user' && pos.status === 'open'" style="font-size:0.75rem;opacity:0.75">
@@ -578,4 +584,7 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
 .triple-row:hover {
   background: var(--ion-color-step-50);
 }
+.positive { color: var(--ion-color-success); }
+.negative { color: var(--ion-color-danger); }
+.neutral { color: var(--ion-color-medium); }
 </style>

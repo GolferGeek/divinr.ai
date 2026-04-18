@@ -89,6 +89,7 @@ function buildController(db: AdminDb, scheduler: MockScheduler): MarketsControll
     noop,              // EnablementService
     noop,              // MessagingService
     noop,              // LlmUsageQueryService
+    noop,              // MarketsBarsService
   );
 }
 

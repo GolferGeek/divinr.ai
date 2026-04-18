@@ -19,6 +19,8 @@ class MockDb {
 
 const stubSchema = { ensureSchema: async () => {} } as any;
 const stubSizing = {} as any;
+const stubBars = { getIntradayBarsForSymbols: async () => new Map() } as any;
+const stubMarketHours = { isUsEquityMarketOpen: () => false } as any;
 
 function basePortfolio() {
   return {
@@ -50,7 +52,7 @@ async function main() {
       if (sql.includes('update prediction.user_portfolios')) return { data: [], error: null };
       return { data: [], error: null };
     });
-    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
     const pos = await svc.executeImmediate({
       userId: 'user-1', predictionId: 'pred-1',
       instrumentId: 'inst-1', direction: 'long', quantity: 10,
@@ -76,7 +78,7 @@ async function main() {
       if (sql.includes('insert into prediction.user_positions')) { secondInsertHappened = true; return { data: [], error: null }; }
       return { data: [], error: null };
     });
-    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
     const pos = await svc.executeImmediate({
       userId: 'user-1', predictionId: 'pred-1',
       instrumentId: 'inst-1', direction: 'long', quantity: 10,
@@ -105,7 +107,7 @@ async function main() {
       }
       return { data: [], error: null };
     });
-    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
     const closed = await svc.closePosition({ userId: 'user-1', positionId: 'pos-1' });
     assert(updatedPnl === 200, 'long P&L = (120-100)*10 = 200');
     assert((closed as any).status === 'closed', 'status=closed');
@@ -127,7 +129,7 @@ async function main() {
       }
       return { data: [], error: null };
     });
-    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
     await svc.closePosition({ userId: 'user-1', positionId: 'pos-2' });
     assert(updatedPnl === 200, 'short P&L = (100-80)*10 = 200');
   }
@@ -140,7 +142,7 @@ async function main() {
       if (sql.includes('select * from prediction.user_positions')) return { data: [pos], error: null };
       return { data: [], error: null };
     });
-    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
     let threw = false;
     try {
       await svc.closePosition({ userId: 'user-1', positionId: 'pos-3' });
@@ -158,7 +160,7 @@ async function main() {
       if (sql.includes('select disclaimer_acknowledged_at')) return { data: [{ disclaimer_acknowledged_at: '2026-04-07T00:00:00Z' }], error: null };
       return { data: [], error: null };
     });
-    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
     assert(await svc.isDisclaimerAcknowledged('user-1'), 'returns true when ack timestamp present');
   }
   {
@@ -166,7 +168,7 @@ async function main() {
       if (sql.includes('select disclaimer_acknowledged_at')) return { data: [{ disclaimer_acknowledged_at: null }], error: null };
       return { data: [], error: null };
     });
-    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing);
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
     assert((await svc.isDisclaimerAcknowledged('user-1')) === false, 'returns false when ack null');
   }
 
