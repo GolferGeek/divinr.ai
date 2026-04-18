@@ -47,13 +47,13 @@ watch(() => store.messagesByChannel[props.channelId]?.length, () => {
       </ion-button>
     </div>
     <div class="thread-parent">
-      <div class="message-sender">{{ parentMessage.sender_id.slice(0, 8) }}</div>
+      <div class="message-sender">{{ (parentMessage as { sender_display_name?: string | null }).sender_display_name || parentMessage.sender_id.slice(0, 8) }}</div>
       <div class="message-body">{{ parentMessage.body }}</div>
     </div>
     <div class="thread-replies">
       <div v-for="reply in replies" :key="reply.id" class="reply-bubble">
         <div class="reply-header">
-          <span class="message-sender">{{ reply.sender_id.slice(0, 8) }}</span>
+          <span class="message-sender">{{ (reply as { sender_display_name?: string | null }).sender_display_name || reply.sender_id.slice(0, 8) }}</span>
           <span class="message-time">{{ formatTime(reply.created_at) }}</span>
         </div>
         <div class="message-body">{{ reply.body }}</div>

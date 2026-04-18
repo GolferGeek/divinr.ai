@@ -13,7 +13,7 @@ import {
   warningOutline, gitNetworkOutline, trendingUpOutline,
   chatbubblesOutline, trophyOutline, peopleCircleOutline,
   chevronDownOutline, chevronForwardOutline, compassOutline,
-  createOutline, analyticsOutline,
+  createOutline, analyticsOutline, ellipsisHorizontalOutline,
 } from 'ionicons/icons';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -45,6 +45,7 @@ interface NavItem {
   title: string;
   icon: string;
   to: string;
+  adminOnly?: boolean;
 }
 
 interface NavGroup {
@@ -90,8 +91,8 @@ const navGroups: NavGroup[] = [
     label: 'Settings',
     items: [
       { title: 'Your Content', icon: createOutline, to: '/settings/authored-content' },
-      { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine' },
-      { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary' },
+      { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine', adminOnly: true },
+      { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary', adminOnly: true },
     ],
   },
   {
@@ -137,7 +138,13 @@ function isGroupCollapsed(label: string): boolean {
 }
 
 const visibleGroups = computed(() =>
-  navGroups.filter(g => !g.adminOnly || auth.isAdmin),
+  navGroups
+    .filter(g => !g.adminOnly || auth.isAdmin)
+    .map(g => ({
+      ...g,
+      items: g.items.filter(i => !i.adminOnly || auth.isAdmin),
+    }))
+    .filter(g => g.items.length > 0),
 );
 
 // Load contrarian alerts and notification count on mount
@@ -244,22 +251,59 @@ async function resetUserOnboarding() {
             </ion-buttons>
             <ion-title>Divinr AI</ion-title>
             <ion-buttons slot="end">
-              <ion-chip color="medium" outline>
+              <ion-chip color="medium" outline class="chrome-desktop-only">
                 <ion-icon :icon="earthOutline" />
                 <ion-label class="header-universe-label">{{ domain.activeUniverse }}</ion-label>
               </ion-chip>
-              <ion-button fill="clear" class="notification-bell fear-greed-bell" @click="router.push('/fear-greed-alerts')" v-if="fearGreedStore.unreadCount > 0">
+              <ion-button fill="clear" class="notification-bell fear-greed-bell chrome-desktop-only" @click="router.push('/fear-greed-alerts')" v-if="fearGreedStore.unreadCount > 0" title="Fear & Greed alerts — unread market-sentiment signals">
                 <ion-icon :icon="warningOutline" />
                 <span class="notification-badge fear-greed-badge">{{ fearGreedStore.unreadCount > 9 ? '9+' : fearGreedStore.unreadCount }}</span>
               </ion-button>
-              <ion-button fill="clear" class="notification-bell" @click="router.push('/messages')">
+              <ion-button fill="clear" class="notification-bell chrome-desktop-only" @click="router.push('/messages')" title="Messages — unread DMs and club chats">
                 <ion-icon :icon="chatbubblesOutline" />
                 <span v-if="messagingStore.totalUnread > 0" class="notification-badge">{{ messagingStore.totalUnread > 9 ? '9+' : messagingStore.totalUnread }}</span>
               </ion-button>
-              <ion-button fill="clear" class="notification-bell" @click="router.push('/notifications')">
+              <ion-button fill="clear" class="notification-bell chrome-desktop-only" @click="router.push('/notifications')" title="Notifications — rank changes, mentor activity, system updates">
                 <ion-icon :icon="notificationsOutline" />
                 <span v-if="notificationStore.unreadCount > 0" class="notification-badge">{{ notificationStore.unreadCount > 9 ? '9+' : notificationStore.unreadCount }}</span>
               </ion-button>
+              <ion-button
+                fill="clear"
+                id="mobile-chrome-trigger"
+                class="notification-bell chrome-mobile-only chrome-mobile-overflow-btn"
+                aria-label="Open notifications menu"
+              >
+                <ion-icon :icon="ellipsisHorizontalOutline" />
+                <span
+                  v-if="(fearGreedStore.unreadCount + messagingStore.totalUnread + notificationStore.unreadCount) > 0"
+                  class="notification-badge"
+                >{{ Math.min(fearGreedStore.unreadCount + messagingStore.totalUnread + notificationStore.unreadCount, 99) > 9 ? '9+' : (fearGreedStore.unreadCount + messagingStore.totalUnread + notificationStore.unreadCount) }}</span>
+              </ion-button>
+              <ion-popover trigger="mobile-chrome-trigger" trigger-action="click" dismiss-on-select>
+                <ion-content>
+                  <ion-list>
+                    <ion-item :detail="false">
+                      <ion-icon slot="start" :icon="earthOutline" />
+                      <ion-label>Universe: {{ domain.activeUniverse }}</ion-label>
+                    </ion-item>
+                    <ion-item v-if="fearGreedStore.unreadCount > 0" button :detail="false" @click="router.push('/fear-greed-alerts')">
+                      <ion-icon slot="start" :icon="warningOutline" />
+                      <ion-label>Fear &amp; Greed</ion-label>
+                      <span class="chrome-mobile-popover-badge warning">{{ fearGreedStore.unreadCount > 9 ? '9+' : fearGreedStore.unreadCount }}</span>
+                    </ion-item>
+                    <ion-item button :detail="false" @click="router.push('/messages')">
+                      <ion-icon slot="start" :icon="chatbubblesOutline" />
+                      <ion-label>Messages</ion-label>
+                      <span v-if="messagingStore.totalUnread > 0" class="chrome-mobile-popover-badge">{{ messagingStore.totalUnread > 9 ? '9+' : messagingStore.totalUnread }}</span>
+                    </ion-item>
+                    <ion-item button :detail="false" @click="router.push('/notifications')">
+                      <ion-icon slot="start" :icon="notificationsOutline" />
+                      <ion-label>Notifications</ion-label>
+                      <span v-if="notificationStore.unreadCount > 0" class="chrome-mobile-popover-badge">{{ notificationStore.unreadCount > 9 ? '9+' : notificationStore.unreadCount }}</span>
+                    </ion-item>
+                  </ion-list>
+                </ion-content>
+              </ion-popover>
               <ion-chip v-if="auth.isBetaReader" color="warning" outline>
                 <ion-label>Read Only</ion-label>
               </ion-chip>
@@ -613,5 +657,44 @@ ion-toolbar {
     padding: 0 4px;
     font-size: 0.75rem;
   }
+}
+
+@media (max-width: 600px) {
+  .main-area ion-title { display: none; }
+  .chrome-desktop-only { display: none !important; }
+}
+
+@media (min-width: 601px) {
+  .chrome-mobile-only { display: none !important; }
+}
+
+.chrome-mobile-overflow-btn {
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.chrome-mobile-popover-item {
+  position: relative;
+}
+
+.chrome-mobile-popover-badge {
+  background: var(--ion-color-danger, #eb445a);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  margin-left: auto;
+}
+
+.chrome-mobile-popover-badge.warning {
+  background: var(--ion-color-warning, #ffc409);
+  color: #000;
 }
 </style>

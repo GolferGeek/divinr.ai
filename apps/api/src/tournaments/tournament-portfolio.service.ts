@@ -79,10 +79,10 @@ export class TournamentPortfolioService {
     return rows[0] ?? null;
   }
 
-  async getMyEntries(userId: string): Promise<Array<TournamentEntry & { tournament_name: string; tournament_status: string; tournament_type: string }>> {
+  async getMyEntries(userId: string): Promise<Array<TournamentEntry & { tournament_name: string; tournament_status: string; tournament_type: string; tournament_starts_at: string }>> {
     await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
-      `SELECT te.*, t.name as tournament_name, t.status as tournament_status, t.tournament_type
+      `SELECT te.*, t.name as tournament_name, t.status as tournament_status, t.tournament_type, t.starts_at as tournament_starts_at
        FROM prediction.tournament_entries te
        JOIN prediction.tournaments t ON t.id = te.tournament_id
        WHERE te.user_id = $1 AND t.status IN ('upcoming', 'active')
@@ -90,7 +90,7 @@ export class TournamentPortfolioService {
       [userId],
     );
     if (result.error) throw new Error(result.error.message);
-    return (result.data as Array<TournamentEntry & { tournament_name: string; tournament_status: string; tournament_type: string }> | null) ?? [];
+    return (result.data as Array<TournamentEntry & { tournament_name: string; tournament_status: string; tournament_type: string; tournament_starts_at: string }> | null) ?? [];
   }
 
   async queueTrade(

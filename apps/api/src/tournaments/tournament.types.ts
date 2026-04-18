@@ -18,6 +18,7 @@ export interface Tournament {
   ends_at: string;
   channel_id: string | null;
   created_at: string;
+  player_count?: number;
 }
 
 export interface TournamentEntry {

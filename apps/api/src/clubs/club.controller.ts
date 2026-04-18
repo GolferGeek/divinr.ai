@@ -92,8 +92,8 @@ export class ClubController {
 
   @Get('discover')
   async discoverClubs(@Req() req: { user?: AuthenticatedUser }, @Query('sort_by') sortBy?: string) {
-    this.getUser(req);
-    return this.clubService.discoverClubs(sortBy);
+    const user = this.getUser(req);
+    return this.clubService.discoverClubs(user.id, sortBy);
   }
 
   // ─── Rankings (before :id routes) ──────────────────────────────
@@ -151,8 +151,10 @@ export class ClubController {
   async getClub(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
     const user = this.getUser(req);
     const club = await this.clubService.getClub(id, user.id);
-    if (!club) throw new NotFoundException('Club not found or not a member');
-    return club;
+    if (club) return club;
+    const preview = await this.clubService.getClubPreview(id);
+    if (!preview) throw new NotFoundException('Club not found');
+    return preview;
   }
 
   @Patch(':id')
@@ -192,6 +194,17 @@ export class ClubController {
   async listMembers(@Req() req: { user?: AuthenticatedUser }, @Param('id') id: string) {
     const user = this.getUser(req);
     return this.clubService.listMembers(id, user.id);
+  }
+
+  @Get(':id/members/:userId')
+  async getMemberDetail(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('id') id: string,
+    @Param('userId') targetUserId: string,
+  ) {
+    const user = this.getUser(req);
+    try { return await this.clubService.getMemberDetail(id, targetUserId, user.id); }
+    catch (err) { this.handleError(err); }
   }
 
   @Post(':id/members/:userId/promote')

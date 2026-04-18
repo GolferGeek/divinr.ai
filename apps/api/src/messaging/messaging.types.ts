@@ -23,6 +23,7 @@ export interface Message {
   id: string;
   channel_id: string;
   sender_id: string;
+  sender_display_name?: string | null;
   body: string;
   parent_message_id: string | null;
   attached_entity_type: AttachableEntityType | null;

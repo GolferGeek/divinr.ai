@@ -78,7 +78,7 @@ export class ClubService {
     return (result.data as Array<Club & { member_count: number; my_role: string }> | null) ?? [];
   }
 
-  async discoverClubs(sortBy?: string): Promise<Array<Club & { member_count: number; tournament_count: number }>> {
+  async discoverClubs(userId: string, sortBy?: string): Promise<Array<Club & { member_count: number; tournament_count: number }>> {
     await this.schema.ensureSchema();
     const validSorts: Record<string, string> = {
       ranking_score: 'c.ranking_score DESC NULLS LAST',
@@ -93,8 +93,13 @@ export class ClubService {
               (SELECT COUNT(*)::int FROM prediction.tournaments t WHERE t.scope = 'club' AND t.scope_id = c.id) as tournament_count
        FROM prediction.clubs c
        WHERE c.is_public = true
+         AND NOT EXISTS (
+           SELECT 1 FROM prediction.club_members m
+           WHERE m.club_id = c.id AND m.user_id = $1
+         )
        ORDER BY ${orderBy}, c.created_at DESC
        LIMIT 50`,
+      [userId],
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as Array<Club & { member_count: number; tournament_count: number }> | null) ?? [];
@@ -113,6 +118,25 @@ export class ClubService {
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Array<Club & { member_count: number; my_role: string }> | null) ?? [];
     return rows[0] ?? null;
+  }
+
+  async getClubPreview(
+    id: string,
+  ): Promise<{ id: string; name: string; description: string | null; is_public: boolean; member_count: number; tournament_count: number; my_role: null } | null> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `SELECT c.id, c.name, c.description, c.is_public,
+              (SELECT COUNT(*)::int FROM prediction.club_members m WHERE m.club_id = c.id) as member_count,
+              (SELECT COUNT(*)::int FROM prediction.tournaments t WHERE t.scope = 'club' AND t.scope_id = c.id) as tournament_count
+       FROM prediction.clubs c
+       WHERE c.id = $1`,
+      [id],
+    );
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Array<{ id: string; name: string; description: string | null; is_public: boolean; member_count: number; tournament_count: number }> | null) ?? [];
+    const row = rows[0];
+    if (!row) return null;
+    return { ...row, my_role: null };
   }
 
   async updateClub(id: string, input: UpdateClubInput, userId: string): Promise<Club> {
@@ -240,6 +264,75 @@ export class ClubService {
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as ClubMember[] | null) ?? [];
+  }
+
+  async getMemberDetail(clubId: string, targetUserId: string, requestingUserId: string): Promise<{
+    user: { id: string; display_name: string | null };
+    role: string;
+    joined_at: string;
+    active_positions_count: number;
+    accuracy_pct: number | null;
+    last_active_at: string | null;
+  }> {
+    await this.schema.ensureSchema();
+    await this.requireMembership(clubId, requestingUserId);
+
+    const memberResult = await this.db.rawQuery(
+      `SELECT cm.role, cm.joined_at, u.id, u.display_name
+       FROM prediction.club_members cm
+       LEFT JOIN authz.users u ON u.id = cm.user_id
+       WHERE cm.club_id = $1 AND cm.user_id = $2`,
+      [clubId, targetUserId],
+    );
+    if (memberResult.error) throw new Error(memberResult.error.message);
+    const rows = (memberResult.data as Array<{ role: string; joined_at: string; id: string; display_name: string | null }> | null) ?? [];
+    if (rows.length === 0) throw new Error('Member not found in this club');
+    const row = rows[0];
+
+    const openResult = await this.db.rawQuery(
+      `SELECT COUNT(*)::int as open_count
+       FROM prediction.tournament_positions tpos
+       JOIN prediction.tournaments t ON t.id = tpos.tournament_id
+       WHERE tpos.user_id = $1 AND tpos.status = 'open'
+         AND t.scope = 'club' AND t.scope_id = $2`,
+      [targetUserId, clubId],
+    );
+    const openCount = ((openResult.data as Array<{ open_count: number }> | null) ?? [{ open_count: 0 }])[0].open_count;
+
+    const accResult = await this.db.rawQuery(
+      `SELECT
+         COUNT(CASE WHEN tpos.realized_pnl > 0 THEN 1 END)::int as wins,
+         COUNT(*)::int as total
+       FROM prediction.tournament_positions tpos
+       JOIN prediction.tournaments t ON t.id = tpos.tournament_id
+       WHERE tpos.user_id = $1 AND tpos.status = 'closed'
+         AND t.scope = 'club' AND t.scope_id = $2`,
+      [targetUserId, clubId],
+    );
+    const accRow = ((accResult.data as Array<{ wins: number; total: number }> | null) ?? [{ wins: 0, total: 0 }])[0];
+    const accuracyPct = accRow.total > 0 ? Math.round((accRow.wins / accRow.total) * 10000) / 100 : null;
+
+    const lastResult = await this.db.rawQuery(
+      `SELECT MAX(GREATEST(
+         COALESCE(tpos.opened_at, 'epoch'::timestamptz),
+         COALESCE(tpos.closed_at, 'epoch'::timestamptz)
+       ))::text as last_active
+       FROM prediction.tournament_positions tpos
+       JOIN prediction.tournaments t ON t.id = tpos.tournament_id
+       WHERE tpos.user_id = $1 AND t.scope = 'club' AND t.scope_id = $2`,
+      [targetUserId, clubId],
+    );
+    const lastActive = ((lastResult.data as Array<{ last_active: string | null }> | null) ?? [{ last_active: null }])[0].last_active;
+    const lastActiveAt = lastActive && lastActive !== '1970-01-01 00:00:00+00' ? lastActive : null;
+
+    return {
+      user: { id: row.id, display_name: row.display_name },
+      role: row.role,
+      joined_at: row.joined_at,
+      active_positions_count: openCount,
+      accuracy_pct: accuracyPct,
+      last_active_at: lastActiveAt,
+    };
   }
 
   async promoteMember(clubId: string, targetUserId: string, userId: string): Promise<void> {

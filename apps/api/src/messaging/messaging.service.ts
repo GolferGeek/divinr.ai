@@ -216,8 +216,10 @@ export class MessagingService {
 
     const result = await this.db.rawQuery(
       `SELECT m.*,
+         u.display_name AS sender_display_name,
          COALESCE((SELECT COUNT(*) FROM messaging.messages r WHERE r.parent_message_id = m.id AND r.is_deleted = false), 0)::int AS reply_count
        FROM messaging.messages m
+       LEFT JOIN authz.users u ON u.id = m.sender_id
        WHERE m.channel_id = $1
          AND m.is_deleted = false
          AND m.parent_message_id IS NULL
@@ -252,11 +254,13 @@ export class MessagingService {
     await this.verifyMembership(channelId, userId);
 
     const result = await this.db.rawQuery(
-      `SELECT * FROM messaging.messages
-       WHERE channel_id = $1
-         AND parent_message_id = $2
-         AND is_deleted = false
-       ORDER BY created_at ASC`,
+      `SELECT m.*, u.display_name AS sender_display_name
+       FROM messaging.messages m
+       LEFT JOIN authz.users u ON u.id = m.sender_id
+       WHERE m.channel_id = $1
+         AND m.parent_message_id = $2
+         AND m.is_deleted = false
+       ORDER BY m.created_at ASC`,
       [channelId, parentMessageId],
     );
     if (result.error) throw new Error(result.error.message);
@@ -395,9 +399,11 @@ export class MessagingService {
     await this.verifyMembership(channelId, userId);
 
     const result = await this.db.rawQuery(
-      `SELECT * FROM messaging.messages
-       WHERE channel_id = $1 AND is_pinned = true AND is_deleted = false
-       ORDER BY created_at DESC`,
+      `SELECT m.*, u.display_name AS sender_display_name
+       FROM messaging.messages m
+       LEFT JOIN authz.users u ON u.id = m.sender_id
+       WHERE m.channel_id = $1 AND m.is_pinned = true AND m.is_deleted = false
+       ORDER BY m.created_at DESC`,
       [channelId],
     );
     if (result.error) throw new Error(result.error.message);

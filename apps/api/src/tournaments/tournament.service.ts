@@ -101,7 +101,9 @@ export class TournamentService {
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const result = await this.db.rawQuery(
-      `SELECT t.* FROM prediction.tournaments t ${where} ORDER BY t.starts_at DESC LIMIT 100`,
+      `SELECT t.*,
+              (SELECT COUNT(*)::int FROM prediction.tournament_entries te2 WHERE te2.tournament_id = t.id) as player_count
+       FROM prediction.tournaments t ${where} ORDER BY t.starts_at DESC LIMIT 100`,
       params,
     );
     if (result.error) throw new Error(result.error.message);

@@ -18,6 +18,7 @@ import ContrarianAlert from '../components/ContrarianAlert.vue';
 import DailyAnalystSummary from '../components/DailyAnalystSummary.vue';
 import UserUsageWidget from '../components/UserUsageWidget.vue';
 import StudentAccrualWidget from '../components/StudentAccrualWidget.vue';
+import { pluralize } from '../utils/format';
 
 interface AnalystStance {
   prediction_id: string;
@@ -192,6 +193,11 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
 }
+
+function formatStartShort(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
 </script>
 
 <template>
@@ -240,7 +246,8 @@ function timeAgo(dateStr: string): string {
         <div v-for="club in clubStore.myClubs" :key="club.id" class="club-entry"
           @click="router.push(`/clubs/${club.id}`)" role="link" tabindex="0">
           <strong>{{ club.name }}</strong>
-          <IonNote>{{ club.member_count }} members</IonNote>
+          <span class="entry-sep"> · </span>
+          <IonNote>{{ pluralize(club.member_count, 'member') }}</IonNote>
         </div>
       </IonCardContent>
     </IonCard>
@@ -255,7 +262,7 @@ function timeAgo(dateStr: string): string {
           @click="router.push(`/tournaments/${entry.tournament_id}`)" role="link" tabindex="0">
           <strong>{{ entry.tournament_name }}</strong>
           <IonChip size="small" :color="entry.tournament_status === 'active' ? 'success' : 'warning'">
-            {{ entry.tournament_status }}
+            {{ entry.tournament_status }}<template v-if="entry.tournament_status === 'upcoming' && entry.tournament_starts_at"> • Starts {{ formatStartShort(entry.tournament_starts_at) }}</template>
           </IonChip>
         </div>
       </IonCardContent>
@@ -461,6 +468,27 @@ function timeAgo(dateStr: string): string {
 </style>
 
 <style scoped>
+.club-entry, .tournament-entry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.club-entry:hover, .tournament-entry:hover {
+  background: var(--ion-color-light, #f4f5f8);
+  border-color: var(--ion-color-light-shade);
+  transform: translateY(-1px);
+}
+.entry-sep {
+  color: var(--ion-color-medium);
+  margin: 0 2px;
+}
 .pathway-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
