@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { PositionSizingService } from './position-sizing.service';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
+import { MarketsBarsService } from './markets-bars.service';
+import { MarketHoursService } from './market-hours.service';
+import type { IntradayBar } from '../adapters/twelve-data.adapter';
 import type { UserPortfolio, UserTradeQueueEntry } from '../markets.types';
+
+const ET_TZ = 'America/New_York';
 
 /**
  * Manages user portfolios and trade queue.
@@ -17,6 +22,8 @@ export class UserPortfolioService {
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(MarketsSchemaService) private readonly schema: MarketsSchemaService,
     @Inject(PositionSizingService) private readonly sizing: PositionSizingService,
+    @Inject(MarketsBarsService) private readonly marketsBars: MarketsBarsService,
+    @Inject(MarketHoursService) private readonly marketHours: MarketHoursService,
   ) {}
 
   async ensurePortfolio(userId: string, initialBalance = 1000000): Promise<UserPortfolio> {
@@ -301,6 +308,84 @@ export class UserPortfolioService {
     if (status) { query += ` and status = $2`; params.push(status); }
     query += ' order by opened_at desc';
     const result = await this.db.rawQuery(query, params);
-    return (result.data as Record<string, unknown>[] | null) ?? [];
+    const rows = (result.data as Record<string, unknown>[] | null) ?? [];
+    if (rows.length === 0) return rows;
+    return this.enrichWithIntraday(rows);
+  }
+
+  private async enrichWithIntraday(
+    rows: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]> {
+    const openSymbols = new Set<string>();
+    for (const row of rows) {
+      if (row.status === 'open' && typeof row.symbol === 'string' && row.symbol.length > 0) {
+        openSymbols.add(row.symbol);
+      }
+    }
+    if (openSymbols.size === 0) {
+      return rows.map(r => ({ ...r, today_open: null, intraday_pct: null }));
+    }
+
+    const now = new Date();
+    const marketOpen = this.marketHours.isUsEquityMarketOpen(now);
+    let barsMap = new Map<string, IntradayBar[]>();
+    try {
+      barsMap = await this.marketsBars.getIntradayBarsForSymbols(Array.from(openSymbols));
+    } catch (err) {
+      this.logger.warn(
+        `enrichWithIntraday bar fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    const todayEt = this.etDateKey(now);
+
+    return rows.map(r => {
+      if (r.status !== 'open' || !marketOpen) {
+        return { ...r, today_open: null, intraday_pct: null };
+      }
+      const bars = barsMap.get(r.symbol as string) ?? [];
+      const todayOpen = this.deriveTodayOpen(bars, todayEt);
+      const rawPrice = r.current_price;
+      const currentPrice = rawPrice == null ? NaN : Number(rawPrice);
+      if (todayOpen == null || todayOpen <= 0 || !Number.isFinite(currentPrice)) {
+        return { ...r, today_open: todayOpen, intraday_pct: null };
+      }
+      const intradayPct = (currentPrice - todayOpen) / todayOpen;
+      return { ...r, today_open: todayOpen, intraday_pct: intradayPct };
+    });
+  }
+
+  private deriveTodayOpen(bars: IntradayBar[] | undefined, todayEt: string): number | null {
+    if (!bars || bars.length === 0) return null;
+    for (const b of bars) {
+      if (!b || typeof b.t !== 'string') continue;
+      if (this.etDateKeyForTimestamp(b.t) === todayEt) {
+        return Number.isFinite(b.o) ? b.o : null;
+      }
+    }
+    return null;
+  }
+
+  private etDateKey(d: Date): string {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: ET_TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(d);
+    const by = (type: string) => parts.find(p => p.type === type)?.value ?? '';
+    return `${by('year')}-${by('month')}-${by('day')}`;
+  }
+
+  private etDateKeyForTimestamp(ts: string): string {
+    // Twelve Data timestamps are "YYYY-MM-DD HH:MM:SS" in the exchange timezone
+    // (US equities → ET). Parse the date portion directly rather than round-trip
+    // through Date — which would reinterpret the naive string as UTC.
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(ts);
+    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+    // Fallback: parse as UTC Date and derive ET date — covers ISO timestamps.
+    const parsed = new Date(ts);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return this.etDateKey(parsed);
   }
 }

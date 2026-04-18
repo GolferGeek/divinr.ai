@@ -34,6 +34,7 @@ import { BenchmarkIngestService } from './services/benchmark-ingest.service';
 import { DayTraderRunnerService } from './services/day-trader-runner.service';
 import { MarketHoursService } from './services/market-hours.service';
 import { IntradayBarRefresherService } from './services/intraday-bar-refresher.service';
+import { MarketsBarsService } from './services/markets-bars.service';
 import { DayTraderSchedulerService } from './services/day-trader-scheduler.service';
 import { AuditService } from './services/audit.service';
 import { StrategicOverhaulService } from './services/strategic-overhaul.service';
@@ -104,6 +105,7 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     DayTraderRunnerService,
     MarketHoursService,
     IntradayBarRefresherService,
+    MarketsBarsService,
     DayTraderSchedulerService,
     AuditService,
     StrategicOverhaulService,
