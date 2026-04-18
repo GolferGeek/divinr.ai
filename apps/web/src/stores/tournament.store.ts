@@ -33,6 +33,7 @@ async function request<T = unknown>(path: string, init?: RequestInit): Promise<T
   return await res.json() as T;
 }
 
+// Mirror: keep in sync with apps/api/src/tournaments/tournament.types.ts `Tournament`.
 export interface Tournament {
   id: string;
   name: string;
@@ -49,6 +50,8 @@ export interface Tournament {
   channel_id: string | null;
   created_at: string;
   player_count?: number;
+  entrants_preview?: Array<{ user_id: string; display_name: string | null; avatar_url: string | null }>;
+  entrants_overflow?: number;
 }
 
 export interface TournamentEntry {
