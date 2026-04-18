@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-18 (intraday-pnl-on-positions promoted to current)
+**Last updated:** 2026-04-18 (activity-viewed-counter promoted to current; tournament-avatar-stack shipped)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -42,7 +42,7 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Current Effort
 
-**[intraday-pnl-on-positions](current/intraday-pnl-on-positions/intention.md)** — bulk `GET /markets/bars/latest?symbols=...` endpoint + intraday % column on MY POSITIONS. Closes the "is today green or red" gap left behind by PR #58; builds on `live-prediction-pnl`'s intraday bar cache.
+**[activity-viewed-counter](current/activity-viewed-counter/intention.md)** — `prediction.club_members.last_viewed_at` + `(N)` unread badge on the ACTIVITIES tab and MY CLUBS cards. Last beta-coolness polish item from PR #58; closes the "which clubs have new stuff" gap.
 
 ---
 
@@ -63,20 +63,13 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ---
 
-## Next — Queued Efforts (6)
+## Next — Queued Efforts (1)
 
-Reorganized 2026-04-18 around the remaining beta-phase coolness. The PR-58 polish pass surfaced feature-level deferrals that deserve their own small efforts rather than getting bolted onto unrelated work. Billing / graduation / ops / hardening all moved to `future/` until the experience is locked in and we're ready to commercialize.
-
-### Beta Coolness — Polish Follow-Ups (4 efforts — deferred from PR #58)
-
-1. [activity-viewed-counter](next/activity-viewed-counter/intention.md) — `prediction.club_members.last_viewed_at` + `(N)` unread badge on ACTIVITIES tab and MY CLUBS cards
-2. [leaderboard-rank-delta](next/leaderboard-rank-delta/intention.md) — prior-period rank on leaderboard payload + ↑/↓ arrow next to Rank column
-3. [direct-message-intent](next/direct-message-intent/intention.md) — `/messages?to=<userId>` route that opens-or-creates a 1:1 thread; wires the Member Profile Drawer's Message button
-4. [tournament-avatar-stack](next/tournament-avatar-stack/intention.md) — first-3-entrants avatar stack on tournament list cards with single-query bulk fetch
+Reorganized 2026-04-18 around the remaining beta-phase coolness. The PR-58 polish pass surfaced feature-level deferrals that deserve their own small efforts rather than getting bolted onto unrelated work. Billing / graduation / ops / hardening all moved to `future/` until the experience is locked in and we're ready to commercialize. The polish follow-ups (`leaderboard-rank-delta`, `direct-message-intent`, `tournament-avatar-stack`) have all shipped; `activity-viewed-counter` is the active effort.
 
 ### Beta Coolness — Teaching (1 effort)
 
-6. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
+1. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product). Currently blocked: its contracts beat depends on the architecture restructure efforts landing first.
 
 ---
 
