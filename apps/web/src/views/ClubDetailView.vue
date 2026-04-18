@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote, IonSegment, IonSegmentButton, IonLabel } from '@ionic/vue';
+import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote, IonSegment, IonSegmentButton, IonLabel, IonIcon, IonPopover, IonContent, IonList, IonItem } from '@ionic/vue';
+import { trophyOutline, journalOutline, chatbubblesOutline, bulbOutline, ellipsisHorizontalOutline, personAddOutline } from 'ionicons/icons';
 import { useClubStore } from '../stores/club.store';
 import { useCurriculumStore } from '../stores/curriculum.store';
 import { useMentorStore } from '../stores/mentor.store';
+import ClubPreviewPanel from '../components/ClubPreviewPanel.vue';
+import ActiveTournamentBanner from '../components/ActiveTournamentBanner.vue';
+import MemberProfileDrawer from '../components/MemberProfileDrawer.vue';
 
 const store = useClubStore();
 const curriculumStore = useCurriculumStore();
@@ -12,7 +16,16 @@ const mentorStore = useMentorStore();
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => route.params.id as string);
-const tab = ref<'members' | 'tournaments' | 'analysts' | 'activities' | 'analytics' | 'curriculum' | 'mentoring'>('members');
+const isMember = computed(() => !!store.activeClub?.my_role);
+const isClubAdmin = computed(() => store.activeClub?.my_role === 'owner' || store.activeClub?.my_role === 'admin');
+type ClubTab = 'members' | 'tournaments' | 'analysts' | 'activities' | 'analytics' | 'curriculum' | 'mentoring';
+const VALID_TABS: ReadonlyArray<ClubTab> = ['members', 'tournaments', 'analysts', 'activities', 'analytics', 'curriculum', 'mentoring'];
+const initialTab: ClubTab = (() => {
+  const q = route.query.tab;
+  const v = Array.isArray(q) ? q[0] : q;
+  return typeof v === 'string' && (VALID_TABS as ReadonlyArray<string>).includes(v) ? (v as ClubTab) : 'activities';
+})();
+const tab = ref<ClubTab>(initialTab);
 const feedbackRatings = ref<Record<string, number>>({});
 const feedbackComments = ref<Record<string, string>>({});
 const selectedMentorForPairing = ref<Record<string, string>>({});
@@ -21,12 +34,18 @@ const showInvite = ref(false);
 
 onMounted(async () => {
   await store.fetchClub(id.value);
-  await store.fetchMembers(id.value);
-  mentorStore.fetchLeaderboard(id.value);
+  if (isMember.value) {
+    await store.fetchMembers(id.value);
+    mentorStore.fetchLeaderboard(id.value);
+    loadTab(tab.value);
+  }
 });
 
 function loadTab(t: string) {
-  tab.value = t as typeof tab.value;
+  tab.value = t as ClubTab;
+  if (route.query.tab !== t) {
+    router.replace({ query: { ...route.query, tab: t } });
+  }
   if (t === 'analysts') store.fetchAnalysts(id.value);
   if (t === 'activities') { store.fetchChallenges(id.value); store.fetchPolls(id.value); store.fetchJournals(id.value); }
   if (t === 'analytics') store.fetchAnalytics(id.value);
@@ -66,10 +85,37 @@ async function generateInvite() {
 
 function copyCode() { navigator.clipboard.writeText(store.activeClub?.invite_code ?? ''); }
 function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
+
+const drawerOpen = ref(false);
+const drawerUserId = ref<string | null>(null);
+function openMember(userId: string) { drawerUserId.value = userId; drawerOpen.value = true; }
+function closeDrawer() { drawerOpen.value = false; drawerUserId.value = null; }
+
+function startChallenge() { console.info('[coming-soon] start challenge'); }
+function startJournal() { console.info('[coming-soon] start journal'); }
+function startPoll() { console.info('[coming-soon] start poll'); }
+
+function fmtAnalyticsPct(v: number | null | undefined): string {
+  if (v == null) return '—';
+  return `${v}%`;
+}
 </script>
 
 <template>
   <div class="detail-page" v-if="store.activeClub">
+    <!-- Non-member preview -->
+    <template v-if="!isMember">
+      <div class="page-header">
+        <div>
+          <h1>{{ store.activeClub.name }}</h1>
+        </div>
+      </div>
+      <p class="disclaimer">Investment Learning Club — educational platform for practicing AI-assisted market analysis. Not investment advice.</p>
+      <ClubPreviewPanel :club="store.activeClub as any" />
+    </template>
+
+    <!-- Full member view -->
+    <template v-else>
     <div class="page-header">
       <div>
         <h1>{{ store.activeClub.name }}</h1>
@@ -77,10 +123,30 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
           <IonButton size="small" fill="clear" @click="copyCode">Copy</IonButton>
         </IonNote>
       </div>
-      <div class="actions">
+      <div class="actions actions-desktop">
         <IonButton size="small" fill="outline" @click="generateInvite">Invite</IonButton>
         <IonButton v-if="store.activeClub.channel_id" size="small" fill="outline"
           @click="router.push(`/messages/${store.activeClub.channel_id}`)">Chat</IonButton>
+      </div>
+      <div class="actions-mobile">
+        <IonButton id="club-actions-trigger" size="small" fill="outline" aria-label="Club actions">
+          <IonIcon slot="icon-only" :icon="ellipsisHorizontalOutline" />
+        </IonButton>
+        <IonPopover trigger="club-actions-trigger" trigger-action="click" dismiss-on-select>
+          <IonContent>
+            <IonList>
+              <IonItem button :detail="false" @click="generateInvite">
+                <IonIcon slot="start" :icon="personAddOutline" />
+                <IonLabel>Invite</IonLabel>
+              </IonItem>
+              <IonItem v-if="store.activeClub.channel_id" button :detail="false"
+                @click="router.push(`/messages/${store.activeClub.channel_id}`)">
+                <IonIcon slot="start" :icon="chatbubblesOutline" />
+                <IonLabel>Chat</IonLabel>
+              </IonItem>
+            </IonList>
+          </IonContent>
+        </IonPopover>
       </div>
     </div>
 
@@ -91,7 +157,9 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
 
     <p class="disclaimer">Investment Learning Club — educational platform for practicing AI-assisted market analysis. Not investment advice.</p>
 
-    <IonSegment :value="tab" @ionChange="loadTab(($event.detail.value ?? 'members') as string)">
+    <ActiveTournamentBanner :clubId="id" />
+
+    <IonSegment class="club-tabs" scrollable :value="tab" @ionChange="loadTab(($event.detail.value ?? 'members') as string)">
       <IonSegmentButton value="members"><IonLabel>Members</IonLabel></IonSegmentButton>
       <IonSegmentButton value="analysts"><IonLabel>Analysts</IonLabel></IonSegmentButton>
       <IonSegmentButton value="activities"><IonLabel>Activities</IonLabel></IonSegmentButton>
@@ -102,18 +170,31 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
 
     <!-- Members Tab -->
     <div v-if="tab === 'members'" class="tab-content">
-      <IonCard v-for="m in store.members" :key="m.id">
+      <IonCard v-for="m in store.members" :key="m.id" class="clickable-member" @click="openMember(m.user_id)">
         <IonCardContent class="member-row">
-          <strong>{{ m.display_name || m.user_id.slice(0, 8) }}</strong>
+          <div class="member-avatar">{{ (m.display_name ?? m.user_id).slice(0, 1).toUpperCase() }}</div>
+          <strong class="member-name">{{ m.display_name || m.user_id.slice(0, 8) }}</strong>
           <IonChip :color="m.role === 'owner' ? 'primary' : m.role === 'admin' ? 'tertiary' : 'medium'" size="small">{{ m.role }}</IonChip>
           <IonChip v-if="mentorStore.leaderboard.some(mt => mt.user_id === m.user_id)" color="success" size="small">Mentor</IonChip>
+          <span class="member-chevron">›</span>
         </IonCardContent>
       </IonCard>
     </div>
 
+    <MemberProfileDrawer
+      v-if="drawerUserId"
+      :open="drawerOpen"
+      :club-id="id"
+      :user-id="drawerUserId"
+      @close="closeDrawer"
+    />
+
     <!-- Analysts Tab -->
     <div v-if="tab === 'analysts'" class="tab-content">
-      <IonButton v-if="store.activeClub.my_role === 'owner' || store.activeClub.my_role === 'admin'" size="small" fill="outline" class="mb">Create Analyst</IonButton>
+      <p class="explainer">
+        Club analysts are shared across every member of this club. You already have access to the base analysts (left nav → AI Analysts) and your own custom analysts. Create a club analyst when you want the whole group to study a specific style together.
+      </p>
+      <IonButton v-if="isClubAdmin" size="small" fill="outline" class="mb">Create Analyst</IonButton>
       <div v-if="store.analysts.length === 0" class="empty">No club analysts yet.</div>
       <IonCard v-for="a in store.analysts" :key="a.analyst_id">
         <IonCardContent><strong>{{ a.display_name }}</strong> <IonNote>{{ a.slug }}</IonNote></IonCardContent>
@@ -123,7 +204,11 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
     <!-- Activities Tab -->
     <div v-if="tab === 'activities'" class="tab-content">
       <h3>Prediction Challenges</h3>
-      <div v-if="(store.challenges as Array<{id:string;symbol:string;status:string}>).length === 0" class="empty">No challenges yet.</div>
+      <div v-if="(store.challenges as Array<{id:string;symbol:string;status:string}>).length === 0" class="empty-block">
+        <IonIcon :icon="trophyOutline" class="empty-icon" />
+        <p class="empty-explainer">Prediction challenges are quick head-to-head calls on a symbol. Owner picks the ticker, members submit a direction, everyone sees the reveal.</p>
+        <IonButton size="small" fill="outline" @click="startChallenge">Start a Challenge</IonButton>
+      </div>
       <IonCard v-for="c in (store.challenges as Array<{id:string;symbol:string;status:string;response_count:number}>)" :key="c.id">
         <IonCardContent>
           <strong>{{ c.symbol }}</strong> <IonChip size="small">{{ c.status }}</IonChip>
@@ -131,39 +216,70 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
         </IonCardContent>
       </IonCard>
 
-      <h3>Consensus Polls</h3>
-      <div v-if="(store.polls as Array<{id:string}>).length === 0" class="empty">No polls yet.</div>
-      <IonCard v-for="p in (store.polls as Array<{id:string;symbol:string;status:string;bull_count:number;bear_count:number;neutral_count:number}>)" :key="p.id">
-        <IonCardContent>
-          <strong>{{ p.symbol }}</strong> <IonChip size="small">{{ p.status }}</IonChip>
-          <IonNote>Bull: {{ p.bull_count }} · Bear: {{ p.bear_count }} · Neutral: {{ p.neutral_count }}</IonNote>
-        </IonCardContent>
-      </IonCard>
-
       <h3>Strategy Journals</h3>
-      <div v-if="(store.journals as Array<{id:string}>).length === 0" class="empty">No journal entries yet.</div>
+      <div v-if="(store.journals as Array<{id:string}>).length === 0" class="empty-block">
+        <IonIcon :icon="journalOutline" class="empty-icon" />
+        <p class="empty-explainer">Journals are short notes members post about their thesis or what they learned. Build the habit of writing down *why* before the market proves you right or wrong.</p>
+        <IonButton size="small" fill="outline" @click="startJournal">Write a Journal Entry</IonButton>
+      </div>
       <IonCard v-for="j in (store.journals as Array<{id:string;entry:string;display_name?:string;symbol?:string;created_at:string}>)" :key="j.id">
         <IonCardContent>
           <strong>{{ j.display_name || 'Member' }}</strong> {{ j.symbol ? `on ${j.symbol}` : '' }}
           <p>{{ j.entry }}</p>
         </IonCardContent>
       </IonCard>
+
+      <h3>Consensus Polls</h3>
+      <div v-if="(store.polls as Array<{id:string}>).length === 0" class="empty-block">
+        <IonIcon :icon="chatbubblesOutline" class="empty-icon" />
+        <p class="empty-explainer">Consensus polls let the club vote bull/bear/neutral on a ticker. Contrarian picks get spotlighted when the market agrees with you — and not the crowd.</p>
+        <IonButton size="small" fill="outline" @click="startPoll">Start a Poll</IonButton>
+      </div>
+      <IonCard v-for="p in (store.polls as Array<{id:string;symbol:string;status:string;bull_count:number;bear_count:number;neutral_count:number}>)" :key="p.id">
+        <IonCardContent>
+          <strong>{{ p.symbol }}</strong> <IonChip size="small">{{ p.status }}</IonChip>
+          <IonNote>Bull: {{ p.bull_count }} · Bear: {{ p.bear_count }} · Neutral: {{ p.neutral_count }}</IonNote>
+        </IonCardContent>
+      </IonCard>
     </div>
 
     <!-- Analytics Tab -->
     <div v-if="tab === 'analytics'" class="tab-content">
+      <div class="analytics-header">
+        <select class="time-window" disabled title="Time-window filter coming soon">
+          <option>All time ▾</option>
+        </select>
+      </div>
       <div v-if="!store.analytics" class="empty">Loading analytics...</div>
       <div v-else class="analytics-grid">
-        <IonCard><IonCardContent><div class="stat-label">Win Rate</div><div class="stat-value">{{ (store.analytics as Record<string,unknown>).club_win_rate }}%</div></IonCardContent></IonCard>
-        <IonCard><IonCardContent><div class="stat-label">Avg Return</div><div class="stat-value">{{ (store.analytics as Record<string,unknown>).avg_return_pct }}%</div></IonCardContent></IonCard>
-        <IonCard><IonCardContent><div class="stat-label">Club Style</div><div class="stat-value">{{ (store.analytics as Record<string,unknown>).club_style }}</div></IonCardContent></IonCard>
-        <IonCard><IonCardContent><div class="stat-label">Tournaments</div><div class="stat-value">{{ (store.analytics as Record<string,unknown>).tournament_count }}</div></IonCardContent></IonCard>
+        <IonCard><IonCardContent>
+          <div class="stat-label">Win Rate</div>
+          <div class="stat-value">{{ fmtAnalyticsPct((store.analytics as Record<string, unknown>).club_win_rate as number | null) }}</div>
+        </IonCardContent></IonCard>
+        <IonCard><IonCardContent>
+          <div class="stat-label">Avg Return</div>
+          <div class="stat-value">{{ fmtAnalyticsPct((store.analytics as Record<string, unknown>).avg_return_pct as number | null) }}</div>
+        </IonCardContent></IonCard>
+        <IonCard><IonCardContent>
+          <div class="stat-label" title="Derived from member trade distribution. Balanced = no single sector > 40%.">
+            Club Style
+            <IonIcon :icon="bulbOutline" class="info-icon" />
+          </div>
+          <div class="stat-value">{{ (store.analytics as Record<string,unknown>).club_style || '—' }}</div>
+        </IonCardContent></IonCard>
+        <IonCard><IonCardContent>
+          <div class="stat-label">Tournaments</div>
+          <div class="stat-value">{{ (store.analytics as Record<string,unknown>).tournament_count }}</div>
+        </IonCardContent></IonCard>
       </div>
     </div>
 
     <!-- Curriculum Tab -->
     <div v-if="tab === 'curriculum'" class="tab-content">
-      <IonButton v-if="store.activeClub.my_role === 'owner' || store.activeClub.my_role === 'admin'" size="small" fill="outline" class="mb"
+      <p class="explainer">
+        A curriculum is a reading list or module plan your club owner pins. Members see new modules as they're added.
+      </p>
+      <IonButton v-if="isClubAdmin" size="small" fill="outline" class="mb"
         @click="router.push(`/clubs/${id}/curricula/create`)">Create Curriculum</IonButton>
       <div v-if="curriculumStore.curricula.length === 0" class="empty">No curricula yet.</div>
       <IonCard v-for="c in curriculumStore.curricula" :key="c.id" @click="router.push(`/clubs/${id}/curricula/${c.id}`)" style="cursor:pointer">
@@ -213,7 +329,13 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
           <IonNote v-else-if="mentorStore.eligibility" class="eligibility-note">
             Not yet eligible: {{ mentorStore.eligibility.reasons.join(', ') }}
           </IonNote>
-          <IonButton size="small" fill="outline" @click="requestMentorAction">Request a Mentor</IonButton>
+          <IonButton
+            size="small"
+            fill="outline"
+            :disabled="!!(mentorStore.eligibility && !mentorStore.eligibility.eligible)"
+            :title="mentorStore.eligibility && !mentorStore.eligibility.eligible ? 'Unlocks after 2 completed tournaments.' : undefined"
+            @click="requestMentorAction"
+          >Request a Mentor</IonButton>
         </div>
       </div>
 
@@ -232,8 +354,8 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
       </IonCard>
 
       <!-- Admin Section -->
-      <div v-if="store.activeClub.my_role === 'owner' || store.activeClub.my_role === 'admin'" class="admin-section">
-        <h3>Admin: Mentor Applications</h3>
+      <div v-if="isClubAdmin" class="admin-section">
+        <h3>Mentor Applications</h3>
         <IonButton size="small" fill="clear" @click="mentorStore.fetchApplications(id)">Refresh</IonButton>
         <div v-if="mentorStore.applications.length === 0" class="empty">No pending applications</div>
         <IonCard v-for="app in mentorStore.applications" :key="app.id">
@@ -247,7 +369,7 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
           </IonCardContent>
         </IonCard>
 
-        <h3>Admin: Mentee Requests</h3>
+        <h3>Mentee Requests</h3>
         <IonButton size="small" fill="clear" @click="mentorStore.fetchRequests(id)">Refresh</IonButton>
         <div v-if="mentorStore.requests.length === 0" class="empty">No pending requests</div>
         <IonCard v-for="req in mentorStore.requests" :key="req.id">
@@ -267,17 +389,19 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
         </IonCard>
       </div>
 
-      <!-- Mentor Leaderboard -->
-      <h3>Mentor Leaderboard</h3>
-      <div v-if="mentorStore.leaderboard.length === 0" class="empty">No mentors yet</div>
-      <IonCard v-for="m in mentorStore.leaderboard" :key="m.mentor_id">
-        <IonCardContent class="mentor-row">
-          <strong>{{ m.display_name || m.user_id.slice(0, 8) }}</strong>
-          <IonChip color="primary" size="small">Mentor</IonChip>
-          <IonNote>{{ m.mentee_count }} mentee(s) · Rating: {{ m.avg_rating?.toFixed(1) ?? 'N/A' }}</IonNote>
-        </IonCardContent>
-      </IonCard>
+      <!-- Mentor Leaderboard (only when there are mentors) -->
+      <template v-if="mentorStore.leaderboard.length > 0">
+        <h3>Mentor Leaderboard</h3>
+        <IonCard v-for="m in mentorStore.leaderboard" :key="m.mentor_id">
+          <IonCardContent class="mentor-row">
+            <strong>{{ m.display_name || m.user_id.slice(0, 8) }}</strong>
+            <IonChip color="primary" size="small">Mentor</IonChip>
+            <IonNote>{{ m.mentee_count }} mentee(s) · Rating: {{ m.avg_rating?.toFixed(1) ?? 'N/A' }}</IonNote>
+          </IonCardContent>
+        </IonCard>
+      </template>
     </div>
+    </template>
   </div>
 </template>
 
@@ -288,7 +412,12 @@ function copyInvite() { navigator.clipboard.writeText(inviteCode.value); }
 .disclaimer { font-size: 0.75rem; color: var(--ion-color-medium); font-style: italic; margin-bottom: 1rem; }
 .tab-content { margin-top: 1rem; }
 .empty { text-align: center; padding: 1rem; color: var(--ion-color-medium); }
-.member-row { display: flex; align-items: center; gap: 0.5rem; }
+.member-row { display: flex; align-items: center; gap: 0.6rem; }
+.clickable-member { cursor: pointer; transition: transform 0.1s ease, box-shadow 0.1s ease; }
+.clickable-member:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.member-avatar { width: 32px; height: 32px; border-radius: 50%; background: rgba(88, 86, 214, 0.15); color: var(--ion-color-primary); display: grid; place-items: center; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
+.member-name { flex: 1; }
+.member-chevron { color: var(--ion-color-medium); font-size: 1.25rem; font-weight: 300; }
 .invite-box { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
 .invite-input { flex: 1; padding: 0.5rem; border: 1px solid var(--ion-color-light-shade); border-radius: 4px; font-size: 0.85rem; }
 .mb { margin-bottom: 1rem; }
@@ -308,4 +437,20 @@ h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; font-size: 1.1rem; }
 .feedback-input { width: 100%; padding: 0.5rem; border: 1px solid var(--ion-color-light-shade); border-radius: 4px; margin-bottom: 0.5rem; }
 .pair-controls { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
 .mentor-select { padding: 0.4rem; border: 1px solid var(--ion-color-light-shade); border-radius: 4px; font-size: 0.85rem; }
+.empty-block { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1.5rem 1rem; border: 1px dashed var(--ion-color-light-shade); border-radius: 8px; text-align: center; margin-bottom: 0.5rem; }
+.empty-icon { font-size: 1.75rem; color: var(--ion-color-medium); }
+.empty-explainer { font-size: 0.85rem; color: var(--ion-color-medium); margin: 0; max-width: 42rem; }
+.explainer { font-size: 0.85rem; color: var(--ion-color-medium); margin: 0 0 0.75rem; max-width: 42rem; }
+.analytics-header { display: flex; justify-content: flex-end; margin-bottom: 0.5rem; }
+.time-window { padding: 0.4rem 0.6rem; border: 1px solid var(--ion-color-light-shade); border-radius: 4px; background: transparent; color: var(--ion-color-medium); font-size: 0.85rem; cursor: not-allowed; }
+.info-icon { font-size: 0.8rem; vertical-align: middle; margin-left: 0.25rem; color: var(--ion-color-medium); }
+.actions-mobile { display: none; }
+
+@media (max-width: 600px) {
+  .actions-desktop { display: none; }
+  .actions-mobile { display: flex; }
+  .detail-page { padding: 0.75rem; }
+  .page-header h1 { font-size: 1.2rem; }
+  .member-row { flex-wrap: wrap; }
+}
 </style>

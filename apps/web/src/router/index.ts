@@ -91,6 +91,8 @@ export const router = createRouter({
         { path: 'clubs/compare', name: 'club-compare', component: () => import('../views/ClubCompareView.vue') },
         { path: 'clubs/invite/:token', name: 'club-invite', component: () => import('../views/ClubInviteView.vue') },
         { path: 'clubs/:id', name: 'club-detail', component: () => import('../views/ClubDetailView.vue') },
+        { path: 'clubs/:id/:tab(members|tournaments|analysts|activities|analytics|curriculum|mentoring)',
+          redirect: (to) => ({ name: 'club-detail', params: { id: to.params.id }, query: { tab: to.params.tab as string } }) },
         { path: 'clubs/:clubId/curricula/create', name: 'curriculum-create', component: () => import('../views/CurriculumCreateView.vue') },
         { path: 'clubs/:clubId/curricula/:id', name: 'curriculum-detail', component: () => import('../views/CurriculumDetailView.vue') },
         { path: 'clubs/:clubId/curricula/:id/dashboard', name: 'curriculum-dashboard', component: () => import('../views/CurriculumDashboardView.vue') },

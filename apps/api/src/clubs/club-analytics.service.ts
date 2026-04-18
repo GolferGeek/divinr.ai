@@ -6,8 +6,9 @@ import { ClubService } from './club.service';
 export interface ClubAnalytics {
   member_count: number;
   tournament_count: number;
-  avg_return_pct: number;
-  club_win_rate: number;
+  trades_count: number;
+  avg_return_pct: number | null;
+  club_win_rate: number | null;
   analyst_trust: Array<{ analyst_id: string; display_name: string; avg_affinity: number }>;
   analyst_trust_evolution: Array<{ analyst_id: string; display_name: string; data_points: Array<{ date: string; avg_affinity: number }> }>;
   learning_score: number | null;
@@ -45,9 +46,8 @@ export class ClubAnalyticsService {
       `SELECT COUNT(*)::int as count FROM prediction.club_members WHERE club_id = $1`, [clubId]);
     const memberCount = ((mcResult.data as Array<{ count: number }> | null) ?? [{ count: 0 }])[0].count;
 
-    // Tournament count (completed)
     const tcResult = await this.db.rawQuery(
-      `SELECT COUNT(*)::int as count FROM prediction.tournaments WHERE scope = 'club' AND scope_id = $1 AND status IN ('completed', 'archived')`, [clubId]);
+      `SELECT COUNT(*)::int as count FROM prediction.tournaments WHERE scope = 'club' AND scope_id = $1`, [clubId]);
     const tournamentCount = ((tcResult.data as Array<{ count: number }> | null) ?? [{ count: 0 }])[0].count;
 
     // Average return % across all member tournament portfolios in club tournaments
@@ -67,7 +67,8 @@ export class ClubAnalyticsService {
        JOIN prediction.tournaments t ON t.id = tpos.tournament_id
        WHERE t.scope = 'club' AND t.scope_id = $1 AND tpos.status = 'closed'`, [clubId]);
     const wrData = ((wrResult.data as Array<{ wins: number; total: number }> | null) ?? [{ wins: 0, total: 0 }])[0];
-    const clubWinRate = wrData.total > 0 ? Math.round((wrData.wins / wrData.total) * 10000) / 100 : 0;
+    const tradesCount = wrData.total;
+    const clubWinRate = tradesCount > 0 ? Math.round((wrData.wins / tradesCount) * 10000) / 100 : null;
 
     // Top 5 trusted analysts by average affinity across club members
     const atResult = await this.db.rawQuery(
@@ -117,11 +118,12 @@ export class ClubAnalyticsService {
     return {
       member_count: memberCount,
       tournament_count: tournamentCount,
-      avg_return_pct: Math.round((avgReturn ?? 0) * 100) / 100,
+      trades_count: tradesCount,
+      avg_return_pct: tradesCount > 0 && avgReturn != null ? Math.round(avgReturn * 100) / 100 : null,
       club_win_rate: clubWinRate,
       analyst_trust: analystTrust,
-      analyst_trust_evolution: [], // Requires time-series data; deferred to when daily snapshots available
-      learning_score: null, // Requires multi-tournament comparison; computed when ≥2 completed tournaments
+      analyst_trust_evolution: [],
+      learning_score: null,
       club_style: clubStyle,
       common_mistakes: commonMistakes,
       contrarian_spotlights: contrarianSpotlights,

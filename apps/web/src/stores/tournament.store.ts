@@ -38,6 +38,7 @@ export interface Tournament {
   name: string;
   description: string | null;
   scope: 'system' | 'club' | 'invitation';
+  scope_id: string | null;
   tournament_type: 'weekly_sprint' | 'sector_challenge' | 'analyst_draft';
   status: 'upcoming' | 'active' | 'completed' | 'archived';
   created_by: string;
@@ -47,6 +48,7 @@ export interface Tournament {
   ends_at: string;
   channel_id: string | null;
   created_at: string;
+  player_count?: number;
 }
 
 export interface TournamentEntry {
@@ -59,6 +61,7 @@ export interface TournamentEntry {
   tournament_name?: string;
   tournament_status?: string;
   tournament_type?: string;
+  tournament_starts_at?: string;
 }
 
 export interface LeaderboardEntry {
@@ -81,6 +84,7 @@ export interface TournamentPosition {
   unrealized_pnl: number;
   realized_pnl: number;
   status: 'open' | 'closed';
+  opened_at?: string | null;
 }
 
 export const useTournamentStore = defineStore('tournament', () => {
@@ -163,10 +167,19 @@ export const useTournamentStore = defineStore('tournament', () => {
     return request<Array<{ tournament_id: string; tournament_name: string; final_rank: number | null; return_pct: number }>>('/history');
   }
 
+  function getByClub(clubId: string, statuses?: Array<Tournament['status']>): Tournament[] {
+    return tournaments.value.filter(t => {
+      if (t.scope !== 'club' || t.scope_id !== clubId) return false;
+      if (statuses && statuses.length > 0 && !statuses.includes(t.status)) return false;
+      return true;
+    });
+  }
+
   return {
     tournaments, activeTournament, leaderboard, myEntries, positions, loading,
     fetchTournaments, fetchTournament, createTournament, enterTournament,
     queueTrade, closePosition, fetchLeaderboard, fetchResults, fetchMyEntries,
     fetchPositions, createInvite, acceptInvite, fetchInviteDetails, fetchHistory,
+    getByClub,
   };
 });

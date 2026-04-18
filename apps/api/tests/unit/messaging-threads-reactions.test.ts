@@ -99,7 +99,7 @@ function stubRawQuery(sql: string, params?: unknown[]) {
   }
 
   // Get thread replies
-  if (t.includes('FROM messaging.messages') && t.includes('parent_message_id = $2') && t.includes('ORDER BY created_at ASC')) {
+  if (t.includes('FROM messaging.messages') && t.includes('parent_message_id = $2') && t.includes('ORDER BY m.created_at ASC')) {
     const channelId = p[0];
     const parentId = p[1];
     const found = messages.filter(m => m.channel_id === channelId && m.parent_message_id === parentId && !m.is_deleted);

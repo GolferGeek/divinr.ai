@@ -182,7 +182,7 @@ watch(() => route.params.channelId, (id) => {
             <ion-icon :icon="pinOutline" /> {{ pinnedMessages.length }} pinned
           </div>
           <div v-for="pm in pinnedMessages" :key="pm.id" class="pinned-msg">
-            <span class="message-sender">{{ pm.sender_id.slice(0, 8) }}</span>: {{ pm.body }}
+            <span class="message-sender">{{ (pm as { sender_display_name?: string | null }).sender_display_name || pm.sender_id.slice(0, 8) }}</span>: {{ pm.body }}
           </div>
         </div>
         <div v-else-if="pinnedMessages.length > 0" class="pinned-header pinned-collapsed" @click="showPinned = true">
@@ -196,7 +196,7 @@ watch(() => route.params.channelId, (id) => {
             class="message-bubble"
           >
             <div class="message-header">
-              <span class="message-sender">{{ msg.sender_id.slice(0, 8) }}</span>
+              <span class="message-sender">{{ (msg as { sender_display_name?: string | null }).sender_display_name || msg.sender_id.slice(0, 8) }}</span>
               <span class="message-time">{{ formatTime(msg.created_at) }}</span>
             </div>
             <div v-if="msg.is_deleted" class="message-body message-deleted">[message deleted]</div>
