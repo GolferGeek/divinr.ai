@@ -182,6 +182,8 @@ const service = Object.create(MessagingService.prototype) as MessagingService;
 
 // ─── Tests ───────────────────────────────────────────────────
 
+let firstDmChannelId = '';
+
 (async () => {
   console.log('getOrCreateDmChannel():');
   {
@@ -189,12 +191,21 @@ const service = Object.create(MessagingService.prototype) as MessagingService;
     assert(typeof ch.id === 'string', 'returns channel with id');
     assert(ch.scope === 'dm', 'scope is dm');
     assert(members.filter(m => m.channel_id === ch.id).length === 2, 'both users are members');
+    firstDmChannelId = ch.id;
   }
 
   console.log('\ngetOrCreateDmChannel() returns existing:');
   {
     const ch = await service.getOrCreateDmChannel('user-a', 'user-b');
     assert(channels.filter(c => c.scope === 'dm').length === 1, 'does not create duplicate DM channel');
+    assert(ch.id === firstDmChannelId, 'idempotent: second call returns the same channel id');
+  }
+
+  console.log('\ngetOrCreateDmChannel() reversed arg order returns same channel:');
+  {
+    const ch = await service.getOrCreateDmChannel('user-b', 'user-a');
+    assert(ch.id === firstDmChannelId, 'idempotent regardless of arg order');
+    assert(channels.filter(c => c.scope === 'dm').length === 1, 'still only one DM channel');
   }
 
   console.log('\ngetOrCreateDmChannel() self-DM:');
@@ -226,6 +237,20 @@ const service = Object.create(MessagingService.prototype) as MessagingService;
       assert(e.message.includes('blocked') || e.status === 403, 'correct error for blocked DM');
     }
     assert(threw, 'throws when creating DM with blocked user');
+  }
+
+  console.log('\ngetOrCreateDmChannel() blocked (reverse direction):');
+  {
+    // user-c blocked user-d above. The block is bidirectional:
+    // user-d must also be prevented from opening a DM with user-c.
+    let threw = false;
+    try {
+      await service.getOrCreateDmChannel('user-d', 'user-c');
+    } catch (e: any) {
+      threw = true;
+      assert(e.message.includes('blocked') || e.status === 403, 'correct error for blocked DM (reverse)');
+    }
+    assert(threw, 'throws when blocked user tries to initiate DM with blocker');
   }
 
   console.log('\nsendMessage() in DM when blocked:');

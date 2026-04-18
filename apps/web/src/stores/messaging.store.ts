@@ -62,6 +62,19 @@ export const useMessagingStore = defineStore('messaging', () => {
     }
   }
 
+  async function getOrCreateDm(targetUserId: string): Promise<Channel> {
+    const api = useApi();
+    const result = await api.post<{ data: Channel }>('/messaging/channels/dm', {
+      target_user_id: targetUserId,
+    });
+    const channel = result.data;
+    if (!channels.value.some(c => c.id === channel.id)) {
+      channels.value = [channel, ...channels.value];
+      unreadCounts.value[channel.id] ??= 0;
+    }
+    return channel;
+  }
+
   async function fetchMessages(channelId: string, before?: string) {
     const api = useApi();
     try {
@@ -189,6 +202,7 @@ export const useMessagingStore = defineStore('messaging', () => {
     totalUnread,
     activeMessages,
     fetchChannels,
+    getOrCreateDm,
     fetchMessages,
     sendMessage,
     markRead,
