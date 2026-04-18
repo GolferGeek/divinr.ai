@@ -76,7 +76,8 @@ function fmtPct(v: number | null): string {
 }
 
 function messageUser() {
-  console.info('[coming-soon] DM user', props.userId);
+  router.push({ path: '/messages', query: { to: props.userId } });
+  emit('close');
 }
 
 function viewPredictions() {
@@ -132,6 +133,10 @@ function viewPredictions() {
 
         <div class="drawer-actions">
           <IonButton v-if="!isSelf" size="small" fill="outline" @click="messageUser">
+            <IonIcon slot="start" :icon="chatbubbleEllipsesOutline" />
+            Message
+          </IonButton>
+          <IonButton v-else size="small" fill="outline" disabled title="You can't message yourself">
             <IonIcon slot="start" :icon="chatbubbleEllipsesOutline" />
             Message
           </IonButton>

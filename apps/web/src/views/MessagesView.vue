@@ -105,17 +105,40 @@ function formatTime(iso: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+async function handleDmIntent(targetUserId: string) {
+  const trimmed = (targetUserId ?? '').trim();
+  if (!trimmed) return;
+  try {
+    const channel = await store.getOrCreateDm(trimmed);
+    router.replace(`/messages/${channel.id}`);
+  } catch (err) {
+    console.warn('[messages] getOrCreateDm failed', err);
+    router.replace('/messages');
+  }
+}
+
 onMounted(async () => {
   await store.fetchChannels();
   const channelId = route.params.channelId as string;
   if (channelId) {
     selectChannel(channelId);
+    return;
+  }
+  const to = route.query.to;
+  if (typeof to === 'string' && to.length > 0) {
+    await handleDmIntent(to);
   }
 });
 
 watch(() => route.params.channelId, (id) => {
   if (id && id !== store.activeChannelId) {
     selectChannel(id as string);
+  }
+});
+
+watch(() => route.query.to, (to) => {
+  if (typeof to === 'string' && to.length > 0 && !route.params.channelId) {
+    handleDmIntent(to);
   }
 });
 </script>
