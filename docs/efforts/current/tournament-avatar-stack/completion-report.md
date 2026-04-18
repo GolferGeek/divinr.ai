@@ -43,7 +43,7 @@
 | API build | ✅ clean |
 | API typecheck | ✅ clean |
 | API unit tests (full suite, ~110 files) | ✅ all green, including new `tournaments-list-entrants-preview.test.ts` (18/18) |
-| Markets smoke | ⏳ deferred (long-running DB bootstrap, orthogonal to changes) |
+| Markets smoke | ✅ passed in isolation (7/7 cases; initial concurrent run hit a DDL deadlock vs. the unit suite — orthogonal to changes) |
 | Web lint | ✅ clean |
 | Web build | ✅ clean |
 | Web typecheck | ⚠️ pre-existing baseline errors unchanged — no new errors introduced; `AvatarStack.vue` type-clean |
