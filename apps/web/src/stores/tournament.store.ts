@@ -45,6 +45,7 @@ export interface Tournament {
   created_by: string;
   starting_balance: number;
   allowed_instruments: string[] | null;
+  analyst_draft_config: { pick_count: number } | null;
   starts_at: string;
   ends_at: string;
   channel_id: string | null;
