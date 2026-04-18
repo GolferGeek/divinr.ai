@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote } from '@ionic/vue';
 import { useTournamentStore } from '../stores/tournament.store';
 import { useCanWrite } from '../composables/useCanWrite';
+import AvatarStack from '../components/AvatarStack.vue';
 
 const store = useTournamentStore();
 const { canWrite } = useCanWrite();
@@ -119,6 +120,7 @@ function pluralPlayers(n: number): string {
           <p v-if="t.description">{{ t.description }}</p>
           <div v-if="t.status === 'upcoming'" class="countdown-line">{{ formatCountdown(t.starts_at) }}</div>
           <div class="roster-line">
+            <AvatarStack :entrants="t.entrants_preview ?? []" :overflow="t.entrants_overflow ?? 0" />
             <span class="roster-text">{{ pluralPlayers(t.player_count ?? 0) }}</span>
           </div>
           <p class="prize-line">Prize: Bragging rights + Sprint Champion badge on your profile.</p>
@@ -161,7 +163,7 @@ function pluralPlayers(n: number): string {
 .card-meta { display: flex; gap: 0.25rem; margin-top: 0.5rem; }
 .card-details { display: flex; justify-content: space-between; margin: 0.5rem 0; }
 .countdown-line { font-size: 0.85rem; font-weight: 500; color: var(--ion-color-warning-shade); margin: 0.35rem 0; }
-.roster-line { display: flex; align-items: center; gap: 0.5rem; margin: 0.35rem 0; font-size: 0.85rem; color: var(--ion-color-medium); }
-.roster-text { font-weight: 500; }
+.roster-line { display: flex; align-items: center; gap: 0.5rem; margin: 0.35rem 0; font-size: 0.85rem; color: var(--ion-color-medium); min-width: 0; }
+.roster-text { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prize-line { font-size: 0.8rem; color: var(--ion-color-medium); margin: 0.35rem 0; font-style: italic; }
 </style>

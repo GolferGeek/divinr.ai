@@ -102,12 +102,43 @@ export class TournamentService {
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const result = await this.db.rawQuery(
       `SELECT t.*,
-              (SELECT COUNT(*)::int FROM prediction.tournament_entries te2 WHERE te2.tournament_id = t.id) as player_count
-       FROM prediction.tournaments t ${where} ORDER BY t.starts_at DESC LIMIT 100`,
+              (SELECT COUNT(*)::int FROM prediction.tournament_entries te2 WHERE te2.tournament_id = t.id) as player_count,
+              COALESCE(preview.entrants, '[]'::jsonb) as entrants_preview
+       FROM prediction.tournaments t
+       LEFT JOIN LATERAL (
+         SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'user_id', sub.user_id,
+                    'display_name', sub.display_name,
+                    'avatar_url', NULL
+                  )
+                  ORDER BY sub.joined_at ASC
+                ) AS entrants
+         FROM (
+           SELECT te.user_id, te.joined_at, u.display_name
+           FROM prediction.tournament_entries te
+           LEFT JOIN authz.users u ON u.id = te.user_id
+           WHERE te.tournament_id = t.id
+           ORDER BY te.joined_at ASC
+           LIMIT 3
+         ) sub
+       ) preview ON TRUE
+       ${where} ORDER BY t.starts_at DESC LIMIT 100`,
       params,
     );
     if (result.error) throw new Error(result.error.message);
-    return (result.data as Tournament[] | null) ?? [];
+    const rows = (result.data as Array<Tournament & { entrants_preview?: unknown }> | null) ?? [];
+    return rows.map((row) => {
+      const preview = Array.isArray(row.entrants_preview)
+        ? (row.entrants_preview as Array<{ user_id: string; display_name: string | null; avatar_url: string | null }>)
+        : [];
+      const playerCount = typeof row.player_count === 'number' ? row.player_count : 0;
+      return {
+        ...row,
+        entrants_preview: preview,
+        entrants_overflow: Math.max(0, playerCount - preview.length),
+      };
+    });
   }
 
   async getTournament(id: string, userId: string): Promise<Tournament | null> {

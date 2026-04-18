@@ -2,6 +2,7 @@ export type TournamentScope = 'system' | 'club' | 'invitation';
 export type TournamentType = 'weekly_sprint' | 'sector_challenge' | 'analyst_draft';
 export type TournamentStatus = 'upcoming' | 'active' | 'completed' | 'archived';
 
+// Mirror: keep apps/web/src/stores/tournament.store.ts `Tournament` in sync with this shape.
 export interface Tournament {
   id: string;
   name: string;
@@ -19,6 +20,8 @@ export interface Tournament {
   channel_id: string | null;
   created_at: string;
   player_count?: number;
+  entrants_preview?: Array<{ user_id: string; display_name: string | null; avatar_url: string | null }>;
+  entrants_overflow?: number;
 }
 
 export interface TournamentEntry {
