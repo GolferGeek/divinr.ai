@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-18 (club-tournament-experience-polish shipped; queue reorganized — coolness-for-beta polish in next, billing/graduation/ops/hardening to future)
+**Last updated:** 2026-04-18 (prediction-to-trade-intent promoted to current)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -42,7 +42,7 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Current Effort
 
-_None — queue is ready to pick the next effort._
+**[prediction-to-trade-intent](current/prediction-to-trade-intent/intention.md)** — "Trade this prediction" CTA on prediction cards/drawers that opens the tournament trade form with symbol + direction + suggested size pre-filled, quantity editable. Closes the loop between the analysis surface and the portfolio surface so users don't have to re-enter trade details by hand.
 
 ---
 
@@ -62,25 +62,21 @@ _None — queue is ready to pick the next effort._
 
 ---
 
-## Next — Queued Efforts (7)
+## Next — Queued Efforts (6)
 
 Reorganized 2026-04-18 around the remaining beta-phase coolness. The PR-58 polish pass surfaced feature-level deferrals that deserve their own small efforts rather than getting bolted onto unrelated work. Billing / graduation / ops / hardening all moved to `future/` until the experience is locked in and we're ready to commercialize.
 
-### Beta Coolness — Feature Linkage (1 effort — fairly soon)
-
-1. [prediction-to-trade-intent](next/prediction-to-trade-intent/intention.md) — "Trade this prediction" CTA that opens the tournament trade form pre-filled with symbol + direction + suggested size (editable). Closes the loop between analysis and portfolio action.
-
 ### Beta Coolness — Polish Follow-Ups (5 efforts — deferred from PR #58)
 
-2. [activity-viewed-counter](next/activity-viewed-counter/intention.md) — `prediction.club_members.last_viewed_at` + `(N)` unread badge on ACTIVITIES tab and MY CLUBS cards
-3. [leaderboard-rank-delta](next/leaderboard-rank-delta/intention.md) — prior-period rank on leaderboard payload + ↑/↓ arrow next to Rank column
-4. [direct-message-intent](next/direct-message-intent/intention.md) — `/messages?to=<userId>` route that opens-or-creates a 1:1 thread; wires the Member Profile Drawer's Message button
-5. [intraday-pnl-on-positions](next/intraday-pnl-on-positions/intention.md) — bulk `/markets/bars/latest` endpoint + intraday % column on MY POSITIONS
-6. [tournament-avatar-stack](next/tournament-avatar-stack/intention.md) — first-3-entrants avatar stack on tournament list cards with single-query bulk fetch
+1. [activity-viewed-counter](next/activity-viewed-counter/intention.md) — `prediction.club_members.last_viewed_at` + `(N)` unread badge on ACTIVITIES tab and MY CLUBS cards
+2. [leaderboard-rank-delta](next/leaderboard-rank-delta/intention.md) — prior-period rank on leaderboard payload + ↑/↓ arrow next to Rank column
+3. [direct-message-intent](next/direct-message-intent/intention.md) — `/messages?to=<userId>` route that opens-or-creates a 1:1 thread; wires the Member Profile Drawer's Message button
+4. [intraday-pnl-on-positions](next/intraday-pnl-on-positions/intention.md) — bulk `/markets/bars/latest` endpoint + intraday % column on MY POSITIONS
+5. [tournament-avatar-stack](next/tournament-avatar-stack/intention.md) — first-3-entrants avatar stack on tournament list cards with single-query bulk fetch
 
 ### Beta Coolness — Teaching (1 effort)
 
-7. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
+6. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product)
 
 ---
 
