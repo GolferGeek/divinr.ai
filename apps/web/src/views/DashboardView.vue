@@ -86,6 +86,13 @@ const modalInitialIndex = ref(0);
 const modalMode = ref<'view' | 'trade'>('view');
 const modalInstrumentId = ref('');
 const modalCurrentPrice = ref<number | null>(null);
+const modalAssetType = ref<string>('equity');
+
+function lookupAssetType(instrumentId: string): string {
+  const match = instruments.items.find(i => (i as Record<string, unknown>).id === instrumentId) as Record<string, unknown> | undefined;
+  const at = match?.asset_type;
+  return typeof at === 'string' && at.length > 0 ? at : 'equity';
+}
 
 function openAnalystModal(pred: DashboardPrediction, analystIndex: number) {
   modalSymbol.value = pred.symbol;
@@ -95,6 +102,7 @@ function openAnalystModal(pred: DashboardPrediction, analystIndex: number) {
   modalMode.value = 'view';
   modalInstrumentId.value = pred.instrument_id;
   modalCurrentPrice.value = pred.trade_recommendation?.entry_price ?? null;
+  modalAssetType.value = lookupAssetType(pred.instrument_id);
   modalOpen.value = true;
 }
 
@@ -107,6 +115,7 @@ function openTradeModal(pred: DashboardPrediction) {
   modalMode.value = 'trade';
   modalInstrumentId.value = pred.instrument_id;
   modalCurrentPrice.value = pred.trade_recommendation?.entry_price ?? null;
+  modalAssetType.value = lookupAssetType(pred.instrument_id);
   modalOpen.value = true;
 }
 
@@ -444,6 +453,7 @@ function formatStartShort(iso: string): string {
       :mode="modalMode"
       :instrument-id="modalInstrumentId"
       :current-price="modalCurrentPrice"
+      :asset-type="modalAssetType"
       @close="modalOpen = false"
     />
   </div>

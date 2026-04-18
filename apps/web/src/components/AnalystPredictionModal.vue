@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   IonModal, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonButton,
   IonIcon, IonChip, IonNote,
@@ -13,6 +14,9 @@ import { useProvenanceStore } from '../stores/provenance.store';
 import { usePortfolioStore } from '../stores/portfolio.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useAffinityStore } from '../stores/affinity.store';
+import { useActiveTournament, impliedQuantity } from '../composables/useActiveTournament';
+import type { Tournament } from '../stores/tournament.store';
+import TournamentPicker from './TournamentPicker.vue';
 
 interface AnalystStance {
   prediction_id: string;
@@ -50,7 +54,8 @@ const props = withDefaults(defineProps<{
   mode?: 'view' | 'trade';
   instrumentId?: string;
   currentPrice?: number | null;
-}>(), { mode: 'view', instrumentId: '', currentPrice: null });
+  assetType?: string;
+}>(), { mode: 'view', instrumentId: '', currentPrice: null, assetType: 'equity' });
 
 const emit = defineEmits<{
   close: [];
@@ -273,6 +278,81 @@ async function skipTrade() {
     });
     tradeResult.value = { skipped: true };
   } catch { /* silent */ }
+}
+
+// ─── Trade This Prediction (tournament CTA) ──────────────────
+const router = useRouter();
+const { resolveActiveTournaments } = useActiveTournament();
+const pickerOpen = ref(false);
+const pickerTournaments = ref<Tournament[]>([]);
+const pendingPickerResolve = ref<((id: string | null) => void) | null>(null);
+const ctaBusy = ref(false);
+
+const isEquity = computed(() => (props.assetType ?? 'equity') === 'equity');
+
+function onPickerSelect(tournamentId: string) {
+  pickerOpen.value = false;
+  pendingPickerResolve.value?.(tournamentId);
+  pendingPickerResolve.value = null;
+}
+
+function onPickerDismiss() {
+  pickerOpen.value = false;
+  pendingPickerResolve.value?.(null);
+  pendingPickerResolve.value = null;
+}
+
+async function handleTradeThisPrediction() {
+  const a = analyst.value;
+  if (!a) return;
+  if (!isEquity.value) return;
+  if (ctaBusy.value) return;
+  ctaBusy.value = true;
+  try {
+    const { state, tournaments } = await resolveActiveTournaments();
+    if (state === 'none') {
+      router.push({ path: '/tournaments', query: { reason: 'no-active-entry' } });
+      emit('close');
+      return;
+    }
+    let target: Tournament;
+    if (state === 'one') {
+      target = tournaments[0];
+    } else {
+      pickerTournaments.value = tournaments;
+      pickerOpen.value = true;
+      const pickedId = await new Promise<string | null>(resolve => {
+        pendingPickerResolve.value = resolve;
+      });
+      if (!pickedId) return;
+      const found = tournaments.find(t => t.id === pickedId);
+      if (!found) return;
+      target = found;
+    }
+    const qty = impliedQuantity(target.starting_balance, a.confidence, props.currentPrice);
+    const direction = a.direction === 'down' ? 'short' : 'long';
+    router.push({
+      path: `/tournaments/${target.id}`,
+      query: {
+        tab: 'trade',
+        symbol: props.symbol,
+        direction,
+        qty: String(qty),
+        predictionId: a.prediction_id,
+      },
+    });
+    // observability for CTA funnel, see prediction-to-trade-intent effort
+    console.info('[prediction-to-trade-intent] cta_navigated', {
+      state,
+      predictionId: a.prediction_id,
+      symbol: props.symbol,
+      direction,
+      impliedQty: qty,
+    });
+    emit('close');
+  } finally {
+    ctaBusy.value = false;
+  }
 }
 
 async function acknowledgeDisclaimer() {
@@ -644,14 +724,26 @@ async function loadChallenges() {
                 Analysis only — your decision
               </div>
               <div v-if="tradeError" style="color:var(--ion-color-danger);font-size:0.8rem;margin-bottom:8px">{{ tradeError }}</div>
-              <div style="display:flex;gap:8px;justify-content:center">
+              <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
                 <ion-button color="success" @click="takeTrade">
                   Take This Trade
+                </ion-button>
+                <ion-button
+                  color="primary"
+                  fill="outline"
+                  :disabled="!isEquity || ctaBusy"
+                  :aria-disabled="!isEquity || ctaBusy ? 'true' : 'false'"
+                  @click="handleTradeThisPrediction"
+                >
+                  Trade this prediction
                 </ion-button>
                 <ion-button color="medium" fill="outline" @click="skipTrade">
                   Skip
                 </ion-button>
               </div>
+              <ion-note v-if="!isEquity" color="medium" style="display:block;text-align:center;margin-top:6px;font-size:0.75rem">
+                Tournament trading is equity-only right now.
+              </ion-note>
             </div>
           </div>
         </div>
@@ -669,6 +761,12 @@ async function loadChallenges() {
         </div>
       </div>
     </ion-content>
+    <TournamentPicker
+      :is-open="pickerOpen"
+      :tournaments="pickerTournaments"
+      @select="onPickerSelect"
+      @dismiss="onPickerDismiss"
+    />
   </ion-modal>
 </template>
 
