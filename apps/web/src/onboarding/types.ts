@@ -5,30 +5,18 @@
 
 export type StepId =
   | 'welcome'
-  | 'dashboard'
-  | 'predictions'
-  | 'instrument-detail'
-  | 'analysts'
-  | 'performance'
-  | 'risk'
-  | 'portfolios'
-  | 'clubs'
-  | 'tournaments'
-  | 'messages'
+  | 'analysts-and-instruments'
+  | 'reading-an-analysis'
+  | 'making-a-trade'
+  | 'where-to-go-from-here'
   | 'done';
 
 export const STEP_ORDER: readonly StepId[] = [
   'welcome',
-  'dashboard',
-  'predictions',
-  'instrument-detail',
-  'analysts',
-  'performance',
-  'risk',
-  'portfolios',
-  'clubs',
-  'tournaments',
-  'messages',
+  'analysts-and-instruments',
+  'reading-an-analysis',
+  'making-a-trade',
+  'where-to-go-from-here',
   'done',
 ] as const;
 
@@ -60,48 +48,18 @@ export type StepKind = 'got_it' | 'action';
 export interface StepContent {
   id: StepId;
   title: string;
-  body: string; // markdown — paragraphs separated by blank lines
-  routePath: string; // anchor route; for action-gated steps, use approach route
+  body: string;
+  routePath: string;
   pulseSelectors?: string[];
   cta?: { label: string; actionKey?: string };
   completion: { kind: StepKind; actionKey?: string };
   emotionalBeat: string;
-  /**
-   * Optional short-form walkthrough video for this step.
-   * Accepts a Loom share URL (https://www.loom.com/share/ID) — the modal
-   * converts it to the embed form automatically. Any direct https:// URL
-   * of an embeddable video also works.
-   */
   videoUrl?: string;
-  /**
-   * Extra paths the router guard should let through while this step is active.
-   * Required for action-gated steps whose completion is triggered by navigating
-   * to an otherwise-locked path (e.g., the predictions step needs /instruments
-   * to be reachable so the user can open an instrument detail page — but the
-   * /instruments nav rule says it unlocks AFTER predictions, creating a
-   * chicken-and-egg problem without this escape hatch).
-   *
-   * Prefix match on /path or exact match — e.g., '/instruments' whitelists
-   * both /instruments and /instruments/AAPL.
-   */
-  allowedPaths?: string[];
 }
 
-/**
- * Turn a Loom share URL into the embed URL. Passes other URLs through unchanged.
- * Loom share: https://www.loom.com/share/7f2ff9d72de245d99db3a5077e4729ed
- * Loom embed: https://www.loom.com/embed/7f2ff9d72de245d99db3a5077e4729ed
- */
 export function toEmbedUrl(url: string): string {
   return url.replace(/\/\/www\.loom\.com\/share\//, '//www.loom.com/embed/');
 }
-
-/**
- * NavLockMap: key is the nav item's `to` path. Value is either 'always',
- * 'admin-only', or a StepId that must be in steps_completed to unlock.
- */
-export type NavUnlock = 'always' | 'admin-only' | StepId;
-export type NavLockMap = Record<string, NavUnlock>;
 
 export function defaultOnboardingState(): OnboardingState {
   return {

@@ -6,6 +6,7 @@ import {
 } from '@ionic/vue';
 import { useUsageStore } from '../stores/usage.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useUsageStore();
 
 const now = new Date();
@@ -176,5 +177,7 @@ function formatTokens(n: number): string {
         </tbody>
       </table>
     </div>
+  
+  <FirstTouchPanel surface-key="admin.llm-usage" />
   </div>
 </template>

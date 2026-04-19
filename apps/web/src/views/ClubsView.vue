@@ -7,6 +7,7 @@ import { useTournamentStore } from '../stores/tournament.store';
 import { useCanWrite } from '../composables/useCanWrite';
 import { pluralize, formatBadge } from '../utils/format';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useClubStore();
 const tstore = useTournamentStore();
 const { canWrite } = useCanWrite();
@@ -88,6 +89,8 @@ function formatStartShort(iso: string): string {
         </IonCardContent>
       </IonCard>
     </div>
+  
+  <FirstTouchPanel surface-key="clubs" />
   </div>
 </template>
 

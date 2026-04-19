@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { IonButton, IonInput, IonTextarea, IonSpinner } from '@ionic/vue';
 import { useUsageStore } from '../stores/usage.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const route = useRoute();
 const router = useRouter();
 const store = useUsageStore();
@@ -230,5 +231,7 @@ function formatCost(cents: number | null): string {
         </tbody>
       </table>
     </div>
+  
+  <FirstTouchPanel surface-key="admin.cost-modeling.experiments" />
   </div>
 </template>

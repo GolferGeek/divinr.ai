@@ -7,6 +7,7 @@ import {
   IonChip, IonButton, IonNote,
 } from '@ionic/vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useNotificationStore();
 const router = useRouter();
 
@@ -86,6 +87,8 @@ async function markAllRead() {
         </ion-card-content>
       </ion-card>
     </div>
+  
+  <FirstTouchPanel surface-key="notifications" />
   </div>
 </template>
 

@@ -10,6 +10,7 @@ import EquitySparkline from '../components/EquitySparkline.vue';
 import EquityCurveChart from '../components/EquityCurveChart.vue';
 import CalibrationChart from '../components/CalibrationChart.vue';
 import ProvenanceTooltip from '../components/ProvenanceTooltip.vue';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 import type { SnapshotHistoryPoint, BenchmarkPoint, CalibrationBucket } from '../stores/portfolio.store';
 import { colorClass } from '../utils/colorClass';
 import {
@@ -562,7 +563,8 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
                   </template>
                 </div>
               </div>
-        </div>
+        <FirstTouchPanel surface-key="portfolios" />
+  </div>
         </template>
       </template>
     </div>

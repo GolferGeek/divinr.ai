@@ -3,6 +3,7 @@ import { IonModal, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonB
 import { closeOutline } from 'ionicons/icons';
 import type { Tournament } from '../stores/tournament.store';
 
+import FirstTouchPanel from './FirstTouchPanel.vue';
 defineProps<{
   isOpen: boolean;
   tournaments: Tournament[];
@@ -48,6 +49,8 @@ function typeLabel(t: string): string {
         </button>
       </div>
     </ion-content>
+  
+  <FirstTouchPanel surface-key="tournament.picker" />
   </ion-modal>
 </template>
 

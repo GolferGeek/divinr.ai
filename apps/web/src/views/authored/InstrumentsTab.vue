@@ -8,6 +8,7 @@ import {
 import { useAuthoredContentApi } from '../../api/authored-content';
 import CreateInstrumentWizard from './CreateInstrumentWizard.vue';
 
+import FirstTouchPanel from '../../components/FirstTouchPanel.vue';
 const api = useAuthoredContentApi();
 const router = useRouter();
 const instruments = ref<any[]>([]);
@@ -92,5 +93,7 @@ function fmtDate(iso: string): string {
       @close="showCreateModal = false"
       @created="onCreated"
     />
+  
+  <FirstTouchPanel surface-key="authoring.custom-instrument.create" />
   </div>
 </template>

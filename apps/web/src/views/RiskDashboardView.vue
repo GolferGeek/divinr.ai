@@ -5,6 +5,7 @@ import { useRiskStore } from '../stores/risk.store';
 import CompositeScoreGauge from '../components/CompositeScoreGauge.vue';
 import RiskDimensionChart from '../components/RiskDimensionChart.vue';
 import DebateSummary from '../components/DebateSummary.vue';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 import {
   IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle, IonCardContent,
   IonGrid, IonRow, IonCol, IonChip, IonNote, IonButton, IonIcon,
@@ -256,5 +257,7 @@ function verdictColor(verdict: string): string {
         </ion-row>
       </ion-grid>
     </template>
+
+  <FirstTouchPanel surface-key="risk-dashboard" />
   </div>
 </template>

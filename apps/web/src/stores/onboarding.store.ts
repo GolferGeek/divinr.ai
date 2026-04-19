@@ -1,12 +1,15 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { useApi } from '../composables/useApi';
-import { navLocks, tourContent, matchNavRoot } from '../onboarding/tour-content';
+import { tourContent } from '../onboarding/tour-content';
+import { allTourSurfaceKeys, tourBeatToSurfaces } from '../onboarding/tour-to-surface-map';
 import {
   defaultOnboardingState,
+  STEP_ORDER,
   type OnboardingState,
   type StepId,
 } from '../onboarding/types';
+import { useFirstTouchStore } from './firstTouch.store';
 
 /**
  * Onboarding tour store.
@@ -14,7 +17,7 @@ import {
  * State is DB-backed (authz.user_preferences). Every mutation round-trips via the
  * API so tour progress is durable across devices / logout / refresh.
  *
- * Local-only UI state (docentVisible, pulseTargets, lockedFlash) does NOT persist.
+ * Local-only UI state (docentVisible, pulseTargets) does NOT persist.
  */
 export const useOnboardingStore = defineStore('onboarding', () => {
   const api = useApi('/api/onboarding');
@@ -23,8 +26,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const loading = ref(false);
   const docentVisible = ref(true);
   const pulseTargets = ref<string[]>([]);
-  const lockedFlash = ref<string | null>(null);
-  let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
   const active = computed(() => {
     const s = state.value;
@@ -40,7 +41,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     const s = state.value;
     return {
       done: s ? s.steps_completed.length : 0,
-      total: 12,
+      total: STEP_ORDER.length,
     };
   });
 
@@ -61,19 +62,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     if (s.completed_at) return false;
     return s.current_step === 'done';
   });
-
-  function isUnlocked(navPath: string, isAdmin = false): boolean {
-    const root = matchNavRoot(navPath);
-    const rule = navLocks[root];
-    if (!rule) return true; // unregistered paths default to unlocked
-    if (rule === 'always') return true;
-    if (rule === 'admin-only') return isAdmin; // only admins see these; not tour-gated
-    // rule is a StepId
-    if (!state.value) return false;
-    if (state.value.skipped) return true;
-    if (state.value.completed_at) return true;
-    return state.value.steps_completed.includes(rule);
-  }
 
   async function fetch(): Promise<void> {
     loading.value = true;
@@ -97,6 +85,12 @@ export const useOnboardingStore = defineStore('onboarding', () => {
       step,
     });
     syncPulseTargets();
+    // Pre-mark the surfaces this beat just walked through so the user does
+    // not get a first-touch panel on a screen they were just shown.
+    const firstTouch = useFirstTouchStore();
+    for (const key of tourBeatToSurfaces[step] ?? []) {
+      void firstTouch.markTouched(key);
+    }
   }
 
   async function setStep(step: StepId): Promise<void> {
@@ -111,6 +105,12 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     state.value = await api.patch<OnboardingState>('/state', { action: 'skip' });
     docentVisible.value = false;
     pulseTargets.value = [];
+    // Sweep every surface the tour would have taught. The user opted out, so
+    // those first-touch panels should not fire later.
+    const firstTouch = useFirstTouchStore();
+    for (const key of allTourSurfaceKeys()) {
+      void firstTouch.markTouched(key);
+    }
   }
 
   async function restart(): Promise<void> {
@@ -141,15 +141,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     await completeStep(s.current_step);
   }
 
-  function flashLocked(message: string, ms = 3000): void {
-    lockedFlash.value = message;
-    if (flashTimer) clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => {
-      lockedFlash.value = null;
-      flashTimer = null;
-    }, ms);
-  }
-
   function openDocent(): void {
     docentVisible.value = true;
   }
@@ -170,12 +161,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   function clear(): void {
     state.value = null;
     pulseTargets.value = [];
-    lockedFlash.value = null;
     docentVisible.value = true;
-    if (flashTimer) {
-      clearTimeout(flashTimer);
-      flashTimer = null;
-    }
   }
 
   return {
@@ -184,7 +170,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     loading,
     docentVisible,
     pulseTargets,
-    lockedFlash,
     // computeds
     active,
     currentStep,
@@ -192,8 +177,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     progress,
     showWelcomeModal,
     showCompletionModal,
-    // getters
-    isUnlocked,
     // actions
     fetch,
     start,
@@ -204,7 +187,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     markSeen,
     resetForUser,
     notifyAction,
-    flashLocked,
     openDocent,
     closeDocent,
     clear,

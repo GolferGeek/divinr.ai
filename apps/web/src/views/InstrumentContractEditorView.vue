@@ -7,6 +7,7 @@ import {
   IonButton, IonChip, IonNote, IonProgressBar, IonInput,
 } from '@ionic/vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 interface ContractVersion {
   id: string;
   versionNumber: number;
@@ -294,7 +295,8 @@ const diffLines = computed<{ left: DiffLine[]; right: DiffLine[] }>(() => {
             @click="makeActive"
           >
             {{ rollingBack ? 'Restoring...' : `Make v${previewedVersion.versionNumber} active` }}
-          </ion-button>
+          
+  </ion-button>
         </template>
       </div>
 
@@ -436,7 +438,8 @@ const diffLines = computed<{ left: DiffLine[]; right: DiffLine[] }>(() => {
             No config versions found.
           </ion-note>
         </div>
-      </div>
+      <FirstTouchPanel surface-key="authoring.custom-instrument.editor" />
+  </div>
     </template>
   </div>
 </template>

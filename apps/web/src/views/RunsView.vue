@@ -14,6 +14,7 @@ import {
   trendingUpOutline, checkmarkCircle, alertCircle, timeOutline, syncOutline,
 } from 'ionicons/icons';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const router = useRouter();
 const { canWrite } = useCanWrite();
 const runs = useRunsStore();
@@ -281,6 +282,8 @@ function filterRuns() {
         </div>
       </ion-content>
     </ion-modal>
+  
+  <FirstTouchPanel surface-key="admin.runs.list" />
   </div>
 </template>
 

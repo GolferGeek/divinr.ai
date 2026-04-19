@@ -1,37 +1,27 @@
 /**
  * Shared types for the onboarding tour feature.
  *
- * The step order is fixed (intention/PRD §4.2). `complete_step` advances
- * `current_step` to the next item in STEP_ORDER. `welcome` is the initial
- * step before the tour starts; `done` is terminal.
+ * Beginner Tour v2: 5 content beats + a terminal `done`. Step IDs are named
+ * after the beat's emotional content so tour-to-surface-map wiring reads
+ * obviously. `complete_step` advances `current_step` to the next item in
+ * STEP_ORDER. `welcome` is the initial step before the tour starts; `done`
+ * is terminal.
  */
 
 export type StepId =
   | 'welcome'
-  | 'dashboard'
-  | 'predictions'
-  | 'instrument-detail'
-  | 'analysts'
-  | 'performance'
-  | 'risk'
-  | 'portfolios'
-  | 'clubs'
-  | 'tournaments'
-  | 'messages'
+  | 'analysts-and-instruments'
+  | 'reading-an-analysis'
+  | 'making-a-trade'
+  | 'where-to-go-from-here'
   | 'done';
 
 export const STEP_ORDER: readonly StepId[] = [
   'welcome',
-  'dashboard',
-  'predictions',
-  'instrument-detail',
-  'analysts',
-  'performance',
-  'risk',
-  'portfolios',
-  'clubs',
-  'tournaments',
-  'messages',
+  'analysts-and-instruments',
+  'reading-an-analysis',
+  'making-a-trade',
+  'where-to-go-from-here',
   'done',
 ] as const;
 
@@ -48,6 +38,7 @@ export interface OnboardingState {
   current_step: StepId;
   steps_completed: StepId[];
   last_seen_at: string | null; // ISO-8601
+  first_touch_muted: boolean;  // global mute for first-touch walkthroughs (v2)
 }
 
 export type OnboardingPatch =
@@ -56,7 +47,8 @@ export type OnboardingPatch =
   | { action: 'set_current_step'; step: StepId }
   | { action: 'skip' }
   | { action: 'restart' }
-  | { action: 'mark_seen' };
+  | { action: 'mark_seen' }
+  | { action: 'set_first_touch_mute'; muted: boolean };
 
 export function defaultOnboardingState(): OnboardingState {
   return {
@@ -66,7 +58,24 @@ export function defaultOnboardingState(): OnboardingState {
     current_step: 'welcome',
     steps_completed: [],
     last_seen_at: null,
+    first_touch_muted: false,
   };
+}
+
+// First real step after `welcome`. Used by `start` and `restart` so the tour
+// skips the welcome modal and lands on the first content beat.
+const FIRST_CONTENT_STEP: StepId = STEP_ORDER[1]!;
+
+/**
+ * Sanitize inbound state by dropping any step ids no longer in STEP_ORDER.
+ * v1 users may have persisted step ids like `'dashboard'`, `'risk'`, etc. The
+ * reducer treats unknown ids as "ignore" rather than crashing, so a v2 deploy
+ * does not trip v1 users into a broken tour.
+ */
+function sanitize(current: OnboardingState): OnboardingState {
+  const filtered = current.steps_completed.filter(isStepId);
+  if (filtered.length === current.steps_completed.length) return current;
+  return { ...current, steps_completed: filtered };
 }
 
 /**
@@ -81,13 +90,14 @@ export function applyOnboardingPatch(
   patch: OnboardingPatch,
   now: string = new Date().toISOString(),
 ): OnboardingState {
+  const sanitized = sanitize(current);
   switch (patch.action) {
     case 'start':
       return {
-        ...current,
+        ...sanitized,
         started_at: now,
-        current_step: 'dashboard',
-        steps_completed: dedupe([...current.steps_completed, 'welcome']),
+        current_step: FIRST_CONTENT_STEP,
+        steps_completed: dedupe([...sanitized.steps_completed, 'welcome']),
         skipped: false,
         completed_at: null,
         last_seen_at: now,
@@ -95,16 +105,13 @@ export function applyOnboardingPatch(
 
     case 'complete_step': {
       if (!isStepId(patch.step)) throw new Error(`Invalid step: ${String(patch.step)}`);
-      const completed = dedupe([...current.steps_completed, patch.step]);
+      const completed = dedupe([...sanitized.steps_completed, patch.step]);
       const idx = STEP_ORDER.indexOf(patch.step);
-      // Advance to the next step in order; if we're completing the last step ('done')
-      // or somehow past the end, stay on 'done'.
       const nextStep: StepId =
         idx >= 0 && idx < STEP_ORDER.length - 1 ? STEP_ORDER[idx + 1]! : 'done';
-      // Completing the final step ('done') marks the tour as completed.
-      const completed_at = patch.step === 'done' ? (current.completed_at ?? now) : current.completed_at;
+      const completed_at = patch.step === 'done' ? (sanitized.completed_at ?? now) : sanitized.completed_at;
       return {
-        ...current,
+        ...sanitized,
         steps_completed: completed,
         current_step: nextStep,
         completed_at,
@@ -114,11 +121,11 @@ export function applyOnboardingPatch(
 
     case 'set_current_step':
       if (!isStepId(patch.step)) throw new Error(`Invalid step: ${String(patch.step)}`);
-      return { ...current, current_step: patch.step, last_seen_at: now };
+      return { ...sanitized, current_step: patch.step, last_seen_at: now };
 
     case 'skip':
       return {
-        ...current,
+        ...sanitized,
         skipped: true,
         completed_at: now,
         current_step: 'done',
@@ -127,19 +134,21 @@ export function applyOnboardingPatch(
       };
 
     case 'restart':
-      // Reset AND auto-start: user who clicks "Retake" has already opted in;
-      // skip the welcome modal and land them at the first real step (dashboard).
       return {
         started_at: now,
         completed_at: null,
         skipped: false,
-        current_step: 'dashboard',
+        current_step: FIRST_CONTENT_STEP,
         steps_completed: ['welcome'],
         last_seen_at: now,
+        first_touch_muted: sanitized.first_touch_muted,
       };
 
     case 'mark_seen':
-      return { ...current, last_seen_at: now };
+      return { ...sanitized, last_seen_at: now };
+
+    case 'set_first_touch_mute':
+      return { ...sanitized, first_touch_muted: patch.muted === true, last_seen_at: now };
 
     default: {
       const exhaustive: never = patch;

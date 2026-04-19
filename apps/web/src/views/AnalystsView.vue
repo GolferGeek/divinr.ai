@@ -8,6 +8,7 @@ import {
   IonToggle, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonLabel,
 } from '@ionic/vue';
 import { addOutline } from 'ionicons/icons';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 
 const store = useAnalystsStore();
 const { canWrite } = useCanWrite();
@@ -104,5 +105,7 @@ async function handleCreate() {
         </div>
       </ion-content>
     </ion-modal>
+
+  <FirstTouchPanel surface-key="analysts" />
   </div>
 </template>

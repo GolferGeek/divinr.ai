@@ -12,6 +12,7 @@ import MessageCompose from '../components/messaging/MessageCompose.vue';
 import MessageThread from '../components/messaging/MessageThread.vue';
 import EntityAttachmentCard from '../components/messaging/EntityAttachmentCard.vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useMessagingStore();
 const route = useRoute();
 const router = useRouter();
@@ -179,7 +180,9 @@ watch(() => route.query.to, (to) => {
                 <span v-if="ch.unread_count > 0" class="unread-badge">{{ ch.unread_count }}</span>
               </div>
             </div>
-          </div>
+          
+  <FirstTouchPanel surface-key="messages" />
+  </div>
         </template>
       </div>
     </div>

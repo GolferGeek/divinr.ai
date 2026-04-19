@@ -9,6 +9,7 @@ import {
 } from '@ionic/vue';
 import { newspaperOutline, cloudOutline } from 'ionicons/icons';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useSourcesStore();
 const { canWrite } = useCanWrite();
 
@@ -121,7 +122,9 @@ function timeAgo(dateStr: string): string {
               {{ String(article['summary']).slice(0, 200) }}{{ String(article['summary']).length > 200 ? '...' : '' }}
             </p>
           </div>
-        </div>
+        
+  <FirstTouchPanel surface-key="sources" />
+  </div>
       </template>
     </ion-list>
   </div>

@@ -6,6 +6,7 @@ import {
   IonGrid, IonRow, IonCol, IonChip, IonButton, IonNote, IonProgressBar,
 } from '@ionic/vue';
 
+import FirstTouchPanel from './FirstTouchPanel.vue';
 const props = defineProps<{
   debate: Record<string, unknown> | null;
 }>();
@@ -138,7 +139,8 @@ function agentReasoning(role: string): AgentReasoning | null {
                     <pre v-if="agentReasoning('blue')!.reasoningContent" style="white-space:pre-wrap;font-size:0.75rem;line-height:1.5;margin:4px 0 0 0;max-height:400px;overflow-y:auto">{{ agentReasoning('blue')!.reasoningContent }}</pre>
                     <ion-note v-else style="display:block;font-size:0.75rem;margin-top:4px">No extended reasoning captured for this agent.</ion-note>
                   </div>
-                  <ion-note v-else-if="!reasoningLoading && !reasoningError" style="display:block;font-size:0.75rem;margin-top:4px">No extended reasoning captured for this agent.</ion-note>
+                  <ion-note v-else-if="!reasoningLoading && !reasoningError" style="display:block;font-size:0.75rem;margin-top:4px">No extended reasoning captured for this agent.
+  </ion-note>
                 </template>
               </div>
             </div>
@@ -250,5 +252,6 @@ function agentReasoning(role: string): AgentReasoning | null {
         </ion-row>
       </ion-grid>
     </ion-card-content>
+  <FirstTouchPanel surface-key="instrument.debate" />
   </ion-card>
 </template>

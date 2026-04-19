@@ -7,6 +7,7 @@ import { useApi } from '../composables/useApi';
 import AnalystOutcomeCard from '../components/AnalystOutcomeCard.vue';
 import ArbitratorSection from '../components/ArbitratorSection.vue';
 import DebateSummary from '../components/DebateSummary.vue';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 import {
   IonButton, IonGrid, IonRow, IonCol, IonProgressBar,
   IonAccordionGroup, IonAccordion, IonItem, IonLabel, IonIcon,
@@ -308,6 +309,8 @@ function fmtTime(v: unknown): string {
         </ion-accordion-group>
       </section>
     </template>
+
+  <FirstTouchPanel surface-key="admin.runs.detail" />
   </div>
 </template>
 

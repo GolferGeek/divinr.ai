@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInput, IonTextarea, IonNote } from '@ionic/vue';
 import { useCurriculumStore } from '../stores/curriculum.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useCurriculumStore();
 const route = useRoute();
 const router = useRouter();
@@ -96,6 +97,8 @@ async function submit() {
         <IonButton expand="block" @click="submit">Create Curriculum</IonButton>
       </IonCardContent>
     </IonCard>
+  
+  <FirstTouchPanel surface-key="curriculum.create" />
   </div>
 </template>
 

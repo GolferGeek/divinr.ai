@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { useEnablementStore, type AvailableTriple } from '../stores/enablement.store';
 import { IonButton, IonChip, IonNote } from '@ionic/vue';
 
+import FirstTouchPanel from './FirstTouchPanel.vue';
 const enablement = useEnablementStore();
 const step = ref<'closed' | 'pick-instrument' | 'pick-triples'>('closed');
 const search = ref('');
@@ -192,6 +193,8 @@ async function saveSelections() {
         <IonButton fill="clear" color="medium" size="small" @click="step = 'pick-instrument'">Cancel</IonButton>
       </div>
     </div>
+  
+  <FirstTouchPanel surface-key="portfolio.add-triple" />
   </div>
 </template>
 

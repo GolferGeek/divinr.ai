@@ -3,6 +3,7 @@ import { onMounted } from 'vue';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent } from '@ionic/vue';
 import { useBillingSummaryStore } from '../stores/billing-summary.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useBillingSummaryStore();
 onMounted(() => store.fetchMySummary());
 
@@ -109,5 +110,7 @@ function formatCost(cents: number): string {
         </tbody>
       </table>
     </div>
+  
+  <FirstTouchPanel surface-key="billing.summary" />
   </div>
 </template>

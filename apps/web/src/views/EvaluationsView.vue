@@ -9,6 +9,7 @@ import {
   checkmarkCircle, closeCircle,
 } from 'ionicons/icons';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 interface ReportRow {
   id?: string;
   report_type?: string;
@@ -246,6 +247,8 @@ const horizonScenarios: HorizonScenario[] = [
         </article>
       </div>
     </div>
+  
+  <FirstTouchPanel surface-key="admin.evaluations" />
   </div>
 </template>
 

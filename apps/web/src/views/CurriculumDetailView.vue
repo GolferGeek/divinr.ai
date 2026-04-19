@@ -6,6 +6,7 @@ import { useCurriculumStore } from '../stores/curriculum.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useClubStore } from '../stores/club.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useCurriculumStore();
 const authStore = useAuthStore();
 const clubStore = useClubStore();
@@ -106,7 +107,8 @@ function getModuleProgress(moduleId: string) {
           <IonButton v-if="store.activeCurriculum.status === 'draft'" size="small" fill="outline" @click="updateStatus('active')">Publish</IonButton>
           <IonButton v-if="store.activeCurriculum.status === 'active'" size="small" fill="outline" @click="updateStatus('archived')">Archive</IonButton>
           <IonButton v-if="store.activeCurriculum.status === 'active'" size="small" fill="outline"
-            @click="router.push(`/clubs/${clubId}/curricula/${curriculumId}/dashboard`)">Dashboard</IonButton>
+            @click="router.push(`/clubs/${clubId}/curricula/${curriculumId}/dashboard`)">Dashboard
+  </IonButton>
         </template>
       </div>
     </div>
@@ -157,7 +159,8 @@ function getModuleProgress(moduleId: string) {
             <div class="edit-actions">
               <IonButton size="small" @click="saveModule" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</IonButton>
               <IonButton size="small" fill="clear" @click="editingWeek = null">Cancel</IonButton>
-            </div>
+            <FirstTouchPanel surface-key="curriculum.detail" />
+  </div>
           </template>
 
           <!-- Admin: Display mode -->

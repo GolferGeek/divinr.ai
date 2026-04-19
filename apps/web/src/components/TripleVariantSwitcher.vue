@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useEnablementStore } from '../stores/enablement.store';
 import { IonChip } from '@ionic/vue';
 
+import FirstTouchPanel from './FirstTouchPanel.vue';
 const props = defineProps<{ instrumentId: string }>();
 const route = useRoute();
 const router = useRouter();
@@ -52,5 +53,7 @@ function label(t: { analystName: string; isAuthoredAnalyst: boolean; isAuthoredI
       style="cursor:pointer;font-size:0.78rem;height:26px"
       @click="switchTo(v.analystId, v.authorUserId)"
     >{{ label(v) }}</IonChip>
+  
+  <FirstTouchPanel surface-key="instrument.variant-switcher" />
   </div>
 </template>

@@ -9,6 +9,7 @@ import {
   IonCardContent, IonChip, IonNote,
 } from '@ionic/vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const route = useRoute();
 const domain = useDomainStore();
 const instruments = useInstrumentsStore();
@@ -47,7 +48,8 @@ watch(() => route.params.domain, sync);
                 <template v-if="section.id === 'instruments'">
                   <ion-chip v-for="inst in instruments.items" :key="String(inst['id'])" style="margin:4px">
                     {{ inst['symbol'] }}
-                  </ion-chip>
+                  
+  </ion-chip>
                 </template>
                 <template v-else>
                   <p style="opacity:0.5">Visualization placeholder for {{ section.type }} widget</p>
@@ -65,5 +67,6 @@ watch(() => route.params.domain, sync);
         <ion-chip v-for="viz in domain.visualizationTypes" :key="viz.id" style="margin:4px;font-size:0.7rem;height:24px">{{ viz.label }}</ion-chip>
       </ion-card-content>
     </ion-card>
+  <FirstTouchPanel surface-key="admin.domain-dashboard" />
   </div>
 </template>

@@ -4,6 +4,7 @@ import { useApi } from '../composables/useApi';
 import {
   IonItem, IonSelect, IonSelectOption, IonList, IonLabel, IonChip,
 } from '@ionic/vue';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 
 const api = useApi();
 const predictions = ref<Record<string, unknown>[]>([]);
@@ -45,5 +46,6 @@ async function loadPredictions() {
         </ion-label>
       </ion-item>
     </ion-list>
+  <FirstTouchPanel surface-key="predictions" />
   </div>
 </template>

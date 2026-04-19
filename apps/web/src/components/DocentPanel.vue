@@ -81,9 +81,6 @@ function pause() {
       </button>
       <p v-if="step.cta" class="cta-note">👉 {{ step.cta.label }}</p>
     </div>
-    <div v-if="onboarding.lockedFlash" class="locked-flash">
-      {{ onboarding.lockedFlash }}
-    </div>
     <div class="docent-footer">
       <button class="skip-link" @click="skipTour">Skip tour</button>
       <button
@@ -213,15 +210,6 @@ function pause() {
 }
 .video-btn:hover {
   background: var(--ion-color-primary-shade, #2563eb);
-}
-
-.locked-flash {
-  margin: 0 18px 8px;
-  padding: 10px 14px;
-  background: var(--ion-color-warning-tint, #fef3c7);
-  color: var(--ion-color-warning-shade, #92400e);
-  border-radius: 8px;
-  font-size: 0.88rem;
 }
 
 .docent-footer {

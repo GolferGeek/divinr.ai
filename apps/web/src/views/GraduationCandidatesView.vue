@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { IonSpinner, IonSelect, IonSelectOption, IonInput, IonButton } from '@ionic/vue';
 import { useAttributionStore, type GraduationWindow } from '../stores/attribution.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useAttributionStore();
 
 const windowVal = ref<GraduationWindow>('30d');
@@ -130,5 +131,7 @@ function hitRate(hits: number, total: number): string {
         </tr>
       </tbody>
     </table>
+  
+  <FirstTouchPanel surface-key="admin.graduation-candidates" />
   </div>
 </template>

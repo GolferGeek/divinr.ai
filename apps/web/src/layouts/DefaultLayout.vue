@@ -14,6 +14,7 @@ import {
   chatbubblesOutline, trophyOutline, peopleCircleOutline,
   chevronDownOutline, chevronForwardOutline, compassOutline,
   createOutline, analyticsOutline, ellipsisHorizontalOutline,
+  schoolOutline,
 } from 'ionicons/icons';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -24,6 +25,7 @@ import { useNotificationStore } from '../stores/notification.store';
 import { useFearGreedStore } from '../stores/fear-greed.store';
 import { useMessagingStore } from '../stores/messaging.store';
 import { useOnboardingStore } from '../stores/onboarding.store';
+import { useFirstTouchStore } from '../stores/firstTouch.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
 import WelcomeModal from '../components/WelcomeModal.vue';
 import DocentPanel from '../components/DocentPanel.vue';
@@ -38,6 +40,7 @@ const notificationStore = useNotificationStore();
 const fearGreedStore = useFearGreedStore();
 const messagingStore = useMessagingStore();
 const onboarding = useOnboardingStore();
+const firstTouchStore = useFirstTouchStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
@@ -91,6 +94,7 @@ const navGroups: NavGroup[] = [
     label: 'Settings',
     items: [
       { title: 'Your Content', icon: createOutline, to: '/settings/authored-content' },
+      { title: 'Onboarding', icon: schoolOutline, to: '/settings/onboarding' },
       { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine', adminOnly: true },
       { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary', adminOnly: true },
     ],
@@ -153,22 +157,18 @@ notificationStore.fetchUnreadCount();
 fearGreedStore.fetchUnreadCount();
 messagingStore.fetchUnreadCounts();
 onboarding.fetch().catch(() => { /* non-fatal if API down; welcome modal simply stays hidden */ });
+firstTouchStore.fetch().catch(() => { /* non-fatal; panels stay hidden */ });
 
 function logout() {
   auth.clear();
   onboarding.clear();
+  firstTouchStore.clear();
   router.push('/login');
 }
 
 function handleNavClick(path: string) {
   sidebarOpen.value = false;
-  if (onboarding.isUnlocked(path, auth.isAdmin)) {
-    router.push(path);
-  } else {
-    onboarding.flashLocked("Let's get through this first.");
-    onboarding.openDocent();
-    router.push(onboarding.currentStepPath);
-  }
+  router.push(path);
 }
 
 async function retakeOnboarding() {
@@ -215,16 +215,15 @@ async function resetUserOnboarding() {
                 v-for="item in group.items"
                 :key="item.to"
                 class="sidebar-item"
-                :class="{ active: $route.path === item.to, locked: !onboarding.isUnlocked(item.to, auth.isAdmin) }"
+                :class="{ active: $route.path === item.to }"
                 role="link"
                 tabindex="0"
-                :aria-label="!onboarding.isUnlocked(item.to, auth.isAdmin) ? item.title + ' — locked, complete current tour step to unlock' : item.title"
+                :aria-label="item.title"
                 @click="handleNavClick(item.to)"
                 @keyup.enter="handleNavClick(item.to)"
               >
                 <ion-icon :icon="item.icon" />
                 <span>{{ item.title }}</span>
-                <span v-if="!onboarding.isUnlocked(item.to, auth.isAdmin)" class="lock-icon" aria-hidden="true">🔒</span>
               </li>
             </template>
           </template>
@@ -455,11 +454,6 @@ async function resetUserOnboarding() {
   font-weight: 600;
 }
 
-.sidebar-item.locked {
-  color: #b0b0b0;
-  cursor: not-allowed;
-}
-
 .tour-compass-btn {
   position: relative;
 }
@@ -479,16 +473,6 @@ async function resetUserOnboarding() {
   border-radius: 8px;
   font-weight: 600;
   line-height: 1.2;
-}
-
-.sidebar-item.locked:hover {
-  background: #fafafa;
-}
-
-.sidebar-item .lock-icon {
-  margin-left: auto;
-  font-size: 0.85rem;
-  opacity: 0.7;
 }
 
 .sidebar-item ion-icon {

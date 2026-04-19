@@ -9,6 +9,7 @@ import { useMentorStore } from '../stores/mentor.store';
 import ClubPreviewPanel from '../components/ClubPreviewPanel.vue';
 import ActiveTournamentBanner from '../components/ActiveTournamentBanner.vue';
 import MemberProfileDrawer from '../components/MemberProfileDrawer.vue';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 import { formatBadge } from '../utils/format';
 
 const store = useClubStore();
@@ -414,8 +415,10 @@ function fmtAnalyticsPct(v: number | null | undefined): string {
           </IonCardContent>
         </IonCard>
       </template>
-    </div>
+    <FirstTouchPanel surface-key="club.detail" />
+  </div>
     </template>
+
   </div>
 </template>
 

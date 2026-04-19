@@ -8,6 +8,7 @@ import {
   IonSegment, IonSegmentButton, IonLabel,
 } from '@ionic/vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useProposalsStore();
 const { canWrite } = useCanWrite();
 const activeTab = ref<string>('pending');
@@ -242,5 +243,7 @@ const diffLines = computed(() => {
         </div>
       </ion-card-content>
     </ion-card>
+  
+  <FirstTouchPanel surface-key="admin.proposals" />
   </div>
 </template>

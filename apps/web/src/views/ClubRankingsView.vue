@@ -5,6 +5,7 @@ import { IonCard, IonCardContent, IonChip, IonNote, IonButton } from '@ionic/vue
 import { useClubStore } from '../stores/club.store';
 import RankCell from '../components/RankCell.vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useClubStore();
 const router = useRouter();
 const sortBy = ref('ranking_score');
@@ -61,6 +62,8 @@ function badgeLabel(badge: string): string {
       </tbody>
     </table>
     <div v-else class="empty">No ranked clubs yet. Public clubs with tournament history appear here.</div>
+  
+  <FirstTouchPanel surface-key="club.rankings" />
   </div>
 </template>
 

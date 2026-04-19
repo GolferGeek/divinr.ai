@@ -25,6 +25,7 @@ import {
 } from 'chart.js';
 import { usePerformanceStore } from '../stores/performance.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 const store = usePerformanceStore();
@@ -236,7 +237,8 @@ function nextEvalLabel(): string {
             </p>
             <p v-if="(store.dashboard?.benchmark.length ?? 0) === 0" class="sparse-note">
               Benchmark data collecting — SPY overlay will appear when available.
-            </p>
+            
+  </p>
           </template>
         </ion-card-content>
       </ion-card>
@@ -308,6 +310,7 @@ function nextEvalLabel(): string {
         </ion-card-content>
       </ion-card>
     </template>
+  <FirstTouchPanel surface-key="performance" />
   </div>
 </template>
 

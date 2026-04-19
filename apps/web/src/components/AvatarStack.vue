@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import FirstTouchPanel from './FirstTouchPanel.vue';
 interface Entrant {
   user_id: string;
   display_name: string | null;
@@ -55,7 +56,9 @@ function bgFor(userId: string): string {
         :class="{ stacked: i > 0 }"
         :style="{ background: bgFor(e.user_id) }"
         :aria-label="altFor(e)"
-      >{{ initialFor(e) }}</div>
+      >{{ initialFor(e) }}
+  <FirstTouchPanel surface-key="tournament.avatar-stack" />
+  </div>
     </template>
     <div
       v-if="overflowCount > 0"

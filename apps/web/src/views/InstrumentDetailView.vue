@@ -13,6 +13,7 @@ import {
 } from '@ionic/vue';
 import { arrowBackOutline } from 'ionicons/icons';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const route = useRoute();
 const api = useApi();
 const { canWrite } = useCanWrite();
@@ -144,5 +145,7 @@ watch(() => route.query, () => {
     <div v-if="tab === 'predictors'">
       <PredictorScoringPanel v-if="instrument" :instrument-id="String(instrument['id'])" />
     </div>
+  
+  <FirstTouchPanel surface-key="instrument.detail" />
   </div>
 </template>

@@ -3,6 +3,7 @@ import { onMounted, ref, computed } from 'vue';
 import { IonSpinner, IonInput, IonButton } from '@ionic/vue';
 import { useAttributionStore, type PerSourceRow } from '../stores/attribution.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useAttributionStore();
 
 const yearMonth = ref(currentYearMonth());
@@ -122,5 +123,7 @@ onMounted(() => load());
         </tr>
       </tbody>
     </table>
+  
+  <FirstTouchPanel surface-key="source.quality" />
   </div>
 </template>

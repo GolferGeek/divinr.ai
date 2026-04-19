@@ -10,6 +10,7 @@ import {
 } from '@ionic/vue';
 import { useAttributionStore, type AttributionFilters } from '../stores/attribution.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useAttributionStore();
 
 const activeTab = ref<'triple' | 'analyst' | 'instrument' | 'source' | 'author'>('triple');
@@ -296,5 +297,7 @@ function formatPct(rate: number | null | undefined): string {
         </tr>
       </tbody>
     </table>
+  
+  <FirstTouchPanel surface-key="admin.attribution" />
   </div>
 </template>

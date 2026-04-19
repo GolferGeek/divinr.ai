@@ -7,6 +7,7 @@ import WiringMatrixView from './authored/WiringMatrixView.vue';
 import BillingTab from './authored/BillingTab.vue';
 import LlmCredentialsTab from './authored/LlmCredentialsTab.vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const activeTab = ref<'analysts' | 'instruments' | 'wiring' | 'apikeys' | 'billing'>('analysts');
 </script>
 
@@ -39,5 +40,7 @@ const activeTab = ref<'analysts' | 'instruments' | 'wiring' | 'apikeys' | 'billi
       <LlmCredentialsTab v-else-if="activeTab === 'apikeys'" />
       <BillingTab v-else />
     </div>
+  
+  <FirstTouchPanel surface-key="authored.overview" />
   </div>
 </template>

@@ -9,6 +9,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonButtons,
 } from '@ionic/vue';
 import { addOutline } from 'ionicons/icons';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 
 const store = useInstrumentsStore();
 const domain = useDomainStore();
@@ -100,5 +101,7 @@ function formatField(value: unknown, type: string): string {
         </div>
       </ion-content>
     </ion-modal>
+
+  <FirstTouchPanel surface-key="instruments" />
   </div>
 </template>

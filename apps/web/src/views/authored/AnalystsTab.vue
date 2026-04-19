@@ -8,6 +8,7 @@ import {
 import { useAuthoredContentApi } from '../../api/authored-content';
 import CreateAnalystWizard from './CreateAnalystWizard.vue';
 
+import FirstTouchPanel from '../../components/FirstTouchPanel.vue';
 const api = useAuthoredContentApi();
 const router = useRouter();
 const analysts = ref<any[]>([]);
@@ -89,5 +90,7 @@ function fmtDate(iso: string): string {
       @close="showCreateModal = false"
       @created="onCreated"
     />
+  
+  <FirstTouchPanel surface-key="authoring.custom-analyst.create" />
   </div>
 </template>

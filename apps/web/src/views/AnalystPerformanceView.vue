@@ -10,6 +10,7 @@ import {
 } from '@ionic/vue';
 import { arrowBackOutline } from 'ionicons/icons';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 // Effort: calibration-drilldown. Response shape mirrors
 // markets.service.ts::AnalystCalibrationPayload — keep these in sync.
 interface CalibrationResponse {
@@ -198,7 +199,9 @@ const sortedPredictions = computed<ResolvedPrediction[]>(() => calibration.value
                   <div v-for="(instruction, tier) in (analyst['tier_instructions'] as Record<string, string>)" :key="tier" style="margin-bottom:8px">
                     <ion-chip style="font-size:0.7rem;height:20px;margin-bottom:4px">{{ tier }}</ion-chip>
                     <p style="font-size:0.75rem;opacity:0.6">{{ String(instruction).slice(0, 100) }}...</p>
-                  </div>
+                  
+  <FirstTouchPanel surface-key="analyst.detail" />
+  </div>
                 </template>
                 <p v-else style="font-size:0.75rem;opacity:0.5">No tier instructions configured.</p>
               </ion-card-content>
