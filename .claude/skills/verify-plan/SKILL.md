@@ -56,6 +56,13 @@ Review the plan through these lenses. Thorough but not contrarian — looking fo
 - If the plan introduces any new Vue view under `apps/web/src/views/` or any new `<FirstTouchPanel>`-eligible component, the plan MUST include a step that (a) adds a `useFirstTouch('<key>')` or `<FirstTouchPanel :surface-key="...">` call in that file and (b) adds the corresponding entry to `apps/web/src/onboarding/surface-content.ts`. If those steps are absent, raise as **Major**.
 - This matches the Definition of Done in the repo's root `CLAUDE.md` ("First-touch coverage on every user-facing surface"). Keep the language aligned — if CLAUDE.md and this skill drift, CLAUDE.md is authoritative.
 
+### 7. Testing coverage
+- If the plan introduces any new Vue view under `apps/web/src/views/` or substantially changes one, the plan MUST include a step that either:
+  - (a) updates the corresponding `.claude/skills/divinr-<facet>-browser-skill/tests.md` AND adds a spec under `apps/e2e/tests/<facet>/` for the new or changed surface, or
+  - (b) stubs a new deep skill (six files: SKILL, what, where, expectations, tests, completeness) and adds a new Playwright project in `apps/e2e/playwright.config.ts` + at least one green spec, when the surface belongs to a new facet.
+- If neither (a) nor (b) is present, raise as **Major**.
+- This matches the Definition of Done in the repo's root `CLAUDE.md` ("Testing coverage on every user-facing surface"). Keep the language aligned — if CLAUDE.md and this skill drift, CLAUDE.md is authoritative.
+
 ## Issue Collection
 
 For each issue found:

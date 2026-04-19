@@ -204,6 +204,7 @@ export class TournamentPortfolioService {
        FROM prediction.tournament_entries te
        LEFT JOIN authz.users u ON u.id = te.user_id
        WHERE te.tournament_id = $1
+         AND coalesce(u.is_testing, false) = false
        ORDER BY te.joined_at ASC`,
       [tournamentId],
     );

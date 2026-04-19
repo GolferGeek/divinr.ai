@@ -40,11 +40,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: Number(process.env.VITE_WEB_PORT) || 6101,
+    port: Number(process.env.VITE_WEB_PORT) || 7101,
     allowedHosts: ['divinr.ai', 'www.divinr.ai', 'localhost'],
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.VITE_API_PORT || '6100'}`,
+        target: `http://localhost:${process.env.VITE_API_PORT || '7100'}`,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy) => {
