@@ -51,7 +51,7 @@ predictors.fetch(props.instrumentId);
 
 <template>
   <div>
-    <h3 style="margin-bottom:8px">AI Predictor Scoring</h3>
+    <h3 style="margin-bottom:8px">AI Analyst Scoring</h3>
     <p style="opacity:0.5;margin-bottom:12px">
       Select articles to score for relevance to this instrument. The AI will rate each article 0-1
       and flag irrelevant ones for dismissal.
@@ -93,7 +93,7 @@ predictors.fetch(props.instrumentId);
     </ion-card>
 
     <!-- Current Predictors -->
-    <h3 style="margin-bottom:8px">Active Predictors ({{ predictors.items.length }})</h3>
+    <h3 style="margin-bottom:8px">Active Analysts ({{ predictors.items.length }})</h3>
     <ion-list v-if="predictors.items.length > 0">
       <ion-item v-for="p in predictors.items" :key="String(p['id'])">
         <ion-label>
@@ -107,6 +107,6 @@ predictors.fetch(props.instrumentId);
         </ion-label>
       </ion-item>
     </ion-list>
-    <ion-note v-else color="primary" style="display:block;padding:8px">No predictors scored yet for this instrument.</ion-note>
+    <ion-note v-else color="primary" style="display:block;padding:8px">No analysts scored yet for this instrument.</ion-note>
   </div>
 </template>

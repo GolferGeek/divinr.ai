@@ -30,7 +30,7 @@ export const tourContent: Record<StepId, StepContent> = {
   'reading-an-analysis': {
     id: 'reading-an-analysis',
     title: 'Reading an analysis',
-    body: "Open any prediction to see how Divinr makes a call.\n\nAt the top: the **arbitrator synthesis** — one combined signal after weighing all five analysts. Below it: each analyst's own call, their confidence, and in their own words, **why**.\n\nTwo analysts will usually disagree. Read both. That's where the learning lives.",
+    body: "Open any analysis to see how Divinr makes a call.\n\nAt the top: the **arbitrator synthesis** — one combined signal after weighing all five analysts. Below it: each analyst's own call, their confidence, and in their own words, **why**.\n\nTwo analysts will usually disagree. Read both. That's where the learning lives.",
     routePath: '/predictions',
     pulseSelectors: [
       '[data-tour="arbitrator-synthesis"]',
@@ -42,7 +42,7 @@ export const tourContent: Record<StepId, StepContent> = {
   'making-a-trade': {
     id: 'making-a-trade',
     title: 'Making a trade',
-    body: "When you're on a prediction and want to act, use the **Trade** button. You'll pick a tournament (your paper portfolio lives inside one) and size the position.\n\nThese are signals, not instructions. You decide what you do with them — Divinr just makes the reasoning legible.",
+    body: "When you're on an analysis and want to act, use the **Trade** button. You'll pick a tournament (your paper portfolio lives inside one) and size the position.\n\nThese are signals, not instructions. You decide what you do with them — Divinr just makes the reasoning legible.",
     routePath: '/predictions',
     pulseSelectors: ['[data-tour="prediction-trade-cta"]'],
     completion: { kind: 'got_it' },

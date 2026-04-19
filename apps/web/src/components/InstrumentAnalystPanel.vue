@@ -56,7 +56,7 @@ function fmtConfidence(v: unknown): string {
           <div style="opacity:0.7;font-size:0.8rem">{{ fmtDate(latestPrediction['created_at']) }}</div>
           <div style="margin-top:4px">{{ latestPrediction['rationale'] }}</div>
         </div>
-        <ion-note v-else color="medium">No predictions yet.</ion-note>
+        <ion-note v-else color="medium">No analyses yet.</ion-note>
       </div>
 
       <!-- Latest Risk -->
@@ -83,7 +83,7 @@ function fmtConfidence(v: unknown): string {
 
       <div v-if="showHistory" style="margin-top:8px;border-top:1px solid #eee;padding-top:8px">
         <div v-if="myPredictions.length > 1" style="margin-bottom:8px">
-          <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px">Prediction History</div>
+          <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px">Analysis History</div>
           <div
             v-for="p in myPredictions.slice(1)"
             :key="String(p['id'])"

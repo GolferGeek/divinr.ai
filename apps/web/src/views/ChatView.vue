@@ -64,7 +64,7 @@ function handleKeydown(e: KeyboardEvent) {
   <div class="chat-container">
     <div class="chat-header">
       <h2>Market Assistant</h2>
-      <IonNote>Ask about instruments, predictions, analyst reasoning, or market signals</IonNote>
+      <IonNote>Ask about instruments, analyses, analyst reasoning, or market signals</IonNote>
     </div>
 
     <div ref="chatContainer" class="chat-messages">

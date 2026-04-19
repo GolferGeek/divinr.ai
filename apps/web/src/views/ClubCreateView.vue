@@ -6,6 +6,7 @@ import { useClubStore } from '../stores/club.store';
 import { useCanWrite } from '../composables/useCanWrite';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 const store = useClubStore();
 const router = useRouter();
 const { canWrite } = useCanWrite();
@@ -28,7 +29,7 @@ async function submit() {
 <template>
   <div class="create-page">
     <h1>Create Investment Learning Club</h1>
-    <p class="disclaimer">Investment Learning Club — educational platform for practicing AI-assisted market analysis. Not investment advice.</p>
+    <LegalDisclaimer variant="club" />
     <IonCard>
       <IonCardHeader><IonCardTitle>Club Details</IonCardTitle></IonCardHeader>
       <IonCardContent>

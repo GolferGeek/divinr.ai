@@ -37,7 +37,7 @@ onMounted(async () => {
 
 const run = computed(() => runs.current);
 const isRisk = computed(() => run.value?.['run_type'] === 'risk');
-const runTypeLabel = computed(() => isRisk.value ? 'Risk Analysis' : 'Prediction');
+const runTypeLabel = computed(() => isRisk.value ? 'Risk Analysis' : 'Analysis');
 
 const symbol = computed(() => {
   const id = String(run.value?.['instrument_id'] ?? '');

@@ -11,7 +11,7 @@ import { useAuthStore } from '../stores/auth.store';
  */
 function getBaseUrl(basePath: string): string {
   // Electron environment: use configured API URL
-  if (typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI) {
+  if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).electronAPI) {
     const stored = localStorage.getItem('divinr_api_url');
     // Strip leading '/api' from basePath to get the service segment (e.g. '/markets')
     const servicePath = basePath.replace(/^\/api/, '');

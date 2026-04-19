@@ -85,7 +85,7 @@ onMounted(() => load());
   <div style="padding: 16px; max-width: 1400px; margin: 0 auto;">
     <h2>Source Quality</h2>
     <p style="color: var(--ion-color-medium); font-size: 14px;">
-      Paper P&amp;L per source-key across predictions. Estimate only, no cash. Sort any column.
+      Paper P&amp;L per source-key across analyses. Estimate only, no cash. Sort any column.
     </p>
 
     <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
@@ -104,9 +104,9 @@ onMounted(() => load());
       <thead>
         <tr style="text-align: left; border-bottom: 2px solid var(--ion-color-medium);">
           <th style="padding: 8px; cursor: pointer;" @click="toggleSort('source_key')">Source key{{ sortIndicator('source_key') }}</th>
-          <th style="padding: 8px; text-align: right; cursor: pointer;" @click="toggleSort('predictions_contributed')">Predictions{{ sortIndicator('predictions_contributed') }}</th>
+          <th style="padding: 8px; text-align: right; cursor: pointer;" @click="toggleSort('predictions_contributed')">Analyses{{ sortIndicator('predictions_contributed') }}</th>
           <th style="padding: 8px; text-align: right; cursor: pointer;" @click="toggleSort('total_pnl_cents')">Paper P&amp;L{{ sortIndicator('total_pnl_cents') }}</th>
-          <th style="padding: 8px; text-align: right; cursor: pointer;" @click="toggleSort('avg_pnl_per_prediction_cents')">Avg P&amp;L / prediction{{ sortIndicator('avg_pnl_per_prediction_cents') }}</th>
+          <th style="padding: 8px; text-align: right; cursor: pointer;" @click="toggleSort('avg_pnl_per_prediction_cents')">Avg P&amp;L / analysis{{ sortIndicator('avg_pnl_per_prediction_cents') }}</th>
           <th style="padding: 8px; text-align: right; cursor: pointer;" @click="toggleSort('avg_calibration_score')">Calibration score{{ sortIndicator('avg_calibration_score') }}</th>
         </tr>
       </thead>

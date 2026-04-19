@@ -31,6 +31,7 @@ import WelcomeModal from '../components/WelcomeModal.vue';
 import DocentPanel from '../components/DocentPanel.vue';
 import CompletionModal from '../components/CompletionModal.vue';
 import ElementHighlighter from '../components/ElementHighlighter.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 
 const auth = useAuthStore();
 const domain = useDomainStore();
@@ -357,7 +358,7 @@ async function resetUserOnboarding() {
         <ion-content class="ion-padding">
           <router-view />
           <div class="legal-footer">
-            Divinr provides AI-generated analysis and signals for educational purposes. Not investment advice.
+            <LegalDisclaimer variant="short" />
             <router-link to="/terms" style="margin-left:8px;color:inherit;opacity:0.8">Terms of Service</router-link>
           </div>
         </ion-content>

@@ -34,7 +34,7 @@ export const useActivityStore = defineStore('activity', () => {
     if (eventSource) return;
 
     // SSE connects to the observability endpoint (not /markets)
-    const isElectron = typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI;
+    const isElectron = typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).electronAPI;
     const apiBase = isElectron
       ? (localStorage.getItem('divinr_api_url') || 'http://localhost:7100')
       : '/api';

@@ -41,3 +41,29 @@ backing view does not yet exist stay in
 The coverage check script
 (`apps/web/scripts/check-first-touch-coverage.mjs`) enforces the inventory /
 surface-content / wired-or-pending invariant at build time.
+
+## UI vocabulary: analysis/signal, never prediction/advice
+
+User-visible copy in `apps/web/src` uses **"analysis"** or **"signal"** — never
+**"prediction," "predicted," "predictor," "advice,"** or **"recommendation."**
+This applies to Vue templates, rendered string literals, onboarding
+`surface-content.ts` titles/bodies, toasts, errors, labels, and
+`aria-label`/`title`/`alt`/`placeholder` attributes.
+
+**Code identifiers are exempt** — store names, type names, variable names,
+function names, component filenames, API request/response shape keys
+(`prediction_id`, `predictions[]`), DB schema, migrations, route paths
+(`/predictions/:id`), telemetry events, and HTML/JS comments may retain domain
+terminology. Admin/debug surfaces may also retain domain terminology where it
+aids maintenance.
+
+**Disclaimers** route through `<LegalDisclaimer>` at
+`apps/web/src/components/LegalDisclaimer.vue`. Five variants are defined in
+`apps/web/src/onboarding/disclaimers.ts`: `short`, `full`, `trade-cta`,
+`tournament`, `club`. Do not write new inline disclaimer copy — add a variant
+if a new context genuinely needs one. Every variant must state both "not a
+prediction model" and "not investment advice."
+
+Rationale and the original dictionary live in
+`docs/efforts/archive/ui-vocabulary-and-marketing-refresh/` (once archived).
+The authoritative current feature inventory is `docs/features.md`.

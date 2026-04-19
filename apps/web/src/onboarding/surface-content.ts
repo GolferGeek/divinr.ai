@@ -1,4 +1,5 @@
 import type { RouteLocationRaw } from 'vue-router';
+import { DISCLAIMERS } from './disclaimers';
 
 /**
  * Content for per-user first-touch walkthroughs.
@@ -25,7 +26,7 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       'Scroll around — nothing here commits you to anything.',
   },
   predictions: {
-    title: "Today's predictions",
+    title: "Today's analyses",
     body:
       "Each card is one analyst's read on one instrument: direction, conviction, " +
       'and the reasoning behind it. Tap a card to see the full debate and decide for yourself.',
@@ -88,16 +89,16 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       'walkthrough controls, billing. Poke around — nothing is saved until you act.',
   },
 
-  // ───────────────────── Predictions & trade path ──────────────────────
+  // ───────────────────── Analyses & trade path ──────────────────────
   'prediction.card': {
-    title: 'Anatomy of a prediction',
+    title: 'Anatomy of an analysis',
     body:
       'A card surfaces one analyst on one instrument: direction arrow, ' +
       "conviction bar, and the headline reasoning. Tap it to see the full analysis " +
       "and every analyst's position on this instrument.",
   },
   'prediction.detail': {
-    title: 'The whole prediction',
+    title: 'The whole analysis',
     body:
       'All five analysts side by side. Arbitrator synthesis up top; the raw ' +
       'disagreements below. Open two rationales that conflict and read both — that ' +
@@ -360,10 +361,10 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       'analysts that cover the instrument on the next run.',
   },
   'authoring.contract-section.predictor-generation': {
-    title: 'Predictor generation',
+    title: 'Signal generation',
     body:
       "How your analyst produces candidate setups from raw data. Be specific " +
-      "here — vague predictors lead to vague calls.",
+      "here — vague signal generators lead to vague calls.",
   },
   'authoring.contract-section.risk-assessment': {
     title: 'Risk assessment',
@@ -372,7 +373,7 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       "synthesize the final signal — specify what evidence counts.",
   },
   'authoring.contract-section.prediction-generation': {
-    title: 'Prediction generation',
+    title: 'Analysis generation',
     body:
       "How candidate setups become direction + conviction. Spell out your " +
       "thresholds so the learning loop can nudge them later from real outcomes.",
@@ -442,7 +443,7 @@ export const surfaceContent: Record<string, SurfaceContent> = {
     title: 'How analysts coordinate',
     body:
       "When multiple analysts agree (or don't), this is where that consensus is " +
-      "scored and reconciled. Affects which predictions get promoted to the " +
+      "scored and reconciled. Affects which analyses get promoted to the " +
       "top of your dashboard.",
   },
 
@@ -615,7 +616,7 @@ export const surfaceContent: Record<string, SurfaceContent> = {
     title: 'Day-trader runs',
     body:
       "Intraday run history: when each analyst fired, what signals came out, " +
-      "how long each took. Useful for debugging a stale prediction.",
+      "how long each took. Useful for debugging a stale analysis.",
   },
   'admin.findings-inbox': {
     title: 'Audit findings inbox',
@@ -713,8 +714,6 @@ export const surfaceContent: Record<string, SurfaceContent> = {
   },
   'settings.terms': {
     title: 'Terms of service',
-    body:
-      "The rules of the road. Divinr shows AI-generated analysis and signals for " +
-      "educational purposes; we don't give investment advice.",
+    body: DISCLAIMERS.short,
   },
 };

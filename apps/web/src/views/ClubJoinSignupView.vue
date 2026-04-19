@@ -9,6 +9,7 @@ import { peopleCircleOutline } from 'ionicons/icons';
 import { useAuthStore } from '../stores/auth.store';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
@@ -144,9 +145,9 @@ async function signup() {
               and join from the Clubs page.
             </p>
 
-            <p class="ion-text-center" style="margin-top:0.5rem; font-size:0.75em; color:var(--ion-color-medium)">
-              Divinr provides AI-generated analysis for educational purposes. Not investment advice.
-            </p>
+            <div class="ion-text-center" style="margin-top:0.5rem; font-size:0.75em; color:var(--ion-color-medium)">
+              <LegalDisclaimer variant="short" />
+            </div>
           </ion-card-content>
         </ion-card>
       </div>

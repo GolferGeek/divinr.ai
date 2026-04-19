@@ -135,8 +135,8 @@ const horizonScenarios: HorizonScenario[] = [
         <div>
           <h1>Evaluations &amp; Performance</h1>
           <p>
-            How well past predictions actually played out, and what the platform learned from them.
-            Nightly evaluations score predictions against real prices; learning cycles use those
+            How well past analyses actually played out, and what the platform learned from them.
+            Nightly evaluations score analyses against real prices; learning cycles use those
             results to update analyst profiles.
           </p>
         </div>
@@ -147,7 +147,7 @@ const horizonScenarios: HorizonScenario[] = [
     <div class="stat-row">
       <div class="stat-tile">
         <span class="stat-tile__num">{{ totals.evaluated }}</span>
-        <span class="stat-tile__label">Predictions Evaluated</span>
+        <span class="stat-tile__label">Analyses Evaluated</span>
       </div>
       <div class="stat-tile stat-tile--good">
         <span class="stat-tile__num">{{ totals.correct }}</span>
@@ -179,7 +179,7 @@ const horizonScenarios: HorizonScenario[] = [
     <!-- Reports tab -->
     <div v-if="tab === 'evaluations'">
       <ion-note v-if="reports.length === 0" color="medium" style="display:block;padding:32px;text-align:center">
-        No evaluation reports yet. The nightly evaluator will produce reports as predictions mature.
+        No evaluation reports yet. The nightly evaluator will produce reports as analyses mature.
       </ion-note>
 
       <div class="report-grid">
@@ -221,7 +221,7 @@ const horizonScenarios: HorizonScenario[] = [
       <div class="horizons__intro">
         <ion-icon :icon="layersOutline" />
         <p>
-          Every prediction is checked at <strong>1-day</strong>, <strong>3-day</strong>, and
+          Every analysis is checked at <strong>1-day</strong>, <strong>3-day</strong>, and
           <strong>5-day</strong> horizons. Combining results across horizons reveals whether the
           thesis was right and whether the timing was off — not just a binary correct/wrong.
         </p>

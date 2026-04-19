@@ -5,6 +5,7 @@ import { useMyAttribution } from '../composables/useMyAttribution';
 import GraduationSuggestionBanner from '../components/GraduationSuggestionBanner.vue';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 const { summary, loading, error, fetchMySummary } = useMyAttribution();
 
 onMounted(() => fetchMySummary());
@@ -68,7 +69,8 @@ const pnlSparkline = computed(() =>
   <div style="padding: 16px; max-width: 1200px; margin: 0 auto;">
     <h2 style="margin-bottom: 4px;">My Attribution</h2>
     <div style="color: var(--ion-color-medium); font-size: 13px; margin-bottom: 16px;">
-      P&amp;L (paper, no cash). Estimates only — not investment advice.
+      P&amp;L (paper, no cash). Estimates only.
+      <LegalDisclaimer variant="short" />
     </div>
 
     <GraduationSuggestionBanner :items="topDecileItems" />

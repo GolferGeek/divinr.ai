@@ -43,7 +43,7 @@ function symbolFor(run: Record<string, unknown>): string {
 }
 
 function typeLabel(t: unknown): string {
-  return t === 'risk' ? 'Risk Analysis' : 'Prediction';
+  return t === 'risk' ? 'Risk Analysis' : 'Analysis';
 }
 
 function typeIcon(t: unknown) {
@@ -127,7 +127,7 @@ function filterRuns() {
         <div>
           <h1>Pipeline Activity</h1>
           <p>
-            Every analysis the platform has run for an instrument. Predictions generate
+            Every analysis the platform has run for an instrument. Analyses generate
             buy/sell/hold signals; risk analyses score how dangerous a setup is.
           </p>
         </div>
@@ -268,7 +268,7 @@ function filterRuns() {
         </ion-item>
         <ion-radio-group v-model="selectedType">
           <ion-item>
-            <ion-radio value="prediction">Prediction (buy/sell/hold signal)</ion-radio>
+            <ion-radio value="prediction">Analysis (buy/sell/hold signal)</ion-radio>
           </ion-item>
           <ion-item>
             <ion-radio value="risk">Risk Analysis (how dangerous this setup is)</ion-radio>

@@ -5,6 +5,7 @@ import { IonCard, IonCardContent, IonNote } from '@ionic/vue';
 import { useTournamentStore } from '../stores/tournament.store';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 const store = useTournamentStore();
 const router = useRouter();
 
@@ -30,9 +31,7 @@ onMounted(async () => {
 <template>
   <div class="history-page">
     <h1>Tournament History</h1>
-    <p class="disclaimer">
-      Divinr is an AI analysis game. Virtual portfolios use simulated trades for educational and entertainment purposes. Not investment advice.
-    </p>
+    <LegalDisclaimer variant="tournament" />
 
     <div v-if="history.length === 0" class="empty">No past tournaments yet.</div>
 

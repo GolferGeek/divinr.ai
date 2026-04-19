@@ -249,9 +249,9 @@ function formatPct(rate: number | null | undefined): string {
         <tr style="text-align: left; border-bottom: 2px solid var(--ion-color-medium);">
           <th style="padding: 8px;">Month</th>
           <th style="padding: 8px;">Source key</th>
-          <th style="padding: 8px; text-align: right;">Predictions contributed</th>
+          <th style="padding: 8px; text-align: right;">Analyses contributed</th>
           <th style="padding: 8px; text-align: right;">Paper P&amp;L</th>
-          <th style="padding: 8px; text-align: right;">Avg paper P&amp;L / prediction</th>
+          <th style="padding: 8px; text-align: right;">Avg paper P&amp;L / analysis</th>
           <th style="padding: 8px; text-align: right;">Calibration score</th>
         </tr>
       </thead>

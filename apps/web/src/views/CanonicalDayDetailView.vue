@@ -71,7 +71,7 @@ function formatSnapshot(data: unknown): string {
 
       <ion-accordion-group style="margin-top:16px">
         <ion-accordion value="original">
-          <ion-item slot="header"><ion-label>Original Prediction</ion-label></ion-item>
+          <ion-item slot="header"><ion-label>Original Analysis</ion-label></ion-item>
           <div slot="content" class="ion-padding">
             <pre style="font-size:0.75rem;max-height:300px;overflow:auto">{{ formatSnapshot(day['original_prediction']) }}</pre>
           </div>

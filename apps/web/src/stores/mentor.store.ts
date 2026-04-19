@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { useAuthStore } from './auth.store';
 
 function getBaseUrl(clubId: string): string {
-  if (typeof window !== 'undefined' && (window as Record<string, unknown>).electronAPI) {
+  if (typeof window !== 'undefined' && (window as unknown as Record<string, unknown>).electronAPI) {
     const stored = localStorage.getItem('divinr_api_url');
     return stored ? `${stored}/clubs/${clubId}/mentoring` : `http://localhost:6100/clubs/${clubId}/mentoring`;
   }

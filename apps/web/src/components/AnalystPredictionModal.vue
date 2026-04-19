@@ -17,6 +17,7 @@ import { useAffinityStore } from '../stores/affinity.store';
 import { useActiveTournament, impliedQuantity } from '../composables/useActiveTournament';
 import type { Tournament } from '../stores/tournament.store';
 import TournamentPicker from './TournamentPicker.vue';
+import LegalDisclaimer from './LegalDisclaimer.vue';
 
 interface AnalystStance {
   prediction_id: string;
@@ -587,7 +588,7 @@ async function loadChallenges() {
             <div v-else-if="provenance.data" class="section">
               <div v-if="provenance.data.memory.calibration?.predictions_made" style="margin-bottom:16px;padding:12px;background:#f8f8f8;border-radius:8px">
                 <strong>Track Record:</strong>
-                {{ provenance.data.memory.calibration.predictions_made }} predictions,
+                {{ provenance.data.memory.calibration.predictions_made }} analyses,
                 {{ provenance.data.memory.calibration.correct || 0 }} correct
                 ({{ provenance.data.memory.calibration.predictions_made > 0
                   ? ((((provenance.data.memory.calibration.correct || 0) / provenance.data.memory.calibration.predictions_made) * 100).toFixed(0))
@@ -749,7 +750,7 @@ async function loadChallenges() {
                   :aria-disabled="!isEquity || ctaBusy ? 'true' : 'false'"
                   @click="handleTradeThisPrediction"
                 >
-                  Trade this prediction
+                  Trade this signal
                 </ion-button>
                 <ion-button color="medium" fill="outline" @click="skipTrade">
                   Skip
@@ -758,6 +759,9 @@ async function loadChallenges() {
               <ion-note v-if="!isEquity" color="medium" style="display:block;text-align:center;margin-top:6px;font-size:0.75rem">
                 Tournament trading is equity-only right now.
               </ion-note>
+              <div style="margin-top:10px;text-align:center">
+                <LegalDisclaimer variant="trade-cta" />
+              </div>
             </div>
           </div>
         </div>
@@ -766,7 +770,7 @@ async function loadChallenges() {
         <div v-if="showDisclaimer" class="disclaimer-overlay" @click.self="showDisclaimer = false">
           <div class="disclaimer-content">
             <h3>Before You Trade</h3>
-            <p>Divinr provides AI-generated analysis and signals for educational purposes only. This is not investment advice, and no fiduciary relationship exists between you and Divinr. Past performance does not guarantee future results. All trading decisions are yours.</p>
+            <LegalDisclaimer variant="full" />
             <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
               <ion-button color="primary" @click="acknowledgeDisclaimer">I Understand</ion-button>
               <ion-button color="medium" fill="outline" @click="showDisclaimer = false">Cancel</ion-button>

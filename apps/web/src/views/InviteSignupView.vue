@@ -172,7 +172,7 @@ async function signup() {
               </ion-button>
 
               <p class="ion-text-center" style="margin-top:1rem; font-size:0.85em; color:var(--ion-color-medium)">
-                You'll have read-only access to view predictions, analysis, and findings.
+                You'll have read-only access to view analyses, risk views, and findings.
               
   </p>
             </template>
