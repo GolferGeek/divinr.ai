@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-19 (activity-viewed-counter shipped; basic-club concept retired; divinr-basic-club-model renamed to user-billing-model; student-club-accounts renamed to student-accounts)
+**Last updated:** 2026-04-19 (onboarding-tour-extended, ui-vocabulary-and-marketing-refresh, testing-team all shipped; user-billing-model promoted to current and Phase 1 doc reconciliation merged — Phases 2–7 queued on branch)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -36,18 +36,29 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 **Infrastructure:** DGX Spark running gemma4 (local inference, zero cost). Hardening in place (backups, service recovery).
 **Users:** 3 active (demo-user, golfergeek, ethan); St. Thomas intern joining shortly; broader beta pending architecture work.
 **Business model direction:** See [master-intention.md](master-intention.md). Single $50/mo Basic tier. Per-item authorship ($20/instrument, $60/analyst). Clubs are purely social. No multi-tier ladder. Cost-pass-through for students.
-**Status:** Onboarding v1 shipped. Architecture restructure block underway. No billing wired yet (Stripe queued behind architecture foundation).
+**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness (file-based findings + three agents + Playwright projects) live. `user-billing-model` in flight — Phase 1 (doc reconciliation + retirement ledger) merged; schema + lifecycle cron + admin view queued. Stripe still deferred behind `user-billing-model`.
 
 ---
 
 ## Current Effort
 
-_None — `docs/efforts/current/` is empty and ready for the next promotion._
+- **[user-billing-model](current/user-billing-model/intention.md)** — single $50/mo Basic tier, per-item authorship ($20/instrument, $60/analyst), 30-day trial → read-only → purge lifecycle, social opt-outs, migration for grandfathered users, admin read-only view. Clubs are uncoupled from billing (retired concept, master-intention §8).
+  - **Phase 1 — Doc reconciliation** (shipped, PR #68): archive references to retired billing-through-clubs concept updated with forward-pointers; plan.md on disk with 8 phases, each gated on lint / build / unit tests / curl / chrome / phase review.
+  - **Phase 2 — Schema + `BillingService` + `ensureSubscription()` wiring** (next): `billing.subscriptions`, `billing.authored_items`, `billing.invoice_ledger` via runtime `ensureSchema()`; hook into `invite.service.ts:acceptInvite()` and `auth.controller.ts:signupWithClubCode()` to seed a 30-day trial.
+  - **Phases 3a / 3b — Lifecycle cron + `/billing/*` endpoints + web surfaces** (queued): `@Cron` daily trial-check + read-only + purge transitions; Pinia store + `BillingStatusBanner` + `SettingsBilling` view; new `billing` Playwright project.
+  - **Phase 4 — Authorship charge accrual**: attach `billing.authored_items` rows to authored analysts / instruments / instrument contracts at write time.
+  - **Phase 5 — Admin read-only view**: `SettingsAdminBilling.vue` listing subscription state + authored-item ledger for all users.
+  - **Phase 6 — Migration**: grandfather existing 3 active users; scaffold `apps/api/scripts/migrate-existing-users-to-basic.ts` (directory does not currently exist — step 6.2 creates it).
+  - **Phases 7–8 — Social opt-outs + completion review**: per-user "don't auto-join" toggle; final PRD walk.
 
 ---
 
 ## Recently Shipped
 
+- **[user-billing-model Phase 1](current/user-billing-model/plan.md)** (2026-04-19, PR #68) — doc reconciliation only: annotated three archived `learning-clubs` documents with forward-pointers to `master-intention.md` §8 (billing-through-clubs retired concept) and landed an 8-phase plan on disk. Deliberately small, tight merge to pause before code changes per user preference. Phases 2–7 remain queued on the effort branch.
+- **[testing-team](testing-team/intention.md)** (2026-04-19, PR #67) — nine-facet browser-testing harness ported from Orchestrator AI. File-based finding lifecycle (`open/ → triaged/ → in-fix/ → needs-verify/ → closed/`), three registered agents (`divinr-test-agent`, `test-triage-agent`, `test-verify-agent`), a Chrome-patterns base skill + one deep skill per facet (predictions, portfolios, tournaments, clubs, analysts, instruments, performance, authoring, admin), daily cron pipeline with morning digest, `is_testing` audit column so the fixture user's data doesn't leak into aggregate leaderboards. Phase 7.2–7.6 multi-day cron observation window deferred post-merge.
+- **[ui-vocabulary-and-marketing-refresh](ui-vocabulary-and-marketing-refresh/intention.md)** (2026-04-19, PR #66) — swept 28+ Vue views replacing "prediction/advice/recommendation" with "analysis/signal" in user-visible copy (identifiers, APIs, DB unchanged). Centralized disclaimers via new `LegalDisclaimer.vue` + 5 variants in `onboarding/disclaimers.ts` (`short`, `full`, `trade-cta`, `tournament`, `club`). Every variant states both "not a prediction model" AND "not investment advice." Landing page + marketing refresh. Fixed 22 pre-existing typecheck errors picked up on baseline.
+- **[onboarding-tour-extended](archive/onboarding-tour-extended/intention.md)** (2026-04-19, PR #65) — 5-beat tour v2 + per-surface first-touch walkthroughs. Authoritative surface inventory in `surface-content.ts` + `useFirstTouch('<key>')` composable + `<FirstTouchPanel>` wrapper + build-time coverage check (`check-first-touch-coverage.mjs`). First-touch coverage is now Definition of Done for any new user-visible surface (CLAUDE.md).
 - **[activity-viewed-counter](activity-viewed-counter/intention.md)** (2026-04-19, PR #64) — `prediction.club_members.last_viewed_at` + `(N)` unread badge on the ACTIVITIES tab and MY CLUBS cards. One-round-trip SQL with `COALESCE(last_viewed_at, joined_at)` fallback; `markActivitiesViewed` store action zeroes the badge on tab-view with exactly one POST. Last beta-coolness polish item from PR #58.
 - **[prediction-to-trade-intent](prediction-to-trade-intent/intention.md)** (2026-04-18, PR #59) — "Trade this prediction" CTA on prediction cards/drawers. Active-tournament resolver (`useActiveTournament`) handles none/one/many via `TournamentPicker.vue`; CTA routes to `/tournaments/:id?tab=trade&symbol&direction&qty&predictionId`. Sizing heuristic `floor((startingBalance * pct) / price)` where `pct = clamp(0.01 + confidence*0.04, 0.01, 0.05)`. Query-param parser with regex/whitelist/int guards + `router.replace` strip. Empty-state banner on `/tournaments?reason=no-active-entry`. Equity-only disabled state for options. Frontend-only — `prediction.tournament_trade_queue.prediction_id` was already nullable.
 - **[club-tournament-experience-polish](club-tournament-experience-polish/intention.md)** (2026-04-18, PR #58) — 6-phase polish pass across club + tournament surfaces for the St. Thomas cohort. 8 PRD-called-out bug fixes + 4 follow-ups (ClubPreviewPanel for non-members, analytics tournament-count filter, TRADE tab upcoming branch, IonSegment v-model bug, chat author display_name, dashboard pluralize, leaderboard em-dash standardization, DISCOVER filter hides joined). Empty-state + explainer pass (ACTIVITIES reorder, CURRICULUM/ANALYSTS explainers, MENTORING gating, analytics tooltip, tournament INFO). Default Activities tab + `ActiveTournamentBanner` + tournament list countdown + player count + prize line. Leaderboard storytelling — Risk-Adjusted Return label, neutral/green/red colorClass, YOU badge, clickable rows → `MemberProfileDrawer`, new `GET /clubs/:id/members/:userId` endpoint, MY POSITIONS size bar. Mobile (390px) responsiveness — scrollable IonSegments, mobile overflow chrome with aggregated unread, sticky Rank/Player leaderboard columns. Nav role-gating extended to SETTINGS items + disclaimer consolidation. 51 new API assertions. 5 feature-deferrals queued as their own efforts (below).
@@ -64,17 +75,9 @@ _None — `docs/efforts/current/` is empty and ready for the next promotion._
 
 ---
 
-## Next — Queued Efforts (2)
+## Next — Queued Efforts
 
-The onboarding-tour-extended effort is now the active one (promoted to `current/`). Two queued efforts follow: the user-visible vocabulary + marketing refresh (first — small, legal-flavored, shares files with onboarding), then the testing-team harness port (second — bigger infrastructure lift, depends on both onboarding and vocab landing so the surface inventory and strings are stable).
-
-### Experience + Marketing
-
-1. [ui-vocabulary-and-marketing-refresh](next/ui-vocabulary-and-marketing-refresh/intention.md) — sweep user-visible copy to replace "prediction" with "analysis" / "signal", tighten disclaimers to say explicitly "not a prediction model," and refresh landing page + feature inventory to reflect the last week of shipped work. User-facing copy only; code/DB/API internal vocabulary stays as `prediction.*`. Bundled because both sweeps audit the same files.
-
-### Operations & Validation
-
-2. [testing-team](next/testing-team/intention.md) — port the four-layer Orchestrator AI testing harness to Divinr: file-based finding lifecycle (`open/ → triaged/ → in-fix/ → needs-verify/ → closed/`) with dedup-hash regression detection, a Divinr-specific discover agent plus copy-verbatim triage/verify agents, a Chrome-patterns base skill + one deep skill per facet (predictions, portfolios, tournaments, clubs, analysts, instruments, performance, authoring, admin), and a daily cron pipeline that produces a morning digest. Depends on onboarding-tour-extended (surface inventory is the coverage checklist) and ui-vocabulary-and-marketing-refresh (strings stable before `where.md` files are written).
+_Empty. `user-billing-model` is the only in-flight effort. The natural follow-on after it merges is `stripe-integration` (currently in `future/`), which will graduate to `next/` once Phase 7 closes._
 
 ---
 
@@ -84,7 +87,7 @@ Preserved from prior planning because the concepts remain pertinent, but deferre
 
 ### Billing Surface (deferred)
 
-- [user-billing-model](future/user-billing-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics (individual-only; clubs are uncoupled from billing entirely)
+- _`user-billing-model` — now in `current/` (see Current Effort above)_
 - [stripe-integration](future/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
 - [student-accounts](future/student-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing
 
