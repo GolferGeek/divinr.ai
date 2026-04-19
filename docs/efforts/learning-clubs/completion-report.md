@@ -91,4 +91,5 @@ All quality gates passed:
 ## Next Steps
 - Apply migration to Supabase
 - Run `/pr-eval` to review and merge
-- Next efforts: public-club-rankings, curriculum-builder, mentor-mentee-pairing, paid-club-tiers
+- Next efforts: public-club-rankings, curriculum-builder, mentor-mentee-pairing
+  - Note: a billing-through-clubs concept formerly listed here has been retired per `docs/efforts/master-intention.md` §8. Clubs are social-only; per-user billing lives in `user-billing-model`.
