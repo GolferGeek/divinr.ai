@@ -26,6 +26,23 @@ export class BillingSchemaService {
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now()
       );
+      ALTER TABLE billing.subscriptions ADD COLUMN IF NOT EXISTS expired_at timestamptz;
+      ALTER TABLE billing.subscriptions ADD COLUMN IF NOT EXISTS purge_scheduled_at timestamptz;
+      CREATE INDEX IF NOT EXISTS billing_subscriptions_status_trial_ends_idx ON billing.subscriptions (status, trial_ends_at);
+      CREATE INDEX IF NOT EXISTS billing_subscriptions_status_purge_idx ON billing.subscriptions (status, purge_scheduled_at);
+
+      -- Append-only audit log. Service layer exposes only appendSubscriptionEvent;
+      -- no UPDATE or DELETE code path exists.
+      CREATE TABLE IF NOT EXISTS billing.subscription_events (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id text NOT NULL,
+        from_status text,
+        to_status text NOT NULL,
+        reason text NOT NULL,
+        triggered_by text NOT NULL CHECK (triggered_by IN ('system','user','admin','stripe')),
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS billing_subscription_events_user_created_idx ON billing.subscription_events (user_id, created_at DESC);
 
       CREATE TABLE IF NOT EXISTS billing.authored_items (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -2,17 +2,33 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { BillingSchemaService } from './billing-schema.service';
 
+export type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled' | 'dormant';
+export type SubscriptionEventTrigger = 'system' | 'user' | 'admin' | 'stripe';
+
 /** Shape of a billing.subscriptions row. */
 export interface BillingSubscription {
   user_id: string;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
-  status: 'trial' | 'active' | 'past_due' | 'canceled' | 'dormant';
+  status: SubscriptionStatus;
   trial_started_at: string | null;
   trial_ends_at: string | null;
   current_period_end: string | null;
+  expired_at: string | null;
+  purge_scheduled_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Shape of a billing.subscription_events row. Append-only audit log. */
+export interface SubscriptionEvent {
+  id: string;
+  user_id: string;
+  from_status: SubscriptionStatus | null;
+  to_status: SubscriptionStatus;
+  reason: string;
+  triggered_by: SubscriptionEventTrigger;
+  created_at: string;
 }
 
 /** Shape of a billing.authored_items row. */
@@ -46,6 +62,7 @@ type ItemKind = 'custom_analyst' | 'custom_instrument' | 'analyst_contract_overr
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
+  private readonly lifecycleLogger = new Logger('BillingLifecycleEvents');
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
@@ -113,6 +130,83 @@ export class BillingService {
     const sub = await this.getSubscription(userId);
     if (!sub) return true; // No subscription row yet = pre-billing, treat as active
     return ['trial', 'active'].includes(sub.status);
+  }
+
+  /**
+   * Read-only gate. Returns true iff the user's subscription is in a terminal
+   * state (canceled or dormant). `past_due` is intentionally NOT read-only —
+   * see PRD Risk §7.4 (grace window owned by Stripe retry logic).
+   * Missing row returns false (pre-signup / trial seeding race — real users
+   * are guaranteed a row by the signup wiring + migration backfill).
+   */
+  async isReadOnly(userId: string): Promise<boolean> {
+    const sub = await this.getSubscription(userId);
+    if (!sub) return false;
+    return sub.status === 'canceled' || sub.status === 'dormant';
+  }
+
+  /**
+   * Append a single row to the subscription_events audit table.
+   * The service exposes no update or delete path — the table is append-only.
+   */
+  async appendSubscriptionEvent(params: {
+    userId: string;
+    fromStatus: SubscriptionStatus | null;
+    toStatus: SubscriptionStatus;
+    reason: string;
+    triggeredBy: SubscriptionEventTrigger;
+  }): Promise<SubscriptionEvent> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `INSERT INTO billing.subscription_events (user_id, from_status, to_status, reason, triggered_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [params.userId, params.fromStatus, params.toStatus, params.reason, params.triggeredBy],
+    );
+    if (result.error) throw new Error(`appendSubscriptionEvent failed: ${result.error.message}`);
+    const rows = (result.data as SubscriptionEvent[] | null) ?? [];
+    return rows[0];
+  }
+
+  /**
+   * Transition a subscription to `canceled` with a purge scheduled 6 months out.
+   * Idempotent at the service layer: reads prior status, flips, writes one audit row.
+   * Caller is the cron (`trial_ended_no_card`) or an admin action.
+   * Emits a structured log line on the `BillingLifecycleEvents` channel for future
+   * event-bus wiring (real transport lands with notification-system).
+   */
+  async markExpired(userId: string, reason: string, triggeredBy: 'system' | 'admin'): Promise<void> {
+    await this.schema.ensureSchema();
+    const prior = await this.getSubscription(userId);
+    if (!prior) throw new Error(`markExpired: no subscription row for user ${userId}`);
+    const now = new Date().toISOString();
+    const purgeAt = new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString();
+    const result = await this.db.rawQuery(
+      `UPDATE billing.subscriptions
+       SET status = 'canceled',
+           expired_at = $2,
+           purge_scheduled_at = $3,
+           updated_at = $2
+       WHERE user_id = $1`,
+      [userId, now, purgeAt],
+    );
+    if (result.error) throw new Error(`markExpired failed: ${result.error.message}`);
+    await this.appendSubscriptionEvent({
+      userId,
+      fromStatus: prior.status,
+      toStatus: 'canceled',
+      reason,
+      triggeredBy,
+    });
+    this.lifecycleLogger.log(JSON.stringify({
+      event: 'billing.subscription_lifecycle_transition',
+      user_id: userId,
+      from_status: prior.status,
+      to_status: 'canceled',
+      reason,
+      triggered_by: triggeredBy,
+      at: now,
+    }));
   }
 
   // ─── Authored items ──────────────────────────────────────────

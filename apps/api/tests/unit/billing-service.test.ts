@@ -49,10 +49,12 @@ function createService(dbResponses: Record<string, MockRow[]> = {}): {
 } {
   const db = createMockDb(dbResponses);
   const schema = createMockSchema();
+  const silentLogger = { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
   const service = Object.create(BillingService.prototype);
   (service as any).db = db;
   (service as any).schema = schema;
-  (service as any).logger = { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+  (service as any).logger = silentLogger;
+  (service as any).lifecycleLogger = silentLogger;
   return { service: service as BillingService, db };
 }
 
@@ -147,6 +149,85 @@ async function main(): Promise<void> {
     const { service } = createService({});
     const result = await service.isSubscriptionActive('u1');
     assert(result === true, 'isSubscriptionActive returns true when no subscription row exists (pre-billing)');
+  }
+
+  // ─── isReadOnly: canceled + dormant true; trial/active/past_due false ─────
+  {
+    const { service } = createService({
+      'billing.subscriptions': [{ user_id: 'u1', status: 'canceled' }],
+    });
+    assert((await service.isReadOnly('u1')) === true, 'isReadOnly=true for canceled');
+  }
+  {
+    const { service } = createService({
+      'billing.subscriptions': [{ user_id: 'u1', status: 'dormant' }],
+    });
+    assert((await service.isReadOnly('u1')) === true, 'isReadOnly=true for dormant');
+  }
+  for (const status of ['trial', 'active', 'past_due']) {
+    const { service } = createService({
+      'billing.subscriptions': [{ user_id: 'u1', status }],
+    });
+    assert((await service.isReadOnly('u1')) === false, `isReadOnly=false for ${status}`);
+  }
+  {
+    const { service } = createService({});
+    assert((await service.isReadOnly('u1')) === false, 'isReadOnly=false when no subscription row');
+  }
+
+  // ─── markExpired: sets three columns + appends one audit row ──────────
+  {
+    const { service, db } = createService({
+      'billing.subscriptions': [{ user_id: 'u1', status: 'trial' }],
+      'billing.subscription_events': [{ id: 'ev-1', user_id: 'u1', from_status: 'trial', to_status: 'canceled', reason: 'trial_ended_no_card', triggered_by: 'system', created_at: '' }],
+    });
+    await service.markExpired('u1', 'trial_ended_no_card', 'system');
+    const updateQuery = db.queries.find(q => q.sql.includes('UPDATE billing.subscriptions') && q.sql.includes("status = 'canceled'"));
+    assert(updateQuery !== undefined, 'markExpired issues UPDATE with status=canceled');
+    assert(updateQuery!.sql.includes('expired_at'), 'markExpired sets expired_at');
+    assert(updateQuery!.sql.includes('purge_scheduled_at'), 'markExpired sets purge_scheduled_at');
+    const insertQuery = db.queries.find(q => q.sql.includes('INSERT INTO billing.subscription_events'));
+    assert(insertQuery !== undefined, 'markExpired appends one subscription_events row');
+    assert(insertQuery!.params[3] === 'trial_ended_no_card', 'markExpired event carries supplied reason');
+    assert(insertQuery!.params[4] === 'system', 'markExpired event carries triggeredBy=system');
+    assert(insertQuery!.params[1] === 'trial', 'markExpired event captures fromStatus');
+    assert(insertQuery!.params[2] === 'canceled', 'markExpired event captures toStatus=canceled');
+    const events = db.queries.filter(q => q.sql.includes('INSERT INTO billing.subscription_events'));
+    assert(events.length === 1, 'markExpired appends exactly one event row');
+  }
+
+  // ─── markExpired throws when no subscription row exists ────────────
+  {
+    const { service } = createService({});
+    let threw = false;
+    try { await service.markExpired('u-nope', 'reason', 'system'); } catch { threw = true; }
+    assert(threw, 'markExpired throws when no subscription row exists');
+  }
+
+  // ─── appendSubscriptionEvent writes a single row with correct shape ──
+  {
+    const { service, db } = createService({
+      'billing.subscription_events': [{ id: 'ev-2', user_id: 'u1', from_status: null, to_status: 'trial', reason: 'migration_backfill', triggered_by: 'system', created_at: '' }],
+    });
+    await service.appendSubscriptionEvent({ userId: 'u1', fromStatus: null, toStatus: 'trial', reason: 'migration_backfill', triggeredBy: 'system' });
+    const insertQuery = db.queries.find(q => q.sql.includes('INSERT INTO billing.subscription_events'));
+    assert(insertQuery !== undefined, 'appendSubscriptionEvent issues INSERT');
+    assert(insertQuery!.params[0] === 'u1', 'appendSubscriptionEvent carries user_id');
+    assert(insertQuery!.params[1] === null, 'appendSubscriptionEvent carries null from_status for bootstrap');
+    assert(insertQuery!.params[2] === 'trial', 'appendSubscriptionEvent carries to_status');
+    assert(insertQuery!.params[3] === 'migration_backfill', 'appendSubscriptionEvent carries reason');
+    assert(insertQuery!.params[4] === 'system', 'appendSubscriptionEvent carries triggered_by');
+  }
+
+  // ─── Append-only invariant: BillingService does NOT expose update/delete ──
+  {
+    const proto = BillingService.prototype as unknown as Record<string, unknown>;
+    const methods = Object.getOwnPropertyNames(proto);
+    const eventMutators = methods.filter(m =>
+      m.toLowerCase().includes('subscriptionevent') &&
+      (m.toLowerCase().includes('update') || m.toLowerCase().includes('delete'))
+    );
+    assert(eventMutators.length === 0, 'BillingService exposes no update/delete method for subscription_events (append-only invariant)');
   }
 
   // ─── Summary ──────────────────────────────────────────────

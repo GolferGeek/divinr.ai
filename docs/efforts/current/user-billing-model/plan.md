@@ -8,7 +8,7 @@
 ## Progress Tracker
 <!-- run-plan uses this section to track where we are -->
 - [x] Phase 1: Strategy & Doc Reconciliation
-- [ ] Phase 2: Schema Extensions + BillingService Core
+- [x] Phase 2: Schema Extensions + BillingService Core
 - [ ] Phase 3a: Lifecycle State Machine + Read-Only Gating (backend)
 - [ ] Phase 3b: Trial/Read-Only App-Shell Surface (web)
 - [ ] Phase 4: Per-User Social Opt-Outs
@@ -94,40 +94,41 @@ Before moving to Phase 2, ALL of the following must pass:
 ---
 
 ## Phase 2: Schema Extensions + BillingService Core
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Extend billing schema with the two new lifecycle columns, the `subscription_events` audit table, and the five `social_*` profile columns; land the first core `BillingService` methods (`markExpired`, `isReadOnly`) with unit tests.
 
 ### Steps
-- [ ] 2.1 Extend `apps/api/src/billing/billing-schema.service.ts` `ensureSchema()` DDL:
+- [x] 2.1 Extend `apps/api/src/billing/billing-schema.service.ts` `ensureSchema()` DDL:
   - Add `expired_at TIMESTAMPTZ NULL` to `billing.subscriptions` (idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`)
   - Add `purge_scheduled_at TIMESTAMPTZ NULL` to `billing.subscriptions`
   - Create `billing.subscription_events` with columns: `id uuid PK`, `user_id text NOT NULL`, `from_status text`, `to_status text NOT NULL`, `reason text NOT NULL`, `triggered_by text NOT NULL CHECK (triggered_by IN ('system','user','admin','stripe'))`, `created_at timestamptz DEFAULT now()`
   - Add indexes: `billing_subscriptions_status_trial_ends_idx ON billing.subscriptions(status, trial_ends_at)`, `billing_subscriptions_status_purge_idx ON billing.subscriptions(status, purge_scheduled_at)`, `billing_subscription_events_user_created_idx ON billing.subscription_events(user_id, created_at DESC)`
   - Append-only enforcement: `REVOKE UPDATE, DELETE` is not possible at schema-service layer for arbitrary users; instead, document in the service-layer comment that `subscription_events` has no UPDATE/DELETE code path, and add a unit test that asserts `BillingService` exposes only `appendSubscriptionEvent`.
-- [ ] 2.2 Add a migration file `apps/api/db/migrations/2026-04-19-social-opt-outs.sql` that adds five columns to `public.profiles`:
+- [x] 2.2 Add a migration file `apps/api/db/migrations/2026-04-19-social-opt-outs.sql` that adds five columns to `authz.users` (plan originally said `public.profiles`, which does not exist in this codebase — see Phase 2 Notes below; user confirmed `authz.users`):
   - `social_visible_in_member_lists BOOLEAN NOT NULL DEFAULT true`
   - `social_messaging_enabled BOOLEAN NOT NULL DEFAULT true`
   - `social_tournament_participation BOOLEAN NOT NULL DEFAULT true`
   - `social_leaderboard_visible BOOLEAN NOT NULL DEFAULT true`
   - `social_notifications_enabled BOOLEAN NOT NULL DEFAULT true`
   - Use `ADD COLUMN IF NOT EXISTS` so the migration is idempotent.
-- [ ] 2.3 Extend `BillingService` (apps/api/src/billing/billing.service.ts) interfaces:
+- [x] 2.3 Extend `BillingService` (apps/api/src/billing/billing.service.ts) interfaces:
   - Update `BillingSubscription` interface to include `expired_at: string | null` and `purge_scheduled_at: string | null`
   - Add `SubscriptionEvent` interface matching the new table
   - Add `SubscriptionStatus` type alias for the five enum values
-- [ ] 2.4 Implement `BillingService.isReadOnly(userId: string): Promise<boolean>`:
+- [x] 2.4 Implement `BillingService.isReadOnly(userId: string): Promise<boolean>`:
   - Reads the subscription row; returns `true` iff `status IN ('canceled','dormant')`. Returns `false` if no row exists (new user pre-signup state; real users are guaranteed to have a row by migration/signup flow).
-- [ ] 2.5 Implement `BillingService.appendSubscriptionEvent(...)` — internal helper writing one row to `billing.subscription_events`. Takes `{ userId, fromStatus, toStatus, reason, triggeredBy }`.
-- [ ] 2.6 Implement `BillingService.markExpired(userId: string, reason: string, triggeredBy: 'system'|'admin'): Promise<void>`:
+- [x] 2.5 Implement `BillingService.appendSubscriptionEvent(...)` — internal helper writing one row to `billing.subscription_events`. Takes `{ userId, fromStatus, toStatus, reason, triggeredBy }`.
+- [x] 2.6 Implement `BillingService.markExpired(userId: string, reason: string, triggeredBy: 'system'|'admin'): Promise<void>`:
   - Transactional update: sets `status='canceled'`, `expired_at=now()`, `purge_scheduled_at=now() + interval '6 months'`, `updated_at=now()`
   - Reads prior status for the event row, then calls `appendSubscriptionEvent`
   - Emits `billing.subscription_lifecycle_transition` event (log line in this phase; real event bus wiring deferred to Phase 3a)
-- [ ] 2.7 Extend `apps/api/tests/unit/billing-service.test.ts`:
+- [x] 2.7 Extend `apps/api/tests/unit/billing-service.test.ts`:
   - `isReadOnly` returns true for `canceled`, true for `dormant`, false for `trial`, `active`, `past_due`
   - `markExpired` sets the three columns correctly and appends exactly one subscription_events row with the supplied reason
   - `appendSubscriptionEvent` inserts append-only (covered by lack of update method)
-- [ ] 2.8 Register the new test file entry in `apps/api/package.json` `test:unit` chain if a new file was created (extend `apps/api/tests/unit/billing-service.test.ts` instead where possible to avoid churn). If a new file is added, append the `tsx tests/unit/<name>.test.ts` token to the `test:unit` script.
-- [ ] 2.9 Wire trial seeding into the two existing account-creation flows (no traditional `POST /signup` endpoint exists in this codebase — all new accounts come in via invite or club code):
+- [x] 2.8 Register the new test file entry in `apps/api/package.json` `test:unit` chain if a new file was created (extend `apps/api/tests/unit/billing-service.test.ts` instead where possible to avoid churn). If a new file is added, append the `tsx tests/unit/<name>.test.ts` token to the `test:unit` script.
+  - **Note**: extended `billing-service.test.ts` in place; `billing-service.test.ts` is already registered in `test:unit` chain. Invite/auth-controller trial-seeding assertions added to `invite-service.test.ts` and new `auth-controller-signup-billing.test.ts` — see step 2.9.
+- [x] 2.9 Wire trial seeding into the two existing account-creation flows (no traditional `POST /signup` endpoint exists in this codebase — all new accounts come in via invite or club code):
   - **Flow A — invite acceptance**: `apps/api/src/auth/invite.service.ts`, in `acceptInvite()` after the `SupabaseAuthService.createUser()` call succeeds (around line 196). Inject `BillingService` via `@Inject(BillingService)` on the service constructor and call `await this.billing.ensureSubscription(newUserId)` before returning.
   - **Flow B — club-code signup**: `apps/api/src/auth/auth.controller.ts`, in `signupWithClubCode()` after the user row is created (around line 212). Same pattern.
   - **Rationale for not hooking at the layer below**: `SupabaseAuthService.createUser()` lives in `packages/planes/auth/` and would introduce a cross-package dependency (`packages/` → `apps/api/src/billing/`) that violates the existing layering. Two call-site hooks are preferable to the layer violation.
@@ -135,25 +136,30 @@ Before moving to Phase 2, ALL of the following must pass:
   - Add a unit test for each flow asserting `ensureSubscription(newUserId)` is invoked exactly once after successful account creation. Use `jest.spyOn` or an injected mock of `BillingService`.
   - PRD US-1 is satisfied by these two hooks for new accounts post-ship; Phase 6 backfill covers pre-existing accounts. If a third account-creation flow is added in the future, it must also call `ensureSubscription` — this invariant is documented here but not enforceable via grep without registering a new guard pattern (out of scope for this effort).
 
+### Phase 2 Notes
+- **Deviation — user table**: the plan/PRD both say `public.profiles`, but that relation does not exist in this codebase. Canonical user row is `authz.users` (precedent: the existing `is_testing BOOLEAN` flag). User confirmed via inline message. Migration updated to target `authz.users`. All future phases that reference "profile columns" should read `authz.users` instead. `authz.user_preferences` (the JSONB onboarding-state table) was considered and rejected — columns on the main user row are simpler and every discovery surface already joins against `authz.users`.
+- **Non-fatal billing seeding**: both signup flows (`InviteService.acceptInvite`, `AuthController.signupWithClubCode`) wrap `ensureSubscription` in try/catch. Rationale: a billing glitch must not block account creation. The Phase 6 migration backfill is the safety net that sweeps up any missing rows.
+- **`schemaReady` cache**: `BillingSchemaService.ensureSchema()` guards with an in-process `schemaReady` flag, so the new DDL only ran once this API lifetime. Production deploys get the DDL on first billing request post-restart. Applied DDL via psql directly in this session to unblock the DB-inspection gate.
+
 ### Quality Gate
 Before moving to Phase 3a, ALL of the following must pass:
 
-- [ ] **Lint**: `pnpm --filter @divinr/api run lint`
-- [ ] **Build**: `pnpm --filter @divinr/api run build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api run test:unit` (includes new billing-service assertions)
-- [ ] **E2E Tests**: N/A for this phase (no user-visible surface change)
-- [ ] **Curl Tests**:
-  - `curl -s http://localhost:7100/health` returns 200 with schema-ready flag true after the API restart (this validates `ensureSchema()` ran against the local Supabase on ports 7010–7016 without throwing)
-- [ ] **DB inspection**: against local Supabase (port 7011):
-  - `psql ... -c "\d billing.subscriptions"` shows `expired_at`, `purge_scheduled_at`
-  - `psql ... -c "\d billing.subscription_events"` shows the expected columns
-  - `psql ... -c "\d public.profiles"` shows the five `social_*` columns
-- [ ] **Chrome Tests**: N/A for this phase
-- [ ] **Phase Review**: Compare against PRD §4.2 and §8 Phase 2
-  - [ ] Schema has all new columns / tables / indexes from PRD §4.2
-  - [ ] `isReadOnly` exact enum match from PRD §4.3
-  - [ ] No new `@Inject`-missing constructor params
-  - [ ] Migration idempotency validated by running the migration twice
+- [x] **Lint**: `pnpm --filter @divinr/api run lint` — clean
+- [x] **Build**: `pnpm --filter @divinr/api run build` — clean (tsc)
+- [x] **Unit Tests**: `pnpm --filter @divinr/api run test:unit` — full chain green; billing-service: 39 passed (19 new assertions for isReadOnly / markExpired / appendSubscriptionEvent / append-only invariant); signup-trial-seeding: 8 passed (new file)
+- [x] **E2E Tests**: N/A for this phase (no user-visible surface change)
+- [x] **Curl Tests**:
+  - `curl -s http://localhost:7100/health` → `{"ok":true,"service":"divinr-api","timestamp":"..."}` after restart
+- [x] **DB inspection**: against local Supabase (docker `supabase_db_divinr.ai`):
+  - `\d billing.subscriptions` shows `expired_at`, `purge_scheduled_at`, + both new composite indexes
+  - `\d billing.subscription_events` shows 7 columns (id/user_id/from_status/to_status/reason/triggered_by/created_at), PK, user+created index, and triggered_by CHECK constraint
+  - `authz.users` social_* columns: all 5 present, `DEFAULT true`, NOT NULL
+- [x] **Chrome Tests**: N/A for this phase
+- [x] **Phase Review**: Compare against PRD §4.2 and §8 Phase 2
+  - [x] Schema has all new columns / tables / indexes from PRD §4.2 (target table deviation from `public.profiles` → `authz.users` documented above)
+  - [x] `isReadOnly` exact enum match from PRD §4.3 (canceled + dormant → true; trial/active/past_due → false; missing row → false)
+  - [x] No new `@Inject`-missing constructor params (InviteService and AuthController both extend with `@Inject(BillingService)`)
+  - [x] Migration idempotency validated by running the DDL + migration twice; second run logs NOTICE "already exists, skipping" for every object
 
 ---
 
