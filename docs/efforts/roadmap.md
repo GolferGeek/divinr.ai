@@ -64,13 +64,17 @@ _None — `docs/efforts/current/` is empty and ready for the next promotion._
 
 ---
 
-## Next — Queued Efforts (1)
+## Next — Queued Efforts (2)
 
-The onboarding-tour-extended effort is now the active one (promoted to `current/`). The next queued effort is the user-visible vocabulary and marketing refresh — pairing a "prediction" → "analysis" sweep with a landing-page/feature-inventory refresh, since they touch the same files.
+The onboarding-tour-extended effort is now the active one (promoted to `current/`). Two queued efforts follow: the user-visible vocabulary + marketing refresh (first — small, legal-flavored, shares files with onboarding), then the testing-team harness port (second — bigger infrastructure lift, depends on both onboarding and vocab landing so the surface inventory and strings are stable).
 
 ### Experience + Marketing
 
 1. [ui-vocabulary-and-marketing-refresh](next/ui-vocabulary-and-marketing-refresh/intention.md) — sweep user-visible copy to replace "prediction" with "analysis" / "signal", tighten disclaimers to say explicitly "not a prediction model," and refresh landing page + feature inventory to reflect the last week of shipped work. User-facing copy only; code/DB/API internal vocabulary stays as `prediction.*`. Bundled because both sweeps audit the same files.
+
+### Operations & Validation
+
+2. [testing-team](next/testing-team/intention.md) — port the four-layer Orchestrator AI testing harness to Divinr: file-based finding lifecycle (`open/ → triaged/ → in-fix/ → needs-verify/ → closed/`) with dedup-hash regression detection, a Divinr-specific discover agent plus copy-verbatim triage/verify agents, a Chrome-patterns base skill + one deep skill per facet (predictions, portfolios, tournaments, clubs, analysts, instruments, performance, authoring, admin), and a daily cron pipeline that produces a morning digest. Depends on onboarding-tour-extended (surface inventory is the coverage checklist) and ui-vocabulary-and-marketing-refresh (strings stable before `where.md` files are written).
 
 ---
 
