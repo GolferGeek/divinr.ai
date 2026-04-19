@@ -12,6 +12,7 @@ import {
 import { analyticsOutline } from 'ionicons/icons';
 import { useAuthStore } from '../stores/auth.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
@@ -172,11 +173,13 @@ async function signup() {
 
               <p class="ion-text-center" style="margin-top:1rem; font-size:0.85em; color:var(--ion-color-medium)">
                 You'll have read-only access to view predictions, analysis, and findings.
-              </p>
+              
+  </p>
             </template>
           </ion-card-content>
         </ion-card>
       </div>
     </ion-content>
+  <FirstTouchPanel surface-key="auth.invite-signup" />
   </ion-page>
 </template>

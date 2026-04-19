@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import type { SnapshotHistoryPoint, BenchmarkPoint } from '../stores/portfolio.store';
 
+import FirstTouchPanel from './FirstTouchPanel.vue';
 const props = withDefaults(
   defineProps<{
     history: SnapshotHistoryPoint[];
@@ -97,5 +98,7 @@ const equityColor = computed(() => {
       />
     </svg>
     <div v-else style="opacity:0.6;font-size:0.8rem">Not enough snapshot history.</div>
+  
+  <FirstTouchPanel surface-key="performance.equity-curve" />
   </div>
 </template>

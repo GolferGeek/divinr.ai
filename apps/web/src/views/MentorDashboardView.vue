@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote } from '@ionic/vue';
 import { useMentorStore } from '../stores/mentor.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useMentorStore();
 const route = useRoute();
 const router = useRouter();
@@ -55,6 +56,8 @@ onMounted(async () => {
         </IonCardContent>
       </IonCard>
     </div>
+  
+  <FirstTouchPanel surface-key="mentor.dashboard" />
   </div>
 </template>
 

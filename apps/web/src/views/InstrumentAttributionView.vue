@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { IonSpinner } from '@ionic/vue';
 import { useMyAttribution } from '../composables/useMyAttribution';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const route = useRoute();
 const { instrument, loading, error, fetchInstrument } = useMyAttribution();
 
@@ -150,7 +151,9 @@ function ownedStyle(owned: boolean | undefined): string {
             </tr>
           </tbody>
         </table>
-      </section>
+      
+  </section>
     </template>
+  <FirstTouchPanel surface-key="instrument.attribution" />
   </div>
 </template>

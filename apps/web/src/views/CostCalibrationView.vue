@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { IonButton, IonSpinner, IonCard, IonCardHeader, IonCardTitle, IonCardContent } from '@ionic/vue';
 import { useUsageStore } from '../stores/usage.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useUsageStore();
 const refreshing = ref(false);
 const refreshResult = ref<{ refreshedModels: number; alertsRaised: number; skippedModels: number } | null>(null);
@@ -114,5 +115,7 @@ function formatPct(pct: number | null): string {
         </tr>
       </tbody>
     </table>
+  
+  <FirstTouchPanel surface-key="admin.cost-modeling.calibration" />
   </div>
 </template>

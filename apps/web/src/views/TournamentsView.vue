@@ -6,6 +6,7 @@ import { useTournamentStore } from '../stores/tournament.store';
 import { useCanWrite } from '../composables/useCanWrite';
 import AvatarStack from '../components/AvatarStack.vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useTournamentStore();
 const { canWrite } = useCanWrite();
 const router = useRouter();
@@ -134,6 +135,8 @@ function pluralPlayers(n: number): string {
         </IonCardContent>
       </IonCard>
     </div>
+  
+  <FirstTouchPanel surface-key="tournaments" />
   </div>
 </template>
 

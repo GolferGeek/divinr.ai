@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+
 </script>
 
 <template>
@@ -47,6 +49,8 @@
 
     <h2>11. Contact</h2>
     <p>For questions about these Terms of Service, contact: legal@divinr.ai</p>
+  
+  <FirstTouchPanel surface-key="settings.terms" />
   </div>
 </template>
 

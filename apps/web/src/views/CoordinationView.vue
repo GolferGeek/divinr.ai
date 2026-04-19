@@ -8,6 +8,7 @@ import {
 import { refreshOutline, warningOutline } from 'ionicons/icons';
 import { useCoordinationStore } from '../stores/coordination.store';
 import type { CorrelationRow } from '../stores/coordination.store';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 
 const store = useCoordinationStore();
 
@@ -204,6 +205,8 @@ function marginalClass(n: number): string {
         </ion-card-content>
       </ion-card>
     </template>
+
+  <FirstTouchPanel surface-key="analyst.coordination" />
   </div>
 </template>
 

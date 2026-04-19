@@ -5,6 +5,7 @@ import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInp
 import { useTournamentStore } from '../stores/tournament.store';
 import { useCanWrite } from '../composables/useCanWrite';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useTournamentStore();
 const router = useRouter();
 const { canWrite } = useCanWrite();
@@ -95,6 +96,8 @@ async function submit() {
         <IonButton expand="block" @click="submit">Create Game</IonButton>
       </IonCardContent>
     </IonCard>
+  
+  <FirstTouchPanel surface-key="tournament.create" />
   </div>
 </template>
 

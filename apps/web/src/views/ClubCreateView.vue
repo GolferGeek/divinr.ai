@@ -5,6 +5,7 @@ import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInp
 import { useClubStore } from '../stores/club.store';
 import { useCanWrite } from '../composables/useCanWrite';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useClubStore();
 const router = useRouter();
 const { canWrite } = useCanWrite();
@@ -38,6 +39,8 @@ async function submit() {
         <IonButton expand="block" @click="submit">Create Club</IonButton>
       </IonCardContent>
     </IonCard>
+  
+  <FirstTouchPanel surface-key="club.create" />
   </div>
 </template>
 

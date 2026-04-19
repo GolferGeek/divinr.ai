@@ -8,6 +8,7 @@ import {
   IonButton, IonChip, IonNote, IonProgressBar, IonInput,
 } from '@ionic/vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 interface ContractVersion {
   id: string;
   versionNumber: number;
@@ -280,7 +281,8 @@ const diffLines = computed<{ left: DiffLine[]; right: DiffLine[] }>(() => {
           <ion-button size="small" fill="outline" color="secondary" @click="enterDiffMode">Diff</ion-button>
           <ion-button size="small" fill="outline" color="warning" :disabled="rollingBack" @click="rollback">
             {{ rollingBack ? 'Rolling back...' : 'Rollback' }}
-          </ion-button>
+          
+  </ion-button>
         </template>
       </div>
 
@@ -429,7 +431,8 @@ const diffLines = computed<{ left: DiffLine[]; right: DiffLine[] }>(() => {
             No config versions found.
           </ion-note>
         </div>
-      </div>
+      <FirstTouchPanel surface-key="analyst.contract-viewer" />
+  </div>
     </template>
   </div>
 </template>

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonNote } from '@ionic/vue';
 import { useClubStore, type Club } from '../stores/club.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useClubStore();
 const route = useRoute();
 const router = useRouter();
@@ -45,6 +46,8 @@ async function join() {
       </IonCardContent>
     </IonCard>
     <div v-else class="loading">Loading invitation...</div>
+  
+  <FirstTouchPanel surface-key="club.invite-landing" />
   </div>
 </template>
 

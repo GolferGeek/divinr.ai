@@ -4,6 +4,7 @@ import { IonCard, IonCardContent } from '@ionic/vue';
 import { useBillingSummaryStore } from '../stores/billing-summary.store';
 import { useAuthStore } from '../stores/auth.store';
 
+import FirstTouchPanel from './FirstTouchPanel.vue';
 const store = useBillingSummaryStore();
 const auth = useAuthStore();
 
@@ -31,5 +32,7 @@ function formatCost(cents: number): string {
         </span>
       </div>
     </IonCardContent>
+  
+  <FirstTouchPanel surface-key="billing.student-accrual" />
   </IonCard>
 </template>

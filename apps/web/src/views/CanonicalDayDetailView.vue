@@ -9,6 +9,7 @@ import {
 } from '@ionic/vue';
 import { arrowBackOutline } from 'ionicons/icons';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const route = useRoute();
 const api = useApi();
 const day = ref<Record<string, unknown> | null>(null);
@@ -99,11 +100,13 @@ function formatSnapshot(data: unknown): string {
             <pre style="font-size:0.75rem;max-height:300px;overflow:auto">{{ formatSnapshot(day['analyst_config_snapshot']) }}</pre>
           </div>
         </ion-accordion>
-      </ion-accordion-group>
+      
+  </ion-accordion-group>
     </template>
 
     <ion-note v-else color="primary" style="display:block;padding:16px">
       Select a canonical test day from the Learning Dashboard to view its frozen snapshot.
     </ion-note>
+  <FirstTouchPanel surface-key="admin.canonical-day" />
   </div>
 </template>

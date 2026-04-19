@@ -3,6 +3,7 @@ import { onMounted, computed } from 'vue';
 import { useUsageStore } from '../stores/usage.store';
 import { useAttributionStore } from '../stores/attribution.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useUsageStore();
 const attribution = useAttributionStore();
 
@@ -89,5 +90,7 @@ function formatKind(k: string): string {
         </tr>
       </tbody>
     </table>
+  
+  <FirstTouchPanel surface-key="admin.cost-modeling.defensibility" />
   </div>
 </template>

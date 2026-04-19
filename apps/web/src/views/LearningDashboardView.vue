@@ -8,6 +8,7 @@ import {
 } from '@ionic/vue';
 import { refreshOutline } from 'ionicons/icons';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const api = useApi();
 const { canWrite } = useCanWrite();
 const proposals = ref<Record<string, unknown>[]>([]);
@@ -110,5 +111,7 @@ function statusColor(status: unknown): string {
     <ion-note v-if="proposals.length === 0" color="primary" style="display:block;padding:16px">
       No learning proposals yet. Run a learning cycle to generate proposals.
     </ion-note>
+  
+  <FirstTouchPanel surface-key="learning-dashboard" />
   </div>
 </template>

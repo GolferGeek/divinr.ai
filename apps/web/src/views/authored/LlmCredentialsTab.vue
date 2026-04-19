@@ -6,6 +6,7 @@ import {
 } from '@ionic/vue';
 import { useCredentialsApi } from '../../api/authored-content';
 
+import FirstTouchPanel from '../../components/FirstTouchPanel.vue';
 interface Credential {
   id: string;
   provider: string;
@@ -139,5 +140,7 @@ onMounted(fetchCredentials);
         </ion-button>
       </ion-card-content>
     </ion-card>
+  
+  <FirstTouchPanel surface-key="authoring.byo-llm" />
   </div>
 </template>

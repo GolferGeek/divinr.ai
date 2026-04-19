@@ -7,6 +7,7 @@ import {
   IonChip, IonButton, IonNote, IonProgressBar, IonTextarea,
 } from '@ionic/vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 interface Finding {
   id: string;
   analystId: string;
@@ -220,5 +221,7 @@ function submitDisagree(findingId: string) {
         </div>
       </ion-card-content>
     </ion-card>
+  
+  <FirstTouchPanel surface-key="admin.findings-inbox" />
   </div>
 </template>

@@ -16,6 +16,7 @@ import { useTournamentStore } from '../stores/tournament.store';
 import { useClubStore } from '../stores/club.store';
 import ContrarianAlert from '../components/ContrarianAlert.vue';
 import DailyAnalystSummary from '../components/DailyAnalystSummary.vue';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 import UserUsageWidget from '../components/UserUsageWidget.vue';
 import StudentAccrualWidget from '../components/StudentAccrualWidget.vue';
 import { pluralize } from '../utils/format';
@@ -456,6 +457,7 @@ function formatStartShort(iso: string): string {
       :asset-type="modalAssetType"
       @close="modalOpen = false"
     />
+  <FirstTouchPanel surface-key="dashboard" />
   </div>
 </template>
 

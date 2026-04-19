@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { IonCard, IonCardContent, IonNote } from '@ionic/vue';
 import { useTournamentStore } from '../stores/tournament.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useTournamentStore();
 const router = useRouter();
 
@@ -46,6 +47,8 @@ onMounted(async () => {
         </div>
       </IonCardContent>
     </IonCard>
+  
+  <FirstTouchPanel surface-key="tournament.history" />
   </div>
 </template>
 

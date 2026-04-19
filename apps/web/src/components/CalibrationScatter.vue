@@ -17,6 +17,7 @@ import {
   type ChartData,
 } from 'chart.js';
 import annotationPlugin from 'chartjs-plugin-annotation';
+import FirstTouchPanel from './FirstTouchPanel.vue';
 
 ChartJS.register(LinearScale, PointElement, LineElement, Tooltip, Legend, annotationPlugin);
 
@@ -101,5 +102,6 @@ const chartOptions = computed<ChartOptions<'scatter'>>(() => ({
 <template>
   <div style="height:280px">
     <Scatter :data="chartData" :options="chartOptions" />
+  <FirstTouchPanel surface-key="analyst.calibration-drilldown" />
   </div>
 </template>

@@ -8,6 +8,7 @@ import {
 import { peopleCircleOutline } from 'ionicons/icons';
 import { useAuthStore } from '../stores/auth.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
@@ -150,5 +151,7 @@ async function signup() {
         </ion-card>
       </div>
     </ion-content>
+  
+  <FirstTouchPanel surface-key="club.join-signup" />
   </ion-page>
 </template>

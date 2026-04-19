@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote } from '@ionic/vue';
 import { useCurriculumStore } from '../stores/curriculum.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useCurriculumStore();
 const route = useRoute();
 const router = useRouter();
@@ -56,7 +57,8 @@ async function toggleStudent(userId: string) {
                   const mod = store.dashboard?.curriculum.modules?.find(m => m.id === p.module_id);
                   return mod && mod.week_number === w && p.completed_at;
                 })" color="success" size="small">Done</IonChip>
-                <IonChip v-else color="warning" size="small">In Progress</IonChip>
+                <IonChip v-else color="warning" size="small">In Progress
+  </IonChip>
               </template>
               <template v-else>
                 <IonChip color="medium" size="small">--</IonChip>
@@ -94,6 +96,7 @@ async function toggleStudent(userId: string) {
         </div>
       </IonCardContent>
     </IonCard>
+  <FirstTouchPanel surface-key="curriculum.dashboard" />
   </div>
 </template>
 

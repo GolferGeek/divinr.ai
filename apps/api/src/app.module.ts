@@ -24,6 +24,7 @@ import { TournamentModule } from './tournaments/tournament.module';
 import { ClubModule } from './clubs/club.module';
 import { CurriculumModule } from './curriculum/curriculum.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { FirstTouchModule } from './first-touch/first-touch.module';
 import { BillingModule } from './billing/billing.module';
 import { CostModelingModule } from './cost-modeling/cost-modeling.module';
 import { AttributionModule } from './attribution/attribution.module';
@@ -51,6 +52,7 @@ import { InviteService } from './auth/invite.service';
     ClubModule,
     CurriculumModule,
     OnboardingModule,
+    FirstTouchModule,
     BillingModule,
     CostModelingModule,
     AttributionModule,

@@ -7,6 +7,7 @@ import {
   IonChip, IonButton, IonNote,
 } from '@ionic/vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useFearGreedStore();
 const router = useRouter();
 
@@ -115,6 +116,8 @@ async function markAllRead() {
         </ion-card-content>
       </ion-card>
     </div>
+  
+  <FirstTouchPanel surface-key="fear-greed-alerts" />
   </div>
 </template>
 

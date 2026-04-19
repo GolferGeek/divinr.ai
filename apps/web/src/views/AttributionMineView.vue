@@ -4,6 +4,7 @@ import { IonSpinner } from '@ionic/vue';
 import { useMyAttribution } from '../composables/useMyAttribution';
 import GraduationSuggestionBanner from '../components/GraduationSuggestionBanner.vue';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const { summary, loading, error, fetchMySummary } = useMyAttribution();
 
 onMounted(() => fetchMySummary());
@@ -200,7 +201,9 @@ const pnlSparkline = computed(() =>
             </tr>
           </tbody>
         </table>
-      </section>
+      
+  </section>
     </template>
+  <FirstTouchPanel surface-key="authored.attribution.mine" />
   </div>
 </template>

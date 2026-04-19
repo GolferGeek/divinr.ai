@@ -20,17 +20,22 @@ async function skipTour() {
   <ion-modal :is-open="isOpen" :backdrop-dismiss="false" class="welcome-modal">
     <div class="welcome-content">
       <h1>Welcome to Divinr</h1>
-      <p class="tagline">AI market analysis that shows its work.</p>
+      <p class="tagline">Thanks for coming.</p>
       <p class="pitch">
-        Divinr has a lot going on — five AI analysts, risk debates, portfolios, clubs, tournaments.
-        Want a 10-minute tour to show you what's where?
+        Divinr is market analysis that shows its work — every call has five AI analysts behind it,
+        and you can read each one's reasoning end to end.
+      </p>
+      <p class="pitch">
+        A five-stop tour gets you oriented in a few minutes. Or skip it and poke around on your
+        own — as you visit each screen for the first time, a short first-touch note will explain
+        what you're looking at.
       </p>
       <div class="actions">
         <ion-button expand="block" color="primary" @click="startTour">
-          Start the tour
+          Start tour
         </ion-button>
         <button class="skip-link" @click="skipTour">
-          Skip — I'll figure it out
+          Skip tour
         </button>
       </div>
     </div>

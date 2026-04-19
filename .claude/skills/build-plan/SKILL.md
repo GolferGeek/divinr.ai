@@ -81,6 +81,7 @@ Before moving to Phase 2, ALL of the following must pass:
 - **Phase review is mandatory.** At the end of each phase, we explicitly compare what we built against what the PRD said we would build.
 - **Keep phases small enough to gate meaningfully.** A phase that takes a week to complete before you can validate is too big.
 - **Order phases so each builds on the last.** Earlier phases should establish foundations (project structure, test infrastructure, core models) before later phases add features.
+- **First-touch coverage**: If the plan introduces any new Vue view under `apps/web/src/views/` or any new `<FirstTouchPanel>`-eligible component, include an explicit step to (a) add a `useFirstTouch('<key>')` or `<FirstTouchPanel :surface-key="...">` call in that file and (b) add the corresponding entry to `apps/web/src/onboarding/surface-content.ts`. This mirrors the Definition of Done in the repo's root `CLAUDE.md` ("First-touch coverage on every user-facing surface"). Keep the language aligned — if CLAUDE.md and this skill drift, CLAUDE.md is authoritative.
 
 ## Verification Loop
 

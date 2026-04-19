@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonChip } from '@ionic/vue';
 import { useClubStore } from '../stores/club.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useClubStore();
 const route = useRoute();
 
@@ -69,6 +70,8 @@ function winner(valA: number, valB: number, higherIsBetter = true): 'a' | 'b' | 
       <div :class="{ highlight: winner(clubA.tournament_count, clubB.tournament_count) === 'b' }">{{ clubB.tournament_count }}</div>
     </div>
     <div v-else class="loading">Loading comparison...</div>
+  
+  <FirstTouchPanel surface-key="club.compare" />
   </div>
 </template>
 

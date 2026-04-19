@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote } from '@ionic/vue';
 import { useTournamentStore, type Tournament } from '../stores/tournament.store';
 
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useTournamentStore();
 const route = useRoute();
 const router = useRouter();
@@ -72,6 +73,8 @@ function typeLabel(t: string): string {
     </IonCard>
 
     <div v-else class="loading">Loading invitation...</div>
+  
+  <FirstTouchPanel surface-key="tournament.invite-landing" />
   </div>
 </template>
 

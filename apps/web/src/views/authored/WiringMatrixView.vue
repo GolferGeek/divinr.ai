@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { IonChip, IonSpinner } from '@ionic/vue';
 import { useAuthoredContentApi } from '../../api/authored-content';
 
+import FirstTouchPanel from '../../components/FirstTouchPanel.vue';
 interface Analyst {
   id: string;
   slug: string;
@@ -149,5 +150,7 @@ onMounted(loadData);
         </tbody>
       </table>
     </div>
+  
+  <FirstTouchPanel surface-key="authoring.relationship-selection" />
   </div>
 </template>

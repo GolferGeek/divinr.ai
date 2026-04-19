@@ -52,6 +52,10 @@ Review the plan through these lenses. Thorough but not contrarian — looking fo
 - Are there phases where certain gate items don't apply but are still listed (or vice versa)?
 - Is the phase review criteria specific to what that phase actually builds?
 
+### 6. First-touch coverage
+- If the plan introduces any new Vue view under `apps/web/src/views/` or any new `<FirstTouchPanel>`-eligible component, the plan MUST include a step that (a) adds a `useFirstTouch('<key>')` or `<FirstTouchPanel :surface-key="...">` call in that file and (b) adds the corresponding entry to `apps/web/src/onboarding/surface-content.ts`. If those steps are absent, raise as **Major**.
+- This matches the Definition of Done in the repo's root `CLAUDE.md` ("First-touch coverage on every user-facing surface"). Keep the language aligned — if CLAUDE.md and this skill drift, CLAUDE.md is authoritative.
+
 ## Issue Collection
 
 For each issue found:

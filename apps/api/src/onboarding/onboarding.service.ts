@@ -128,6 +128,7 @@ export class OnboardingService {
       current_step: currentStep,
       steps_completed: steps,
       last_seen_at: typeof r.last_seen_at === 'string' ? r.last_seen_at : null,
+      first_touch_muted: r.first_touch_muted === true,
     };
   }
 
@@ -139,12 +140,16 @@ export class OnboardingService {
       'skip',
       'restart',
       'mark_seen',
+      'set_first_touch_mute',
     ]);
     if (!patch || typeof patch !== 'object' || !allowedActions.has((patch as { action?: string }).action ?? '')) {
       throw new BadRequestException(`Invalid patch action`);
     }
     if ((patch.action === 'complete_step' || patch.action === 'set_current_step') && !isStepId(patch.step)) {
       throw new BadRequestException(`Invalid step id: ${String((patch as { step?: unknown }).step)}`);
+    }
+    if (patch.action === 'set_first_touch_mute' && typeof (patch as { muted?: unknown }).muted !== 'boolean') {
+      throw new BadRequestException(`set_first_touch_mute requires boolean muted`);
     }
   }
 }
