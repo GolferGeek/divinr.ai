@@ -33,8 +33,8 @@ function eventColor(event: ActivityEvent): string {
 function eventLabel(event: ActivityEvent): string {
   const type = event.hook_event_type || '';
   if (type.startsWith('pipeline.crawler')) return 'crawler';
-  if (type.startsWith('pipeline.predictor')) return 'predictor';
-  if (type.startsWith('pipeline.prediction')) return 'prediction';
+  if (type.startsWith('pipeline.predictor')) return 'scorer';
+  if (type.startsWith('pipeline.prediction')) return 'analysis';
   if (type.startsWith('pipeline.outcome')) return 'outcome';
   if (type.includes('risk')) return 'risk';
   if (type.includes('analyst')) return 'analyst';

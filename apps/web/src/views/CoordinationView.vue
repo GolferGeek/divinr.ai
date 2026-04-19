@@ -187,7 +187,7 @@ function marginalClass(n: number): string {
                 <th>With</th>
                 <th>Without</th>
                 <th>Marginal</th>
-                <th>Predictions</th>
+                <th>Analyses</th>
               </tr>
             </thead>
             <tbody>

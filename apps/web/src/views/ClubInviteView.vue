@@ -5,6 +5,7 @@ import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonNot
 import { useClubStore, type Club } from '../stores/club.store';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 const store = useClubStore();
 const route = useRoute();
 const router = useRouter();
@@ -34,7 +35,7 @@ async function join() {
 <template>
   <div class="invite-page">
     <h1>Club Invitation</h1>
-    <p class="disclaimer">Investment Learning Club — educational platform for practicing AI-assisted market analysis. Not investment advice.</p>
+    <LegalDisclaimer variant="club" />
     <div v-if="error" class="error">{{ error }}</div>
     <IonCard v-else-if="club">
       <IonCardHeader><IonCardTitle>{{ club.name }}</IonCardTitle></IonCardHeader>

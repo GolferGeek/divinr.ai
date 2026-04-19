@@ -5,8 +5,10 @@ import {
   analyticsOutline, peopleOutline, shieldOutline, bulbOutline,
   trophyOutline, heartOutline, notificationsOutline, briefcaseOutline,
   gitNetworkOutline, chatbubblesOutline, ribbonOutline, statsChartOutline,
+  schoolOutline, cashOutline,
 } from 'ionicons/icons';
 import { IonIcon } from '@ionic/vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 
 const router = useRouter();
 
@@ -21,35 +23,70 @@ onUnmounted(() => {
 });
 
 const features = [
+  // Analysts & Signal
   {
     icon: peopleOutline,
-    title: 'Multi-Analyst Predictions',
-    desc: 'Five specialized AI analysts make independent calls. An arbitrator synthesizes them into a consensus signal.',
+    title: 'Five-Analyst Panel',
+    desc: 'Five personality-driven AI analysts, an arbitrator, a portfolio manager, and a day trader each weigh in on every instrument.',
   },
   {
     icon: shieldOutline,
-    title: 'Risk Analysis & Debate',
-    desc: 'Four risk dimensions scored through a structured bull/bear/arbiter debate. See the reasoning, not just the number.',
+    title: 'Risk Debate',
+    desc: 'Structured bull/bear/arbiter debate scores four risk dimensions. You read the reasoning, not just the number.',
   },
   {
     icon: briefcaseOutline,
-    title: 'Paper Trading',
-    desc: 'Every prediction comes with Kelly-sized trade recommendations. Watch analyst portfolios compete against SPY.',
+    title: 'Signal-to-Trade Flow',
+    desc: 'Every analysis comes with a Kelly-sized paper-trade ticket. One click turns a read into a simulated position.',
   },
+  {
+    icon: cashOutline,
+    title: 'Live Intraday P&L',
+    desc: 'Paper positions mark-to-market in real time. Watch a signal work — or not — while you are watching.',
+  },
+  // Learning & Explainability
   {
     icon: statsChartOutline,
     title: 'Performance & Calibration',
-    desc: 'Track accuracy, win rates, and calibration across hundreds of predictions. Per-instrument drill-downs.',
+    desc: 'Per-analyst accuracy, per-instrument breakdown, calibration by conviction bucket, and entity-level attribution.',
   },
   {
     icon: bulbOutline,
-    title: 'Self-Improving AI',
+    title: 'Self-Improving Loop',
     desc: 'Three tiers of learning: autonomous micro-adjustments, audited corrections, and strategic contract rewrites.',
+  },
+  {
+    icon: ribbonOutline,
+    title: 'Open Playbooks',
+    desc: 'Every analyst operates under a readable contract — strategy, decision criteria, and known weaknesses. No hidden logic.',
   },
   {
     icon: gitNetworkOutline,
     title: 'Analyst Coordination',
     desc: 'Correlation matrix, coverage gaps, and leave-one-out contribution scoring. See how your analysts work together.',
+  },
+  // Social
+  {
+    icon: chatbubblesOutline,
+    title: 'Learning Clubs',
+    desc: 'Activity feeds, mentoring, curriculum, Signal Challenges, and private chat channels for focused practice.',
+  },
+  {
+    icon: trophyOutline,
+    title: 'Tournaments',
+    desc: 'Weekly sprints, sector challenges, and analyst drafts with live leaderboards, rank deltas, and avatar stacks.',
+  },
+  // Author Your Own
+  {
+    icon: analyticsOutline,
+    title: 'Author Your Own Analysts',
+    desc: 'Contract editor, custom instruments, triple slots, BYO-LLM credentials, and a graduation path for well-calibrated custom analysts.',
+  },
+  // Platform
+  {
+    icon: schoolOutline,
+    title: 'Onboarding That Respects You',
+    desc: 'A 5-beat tour, first-touch walkthroughs on every surface, and per-surface opt-outs. No forced hand-holding.',
   },
   {
     icon: heartOutline,
@@ -58,28 +95,8 @@ const features = [
   },
   {
     icon: notificationsOutline,
-    title: 'Real-Time Alerts',
-    desc: 'Stop-loss triggers, sentiment shifts, and learning milestones pushed to your feed as they happen.',
-  },
-  {
-    icon: chatbubblesOutline,
-    title: 'Investment Clubs',
-    desc: 'Form private groups. Prediction challenges, consensus polls, strategy journals, mentoring, and live chat.',
-  },
-  {
-    icon: trophyOutline,
-    title: 'Tournaments',
-    desc: 'Compete on market analysis with virtual portfolios. Weekly sprints, season-long events, live leaderboards.',
-  },
-  {
-    icon: ribbonOutline,
-    title: 'Open Playbooks',
-    desc: 'Every AI analyst operates under a readable contract — its strategy, decision criteria, and known weaknesses. No hidden logic.',
-  },
-  {
-    icon: analyticsOutline,
-    title: 'Build Your Own Analysts',
-    desc: 'Start with five base analysts. Higher tiers let you create custom analysts with your own strategy, data sources, and decision criteria.',
+    title: 'Notifications & DMs',
+    desc: 'Rank changes, mentor activity, and system updates — plus direct messages and club channels with block enforcement.',
   },
 ];
 </script>
@@ -95,10 +112,10 @@ const features = [
         </nav>
       </div>
       <div class="hero-content">
-        <h1>AI market analysis you can actually understand.</h1>
+        <h1>Divinr analyzes markets — we don't predict them.</h1>
         <p class="hero-sub">
-          Five specialized AI analysts. Transparent reasoning. Structured debate.
-          A system that learns from its mistakes — and shows you how.
+          Five specialized AI analysts, a structured debate, and a paper-trade portfolio you can watch in real time.
+          Every call is explained. Every mistake is tracked. Every adaptation is visible.
         </p>
         <div class="hero-actions">
           <button class="btn-primary" @click="router.push('/login')">Get Started</button>
@@ -112,7 +129,7 @@ const features = [
         <h2>Explainability over black boxes</h2>
         <p>
           Most AI trading tools give you a number and expect you to trust it.
-          Divinr shows you the work. Every prediction traces back to independent analysts
+          Divinr shows you the work. Every analysis traces back to independent analysts
           with documented reasoning. Every risk score comes from a structured debate.
           Every learning adaptation is visible.
         </p>
@@ -144,7 +161,7 @@ const features = [
         <div class="steps">
           <div class="step">
             <div class="step-num">1</div>
-            <h3>Analysts predict</h3>
+            <h3>Analysts analyze</h3>
             <p>Five AI analysts independently analyze each instrument with their own strategy and reasoning.</p>
           </div>
           <div class="step">
@@ -155,12 +172,12 @@ const features = [
           <div class="step">
             <div class="step-num">3</div>
             <h3>You decide</h3>
-            <p>See every rationale, every confidence level, every trade recommendation. Act on your own terms.</p>
+            <p>See every rationale, every confidence level, every paper-trade signal. Act on your own terms.</p>
           </div>
           <div class="step">
             <div class="step-num">4</div>
             <h3>The system learns</h3>
-            <p>Nightly evaluations score predictions against real outcomes. The AI adapts — and you can see exactly how.</p>
+            <p>Nightly evaluations score analyses against real outcomes. The AI adapts — and you can see exactly how.</p>
           </div>
         </div>
       </div>
@@ -177,7 +194,7 @@ const features = [
 
     <!-- Footer -->
     <footer class="landing-footer">
-      <p>Divinr provides AI-generated analysis and signals for educational purposes. Not investment advice.</p>
+      <LegalDisclaimer variant="full" />
     </footer>
   </div>
 </template>

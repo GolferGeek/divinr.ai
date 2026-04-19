@@ -27,7 +27,7 @@ interface SectionReset {
 
 const sections: SectionReset[] = [
   { label: 'Dashboard', prefix: 'dashboard', hint: 'Your home page and its widgets.' },
-  { label: 'Predictions', prefix: 'prediction', hint: 'The prediction list and prediction detail pages.' },
+  { label: 'Analyses', prefix: 'prediction', hint: 'The analysis list and analysis detail pages.' },
   { label: 'Instruments', prefix: 'instrument', hint: 'Ticker pages, debate panels, contracts.' },
   { label: 'Analysts', prefix: 'analyst', hint: 'Analyst directory, performance, contracts.' },
   { label: 'Portfolios', prefix: 'portfolio', hint: 'Your portfolios and position rows.' },

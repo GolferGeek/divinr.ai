@@ -6,6 +6,7 @@ import { useTournamentStore } from '../stores/tournament.store';
 import { useCanWrite } from '../composables/useCanWrite';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 const store = useTournamentStore();
 const router = useRouter();
 const { canWrite } = useCanWrite();
@@ -46,9 +47,7 @@ async function submit() {
 <template>
   <div class="create-page">
     <h1>Create Tournament</h1>
-    <p class="disclaimer">
-      Divinr is an AI analysis game. Virtual portfolios use simulated trades for educational and entertainment purposes. Not investment advice.
-    </p>
+    <LegalDisclaimer variant="tournament" />
 
     <IonCard>
       <IonCardHeader><IonCardTitle>Game Details</IonCardTitle></IonCardHeader>

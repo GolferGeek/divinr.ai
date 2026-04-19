@@ -17,7 +17,7 @@ const searching = ref(false);
 const types = [
   { value: 'instrument', label: 'Instruments' },
   { value: 'analyst', label: 'Analysts' },
-  { value: 'prediction', label: 'Predictions' },
+  { value: 'prediction', label: 'Analyses' },
   { value: 'position', label: 'Positions' },
 ];
 

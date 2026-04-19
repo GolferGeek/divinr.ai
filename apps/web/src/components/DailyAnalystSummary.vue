@@ -70,7 +70,7 @@ function directionLabel(dir: string): string {
             </IonChip>
           </div>
           <div class="summary-stats">
-            <span>{{ a.predictionsToday }} predictions</span>
+            <span>{{ a.predictionsToday }} analyses</span>
             <span>{{ a.instrumentsCovered }} instruments</span>
             <span>{{ a.avgConfidence }}% avg confidence</span>
           </div>

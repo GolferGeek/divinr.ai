@@ -287,7 +287,7 @@ const diffLines = computed<{ left: DiffLine[]; right: DiffLine[] }>(() => {
       </div>
 
       <!-- Authorship banner -->
-      <div v-if="data.userId && data.userId === auth.user?.id" style="background:var(--ion-color-primary-tint);padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:0.85rem;color:var(--ion-color-primary-contrast)">
+      <div v-if="data.userId && data.userId === auth.userId" style="background:var(--ion-color-primary-tint);padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:0.85rem;color:var(--ion-color-primary-contrast)">
         Your authored analyst
       </div>
       <div v-else-if="data.userId === null && canWrite" style="background:var(--ion-color-step-50);padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:0.85rem;display:flex;align-items:center;gap:8px">

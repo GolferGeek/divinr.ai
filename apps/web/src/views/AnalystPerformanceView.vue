@@ -299,10 +299,10 @@ const sortedPredictions = computed<ResolvedPrediction[]>(() => calibration.value
         </ion-card>
 
         <!-- Resolved predictions list -->
-        <h3 style="margin-top:16px;margin-bottom:4px;font-size:1rem">Resolved Predictions <span style="opacity:0.5;font-weight:normal">(wrong first)</span></h3>
+        <h3 style="margin-top:16px;margin-bottom:4px;font-size:1rem">Resolved Analyses <span style="opacity:0.5;font-weight:normal">(wrong first)</span></h3>
 
         <ion-note v-if="sortedPredictions.length === 0" color="primary" style="display:block;padding:16px">
-          No resolved predictions yet — the nightly evaluation will populate this view once predictions reach their horizon.
+          No resolved analyses yet — the nightly evaluation will populate this view once analyses reach their horizon.
         </ion-note>
 
         <ion-card v-else>
@@ -330,7 +330,7 @@ const sortedPredictions = computed<ResolvedPrediction[]>(() => calibration.value
               <div v-if="expandedId === row.predictionId"
                    style="padding:14px 18px;background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.06)">
                 <div style="font-size:0.85rem;margin-bottom:8px">
-                  <strong>Predicted:</strong> {{ row.predictedDirection }} —
+                  <strong>Projected:</strong> {{ row.predictedDirection }} —
                   <strong>Actual:</strong> {{ row.actualDirection ?? '—' }}
                   <span v-if="row.actualOutcome">
                     ({{ row.actualOutcome.changePercent >= 0 ? '+' : '' }}{{ row.actualOutcome.changePercent.toFixed(2) }}%)
@@ -341,7 +341,7 @@ const sortedPredictions = computed<ResolvedPrediction[]>(() => calibration.value
                   ({{ fmtDate(row.predictionDate) }} → {{ fmtDate(row.evaluationDate) }})
                 </div>
                 <div style="font-size:0.8rem;margin-bottom:8px">
-                  <strong>Confidence at prediction:</strong> {{ fmtPct(row.confidence) }}
+                  <strong>Confidence at analysis:</strong> {{ fmtPct(row.confidence) }}
                 </div>
                 <div v-if="row.rationale" style="margin-bottom:8px">
                   <div style="font-size:0.8rem;font-weight:600;margin-bottom:4px">Rationale</div>
@@ -351,7 +351,7 @@ const sortedPredictions = computed<ResolvedPrediction[]>(() => calibration.value
                 <!-- LLM reasoning (lazy) -->
                 <div style="margin-top:10px">
                   <div style="font-size:0.8rem;font-weight:600;margin-bottom:4px">Captured LLM Reasoning</div>
-                  <ion-note v-if="!row.hasReasoning">No captured reasoning for this prediction.</ion-note>
+                  <ion-note v-if="!row.hasReasoning">No captured reasoning for this analysis.</ion-note>
                   <ion-note v-else-if="reasoningLoading.has(row.predictionId)">Loading reasoning…</ion-note>
                   <ion-note v-else-if="reasoningErrors.has(row.predictionId)" color="danger">
                     Failed to load reasoning: {{ reasoningErrors.get(row.predictionId) }}

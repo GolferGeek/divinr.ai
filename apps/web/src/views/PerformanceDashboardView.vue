@@ -110,7 +110,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     tooltip: {
       callbacks: {
         label(ctx) {
-          const val = ctx.parsed.y;
+          const val = ctx.parsed.y ?? 0;
           return `${ctx.dataset.label}: $${val.toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
         },
       },
@@ -294,7 +294,7 @@ function nextEvalLabel(): string {
                   <td>{{ idx + 1 }}</td>
                   <td>{{ a.name }}</td>
                   <td>{{ a.accuracy_rate != null ? (a.accuracy_rate * 100).toFixed(1) + '%' : '—' }}</td>
-                  <td :title="a.calibration_score == null ? 'Needs 20+ predictions' : undefined">
+                  <td :title="a.calibration_score == null ? 'Needs 20+ analyses' : undefined">
                     {{ a.calibration_score != null ? a.calibration_score.toFixed(3) : '—' }}
                   </td>
                   <td>{{ a.sample_size }}</td>

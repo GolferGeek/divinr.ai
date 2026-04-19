@@ -5,6 +5,7 @@ import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChi
 import { useTournamentStore, type Tournament } from '../stores/tournament.store';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 const store = useTournamentStore();
 const route = useRoute();
 const router = useRouter();
@@ -44,9 +45,7 @@ function typeLabel(t: string): string {
 <template>
   <div class="invite-page">
     <h1>Tournament Invitation</h1>
-    <p class="disclaimer">
-      Divinr is an AI analysis game. Virtual portfolios use simulated trades for educational and entertainment purposes. Not investment advice.
-    </p>
+    <LegalDisclaimer variant="tournament" />
 
     <div v-if="error" class="error">{{ error }}</div>
 

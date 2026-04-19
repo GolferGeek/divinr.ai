@@ -142,7 +142,7 @@ function viewPredictions() {
           </IonButton>
           <IonButton size="small" fill="outline" @click="viewPredictions">
             <IonIcon slot="start" :icon="trendingUpOutline" />
-            View all predictions
+            View all analyses
           </IonButton>
         </div>
       </div>

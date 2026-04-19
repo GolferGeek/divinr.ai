@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonChip } from '@ionic/vue';
 import { useTournamentStore } from '../stores/tournament.store';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 
 const store = useTournamentStore();
 const route = useRoute();
@@ -32,9 +33,7 @@ function standings(): Array<{ rank: number; display_name: string | null; return_
 <template>
   <div class="results-page">
     <h1>Game Results</h1>
-    <p class="disclaimer">
-      Divinr is an AI analysis game. Virtual portfolios use simulated trades for educational and entertainment purposes. Not investment advice.
-    </p>
+    <LegalDisclaimer variant="tournament" />
 
     <div v-if="error" class="error">{{ error }}</div>
 

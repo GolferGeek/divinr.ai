@@ -299,7 +299,7 @@ function formatStartShort(iso: string): string {
           <ion-card>
             <ion-card-content class="ion-text-center">
               <div class="stat-value">{{ predictions.length }}</div>
-              <ion-note>Active Predictions</ion-note>
+              <ion-note>Active Analyses</ion-note>
             </ion-card-content>
           </ion-card>
         </ion-col>
@@ -323,11 +323,11 @@ function formatStartShort(iso: string): string {
     </ion-grid>
 
     <!-- Prediction Cards -->
-    <h2 style="margin-top:24px">Latest Predictions</h2>
+    <h2 style="margin-top:24px">Latest Analyses</h2>
 
-    <div v-if="loading" style="text-align:center;padding:40px;color:#999">Loading predictions...</div>
+    <div v-if="loading" style="text-align:center;padding:40px;color:#999">Loading analyses...</div>
     <div v-else-if="predictions.length === 0" style="text-align:center;padding:40px;color:#999">
-      No predictions yet. The pipeline will generate them as articles are scored.
+      No analyses yet. The pipeline will generate them as articles are scored.
     </div>
 
     <ion-grid v-else>
@@ -379,7 +379,7 @@ function formatStartShort(iso: string): string {
                 </div>
               </div>
               <div v-else style="color:#999;font-size:0.85rem;padding:8px 0">
-                Single analyst prediction
+                Single analyst analysis
               </div>
 
               <!-- Bottom section: rationale + trade rec + footer — pushed to bottom -->

@@ -33,7 +33,7 @@ const pctMove = computed(() => {
         <div><strong>Open reason:</strong> {{ reason }}</div>
         <div v-if="conviction != null"><strong>Conviction:</strong> {{ conviction }}</div>
         <div v-if="predictionId">
-          <strong>Prediction:</strong>
+          <strong>Analysis:</strong>
           <a :href="`/predictions/${predictionId}`">{{ predictionId }}</a>
         </div>
         <div><strong>Entry:</strong> ${{ entry.toFixed(2) }}</div>

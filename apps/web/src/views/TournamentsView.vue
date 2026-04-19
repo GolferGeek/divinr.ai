@@ -76,7 +76,7 @@ function pluralPlayers(n: number): string {
     </div>
 
     <div v-if="showNoActiveBanner" class="no-active-banner" role="status">
-      <span>Join a tournament to trade on predictions.</span>
+      <span>Join a tournament to trade on analyses.</span>
       <IonButton fill="clear" size="small" @click="dismissBanner">Dismiss</IonButton>
     </div>
 

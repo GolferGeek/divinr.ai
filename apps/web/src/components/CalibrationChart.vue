@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { CalibrationBucket } from '../stores/portfolio.store';
+import LegalDisclaimer from './LegalDisclaimer.vue';
 
 const props = withDefaults(
   defineProps<{ buckets: CalibrationBucket[]; width?: number; height?: number }>(),
@@ -38,9 +39,9 @@ function barH(pct: number): number {
 <template>
   <div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <strong style="font-size:0.9rem">Calibration (predicted vs realized)</strong>
+      <strong style="font-size:0.9rem">Calibration (projected vs realized)</strong>
       <span style="font-size:0.7rem;opacity:0.7">
-        <span style="display:inline-block;width:10px;height:10px;background:var(--ion-color-primary);margin-right:4px"></span>predicted
+        <span style="display:inline-block;width:10px;height:10px;background:var(--ion-color-primary);margin-right:4px"></span>projected
         <span style="display:inline-block;width:10px;height:10px;background:var(--ion-color-success);margin:0 4px 0 10px"></span>realized
       </span>
     </div>
@@ -88,8 +89,9 @@ function barH(pct: number): number {
         >n={{ b.count }}</text>
       </g>
     </svg>
-    <p style="font-size:0.7rem;opacity:0.6;margin:4px 0 0 0">
-      Conviction-bucketed analysis signal accuracy. Not investment advice.
-    </p>
+    <div style="font-size:0.7rem;opacity:0.6;margin:4px 0 0 0">
+      Conviction-bucketed analysis signal accuracy.
+      <LegalDisclaimer variant="short" />
+    </div>
   </div>
 </template>

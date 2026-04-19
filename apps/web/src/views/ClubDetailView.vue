@@ -10,6 +10,7 @@ import ClubPreviewPanel from '../components/ClubPreviewPanel.vue';
 import ActiveTournamentBanner from '../components/ActiveTournamentBanner.vue';
 import MemberProfileDrawer from '../components/MemberProfileDrawer.vue';
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 import { formatBadge } from '../utils/format';
 
 const store = useClubStore();
@@ -117,7 +118,7 @@ function fmtAnalyticsPct(v: number | null | undefined): string {
           <h1>{{ store.activeClub.name }}</h1>
         </div>
       </div>
-      <p class="disclaimer">Investment Learning Club — educational platform for practicing AI-assisted market analysis. Not investment advice.</p>
+      <LegalDisclaimer variant="club" />
       <ClubPreviewPanel :club="store.activeClub as any" />
     </template>
 
@@ -162,7 +163,7 @@ function fmtAnalyticsPct(v: number | null | undefined): string {
       <IonButton size="small" @click="copyInvite">Copy</IonButton>
     </div>
 
-    <p class="disclaimer">Investment Learning Club — educational platform for practicing AI-assisted market analysis. Not investment advice.</p>
+    <LegalDisclaimer variant="club" />
 
     <ActiveTournamentBanner :clubId="id" />
 
@@ -218,10 +219,10 @@ function fmtAnalyticsPct(v: number | null | undefined): string {
 
     <!-- Activities Tab -->
     <div v-if="tab === 'activities'" class="tab-content">
-      <h3>Prediction Challenges</h3>
+      <h3>Signal Challenges</h3>
       <div v-if="(store.challenges as Array<{id:string;symbol:string;status:string}>).length === 0" class="empty-block">
         <IonIcon :icon="trophyOutline" class="empty-icon" />
-        <p class="empty-explainer">Prediction challenges are quick head-to-head calls on a symbol. Owner picks the ticker, members submit a direction, everyone sees the reveal.</p>
+        <p class="empty-explainer">Signal challenges are quick head-to-head calls on a symbol. Owner picks the ticker, members submit a direction, everyone sees the reveal.</p>
         <IonButton size="small" fill="outline" @click="startChallenge">Start a Challenge</IonButton>
       </div>
       <IonCard v-for="c in (store.challenges as Array<{id:string;symbol:string;status:string;response_count:number}>)" :key="c.id">

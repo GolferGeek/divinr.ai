@@ -75,7 +75,7 @@ function hitRate(hits: number, total: number): string {
         />
       </div>
       <div>
-        <div style="font-size: 12px; color: var(--ion-color-medium); margin-bottom: 2px;">Min predictions</div>
+        <div style="font-size: 12px; color: var(--ion-color-medium); margin-bottom: 2px;">Min analyses</div>
         <IonInput
           type="number"
           :value="minPredictions"
@@ -99,7 +99,7 @@ function hitRate(hits: number, total: number): string {
           <th style="padding: 8px;">Item ID</th>
           <th style="padding: 8px;">Analyst</th>
           <th style="padding: 8px;">Instrument</th>
-          <th style="padding: 8px; text-align: right;">Predictions</th>
+          <th style="padding: 8px; text-align: right;">Analyses</th>
           <th style="padding: 8px; text-align: right;">Hit rate</th>
           <th style="padding: 8px; text-align: right;">Paper P&amp;L</th>
           <th style="padding: 8px; text-align: right;">Calibration score</th>
@@ -126,7 +126,7 @@ function hitRate(hits: number, total: number): string {
         </tr>
         <tr v-if="store.graduationCandidates.length === 0">
           <td colspan="11" style="padding: 16px; text-align: center; color: var(--ion-color-medium);">
-            No candidates meet the minimum-predictions threshold for this window.
+            No candidates meet the minimum-analyses threshold for this window.
           </td>
         </tr>
       </tbody>

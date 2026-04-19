@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 
 </script>
 
@@ -7,6 +8,10 @@ import FirstTouchPanel from '../components/FirstTouchPanel.vue';
   <div style="max-width:800px;margin:0 auto">
     <h1>Terms of Service</h1>
     <p style="font-size:0.85rem;opacity:0.6">Last updated: April 2026 | To be reviewed by legal counsel before commercial launch</p>
+
+    <div style="margin:12px 0 20px 0;padding:12px;border-left:3px solid var(--ion-color-primary);background:rgba(0,0,0,0.03)">
+      <LegalDisclaimer variant="full" />
+    </div>
 
     <h2>1. Nature of Service</h2>
     <p>Divinr AI ("the Platform") provides AI-generated market analysis, signals, and educational tools. The Platform uses artificial intelligence models to analyze financial data, news articles, and market indicators to generate analytical perspectives from multiple AI analyst personas.</p>
@@ -23,7 +28,7 @@ import FirstTouchPanel from '../components/FirstTouchPanel.vue';
     <p>You should always verify information from independent sources and conduct your own research before making any investment decisions.</p>
 
     <h2>5. Past Performance</h2>
-    <p>Past performance of AI analysts, predictions, or the Platform as a whole does not guarantee future results. Historical accuracy rates, portfolio returns, and analyst track records are provided for informational purposes only and should not be interpreted as indicators of future performance.</p>
+    <p>Past performance of AI analysts, analyses, or the Platform as a whole does not guarantee future results. Historical accuracy rates, portfolio returns, and analyst track records are provided for informational purposes only and should not be interpreted as indicators of future performance.</p>
 
     <h2>6. Risk Disclosure</h2>
     <p>Investing in financial markets involves substantial risk, including the potential loss of your entire investment. You should be aware that:</p>

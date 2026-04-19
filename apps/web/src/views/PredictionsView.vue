@@ -23,7 +23,7 @@ async function loadPredictions() {
 
 <template>
   <div>
-    <h1 style="margin-bottom:16px">Predictions</h1>
+    <h1 style="margin-bottom:16px">Analyses</h1>
     <ion-item lines="none" style="max-width:200px;margin-bottom:16px">
       <ion-select v-model="roleFilter" label="Role" label-placement="stacked" interface="popover" @ion-change="loadPredictions">
         <ion-select-option value="all">All</ion-select-option>

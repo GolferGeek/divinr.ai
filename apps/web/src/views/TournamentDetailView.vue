@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/auth.store';
 import { useCanWrite } from '../composables/useCanWrite';
 import MemberProfileDrawer from '../components/MemberProfileDrawer.vue';
 import RankCell from '../components/RankCell.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 import { colorClass as sharedColorClass } from '../utils/colorClass';
 
 const store = useTournamentStore();
@@ -224,9 +225,7 @@ function formatWithZone(iso?: string | null): string {
       <IonButton size="small" @click="copyInvite">Copy</IonButton>
     </div>
 
-    <p class="disclaimer">
-      Divinr is an AI analysis game. Virtual portfolios use simulated trades for educational and entertainment purposes. Not investment advice.
-    </p>
+    <LegalDisclaimer variant="tournament" />
 
     <IonSegment class="tournament-tabs" scrollable :value="tab" @ionChange="(e: CustomEvent) => (tab = e.detail.value)">
       <IonSegmentButton value="leaderboard"><IonLabel>Leaderboard</IonLabel></IonSegmentButton>
@@ -323,6 +322,9 @@ function formatWithZone(iso?: string | null): string {
             <input v-model.number="tradeQuantity" type="number" min="1" placeholder="Quantity" class="trade-input" />
             <IonButton @click="queueTrade">Queue Trade</IonButton>
           </div>
+          <div style="margin-top:12px">
+            <LegalDisclaimer variant="tournament" />
+          </div>
         </IonCardContent>
       </IonCard>
       <p v-else-if="!canWrite" class="empty">Read-only access — trading is not available.</p>
@@ -333,7 +335,7 @@ function formatWithZone(iso?: string | null): string {
         </p>
         <p class="what-now-label">What can I do now?</p>
         <ul class="what-now-list">
-          <li>Make predictions on your watchlist</li>
+          <li>Run analyses on your watchlist</li>
           <li>Review your club's analysts</li>
           <li>Check the leaderboard to see who else is playing</li>
         </ul>
