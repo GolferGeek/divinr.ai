@@ -198,6 +198,15 @@ export class BillingService {
       reason,
       triggeredBy,
     });
+    // Reason-specific event for downstream consumers that want the "trial ended, no card" signal
+    // distinct from other state flips. The transition event below always fires.
+    if (reason === 'trial_ended_no_card') {
+      this.lifecycleLogger.log(JSON.stringify({
+        event: 'billing.trial_ended_no_card',
+        user_id: userId,
+        at: now,
+      }));
+    }
     this.lifecycleLogger.log(JSON.stringify({
       event: 'billing.subscription_lifecycle_transition',
       user_id: userId,
@@ -207,6 +216,146 @@ export class BillingService {
       triggered_by: triggeredBy,
       at: now,
     }));
+  }
+
+  // ─── Lifecycle cron drivers ───────────────────────────────────
+
+  /**
+   * Flip every trial row whose `trial_ends_at` is in the past to `canceled`
+   * via `markExpired`. Called hourly by the lifecycle cron.
+   * Errors on one user never stop the loop — they are collected and returned.
+   */
+  async computeLifecycleTransitions(): Promise<{
+    transitionedCount: number;
+    errors: Array<{ userId: string; error: string }>;
+  }> {
+    await this.schema.ensureSchema();
+    const started = Date.now();
+    const result = await this.db.rawQuery(
+      `SELECT user_id FROM billing.subscriptions
+       WHERE status = 'trial' AND trial_ends_at IS NOT NULL AND trial_ends_at < now()`,
+    );
+    if (result.error) throw new Error(`computeLifecycleTransitions select failed: ${result.error.message}`);
+    const rows = (result.data as Array<{ user_id: string }> | null) ?? [];
+    const errors: Array<{ userId: string; error: string }> = [];
+    let transitionedCount = 0;
+    for (const row of rows) {
+      try {
+        await this.markExpired(row.user_id, 'trial_ended_no_card', 'system');
+        transitionedCount++;
+      } catch (err) {
+        errors.push({ userId: row.user_id, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    this.lifecycleLogger.log(JSON.stringify({
+      event: 'billing.lifecycle_transitions_tick',
+      transitioned_count: transitionedCount,
+      errors_count: errors.length,
+      duration_ms: Date.now() - started,
+    }));
+    return { transitionedCount, errors };
+  }
+
+  /**
+   * Emit 30-day purge warnings (idempotent via event-exists check) and
+   * `billing.purge_scheduled` events for rows whose `purge_scheduled_at` is
+   * now in the past. The actual row/data deletion belongs to a future GDPR
+   * effort — this method only schedules the signal.
+   */
+  async computePurgeCandidates(): Promise<{
+    warningsEmitted: number;
+    purgesEmitted: number;
+    errors: Array<{ userId: string; error: string }>;
+  }> {
+    await this.schema.ensureSchema();
+    const started = Date.now();
+    const errors: Array<{ userId: string; error: string }> = [];
+
+    const warnResult = await this.db.rawQuery(
+      `SELECT user_id FROM billing.subscriptions
+       WHERE status = 'canceled'
+         AND purge_scheduled_at IS NOT NULL
+         AND purge_scheduled_at >= now()
+         AND purge_scheduled_at < now() + interval '30 days'`,
+    );
+    if (warnResult.error) throw new Error(`computePurgeCandidates warn select failed: ${warnResult.error.message}`);
+    const warnRows = (warnResult.data as Array<{ user_id: string }> | null) ?? [];
+    let warningsEmitted = 0;
+    for (const row of warnRows) {
+      try {
+        const existing = await this.db.rawQuery(
+          `SELECT 1 FROM billing.subscription_events
+           WHERE user_id = $1 AND reason = 'purge_warning_30d'
+           LIMIT 1`,
+          [row.user_id],
+        );
+        if (existing.error) throw new Error(existing.error.message);
+        const existingRows = (existing.data as unknown[] | null) ?? [];
+        if (existingRows.length > 0) continue;
+        await this.appendSubscriptionEvent({
+          userId: row.user_id,
+          fromStatus: 'canceled',
+          toStatus: 'canceled',
+          reason: 'purge_warning_30d',
+          triggeredBy: 'system',
+        });
+        this.lifecycleLogger.log(JSON.stringify({
+          event: 'billing.purge_warning_30d',
+          user_id: row.user_id,
+          at: new Date().toISOString(),
+        }));
+        warningsEmitted++;
+      } catch (err) {
+        errors.push({ userId: row.user_id, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    const purgeResult = await this.db.rawQuery(
+      `SELECT user_id FROM billing.subscriptions
+       WHERE status = 'canceled'
+         AND purge_scheduled_at IS NOT NULL
+         AND purge_scheduled_at < now()`,
+    );
+    if (purgeResult.error) throw new Error(`computePurgeCandidates purge select failed: ${purgeResult.error.message}`);
+    const purgeRows = (purgeResult.data as Array<{ user_id: string }> | null) ?? [];
+    let purgesEmitted = 0;
+    for (const row of purgeRows) {
+      try {
+        const existing = await this.db.rawQuery(
+          `SELECT 1 FROM billing.subscription_events
+           WHERE user_id = $1 AND reason = 'purge_scheduled'
+           LIMIT 1`,
+          [row.user_id],
+        );
+        if (existing.error) throw new Error(existing.error.message);
+        const existingRows = (existing.data as unknown[] | null) ?? [];
+        if (existingRows.length > 0) continue;
+        await this.appendSubscriptionEvent({
+          userId: row.user_id,
+          fromStatus: 'canceled',
+          toStatus: 'canceled',
+          reason: 'purge_scheduled',
+          triggeredBy: 'system',
+        });
+        this.lifecycleLogger.log(JSON.stringify({
+          event: 'billing.purge_scheduled',
+          user_id: row.user_id,
+          at: new Date().toISOString(),
+        }));
+        purgesEmitted++;
+      } catch (err) {
+        errors.push({ userId: row.user_id, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    this.lifecycleLogger.log(JSON.stringify({
+      event: 'billing.purge_candidates_tick',
+      warnings_emitted: warningsEmitted,
+      purges_emitted: purgesEmitted,
+      errors_count: errors.length,
+      duration_ms: Date.now() - started,
+    }));
+    return { warningsEmitted, purgesEmitted, errors };
   }
 
   // ─── Authored items ──────────────────────────────────────────

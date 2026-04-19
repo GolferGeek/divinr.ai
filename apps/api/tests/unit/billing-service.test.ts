@@ -219,6 +219,144 @@ async function main(): Promise<void> {
     assert(insertQuery!.params[4] === 'system', 'appendSubscriptionEvent carries triggered_by');
   }
 
+  // ─── computeLifecycleTransitions: flips trial→canceled for each row; errors don't stop loop ─
+  {
+    // Each DB call returns the value for the FIRST substring key it matches
+    // (iteration order is insertion order). Keys are chosen so the trial scan
+    // resolves before anything else, then per-user getSubscription + UPDATE +
+    // INSERT fall through to the generic handlers below.
+    const db = createMockDb();
+    // Route queries manually for fine-grained control
+    const queries = db.queries;
+    db.rawQuery = async (sql: string, params: unknown[] = []) => {
+      queries.push({ sql, params });
+      if (sql.includes("status = 'trial'") && sql.includes('trial_ends_at < now()')) {
+        return { data: [{ user_id: 'u-a' }, { user_id: 'u-b' }] };
+      }
+      if (sql.includes('SELECT * FROM billing.subscriptions')) {
+        return { data: [{ user_id: params[0], status: 'trial' }] };
+      }
+      if (sql.includes('UPDATE billing.subscriptions')) {
+        return { data: [] };
+      }
+      if (sql.includes('INSERT INTO billing.subscription_events')) {
+        return { data: [{ id: 'ev', user_id: params[0], to_status: 'canceled' }] };
+      }
+      return { data: [] };
+    };
+    const silentLogger = { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    const service = Object.create(BillingService.prototype) as BillingService;
+    (service as any).db = db;
+    (service as any).schema = createMockSchema();
+    (service as any).logger = silentLogger;
+    (service as any).lifecycleLogger = silentLogger;
+    const res = await service.computeLifecycleTransitions();
+    assert(res.transitionedCount === 2, 'computeLifecycleTransitions transitions both trial rows');
+    assert(res.errors.length === 0, 'computeLifecycleTransitions reports zero errors on happy path');
+    const updates = queries.filter(q => q.sql.includes('UPDATE billing.subscriptions'));
+    assert(updates.length === 2, 'computeLifecycleTransitions issues one UPDATE per expiring row');
+    const events = queries.filter(q => q.sql.includes('INSERT INTO billing.subscription_events'));
+    assert(events.length === 2, 'computeLifecycleTransitions appends one audit row per transition');
+    assert(events.every(q => q.params[3] === 'trial_ended_no_card'), 'computeLifecycleTransitions uses trial_ended_no_card as reason');
+  }
+
+  // ─── computeLifecycleTransitions: one failing user is isolated, loop continues ─
+  {
+    const db = createMockDb();
+    const queries = db.queries;
+    db.rawQuery = async (sql: string, params: unknown[] = []) => {
+      queries.push({ sql, params });
+      if (sql.includes("status = 'trial'") && sql.includes('trial_ends_at < now()')) {
+        return { data: [{ user_id: 'u-ok' }, { user_id: 'u-err' }] };
+      }
+      if (sql.includes('SELECT * FROM billing.subscriptions')) {
+        return { data: [{ user_id: params[0], status: 'trial' }] };
+      }
+      if (sql.includes('UPDATE billing.subscriptions')) {
+        if (params[0] === 'u-err') return { error: { message: 'db glitch' } };
+        return { data: [] };
+      }
+      if (sql.includes('INSERT INTO billing.subscription_events')) {
+        return { data: [{ id: 'ev' }] };
+      }
+      return { data: [] };
+    };
+    const silentLogger = { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    const service = Object.create(BillingService.prototype) as BillingService;
+    (service as any).db = db;
+    (service as any).schema = createMockSchema();
+    (service as any).logger = silentLogger;
+    (service as any).lifecycleLogger = silentLogger;
+    const res = await service.computeLifecycleTransitions();
+    assert(res.transitionedCount === 1, 'computeLifecycleTransitions counts only successful transitions');
+    assert(res.errors.length === 1 && res.errors[0].userId === 'u-err', 'computeLifecycleTransitions collects per-user errors without throwing');
+  }
+
+  // ─── computePurgeCandidates: 30-day warning is idempotent (skips users with existing warning event) ─
+  {
+    const db = createMockDb();
+    const queries = db.queries;
+    db.rawQuery = async (sql: string, params: unknown[] = []) => {
+      queries.push({ sql, params });
+      if (sql.includes('purge_scheduled_at >= now()')) {
+        return { data: [{ user_id: 'u-new' }, { user_id: 'u-already-warned' }] };
+      }
+      if (sql.includes('purge_scheduled_at < now()')) {
+        return { data: [] };
+      }
+      if (sql.includes("reason = 'purge_warning_30d'")) {
+        return { data: params[0] === 'u-already-warned' ? [{ '?column?': 1 }] : [] };
+      }
+      if (sql.includes('INSERT INTO billing.subscription_events')) {
+        return { data: [{ id: 'ev' }] };
+      }
+      return { data: [] };
+    };
+    const silentLogger = { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    const service = Object.create(BillingService.prototype) as BillingService;
+    (service as any).db = db;
+    (service as any).schema = createMockSchema();
+    (service as any).logger = silentLogger;
+    (service as any).lifecycleLogger = silentLogger;
+    const res = await service.computePurgeCandidates();
+    assert(res.warningsEmitted === 1, 'computePurgeCandidates emits one 30-day warning (idempotent skip for repeat)');
+    assert(res.purgesEmitted === 0, 'computePurgeCandidates emits zero purge events when no rows past purge_scheduled_at');
+    const events = queries.filter(q => q.sql.includes('INSERT INTO billing.subscription_events'));
+    assert(events.length === 1 && events[0].params[3] === 'purge_warning_30d', 'computePurgeCandidates audit row carries reason=purge_warning_30d');
+  }
+
+  // ─── computePurgeCandidates: emits one purge event per row past purge_scheduled_at ─
+  {
+    const db = createMockDb();
+    const queries = db.queries;
+    db.rawQuery = async (sql: string, params: unknown[] = []) => {
+      queries.push({ sql, params });
+      if (sql.includes('purge_scheduled_at >= now()')) {
+        return { data: [] };
+      }
+      if (sql.includes('purge_scheduled_at < now()')) {
+        return { data: [{ user_id: 'u-purge' }] };
+      }
+      if (sql.includes("reason = 'purge_scheduled'")) {
+        return { data: [] };
+      }
+      if (sql.includes('INSERT INTO billing.subscription_events')) {
+        return { data: [{ id: 'ev' }] };
+      }
+      return { data: [] };
+    };
+    const silentLogger = { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    const service = Object.create(BillingService.prototype) as BillingService;
+    (service as any).db = db;
+    (service as any).schema = createMockSchema();
+    (service as any).logger = silentLogger;
+    (service as any).lifecycleLogger = silentLogger;
+    const res = await service.computePurgeCandidates();
+    assert(res.purgesEmitted === 1, 'computePurgeCandidates emits one purge for expired row');
+    const events = queries.filter(q => q.sql.includes('INSERT INTO billing.subscription_events'));
+    assert(events.length === 1 && events[0].params[3] === 'purge_scheduled', 'computePurgeCandidates audit row carries reason=purge_scheduled');
+  }
+
   // ─── Append-only invariant: BillingService does NOT expose update/delete ──
   {
     const proto = BillingService.prototype as unknown as Record<string, unknown>;
