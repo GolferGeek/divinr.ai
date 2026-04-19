@@ -66,11 +66,11 @@ _None — `docs/efforts/current/` is empty and ready for the next promotion._
 
 ## Next — Queued Efforts (1)
 
-Reorganized 2026-04-18 around the remaining beta-phase coolness. The PR-58 polish pass surfaced feature-level deferrals that deserve their own small efforts rather than getting bolted onto unrelated work. Billing / graduation / ops / hardening all moved to `future/` until the experience is locked in and we're ready to commercialize. The polish follow-ups (`leaderboard-rank-delta`, `direct-message-intent`, `tournament-avatar-stack`) have all shipped; `activity-viewed-counter` is the active effort.
+The onboarding-tour-extended effort is now the active one (promoted to `current/`). The next queued effort is the user-visible vocabulary and marketing refresh — pairing a "prediction" → "analysis" sweep with a landing-page/feature-inventory refresh, since they touch the same files.
 
-### Beta Coolness — Teaching (1 effort)
+### Experience + Marketing
 
-1. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product). All dependencies (six architecture restructures + club-tournament-experience-polish) have shipped; unblocked.
+1. [ui-vocabulary-and-marketing-refresh](next/ui-vocabulary-and-marketing-refresh/intention.md) — sweep user-visible copy to replace "prediction" with "analysis" / "signal", tighten disclaimers to say explicitly "not a prediction model," and refresh landing page + feature inventory to reflect the last week of shipped work. User-facing copy only; code/DB/API internal vocabulary stays as `prediction.*`. Bundled because both sweeps audit the same files.
 
 ---
 
