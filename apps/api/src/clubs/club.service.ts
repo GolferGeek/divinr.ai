@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger, Optional } from '@nestjs/common';
+import { Injectable, Inject, Logger, Optional, ForbiddenException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { ClubSchemaService } from './club-schema.service';
@@ -64,18 +64,29 @@ export class ClubService {
     return ((result.data as Club[] | null) ?? [])[0]!;
   }
 
-  async listMyClubs(userId: string): Promise<Array<Club & { member_count: number; my_role: string }>> {
+  async listMyClubs(userId: string): Promise<Array<Club & { member_count: number; my_role: string; unread_count: number }>> {
     await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT c.*, cm.role as my_role,
-              (SELECT COUNT(*)::int FROM prediction.club_members m WHERE m.club_id = c.id) as member_count
+              (SELECT COUNT(*)::int FROM prediction.club_members m WHERE m.club_id = c.id) as member_count,
+              (
+                (SELECT COUNT(*)::int FROM prediction.club_prediction_challenges ch
+                   WHERE ch.club_id = c.id
+                     AND ch.created_at > COALESCE(cm.last_viewed_at, cm.joined_at))
+              + (SELECT COUNT(*)::int FROM prediction.club_consensus_polls p
+                   WHERE p.club_id = c.id
+                     AND p.created_at > COALESCE(cm.last_viewed_at, cm.joined_at))
+              + (SELECT COUNT(*)::int FROM prediction.club_strategy_journals j
+                   WHERE j.club_id = c.id
+                     AND j.created_at > COALESCE(cm.last_viewed_at, cm.joined_at))
+              ) as unread_count
        FROM prediction.clubs c
        JOIN prediction.club_members cm ON cm.club_id = c.id AND cm.user_id = $1
        ORDER BY c.created_at DESC`,
       [userId],
     );
     if (result.error) throw new Error(result.error.message);
-    return (result.data as Array<Club & { member_count: number; my_role: string }> | null) ?? [];
+    return (result.data as Array<Club & { member_count: number; my_role: string; unread_count: number }> | null) ?? [];
   }
 
   async discoverClubs(userId: string, sortBy?: string): Promise<Array<Club & { member_count: number; tournament_count: number }>> {
@@ -105,19 +116,48 @@ export class ClubService {
     return (result.data as Array<Club & { member_count: number; tournament_count: number }> | null) ?? [];
   }
 
-  async getClub(id: string, userId: string): Promise<(Club & { member_count: number; my_role: string }) | null> {
+  async getClub(id: string, userId: string): Promise<(Club & { member_count: number; my_role: string; unread_count: number }) | null> {
     await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT c.*, cm.role as my_role,
-              (SELECT COUNT(*)::int FROM prediction.club_members m WHERE m.club_id = c.id) as member_count
+              (SELECT COUNT(*)::int FROM prediction.club_members m WHERE m.club_id = c.id) as member_count,
+              (
+                (SELECT COUNT(*)::int FROM prediction.club_prediction_challenges ch
+                   WHERE ch.club_id = c.id
+                     AND ch.created_at > COALESCE(cm.last_viewed_at, cm.joined_at))
+              + (SELECT COUNT(*)::int FROM prediction.club_consensus_polls p
+                   WHERE p.club_id = c.id
+                     AND p.created_at > COALESCE(cm.last_viewed_at, cm.joined_at))
+              + (SELECT COUNT(*)::int FROM prediction.club_strategy_journals j
+                   WHERE j.club_id = c.id
+                     AND j.created_at > COALESCE(cm.last_viewed_at, cm.joined_at))
+              ) as unread_count
        FROM prediction.clubs c
        JOIN prediction.club_members cm ON cm.club_id = c.id AND cm.user_id = $2
        WHERE c.id = $1`,
       [id, userId],
     );
     if (result.error) throw new Error(result.error.message);
-    const rows = (result.data as Array<Club & { member_count: number; my_role: string }> | null) ?? [];
+    const rows = (result.data as Array<Club & { member_count: number; my_role: string; unread_count: number }> | null) ?? [];
     return rows[0] ?? null;
+  }
+
+  async markActivitiesViewed(clubId: string, userId: string): Promise<{ ok: true; last_viewed_at: string }> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `UPDATE prediction.club_members
+          SET last_viewed_at = now()
+        WHERE club_id = $1 AND user_id = $2
+        RETURNING last_viewed_at`,
+      [clubId, userId],
+    );
+    if (result.error) throw new Error(result.error.message);
+    const rows = (result.data as Array<{ last_viewed_at: string | Date }> | null) ?? [];
+    if (rows.length === 0) {
+      throw new ForbiddenException('forbidden: caller is not a member of club');
+    }
+    const ts = rows[0]!.last_viewed_at;
+    return { ok: true, last_viewed_at: typeof ts === 'string' ? ts : (ts as Date).toISOString() };
   }
 
   async getClubPreview(

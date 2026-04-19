@@ -1,3 +1,4 @@
+// Mirror: keep apps/web/src/stores/club.store.ts `Club` in sync with this shape.
 export interface Club {
   id: string;
   name: string;
@@ -7,6 +8,7 @@ export interface Club {
   created_by: string;
   channel_id: string | null;
   created_at: string;
+  unread_count?: number;
 }
 
 export interface ClubMember {

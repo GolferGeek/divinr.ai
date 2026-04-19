@@ -5,7 +5,7 @@ import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChi
 import { useClubStore } from '../stores/club.store';
 import { useTournamentStore } from '../stores/tournament.store';
 import { useCanWrite } from '../composables/useCanWrite';
-import { pluralize } from '../utils/format';
+import { pluralize, formatBadge } from '../utils/format';
 
 const store = useClubStore();
 const tstore = useTournamentStore();
@@ -70,6 +70,11 @@ function formatStartShort(iso: string): string {
         <IonCardContent>
           <p v-if="c.description" class="club-description">{{ c.description }}</p>
           <IonNote>{{ pluralize(c.member_count, 'member') }}</IonNote>
+          <span
+            v-if="c.unread_count && c.unread_count > 0"
+            class="unread-badge"
+            :aria-label="`${c.unread_count} unread activities`"
+          >({{ formatBadge(c.unread_count) }})</span>
         </IonCardContent>
       </IonCard>
     </div>
@@ -97,4 +102,5 @@ ion-card { cursor: pointer; }
 .header-chips { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 .sprint-chip { height: 22px; font-size: 0.75rem; font-weight: 500; }
 .club-description { font-size: 0.9rem; color: var(--ion-color-medium); margin: 0 0 0.5rem 0; }
+.unread-badge { margin-left: 0.4rem; font-size: 0.875rem; color: var(--ion-color-primary); font-weight: 600; }
 </style>

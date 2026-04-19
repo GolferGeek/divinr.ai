@@ -29,10 +29,12 @@ async function request<T = unknown>(path: string, init?: RequestInit): Promise<T
   return await res.json() as T;
 }
 
+// Mirror: keep apps/api/src/clubs/club.types.ts `Club` in sync with this shape.
 export interface Club {
   id: string; name: string; description: string | null; invite_code: string;
   is_public: boolean; channel_id: string | null; created_at: string;
   member_count?: number; my_role?: string; tournament_count?: number;
+  unread_count?: number;
 }
 
 export interface ClubMember {
@@ -155,6 +157,14 @@ export const useClubStore = defineStore('club', () => {
     return request(`/${id}/journals`, { method: 'POST', body: JSON.stringify(input) });
   }
 
+  async function markActivitiesViewed(clubId: string) {
+    try { await request(`/${clubId}/activities/viewed`, { method: 'POST' }); }
+    catch { /* swallow per store convention; local zeroing below is non-fatal */ }
+    const card = myClubs.value.find(c => c.id === clubId);
+    if (card) card.unread_count = 0;
+    if (activeClub.value?.id === clubId) activeClub.value.unread_count = 0;
+  }
+
   async function fetchAnalytics(id: string) { analytics.value = await request(`/${id}/analytics`); }
   async function fetchPostMortem(id: string, tournamentId: string) {
     return request(`/${id}/analytics/post-mortem/${tournamentId}`);
@@ -186,6 +196,7 @@ export const useClubStore = defineStore('club', () => {
     fetchChallenges, createChallenge, respondToChallenge, revealChallenge,
     fetchPolls, createPoll, vote, revealPoll,
     fetchJournals, addJournal,
+    markActivitiesViewed,
     fetchAnalytics, fetchPostMortem,
     fetchLeaderboard, fetchComparison, fetchRankingHistory,
   };
