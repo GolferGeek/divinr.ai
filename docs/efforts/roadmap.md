@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-18 (activity-viewed-counter promoted to current; tournament-avatar-stack shipped)
+**Last updated:** 2026-04-19 (activity-viewed-counter shipped; basic-club concept retired; divinr-basic-club-model renamed to user-billing-model; student-club-accounts renamed to student-accounts)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -42,12 +42,13 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Current Effort
 
-**[activity-viewed-counter](current/activity-viewed-counter/intention.md)** — `prediction.club_members.last_viewed_at` + `(N)` unread badge on the ACTIVITIES tab and MY CLUBS cards. Last beta-coolness polish item from PR #58; closes the "which clubs have new stuff" gap.
+_None — `docs/efforts/current/` is empty and ready for the next promotion._
 
 ---
 
 ## Recently Shipped
 
+- **[activity-viewed-counter](activity-viewed-counter/intention.md)** (2026-04-19, PR #64) — `prediction.club_members.last_viewed_at` + `(N)` unread badge on the ACTIVITIES tab and MY CLUBS cards. One-round-trip SQL with `COALESCE(last_viewed_at, joined_at)` fallback; `markActivitiesViewed` store action zeroes the badge on tab-view with exactly one POST. Last beta-coolness polish item from PR #58.
 - **[prediction-to-trade-intent](prediction-to-trade-intent/intention.md)** (2026-04-18, PR #59) — "Trade this prediction" CTA on prediction cards/drawers. Active-tournament resolver (`useActiveTournament`) handles none/one/many via `TournamentPicker.vue`; CTA routes to `/tournaments/:id?tab=trade&symbol&direction&qty&predictionId`. Sizing heuristic `floor((startingBalance * pct) / price)` where `pct = clamp(0.01 + confidence*0.04, 0.01, 0.05)`. Query-param parser with regex/whitelist/int guards + `router.replace` strip. Empty-state banner on `/tournaments?reason=no-active-entry`. Equity-only disabled state for options. Frontend-only — `prediction.tournament_trade_queue.prediction_id` was already nullable.
 - **[club-tournament-experience-polish](club-tournament-experience-polish/intention.md)** (2026-04-18, PR #58) — 6-phase polish pass across club + tournament surfaces for the St. Thomas cohort. 8 PRD-called-out bug fixes + 4 follow-ups (ClubPreviewPanel for non-members, analytics tournament-count filter, TRADE tab upcoming branch, IonSegment v-model bug, chat author display_name, dashboard pluralize, leaderboard em-dash standardization, DISCOVER filter hides joined). Empty-state + explainer pass (ACTIVITIES reorder, CURRICULUM/ANALYSTS explainers, MENTORING gating, analytics tooltip, tournament INFO). Default Activities tab + `ActiveTournamentBanner` + tournament list countdown + player count + prize line. Leaderboard storytelling — Risk-Adjusted Return label, neutral/green/red colorClass, YOU badge, clickable rows → `MemberProfileDrawer`, new `GET /clubs/:id/members/:userId` endpoint, MY POSITIONS size bar. Mobile (390px) responsiveness — scrollable IonSegments, mobile overflow chrome with aggregated unread, sticky Rank/Player leaderboard columns. Nav role-gating extended to SETTINGS items + disclaimer consolidation. 51 new API assertions. 5 feature-deferrals queued as their own efforts (below).
 - **[live-prediction-pnl](live-prediction-pnl/intention.md)** (2026-04-17, PR #57) — day-trader strategies now have a real intraday runtime. `DayTraderSchedulerService` hourly cron during market hours + dedicated 3:55 PM ET EOD-flat cron, DST-aware `MarketHoursService` via `Intl.DateTimeFormat('America/New_York')`, `TwelveDataAdapter.fetchIntradayBars` routed through the existing 8rpm rate limiter, `IntradayBarRefresherService` merging hourly OHLC into `instruments.current_state.intraday_bars` (cap 24), `prediction.market_day_trader_runs` audit table, runner scoping per base vs. authored analyst, `OutcomeTrackingService` decoupled from day-trader runtime, admin `POST /markets/admin/day-trader/run-now`. 140 new unit assertions across 6 suites.
@@ -69,7 +70,7 @@ Reorganized 2026-04-18 around the remaining beta-phase coolness. The PR-58 polis
 
 ### Beta Coolness — Teaching (1 effort)
 
-1. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product). Currently blocked: its contracts beat depends on the architecture restructure efforts landing first.
+1. [onboarding-tour-extended](next/onboarding-tour-extended/intention.md) — chaptered, hour-long, interaction-aware, video-ready tour v2 (teaches the post-architecture product). All dependencies (six architecture restructures + club-tournament-experience-polish) have shipped; unblocked.
 
 ---
 
@@ -79,9 +80,9 @@ Preserved from prior planning because the concepts remain pertinent, but deferre
 
 ### Billing Surface (deferred)
 
-- [divinr-basic-club-model](future/divinr-basic-club-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics, social-only clubs
+- [user-billing-model](future/user-billing-model/intention.md) — $50/mo Basic tier, 30-day trial, lifecycle mechanics (individual-only; clubs are uncoupled from billing entirely)
 - [stripe-integration](future/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
-- [student-club-accounts](future/student-club-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing
+- [student-accounts](future/student-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing
 
 ### Graduation & Contribution Layer (deferred)
 

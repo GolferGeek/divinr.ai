@@ -71,7 +71,7 @@ Integrate Stripe to support the single-tier + per-item billing model defined in 
 
 ## Dependencies
 
-- `divinr-basic-club-model` — defines what the subscription includes
+- `user-billing-model` — defines what the subscription includes
 - `user-authored-custom-content` — defines what per-item authorship means in code
 - `cost-modeling-system` — feeds the student cost-pass-through billing
 - Master intention env vars must be threaded through: `BASIC_MONTHLY_USD`, `INSTRUMENT_AUTHORSHIP_USD`, `ANALYST_AUTHORSHIP_USD`, `BYO_PLATFORM_FEE_USD`, `STUDENT_FLOOR_USD`, `TRIAL_DAYS`, `DORMANCY_MONTHS_BEFORE_PURGE`

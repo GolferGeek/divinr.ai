@@ -42,10 +42,10 @@ Every user lives in all three of these layers simultaneously. Understanding the 
 ### 2.3 Social Layer (clubs, free)
 
 - Clubs are social/tournament/messaging/member-discovery spaces. No billing implications. No content production. Zero quotas tied to them.
-- Every user is auto-enrolled in the default **Divinr Basic** social club. Additional clubs are free to join and create.
+- Clubs are entirely opt-in. Users join or create clubs as they find them useful; no default club exists and no auto-enrollment happens at signup.
 - Clubs eventually become the trust-graph substrate for user-to-user sharing (deferred), but at v1 they're pure social utility — tournaments, chat, shared activity feeds.
 
-**Every active user has:** one $50/mo Basic subscription + membership in Divinr Basic club + optional per-item authorship charges + optional memberships in additional social clubs (free).
+**Every active user has:** one $50/mo Basic subscription + optional per-item authorship charges + optional memberships in social clubs (free).
 
 ---
 
@@ -142,8 +142,7 @@ Total cost ≈ `Σ (articles × instruments) + Σ (relevant_articles × instrume
 
 Includes:
 - Full base layer access (all base analysts × all base instruments)
-- Default Divinr Basic social club membership
-- Ability to join/create additional social clubs
+- Ability to join or create social clubs (no club is required, none is auto-assigned)
 - Full UI, dashboards, risk debates, reasoning, performance data
 
 ### 4.2 Trial & Lifecycle
@@ -297,6 +296,7 @@ This document retires the following earlier concepts:
 - **Paid club tier catalog ($100/$500 clubs)** — retired. Clubs don't sell anything.
 - **Club-authored custom content** — retired. Individuals author, clubs are social.
 - **"Divinr Basic as free default"** — retired. Basic is $50/mo. Free trial is 30 days only.
+- **Default "Divinr Basic" social club + auto-enrollment** — retired. Clubs are entirely opt-in; no default club exists.
 - **Trial-expired → downgrade-to-free** — retired. Read-only 6-month dormancy → purge.
 - **Fixed student tier / free for students** — retired. Students pay cost-pass-through.
 
@@ -321,7 +321,7 @@ These concepts should be purged from `roadmap.md`, the relevant memory files (`p
 - `performance-attribution` (elevated from bullet to top-level effort — per-entity P&L)
 
 **Billing surface:**
-- `divinr-basic-club-model` (single-tier billing, renamed may be warranted → `user-billing-model`?)
+- `user-billing-model` (single-tier $50/mo Basic + trial + lifecycle + per-item authorship charges, all at the individual level — no club coupling)
 - `stripe-integration` (rescoped from multi-tier to single-tier + per-item)
 
 **Authorship capabilities:**
@@ -333,7 +333,7 @@ These concepts should be purged from `roadmap.md`, the relevant memory files (`p
 - `community-boards` (graduated content showcase with attribution)
 
 **Student experience:**
-- `student-club-accounts` (renamed → `student-accounts`; depends on cost-modeling)
+- `student-accounts` (.edu-gated cost-pass-through accounts; depends on cost-modeling)
 
 **Experience polish & expansion:**
 - `club-tournament-experience-polish` (intern showcase)

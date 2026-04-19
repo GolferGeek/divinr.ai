@@ -65,7 +65,7 @@ Build the user-facing surface that lets users assemble their portfolio by **sele
 
 - The triple data model itself (separate effort: `triple-model-reasoning-continuity`, prerequisite)
 - Hard quota enforcement (not in scope at launch — `BASIC_SLOT_CAP` env var defaults to unlimited until we observe abuse)
-- Authorship quota (that's the per-item pricing model, handled in `user-authored-custom-content` and `divinr-basic-club-model`)
+- Authorship quota (that's the per-item pricing model, handled in `user-authored-custom-content` and `user-billing-model`)
 
 ## Dependencies
 

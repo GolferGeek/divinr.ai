@@ -89,9 +89,10 @@ Each chapter has multiple beats, a video slot, and follows the user's actual int
 
 ## Dependencies
 
-- All six architecture restructure efforts (workflow-stages-article-pipeline through slot-based-enablement-ui) — needed for the contracts, analysts, and portfolios beats to be honest
-- `divinr-basic-club-model` — needed for the clubs chapter to teach the right model
-- `club-tournament-experience-polish` — should land first so the surfaces the tour walks through feel finished
+- All six architecture restructure efforts (workflow-stages-article-pipeline through slot-based-enablement-ui) — shipped. Cleared the blocker on the contracts, analysts, and portfolios beats.
+- `club-tournament-experience-polish` — shipped. Club/tournament surfaces are in finished shape for the tour to walk through.
+
+No remaining hard blockers. The Clubs chapter should teach the current model: clubs are purely social, fully opt-in, with no default club and no auto-enrollment.
 
 ---
 

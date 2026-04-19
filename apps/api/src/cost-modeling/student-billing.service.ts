@@ -232,8 +232,8 @@ export class StudentBillingService {
 
   /**
    * Heuristic for v1: a user is treated as student-tier when their billing.subscriptions row
-   * has status 'trial' (i.e., student-club accounts not yet on a paid plan). The dedicated
-   * student-club-accounts effort will replace this with a proper account_type column.
+   * has status 'trial' (i.e., student accounts not yet on a paid plan). The dedicated
+   * student-accounts effort will replace this with a proper account_type column.
    */
   private async isStudentTier(userId: string): Promise<boolean> {
     const result = await this.db.rawQuery(

@@ -197,7 +197,7 @@ Optimistic updates: `enableTriple` immediately adds to `enabledTriples` and reve
 
 - **Triple data model itself** — already shipped in `triple-model-reasoning-continuity`
 - **Hard quota enforcement** — `BASIC_SLOT_CAP` env var defaults to unlimited; enforcement logic deferred
-- **Authorship billing** — handled by `user-authored-custom-content` and `divinr-basic-club-model`
+- **Authorship billing** — handled by `user-authored-custom-content` and `user-billing-model`
 - **Shared content enablement** — enabling another user's shared triples requires the sharing UI; for now, only base + own authored content is available
 - **Discovery surfaces** — empty-slot prompts, popular-triple suggestions, community board integration are post-v1
 - **Preset bundles** — "Tech-Forward 10" style curated bundles are a future feature

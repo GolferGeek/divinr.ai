@@ -39,8 +39,8 @@ Surfaces that probably need attention (not committed until walked):
 
 ## Out of Scope
 
-- Membership/billing architecture (that's divinr-basic-club-model)
-- New club types or .edu gating (that's student-club-accounts)
+- Membership/billing architecture (that's user-billing-model)
+- New club types or .edu gating (that's student-accounts)
 - New tournament *mechanics* — only the experience around existing mechanics
 
 ## Dependencies

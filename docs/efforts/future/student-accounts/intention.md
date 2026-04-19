@@ -60,7 +60,7 @@ Create a **Student** membership modifier — gated on `.edu` email verification,
 ## Dependencies
 
 - **`cost-modeling-system` must land first and be reasonably accurate** — student pricing depends entirely on it. Without accurate cost calculation, cost-pass-through is uncalibrated.
-- `divinr-basic-club-model` — for the broader Basic membership model to slot into
+- `user-billing-model` — for the broader Basic membership model to slot into
 
 ## Open Questions for PRD Phase
 

@@ -15,9 +15,9 @@ A polish-and-tighten pass on the club + tournament surfaces the St. Thomas beta 
 ## Non-goals
 
 - New tournament mechanics, club types, or .edu gating (covered by separate efforts).
-- Billing / membership architecture (that's `divinr-basic-club-model`).
+- Billing / membership architecture (that's `user-billing-model`).
 - Rewriting the messaging backend — only surface-level chat polish.
-- Per-user opt-outs at club level are **deferred** until `divinr-basic-club-model` (intention flagged this as an open question; we want the opt-out model to match the billing tier design rather than ship it blind here).
+- Per-user opt-outs at club level are **deferred** until `user-billing-model` (intention flagged this as an open question; we want the opt-out model to match the billing tier design rather than ship it blind here).
 
 ## Constraints
 
