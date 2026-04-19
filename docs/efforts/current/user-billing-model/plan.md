@@ -9,11 +9,20 @@
 <!-- run-plan uses this section to track where we are -->
 - [x] Phase 1: Strategy & Doc Reconciliation
 - [ ] Phase 2: Schema Extensions + BillingService Core
-- [ ] Phase 3: Lifecycle State Machine + Read-Only Gating
+- [ ] Phase 3a: Lifecycle State Machine + Read-Only Gating (backend)
+- [ ] Phase 3b: Trial/Read-Only App-Shell Surface (web)
 - [ ] Phase 4: Per-User Social Opt-Outs
 - [ ] Phase 5: Pricing Page & Monthly Bill UX
 - [ ] Phase 6: Migration + Admin Read-Only View
 - [ ] Phase 7: Cleanup & Verification
+
+---
+
+## Plan-level notes
+
+- **Phase 3 was split into 3a (backend) and 3b (web)** after PR review flagged the combined phase as over-scoped (two cron jobs + global guard + endpoint + Pinia store + two components + new deep skill + new Playwright project in one phase). Splitting lets the backend lifecycle + read-only gating land and be curl-verified before any Vue work begins.
+- **Migration grandfathering decision**: intention.md says "Grandfathered trial/active state per current account state (TBD in PRD)". The PRD and plan both grandfather every existing user into a fresh 30-day trial regardless of prior activity. This is the simplest migration path and is explicitly acknowledged as a generous give-away in PRD Risk §7.2. It sidesteps the intention's "per current account state" phrasing rather than addressing it. Acceptable for beta flip-over; revisit if stripe-integration's data suggests a different policy.
+- **Two missing directories that phases implicitly create**: `apps/api/src/users/` (Phase 4 step 4.1–4.2) and `apps/api/scripts/` (Phase 6 step 6.2). Both are flagged in-step so run-plan doesn't stall looking for them.
 
 ---
 
@@ -112,16 +121,22 @@ Before moving to Phase 2, ALL of the following must pass:
 - [ ] 2.6 Implement `BillingService.markExpired(userId: string, reason: string, triggeredBy: 'system'|'admin'): Promise<void>`:
   - Transactional update: sets `status='canceled'`, `expired_at=now()`, `purge_scheduled_at=now() + interval '6 months'`, `updated_at=now()`
   - Reads prior status for the event row, then calls `appendSubscriptionEvent`
-  - Emits `billing.subscription_lifecycle_transition` event (log line in this phase; real event bus wiring deferred to Phase 3)
+  - Emits `billing.subscription_lifecycle_transition` event (log line in this phase; real event bus wiring deferred to Phase 3a)
 - [ ] 2.7 Extend `apps/api/tests/unit/billing-service.test.ts`:
   - `isReadOnly` returns true for `canceled`, true for `dormant`, false for `trial`, `active`, `past_due`
   - `markExpired` sets the three columns correctly and appends exactly one subscription_events row with the supplied reason
   - `appendSubscriptionEvent` inserts append-only (covered by lack of update method)
 - [ ] 2.8 Register the new test file entry in `apps/api/package.json` `test:unit` chain if a new file was created (extend `apps/api/tests/unit/billing-service.test.ts` instead where possible to avoid churn). If a new file is added, append the `tsx tests/unit/<name>.test.ts` token to the `test:unit` script.
-- [ ] 2.9 Wire new-signup path to trial seeding: locate the signup handler (grep `@Post.*signup|@Post.*register` under `apps/api/src/auth/`) and inject `BillingService` (via explicit `@Inject(BillingService)`) so every successful signup calls `BillingService.ensureSubscription(userId)` before returning. This guarantees PRD US-1 ("a `billing.subscriptions` row is seeded with `status='trial'`") for new accounts post-ship, while the Phase 6 backfill covers pre-existing accounts. Add a unit test asserting `ensureSubscription` is invoked on the signup code path.
+- [ ] 2.9 Wire trial seeding into the two existing account-creation flows (no traditional `POST /signup` endpoint exists in this codebase — all new accounts come in via invite or club code):
+  - **Flow A — invite acceptance**: `apps/api/src/auth/invite.service.ts`, in `acceptInvite()` after the `SupabaseAuthService.createUser()` call succeeds (around line 196). Inject `BillingService` via `@Inject(BillingService)` on the service constructor and call `await this.billing.ensureSubscription(newUserId)` before returning.
+  - **Flow B — club-code signup**: `apps/api/src/auth/auth.controller.ts`, in `signupWithClubCode()` after the user row is created (around line 212). Same pattern.
+  - **Rationale for not hooking at the layer below**: `SupabaseAuthService.createUser()` lives in `packages/planes/auth/` and would introduce a cross-package dependency (`packages/` → `apps/api/src/billing/`) that violates the existing layering. Two call-site hooks are preferable to the layer violation.
+  - Wire `BillingModule` into the importing module's `imports[]` if not already present. `BillingService` must be exported from `BillingModule` (verify; add to `exports` if missing).
+  - Add a unit test for each flow asserting `ensureSubscription(newUserId)` is invoked exactly once after successful account creation. Use `jest.spyOn` or an injected mock of `BillingService`.
+  - PRD US-1 is satisfied by these two hooks for new accounts post-ship; Phase 6 backfill covers pre-existing accounts. If a third account-creation flow is added in the future, it must also call `ensureSubscription` — this invariant is documented here but not enforceable via grep without registering a new guard pattern (out of scope for this effort).
 
 ### Quality Gate
-Before moving to Phase 3, ALL of the following must pass:
+Before moving to Phase 3a, ALL of the following must pass:
 
 - [ ] **Lint**: `pnpm --filter @divinr/api run lint`
 - [ ] **Build**: `pnpm --filter @divinr/api run build`
@@ -142,87 +157,111 @@ Before moving to Phase 3, ALL of the following must pass:
 
 ---
 
-## Phase 3: Lifecycle State Machine + Read-Only Gating
+## Phase 3a: Lifecycle State Machine + Read-Only Gating (backend)
 **Status**: Not Started
-**Objective**: Trial → canceled transition is enforced by a cron against real clock; purge-warning and purge paths are scheduled; write requests for expired users are 403'd at the API boundary; the app shell shows the read-only banner and the trial countdown.
+**Objective**: Trial → canceled transition is enforced by a cron against real clock; purge-warning and purge paths are scheduled; write requests for expired users are 403'd at the API boundary; `GET /billing/status` returns the state the web shell will consume in Phase 3b.
 
 ### Steps
-- [ ] 3.1 Implement `BillingService.computeLifecycleTransitions()`:
+- [ ] 3a.1 Implement `BillingService.computeLifecycleTransitions()`:
   - Selects rows where `status = 'trial' AND trial_ends_at < now()` (using the new composite index)
   - For each row, call `markExpired(userId, 'trial_ended_no_card', 'system')`
   - Returns `{ transitionedCount: number, errors: Array<{userId, error}> }`
   - Log structured summary per PRD §5 Observability: `{ transitioned_count, errors_count, duration_ms }`
-- [ ] 3.2 Implement `BillingService.computePurgeCandidates()`:
+- [ ] 3a.2 Implement `BillingService.computePurgeCandidates()`:
   - Select rows where `status = 'canceled' AND purge_scheduled_at IS NOT NULL AND purge_scheduled_at < now() + interval '30 days' AND purge_scheduled_at >= now()` for the 30-day warning (idempotent: only fire once per user — check `billing.subscription_events` for an existing `reason='purge_warning_30d'` event before emitting)
   - Select rows where `status = 'canceled' AND purge_scheduled_at < now()` for the actual purge; emit `billing.purge_scheduled` with userId; the actual account purge is out of scope (owned by `notification-system` / future GDPR effort)
   - Log structured summary
-- [ ] 3.3 Create `apps/api/src/billing/cron/billing-lifecycle.cron.ts`:
+- [ ] 3a.3 Create `apps/api/src/billing/cron/billing-lifecycle.cron.ts`:
   - `@Cron('0 * * * *')` → `trialExpiryTick()` → calls `computeLifecycleTransitions`
   - `@Cron('0 6 * * *')` → `purgeTick()` → calls `computePurgeCandidates`
   - Inject `BillingService` with `@Inject(BillingService)`
   - Register the cron provider in `apps/api/src/billing/billing.module.ts`
-- [ ] 3.4 Emit the three lifecycle events from the service methods:
+- [ ] 3a.4 Emit the three lifecycle events from the service methods:
   - `billing.trial_ended_no_card` (from `markExpired` when reason is trial-ended)
   - `billing.purge_warning_30d` (from `computePurgeCandidates` when emitting the 30-day warning)
   - `billing.subscription_lifecycle_transition` (every transition)
   - Event emission in this phase = structured `logger.log` with a stable JSON shape on a dedicated logger channel (`logger = new Logger('BillingLifecycleEvents')`). Real transport wiring belongs to `notification-system`.
-- [ ] 3.5 Implement `ReadOnlyGuard` at `apps/api/src/billing/read-only.guard.ts`:
+- [ ] 3a.5 Implement `ReadOnlyGuard` at `apps/api/src/billing/read-only.guard.ts`:
   - NestJS `CanActivate` guard
   - Reads `request.method`; returns `true` for GET/HEAD/OPTIONS
   - Reads `request.user.id` (existing auth middleware populates this)
   - Calls `BillingService.isReadOnly(userId)`; if true, throws `ForbiddenException` with `{ code: 'SUBSCRIPTION_EXPIRED', message: '...' }`
   - Exempt routes: `/billing/checkout-session`, `/billing/portal-session`, `/auth/*`, `/billing/status`, `/users/:id/social-opt-outs` (so expired users can still read their state and manage minimal account hygiene)
   - Apply via `APP_GUARD` in `app.module.ts` so it's global, with a `@SkipReadOnly()` decorator for the exempt routes
-- [ ] 3.6 Implement `BillingController.getStatus()`:
+- [ ] 3a.6 Implement `BillingController.getStatus()`:
   - `GET /billing/status` (auth required)
   - Returns `{ status, trial_ends_at, expired_at, purge_scheduled_at, is_read_only, days_until_purge }`
   - `days_until_purge` = `ceil((purge_scheduled_at - now()) / day)` or null if not scheduled
-- [ ] 3.7 Add `apps/web/src/stores/billing-status.store.ts`:
-  - Pinia store with `status`, `trialEndsAt`, `expiredAt`, `purgeScheduledAt`, `isReadOnly`, `daysUntilPurge`
-  - `fetch()` action calling `GET /billing/status`
-  - Call `fetch()` on app mount, after login, and every 5 minutes while the app is foregrounded
-- [ ] 3.8 Create `apps/web/src/components/ReadOnlyBanner.vue`:
-  - Visible when `billingStatus.isReadOnly === true`
-  - Copy: "Your trial has ended. Add a card to continue accessing your data. Your account remains read-only until {purge date}."
-  - `<LegalDisclaimer variant="short" />`
-  - `useFirstTouch('billing.read-only-banner')`
-- [ ] 3.9 Create `apps/web/src/components/TrialCountdown.vue`:
-  - Visible when `billingStatus.status === 'trial'`
-  - Small badge showing days remaining until `trialEndsAt`
-  - `useFirstTouch('billing.trial-countdown')`
-- [ ] 3.10 Wire `ReadOnlyBanner` and `TrialCountdown` into the app shell (`App.vue` or the main layout wrapper; match the existing ActiveTournamentBanner pattern).
-- [ ] 3.11 Add `billing.read-only-banner` and `billing.trial-countdown` entries to `apps/web/src/onboarding/surface-content.ts`.
-- [ ] 3.12 Stub the `divinr-billing-browser-skill` deep testing skill:
-  - Create `.claude/skills/divinr-billing-browser-skill/` with six files: `SKILL.md`, `what.md`, `where.md`, `expectations.md`, `tests.md`, `completeness.md` (follow the structure of `divinr-authoring-browser-skill`)
-  - Register new Playwright project `billing` in `apps/e2e/playwright.config.ts`: `{ name: 'billing', testMatch: 'billing/*.spec.ts' }`
-  - Add one green spec `apps/e2e/tests/billing/trial-countdown.spec.ts`: login as a fixture trial user → app shell shows the TrialCountdown badge with a day count
-  - Add spec `apps/e2e/tests/billing/read-only-banner.spec.ts`: login as a fixture canceled user → app shell shows the ReadOnlyBanner; a POST against any protected route returns 403 with `code: 'SUBSCRIPTION_EXPIRED'`
-- [ ] 3.13 Update `.claude/skills/divinr-platform-browser-skill/SKILL.md` index to include the new billing deep skill.
 
 ### Quality Gate
-Before moving to Phase 4, ALL of the following must pass:
+Before moving to Phase 3b, ALL of the following must pass:
 
-- [ ] **Lint**: `pnpm --filter @divinr/api run lint && pnpm --filter @divinr/web run lint`
-- [ ] **Build**: `pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build`
+- [ ] **Lint**: `pnpm --filter @divinr/api run lint`
+- [ ] **Build**: `pnpm --filter @divinr/api run build`
 - [ ] **Unit Tests**: `pnpm --filter @divinr/api run test:unit` — includes new assertions for `computeLifecycleTransitions`, `computePurgeCandidates`, `ReadOnlyGuard` (unit-level with mocked BillingService)
-- [ ] **E2E Tests**: `pnpm --filter @divinr/e2e exec playwright test --project=billing` — two specs green
+- [ ] **E2E Tests**: N/A for this phase (no user-visible web surface change)
 - [ ] **Curl Tests** (API running on 7100, authed as a fixture user):
   - Trial user: `curl -s -H "Authorization: Bearer $TRIAL_JWT" http://localhost:7100/billing/status` returns `{ status: 'trial', is_read_only: false, ... }`
   - Expired user: `curl -s -H "Authorization: Bearer $EXPIRED_JWT" http://localhost:7100/billing/status` returns `{ status: 'canceled', is_read_only: true, days_until_purge: <number> }`
   - Expired user write attempt: `curl -s -X POST -H "Authorization: Bearer $EXPIRED_JWT" http://localhost:7100/clubs -d '{"name":"x"}'` returns `403 { code: 'SUBSCRIPTION_EXPIRED' }`
   - Trial user write attempt: `curl -s -X POST -H "Authorization: Bearer $TRIAL_JWT" http://localhost:7100/clubs -d '{"name":"x"}'` returns `2xx`
+  - Exempt route for expired user: `curl -s -X PATCH -H "Authorization: Bearer $EXPIRED_JWT" -d '{}' http://localhost:7100/users/$USER_ID/social-opt-outs` does NOT return `SUBSCRIPTION_EXPIRED` (endpoint may 404 until Phase 4 ships the handler — that's acceptable, just not a read-only block)
+- [ ] **Chrome Tests**: N/A for this phase (web surface deferred to 3b)
+- [ ] **Cron dry-run**: seed a test subscription with `trial_ends_at = now() - 1 hour, status='trial'`; invoke `BillingService.computeLifecycleTransitions()` directly via a unit test → status flips to `canceled`, `expired_at` set, `purge_scheduled_at` set 6 months out, `subscription_events` row with `reason='trial_ended_no_card'` appended
+- [ ] **Phase Review**: Compare against PRD §4.3, §4.5, §8 Phase 3 (backend portions)
+  - [ ] All three lifecycle events emit with stable payloads (PRD §4.5)
+  - [ ] `past_due` is NOT gated as read-only (PRD Risk §7.4)
+  - [ ] Exempt routes list matches PRD §4.3
+  - [ ] No implicit DI — every param uses `@Inject`
+  - [ ] Deviations documented
+
+---
+
+## Phase 3b: Trial/Read-Only App-Shell Surface (web)
+**Status**: Not Started
+**Objective**: Users see the trial countdown and the read-only banner in the app shell; the new `divinr-billing-browser-skill` deep testing skill is stubbed with green Playwright specs; first-touch content is wired for both new components.
+
+### Steps
+- [ ] 3b.1 Add `apps/web/src/stores/billing-status.store.ts`:
+  - Pinia store with `status`, `trialEndsAt`, `expiredAt`, `purgeScheduledAt`, `isReadOnly`, `daysUntilPurge`
+  - `fetch()` action calling `GET /billing/status`
+  - Call `fetch()` on app mount, after login, and every 5 minutes while the app is foregrounded
+- [ ] 3b.2 Create `apps/web/src/components/ReadOnlyBanner.vue`:
+  - Visible when `billingStatus.isReadOnly === true`
+  - Copy: "Your trial has ended. Add a card to continue accessing your data. Your account remains read-only until {purge date}."
+  - `<LegalDisclaimer variant="short" />`
+  - `useFirstTouch('billing.read-only-banner')`
+- [ ] 3b.3 Create `apps/web/src/components/TrialCountdown.vue`:
+  - Visible when `billingStatus.status === 'trial'`
+  - Small badge showing days remaining until `trialEndsAt`
+  - `useFirstTouch('billing.trial-countdown')`
+- [ ] 3b.4 Wire `ReadOnlyBanner` and `TrialCountdown` into the app shell (`App.vue` or the main layout wrapper; match the existing `ActiveTournamentBanner.vue` pattern — grep for it to find the anchor point).
+- [ ] 3b.5 Add `billing.read-only-banner` and `billing.trial-countdown` entries to `apps/web/src/onboarding/surface-content.ts`.
+- [ ] 3b.6 Stub the `divinr-billing-browser-skill` deep testing skill:
+  - Create `.claude/skills/divinr-billing-browser-skill/` with six files: `SKILL.md`, `what.md`, `where.md`, `expectations.md`, `tests.md`, `completeness.md` (follow the structure of `divinr-authoring-browser-skill`)
+  - Register new Playwright project `billing` in `apps/e2e/playwright.config.ts`: `{ name: 'billing', testMatch: 'billing/*.spec.ts' }`
+  - Add green spec `apps/e2e/tests/billing/trial-countdown.spec.ts`: login as a fixture trial user → app shell shows the TrialCountdown badge with a day count
+  - Add green spec `apps/e2e/tests/billing/read-only-banner.spec.ts`: login as a fixture canceled user → app shell shows the ReadOnlyBanner; a POST against any protected route returns 403 with `code: 'SUBSCRIPTION_EXPIRED'`
+- [ ] 3b.7 Update `.claude/skills/divinr-platform-browser-skill/SKILL.md` index to include the new billing deep skill.
+
+### Quality Gate
+Before moving to Phase 4, ALL of the following must pass:
+
+- [ ] **Lint**: `pnpm --filter @divinr/web run lint`
+- [ ] **Build**: `pnpm --filter @divinr/web run build`
+- [ ] **Unit Tests**: `pnpm --filter @divinr/api run test:unit` (no regressions from Phase 3a)
+- [ ] **E2E Tests**: `pnpm --filter @divinr/e2e exec playwright test --project=billing` — both specs green
+- [ ] **Curl Tests**: N/A (backend already validated in Phase 3a)
 - [ ] **Chrome Tests** (web on 7101):
   - Login as a trial user → TrialCountdown badge visible in header showing "N days left"
   - Login as an expired user → ReadOnlyBanner visible at top of app shell with purge date
   - First-touch popover appears on first visit for `billing.trial-countdown` and `billing.read-only-banner`
 - [ ] **First-touch coverage**: `node apps/web/scripts/check-first-touch-coverage.mjs` green
-- [ ] **Cron dry-run**: seed a test subscription with `trial_ends_at = now() - 1 hour, status='trial'`; invoke `BillingService.computeLifecycleTransitions()` directly via a unit test → status flips to `canceled`, `expired_at` set, `purge_scheduled_at` set 6 months out, `subscription_events` row with `reason='trial_ended_no_card'` appended
-- [ ] **Phase Review**: Compare against PRD §4.3, §4.4, §4.5, §8 Phase 3
-  - [ ] All three lifecycle events emit with stable payloads (PRD §4.5)
-  - [ ] `past_due` is NOT gated as read-only (PRD Risk §7.4)
-  - [ ] Exempt routes list matches PRD §4.3
+- [ ] **Phase Review**: Compare against PRD §4.4, §8 Phase 3 (web portions)
   - [ ] `useFirstTouch` present on both new components
-  - [ ] No implicit DI — every param uses `@Inject`
+  - [ ] Store fetches on mount + after login + every 5 min (PRD §4.4 implicit)
+  - [ ] Deep skill has six files; Playwright project registered; two green specs
+  - [ ] Platform-skill index updated
   - [ ] Deviations documented
 
 ---
@@ -322,7 +361,7 @@ Before moving to Phase 5, ALL of the following must pass:
 - [ ] 5.6 Add entries for `billing.bill-overview` and `pricing.overview` to `apps/web/src/onboarding/surface-content.ts`.
 - [ ] 5.7 Verify `apps/web/src/views/authored/BillingTab.vue` imports `useFirstTouch` with the correct key and the old `BillingPreview.vue` component (if used) is either removed or left as an internal dependency.
 - [ ] 5.8 Testing coverage — billing facet:
-  - Populate `.claude/skills/divinr-billing-browser-skill/tests.md` with the four required specs (trial countdown, read-only banner from Phase 3; bill-preview itemization and pricing page from this phase)
+  - Populate `.claude/skills/divinr-billing-browser-skill/tests.md` with the four required specs (trial countdown, read-only banner from Phase 3b; bill-preview itemization and pricing page from this phase)
   - Add `apps/e2e/tests/billing/bill-preview.spec.ts`: fixture user with one authored analyst, one authored instrument, BYO on → BillingTab shows `$50 + $60 + $20 + $10 = $140` with correct rollup rows
   - Add `apps/e2e/tests/billing/pricing-page.spec.ts`: unauthenticated `goto('/pricing')` → both cards render; "Start free trial" links to signup; `<LegalDisclaimer variant="full">` present
 - [ ] 5.9 Testing coverage — authoring facet linkage:
@@ -365,6 +404,7 @@ Before moving to Phase 6, ALL of the following must pass:
   - Idempotent: use `INSERT ... ON CONFLICT DO NOTHING` on `user_id`
   - Returns `{ inserted_count, skipped_count, errors }`
 - [ ] 6.2 Create CLI entry `apps/api/scripts/migrate-billing-backfill.ts`:
+  - **Scaffolding note**: `apps/api/scripts/` does not currently exist; create the directory as part of this step.
   - Bootstraps a minimal Nest context, resolves `BillingService`, calls `migrateBackfillSubscriptions()`, prints summary, exits
   - Runnable via `tsx apps/api/scripts/migrate-billing-backfill.ts`
 - [ ] 6.3 Implement `GET /admin/users/:id/billing` in `BillingController`:
