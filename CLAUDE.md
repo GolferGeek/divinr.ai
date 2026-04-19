@@ -42,6 +42,27 @@ The coverage check script
 (`apps/web/scripts/check-first-touch-coverage.mjs`) enforces the inventory /
 surface-content / wired-or-pending invariant at build time.
 
+## Testing coverage on every user-facing surface
+
+Every new user-visible surface ships a first-touch content entry AND either
+extends an existing deep testing skill or stubs a new one. Definition of Done
+for any effort touching a user-visible view.
+
+The deep skill inventory lives in
+`.claude/skills/divinr-platform-browser-skill/SKILL.md`. Each facet has a
+`divinr-<facet>-browser-skill/` folder with six files (SKILL, what, where,
+expectations, tests, completeness) plus at least one green Playwright spec
+under `apps/e2e/tests/<facet>/`. When an effort adds a new user-visible view:
+
+- If the view belongs to an existing facet, update that facet's `tests.md`
+  and add/extend a spec under `apps/e2e/tests/<facet>/`.
+- If the view belongs to a new facet, stub a new deep skill (six files) +
+  add a new Playwright project in `apps/e2e/playwright.config.ts` + at least
+  one green spec.
+
+The `verify-plan` skill enforces this (§7 Testing coverage) — any plan that
+adds a user-visible view without a testing-coverage step is flagged Major.
+
 ## UI vocabulary: analysis/signal, never prediction/advice
 
 User-visible copy in `apps/web/src` uses **"analysis"** or **"signal"** — never

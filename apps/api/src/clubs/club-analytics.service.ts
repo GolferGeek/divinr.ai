@@ -76,6 +76,7 @@ export class ClubAnalyticsService {
        FROM prediction.user_analyst_affinity uaa
        JOIN prediction.club_members cm ON cm.user_id = uaa.user_id AND cm.club_id = $1
        JOIN prediction.market_analysts ma ON ma.id = uaa.analyst_id
+       WHERE uaa.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
        GROUP BY uaa.analyst_id, ma.display_name
        ORDER BY avg_affinity DESC
        LIMIT 5`, [clubId]);
@@ -92,6 +93,7 @@ export class ClubAnalyticsService {
        FROM prediction.tournament_positions tpos
        JOIN prediction.tournaments t ON t.id = tpos.tournament_id
        WHERE t.scope = 'club' AND t.scope_id = $1 AND tpos.status = 'closed' AND tpos.realized_pnl < 0
+         AND tpos.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
        GROUP BY tpos.symbol
        ORDER BY total_loss ASC
        LIMIT 3`, [clubId]);
@@ -104,6 +106,7 @@ export class ClubAnalyticsService {
        JOIN prediction.club_consensus_polls p ON p.id = v.poll_id
        LEFT JOIN authz.users u ON u.id = v.user_id
        WHERE p.club_id = $1 AND p.status = 'revealed'
+         AND coalesce(u.is_testing, false) = false
          AND v.direction != (
            SELECT cv2.direction
            FROM prediction.club_consensus_votes cv2

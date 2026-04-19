@@ -82,6 +82,7 @@ Before moving to Phase 2, ALL of the following must pass:
 - **Keep phases small enough to gate meaningfully.** A phase that takes a week to complete before you can validate is too big.
 - **Order phases so each builds on the last.** Earlier phases should establish foundations (project structure, test infrastructure, core models) before later phases add features.
 - **First-touch coverage**: If the plan introduces any new Vue view under `apps/web/src/views/` or any new `<FirstTouchPanel>`-eligible component, include an explicit step to (a) add a `useFirstTouch('<key>')` or `<FirstTouchPanel :surface-key="...">` call in that file and (b) add the corresponding entry to `apps/web/src/onboarding/surface-content.ts`. This mirrors the Definition of Done in the repo's root `CLAUDE.md` ("First-touch coverage on every user-facing surface"). Keep the language aligned — if CLAUDE.md and this skill drift, CLAUDE.md is authoritative.
+- **Testing-coverage update**: For any phase that adds or substantially changes a user-visible view, include a step to either (a) update the corresponding `.claude/skills/divinr-<facet>-browser-skill/tests.md` and add a spec under `apps/e2e/tests/<facet>/`, or (b) stub a new deep skill (six files) + register a new Playwright project in `apps/e2e/playwright.config.ts` + add at least one green spec when the surface belongs to a new facet. Mirror the First-touch-coverage rule's structure. This matches CLAUDE.md "Testing coverage on every user-facing surface" — if the two drift, CLAUDE.md is authoritative.
 
 ## Verification Loop
 

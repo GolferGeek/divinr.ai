@@ -8,3 +8,9 @@ coverage
 .DS_Store
 backups/
 .monitor/
+apps/e2e/.env
+apps/e2e/.auth/
+apps/e2e/test-results/
+apps/e2e/.testing-artifacts/
+apps/e2e/playwright-report/
+apps/e2e/node_modules/

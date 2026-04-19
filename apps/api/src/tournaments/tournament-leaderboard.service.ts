@@ -66,6 +66,7 @@ export class TournamentLeaderboardService {
          LIMIT 1
        ) s ON TRUE
        WHERE te.tournament_id = $1
+         AND coalesce(u.is_testing, false) = false
        ORDER BY (tp.total_realized_pnl + tp.total_unrealized_pnl) DESC, te.user_id ASC`,
       [tournamentId],
     );
@@ -319,6 +320,7 @@ export class TournamentLeaderboardService {
        FROM prediction.tournament_positions tp
        LEFT JOIN authz.users u ON u.id = tp.user_id
        WHERE tp.tournament_id = $1 AND tp.status = 'closed'
+         AND coalesce(u.is_testing, false) = false
        ORDER BY tp.realized_pnl DESC
        LIMIT 1`,
       [tournamentId],

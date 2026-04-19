@@ -90,6 +90,7 @@ export class ClubRankingService {
           FROM prediction.tournament_portfolios tp
           JOIN prediction.tournaments t ON t.id = tp.tournament_id
           WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived')
+            AND tp.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
         ), 0),
         COALESCE((
           SELECT CASE WHEN COUNT(*) > 0
@@ -97,6 +98,7 @@ export class ClubRankingService {
           FROM prediction.tournament_positions tpos
           JOIN prediction.tournaments t ON t.id = tpos.tournament_id
           WHERE t.scope = 'club' AND t.scope_id = c.id AND tpos.status = 'closed'
+            AND tpos.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
         ), 0),
         (SELECT COUNT(*)::int FROM prediction.club_members cm WHERE cm.club_id = c.id),
         (SELECT COUNT(*)::int FROM prediction.tournaments t WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived'))
@@ -163,6 +165,7 @@ export class ClubRankingService {
           JOIN prediction.tournaments t ON t.id = tp.tournament_id
           WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived')
             AND (SELECT COUNT(*) FROM prediction.tournament_entries te WHERE te.tournament_id = t.id) >= 3
+            AND tp.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
         ), 0) as avg_return_pct,
         COALESCE((
           SELECT CASE WHEN COUNT(*) > 0
@@ -171,6 +174,7 @@ export class ClubRankingService {
           FROM prediction.tournament_positions tpos
           JOIN prediction.tournaments t ON t.id = tpos.tournament_id
           WHERE t.scope = 'club' AND t.scope_id = c.id AND tpos.status = 'closed'
+            AND tpos.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
         ), 0) as club_win_rate
       FROM prediction.clubs c
       WHERE c.is_public = true
@@ -276,6 +280,7 @@ export class ClubRankingService {
           FROM prediction.tournament_portfolios tp
           JOIN prediction.tournaments t ON t.id = tp.tournament_id
           WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived')
+            AND tp.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
         ), 0) as avg_return_pct,
         COALESCE((
           SELECT CASE WHEN COUNT(*) > 0
@@ -284,6 +289,7 @@ export class ClubRankingService {
           FROM prediction.tournament_positions tpos
           JOIN prediction.tournaments t ON t.id = tpos.tournament_id
           WHERE t.scope = 'club' AND t.scope_id = c.id AND tpos.status = 'closed'
+            AND tpos.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
         ), 0) as club_win_rate,
         (SELECT COUNT(*)::int FROM prediction.tournaments t
          WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived')
@@ -377,6 +383,7 @@ export class ClubRankingService {
           FROM prediction.tournament_portfolios tp
           JOIN prediction.tournaments t ON t.id = tp.tournament_id
           WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived')
+            AND tp.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
         ), 0),
         COALESCE((
           SELECT CASE WHEN COUNT(*) > 0
@@ -384,6 +391,7 @@ export class ClubRankingService {
           FROM prediction.tournament_positions tpos
           JOIN prediction.tournaments t ON t.id = tpos.tournament_id
           WHERE t.scope = 'club' AND t.scope_id = c.id AND tpos.status = 'closed'
+            AND tpos.user_id NOT IN (SELECT id FROM authz.users WHERE is_testing = true)
         ), 0),
         (SELECT COUNT(*)::int FROM prediction.club_members cm WHERE cm.club_id = c.id),
         (SELECT COUNT(*)::int FROM prediction.tournaments t WHERE t.scope = 'club' AND t.scope_id = c.id AND t.status IN ('completed', 'archived'))

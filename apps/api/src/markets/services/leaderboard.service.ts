@@ -204,6 +204,7 @@ export class LeaderboardService {
         from prediction.user_portfolios up
         left join snap_metrics sm on sm.portfolio_kind = 'user' and sm.portfolio_id = up.id
         left join user_streaks ust on ust.portfolio_id = up.id
+        where up.user_id not in (select id from authz.users where is_testing = true)
       )
       select * from analyst_rows
       union all
