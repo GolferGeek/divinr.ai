@@ -22,6 +22,7 @@ Load `divinr-workflow-browser-skill` for the shared Playwright / Chrome-MCP patt
 | `instruments` | `.claude/skills/divinr-instruments-browser-skill/` | Instruments list, detail, contract editor |
 | `performance` | `.claude/skills/divinr-performance-browser-skill/` | Performance dashboard (cross-facet aggregates) |
 | `authoring` | `.claude/skills/divinr-authoring-browser-skill/` | Authored content (analysts/instruments/wiring/llm credentials/billing) |
+| `billing` | `.claude/skills/divinr-billing-browser-skill/` | App-shell trial-countdown chip, read-only banner, `/billing/status` lifecycle |
 | `admin` | `.claude/skills/divinr-admin-browser-skill/` | Admin surfaces: attribution, cost calibration/defensibility/experiments, graduation candidates |
 
 ## Shared components (verified against `apps/web/src/components/`)

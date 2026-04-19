@@ -26,12 +26,15 @@ import { useFearGreedStore } from '../stores/fear-greed.store';
 import { useMessagingStore } from '../stores/messaging.store';
 import { useOnboardingStore } from '../stores/onboarding.store';
 import { useFirstTouchStore } from '../stores/firstTouch.store';
+import { useBillingStatusStore } from '../stores/billing-status.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
 import WelcomeModal from '../components/WelcomeModal.vue';
 import DocentPanel from '../components/DocentPanel.vue';
 import CompletionModal from '../components/CompletionModal.vue';
 import ElementHighlighter from '../components/ElementHighlighter.vue';
 import LegalDisclaimer from '../components/LegalDisclaimer.vue';
+import ReadOnlyBanner from '../components/ReadOnlyBanner.vue';
+import TrialCountdown from '../components/TrialCountdown.vue';
 
 const auth = useAuthStore();
 const domain = useDomainStore();
@@ -42,6 +45,7 @@ const fearGreedStore = useFearGreedStore();
 const messagingStore = useMessagingStore();
 const onboarding = useOnboardingStore();
 const firstTouchStore = useFirstTouchStore();
+const billing = useBillingStatusStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
@@ -159,11 +163,14 @@ fearGreedStore.fetchUnreadCount();
 messagingStore.fetchUnreadCounts();
 onboarding.fetch().catch(() => { /* non-fatal if API down; welcome modal simply stays hidden */ });
 firstTouchStore.fetch().catch(() => { /* non-fatal; panels stay hidden */ });
+billing.fetch().catch(() => { /* non-fatal; banners stay hidden */ });
+billing.startAutoRefresh();
 
 function logout() {
   auth.clear();
   onboarding.clear();
   firstTouchStore.clear();
+  billing.clear();
   router.push('/login');
 }
 
@@ -307,6 +314,7 @@ async function resetUserOnboarding() {
               <ion-chip v-if="auth.isBetaReader" color="warning" outline>
                 <ion-label>Read Only</ion-label>
               </ion-chip>
+              <TrialCountdown />
               <ion-button
                 v-if="onboarding.active"
                 fill="clear"
@@ -356,6 +364,7 @@ async function resetUserOnboarding() {
           </ion-toolbar>
         </ion-header>
         <ion-content class="ion-padding">
+          <ReadOnlyBanner />
           <router-view />
           <div class="legal-footer">
             <LegalDisclaimer variant="short" />

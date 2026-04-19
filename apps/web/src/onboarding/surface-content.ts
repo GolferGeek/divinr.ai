@@ -586,6 +586,20 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       "If you're in a club that sponsors student tiers, this shows the accrued " +
       "usage that's covered by your sponsor rather than you.",
   },
+  'billing.trial-countdown': {
+    title: 'Your free trial',
+    body:
+      "You're on the free trial. This chip shows how many days you have left " +
+      "before the account converts or goes read-only. Add a card any time from " +
+      'Settings → Your Content to keep going without interruption.',
+  },
+  'billing.read-only-banner': {
+    title: 'Your trial has ended',
+    body:
+      'Your data is still here — the account is just read-only until a card is ' +
+      'added. You can keep browsing analyses and portfolios; new authored content ' +
+      'and trading actions resume the moment billing is active.',
+  },
 
   // ────────────────────────────── Admin ────────────────────────────────
   'admin.cost-modeling.calibration': {
