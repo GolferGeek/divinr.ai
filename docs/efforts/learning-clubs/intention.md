@@ -76,7 +76,7 @@ Build a club system where groups of users learn together by sharing tournament p
 ## Out of Scope
 - In-app chat or messaging (use external tools)
 - Club-pooled portfolios (legal minefield)
-- Paid club tiers (future revenue)
+- Club-level billing: retired concept per `docs/efforts/master-intention.md` §8; clubs never have billing coupling, per-user billing lives in `user-billing-model`
 - Public club rankings/leaderboards across clubs (future)
 - Curriculum builder / structured multi-week courses (future)
 - Mentor/mentee pairing (future)

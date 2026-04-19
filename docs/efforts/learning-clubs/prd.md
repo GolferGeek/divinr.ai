@@ -252,7 +252,7 @@ All endpoints under `/clubs` prefix. Auth required on all routes.
 
 - **In-app chat or messaging** — clubs use the existing messaging system (club-scoped channels auto-created). No new chat features built.
 - **Club-pooled portfolios** — each member trades independently in their own tournament portfolio. No shared money.
-- **Paid club tiers** — future revenue model. All clubs are free for now.
+- **Club-level billing** — retired concept per `docs/efforts/master-intention.md` §8. Clubs are social-only and never have billing coupling; per-user billing lives in `user-billing-model`. All clubs are free permanently.
 - **Public club rankings/leaderboards across clubs** — future. Only intra-club leaderboards.
 - **Curriculum builder / structured multi-week courses** — future enhancement.
 - **Mentor/mentee pairing** — future.
