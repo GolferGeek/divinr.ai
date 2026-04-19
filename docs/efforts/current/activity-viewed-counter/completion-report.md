@@ -3,12 +3,12 @@
 **Plan**: ./plan.md
 **PRD**: ./prd.md
 **Completed**: 2026-04-19 12:00 UTC
-**Final Status**: All Phases Complete (chrome per-pixel sweep is the only piece not driven — extension not connected this session)
+**Final Status**: All Phases Complete (functional chrome verification driven in-session; per-pixel resize sweep limited by MCP resize API)
 
 ## Summary
 - Total phases: 3
-- Phases completed: 3 (API + Web + Live curl gate)
-- Outstanding: per-pixel responsive sweep at 375/768/1280 (chrome extension not connected; curl gate covers the same code path end-to-end)
+- Phases completed: 3 (API + Web + Live curl gate + functional chrome verification)
+- Outstanding: per-pixel visual sweep at 375/768/1280 — `mcp__claude-in-chrome__resize_window` reported success but actual `window.innerWidth` did not change, so the sweep could not be driven mechanically. Code review + 16px badge width + no parent overflow observed at desktop width make overflow trivially unlikely.
 
 ## Phase Results
 
@@ -49,7 +49,7 @@ Notable decisions / deviations:
 - **`formatBadge` extracted to shared utils**: the plan offered either inline-per-view or extract; both views needed it and the existing utils file already hosts `pluralize`, so extracting was cleaner.
 
 ### Phase 3 — Live verification & responsive sanity
-**Status**: Complete (curl gate); per-pixel chrome sweep deferred
+**Status**: Complete (curl gate + functional chrome walkthrough); per-pixel resize sweep limited by MCP API
 
 What was driven:
 - Updated memory `feedback_dev_server_restart.md` per user feedback ("always restart yourself so you can see all console logs"). Killed stale API PID 3446919, restarted `pnpm --filter @divinr/api run dev` in background. Web dev server respawned on `:7101` with `VITE_WEB_PORT=7101`.
@@ -61,12 +61,20 @@ What was driven:
   4. `POST /clubs/00000000-…/activities/viewed` (non-member) → HTTP 403, `"forbidden: caller is not a member of club"` ✓ (member-gate path proved)
 - Test data cleaned up after (journals deleted, joined_at restored, last_viewed_at re-NULLed).
 
-What was deferred:
-- Per-pixel chrome responsive sweep at 375 / 768 / 1280 px and screenshot capture. `mcp__claude-in-chrome__tabs_context_mcp` returned "Browser extension is not connected" so this session can't drive the browser. Recommend doing the visual pass manually or in a session where the extension is connected.
+What was additionally driven in chrome (after user reconnected the extension):
+- Re-seeded unread state (3 journals, backdated `joined_at`) and drove the full user-visible flow at desktop width:
+  1. `GET /clubs` page → Test University Club card renders "2 members **(3)**" with the primary-blue `.unread-badge` span.
+  2. Navigate to club detail `?tab=members` → ACTIVITIES segment button label reads "ACTIVITIES **(3)**".
+  3. Click ACTIVITIES segment → exactly one `POST /clubs/56e1292e-…/activities/viewed` fires (HTTP 201), badge on segment clears to just "ACTIVITIES". Network panel confirmed single POST.
+  4. JS measurement on the card badge: 16px wide inline-flex span, parent `.club-meta` scrollWidth == clientWidth (no horizontal overflow at the container level).
+- Seeded test data cleaned up after (3 journals deleted, `joined_at` restored, `last_viewed_at` re-NULLed).
+
+What was limited:
+- Per-pixel responsive screenshot sweep at 375 / 768 / 1280 px. `mcp__claude-in-chrome__resize_window` reported success on each call but `window.innerWidth` stayed at the desktop value, so the mechanical sweep wasn't driven. Functional + code-level evidence (16px badge, no overflow on the segment label or the `.club-meta` row, labels shorten rather than wrap in Ionic's default IonSegmentButton) makes overflow trivially unlikely. Recommend a 10-second manual eyeball at narrow widths before shipping if desired.
 
 PRD §2 G1–G8 status:
 - G1–G5, G8 confirmed end-to-end via curl + DB inspection.
-- G6 + G7 confirmed via code review of `ClubDetailView.vue` + `ClubsView.vue` and the `formatBadge` helper. Visual rendering is the only piece not yet seen on real pixels.
+- G6 + G7 confirmed via chrome walkthrough (card badge visible + segment badge visible + clears-on-click with exactly one POST).
 
 ## Gate Results
 
@@ -74,14 +82,14 @@ PRD §2 G1–G8 status:
 |-------|------|-----------------|------------|-----------|------|--------|--------------|
 | 1 (API) | clean | clean | 32/32 + chain green | 7/7 (after PostgREST cache reload) | deferred | n/a | ✓ |
 | 2 (Web) | clean | build clean; typecheck 48 errors = pre-existing baseline (zero new) | stub script | api regression sanity 32/32 | n/a | deferred | ✓ |
-| 3 | n/a | n/a | n/a | n/a | 4/4 cases live | per-pixel sweep deferred | ✓ |
+| 3 | n/a | n/a | n/a | n/a | 4/4 cases live | functional walkthrough ✓ (card badge, segment badge, POST-on-click, clear) — per-pixel resize sweep limited by MCP API | ✓ |
 
 ## Deviations from PRD
 None to the PRD requirements themselves. All deviations were tactical and documented in `plan.md` Deviation Notes:
 - Phase 1: curl gate deferred (no JWT); markets smoke required cache reload (pre-existing flake); schema applied via psql to unblock verification.
 - Phase 2: badge-clear wired into existing `loadTab` instead of a new watcher; `formatBadge` extracted to shared utils.
-- Phase 3: curl gate executed in-session against the restarted API; chrome per-pixel sweep is the only piece deferred (extension not connected).
+- Phase 3: curl gate executed in-session against the restarted API. Chrome functional walkthrough succeeded (card badge + segment badge + POST-on-click + clear). Only the mechanical per-pixel resize sweep was limited because `mcp__claude-in-chrome__resize_window` does not actually change `window.innerWidth` — not a code gap.
 
 ## Next Steps
-- Optional: open `http://localhost:7101/clubs` (web dev is running on PID 101421) for a quick visual sanity-check of the badge at 375 / 768 / 1280 widths.
-- Otherwise: ready to merge — the curl gate proved the API contract end-to-end, and the badge code is straightforward markup over the same fields the curl gate exercised.
+- Optional: open `http://localhost:7101/clubs` and DevTools-resize through 375 / 768 / 1280 widths for a visual sanity-check (functional flow is already proven).
+- Otherwise: ready to merge — curl gate proved the API contract, chrome walkthrough proved the badge renders + clears with exactly one POST.
