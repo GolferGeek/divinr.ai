@@ -87,11 +87,11 @@
     "class-transformer": "latest",
     "class-validator": "latest",
     "dotenv": "latest",
-    "jose": "latest",
+    "jose": "^5.9.0",
     "mssql": "latest",
     "pg": "latest",
     "rxjs": "latest",
-    "uuid": "latest"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/express": "latest",
