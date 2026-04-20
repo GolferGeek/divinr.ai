@@ -220,6 +220,69 @@ export class BillingService {
     }));
   }
 
+  // ─── Migration backfill ───────────────────────────────────────
+
+  /**
+   * One-shot idempotent migration: insert a `trial` subscription row for every
+   * `authz.users` row that does not have a matching `billing.subscriptions`
+   * row. Every insert gets a matching `subscription_events` row with
+   * `reason='migration_backfill'`. Safe to run repeatedly.
+   */
+  async migrateBackfillSubscriptions(): Promise<{
+    inserted_count: number;
+    skipped_count: number;
+    errors: Array<{ userId: string; error: string }>;
+  }> {
+    await this.schema.ensureSchema();
+    const missing = await this.db.rawQuery(
+      `SELECT u.id FROM authz.users u
+       LEFT JOIN billing.subscriptions s ON s.user_id = u.id
+       WHERE s.user_id IS NULL`,
+    );
+    if (missing.error) throw new Error(`migrateBackfillSubscriptions select failed: ${missing.error.message}`);
+    const rows = (missing.data as Array<{ id: string }> | null) ?? [];
+
+    const totalUsersResult = await this.db.rawQuery(`SELECT count(*)::int AS n FROM authz.users`);
+    const totalRows = (totalUsersResult.data as Array<{ n: number }> | null) ?? [];
+    const totalUsers = totalRows[0]?.n ?? 0;
+    const alreadyCovered = totalUsers - rows.length;
+
+    const errors: Array<{ userId: string; error: string }> = [];
+    let inserted = 0;
+    for (const row of rows) {
+      try {
+        const now = new Date().toISOString();
+        const trialEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const insertResult = await this.db.rawQuery(
+          `INSERT INTO billing.subscriptions (user_id, status, trial_started_at, trial_ends_at)
+           VALUES ($1, 'trial', $2, $3)
+           ON CONFLICT (user_id) DO NOTHING
+           RETURNING user_id`,
+          [row.id, now, trialEnds],
+        );
+        if (insertResult.error) throw new Error(insertResult.error.message);
+        const insertedRows = (insertResult.data as Array<{ user_id: string }> | null) ?? [];
+        if (insertedRows.length === 0) continue; // someone else inserted concurrently
+        await this.appendSubscriptionEvent({
+          userId: row.id,
+          fromStatus: null,
+          toStatus: 'trial',
+          reason: 'migration_backfill',
+          triggeredBy: 'system',
+        });
+        inserted++;
+      } catch (err) {
+        errors.push({ userId: row.id, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    return {
+      inserted_count: inserted,
+      skipped_count: alreadyCovered + (rows.length - inserted - errors.length),
+      errors,
+    };
+  }
+
   // ─── Lifecycle cron drivers ───────────────────────────────────
 
   /**

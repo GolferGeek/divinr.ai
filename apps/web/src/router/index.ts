@@ -105,6 +105,7 @@ export const router = createRouter({
         { path: 'admin/attribution', name: 'admin-attribution', component: () => import('../views/AttributionAdminView.vue') },
         { path: 'admin/attribution/sources', name: 'admin-attribution-sources', component: () => import('../views/SourceQualityView.vue') },
         { path: 'admin/attribution/graduation-candidates', name: 'admin-attribution-graduation', component: () => import('../views/GraduationCandidatesView.vue') },
+        { path: 'admin/users/:id/billing', name: 'admin-user-billing', component: () => import('../views/AdminUserBillingView.vue') },
       ],
     },
     {

@@ -357,6 +357,106 @@ async function main(): Promise<void> {
     assert(events.length === 1 && events[0].params[3] === 'purge_scheduled', 'computePurgeCandidates audit row carries reason=purge_scheduled');
   }
 
+  // ─── migrateBackfillSubscriptions: inserts one row per uncovered user ───
+  {
+    const db = createMockDb();
+    const queries = db.queries;
+    let insertCall = 0;
+    db.rawQuery = async (sql: string, params: unknown[] = []) => {
+      queries.push({ sql, params });
+      if (sql.includes('LEFT JOIN billing.subscriptions')) {
+        return { data: [{ id: 'u-1' }, { id: 'u-2' }, { id: 'u-3' }] };
+      }
+      if (sql.includes('count(*)') && sql.includes('authz.users')) {
+        return { data: [{ n: 5 }] }; // 2 already covered, 3 missing
+      }
+      if (sql.includes('INSERT INTO billing.subscriptions')) {
+        insertCall++;
+        return { data: [{ user_id: params[0] }] };
+      }
+      if (sql.includes('INSERT INTO billing.subscription_events')) {
+        return { data: [{ id: `ev-${insertCall}` }] };
+      }
+      return { data: [] };
+    };
+    const silentLogger = { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    const service = Object.create(BillingService.prototype) as BillingService;
+    (service as any).db = db;
+    (service as any).schema = createMockSchema();
+    (service as any).logger = silentLogger;
+    (service as any).lifecycleLogger = silentLogger;
+    const res = await service.migrateBackfillSubscriptions();
+    assert(res.inserted_count === 3, 'migrateBackfillSubscriptions inserts a row for every uncovered user');
+    assert(res.skipped_count === 2, 'migrateBackfillSubscriptions counts already-covered users as skipped');
+    assert(res.errors.length === 0, 'migrateBackfillSubscriptions reports zero errors on happy path');
+    const inserts = queries.filter(q => q.sql.includes('INSERT INTO billing.subscriptions'));
+    assert(inserts.length === 3, 'migrateBackfillSubscriptions issues one INSERT per uncovered user');
+    assert(inserts.every(q => q.sql.includes('ON CONFLICT (user_id) DO NOTHING')), 'migrateBackfillSubscriptions uses ON CONFLICT DO NOTHING');
+    const events = queries.filter(q => q.sql.includes('INSERT INTO billing.subscription_events'));
+    assert(events.length === 3, 'migrateBackfillSubscriptions appends one audit row per insert');
+    assert(events.every(q => q.params[3] === 'migration_backfill'), 'migrateBackfillSubscriptions audit rows carry reason=migration_backfill');
+    assert(events.every(q => q.params[1] === null && q.params[2] === 'trial'), 'migrateBackfillSubscriptions audit rows transition null → trial');
+  }
+
+  // ─── migrateBackfillSubscriptions is idempotent (second run = no-op) ───
+  {
+    const db = createMockDb();
+    const queries = db.queries;
+    db.rawQuery = async (sql: string, params: unknown[] = []) => {
+      queries.push({ sql, params });
+      if (sql.includes('LEFT JOIN billing.subscriptions')) {
+        return { data: [] }; // nothing left
+      }
+      if (sql.includes('count(*)') && sql.includes('authz.users')) {
+        return { data: [{ n: 5 }] };
+      }
+      return { data: [] };
+    };
+    const silentLogger = { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    const service = Object.create(BillingService.prototype) as BillingService;
+    (service as any).db = db;
+    (service as any).schema = createMockSchema();
+    (service as any).logger = silentLogger;
+    (service as any).lifecycleLogger = silentLogger;
+    const res = await service.migrateBackfillSubscriptions();
+    assert(res.inserted_count === 0, 'migrateBackfillSubscriptions inserts zero on idempotent re-run');
+    assert(res.skipped_count === 5, 'migrateBackfillSubscriptions skipped_count equals total user count when no rows missing');
+    const inserts = queries.filter(q => q.sql.includes('INSERT INTO billing.subscriptions'));
+    assert(inserts.length === 0, 'migrateBackfillSubscriptions issues zero INSERTs on second run');
+  }
+
+  // ─── migrateBackfillSubscriptions isolates per-user errors ──────────
+  {
+    const db = createMockDb();
+    const queries = db.queries;
+    db.rawQuery = async (sql: string, params: unknown[] = []) => {
+      queries.push({ sql, params });
+      if (sql.includes('LEFT JOIN billing.subscriptions')) {
+        return { data: [{ id: 'u-ok' }, { id: 'u-err' }] };
+      }
+      if (sql.includes('count(*)') && sql.includes('authz.users')) {
+        return { data: [{ n: 2 }] };
+      }
+      if (sql.includes('INSERT INTO billing.subscriptions')) {
+        if (params[0] === 'u-err') return { error: { message: 'glitch' } };
+        return { data: [{ user_id: params[0] }] };
+      }
+      if (sql.includes('INSERT INTO billing.subscription_events')) {
+        return { data: [{ id: 'ev' }] };
+      }
+      return { data: [] };
+    };
+    const silentLogger = { log: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    const service = Object.create(BillingService.prototype) as BillingService;
+    (service as any).db = db;
+    (service as any).schema = createMockSchema();
+    (service as any).logger = silentLogger;
+    (service as any).lifecycleLogger = silentLogger;
+    const res = await service.migrateBackfillSubscriptions();
+    assert(res.inserted_count === 1, 'migrateBackfillSubscriptions counts only successful inserts');
+    assert(res.errors.length === 1 && res.errors[0].userId === 'u-err', 'migrateBackfillSubscriptions collects per-user errors without throwing');
+  }
+
   // ─── Append-only invariant: BillingService does NOT expose update/delete ──
   {
     const proto = BillingService.prototype as unknown as Record<string, unknown>;

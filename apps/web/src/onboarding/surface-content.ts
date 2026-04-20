@@ -618,6 +618,14 @@ export const surfaceContent: Record<string, SurfaceContent> = {
   },
 
   // ────────────────────────────── Admin ────────────────────────────────
+  'admin.user-billing': {
+    title: 'Admin user billing',
+    body:
+      "Read-only analyst view of a single user's billing picture: subscription state, " +
+      "authored items (custom analysts, instruments, BYO platform fee), the audit " +
+      "trail of subscription events, and the itemized monthly total. No write actions " +
+      "here — Stripe reactivation and manual overrides live in their own surfaces.",
+  },
   'admin.cost-modeling.calibration': {
     title: 'Cost calibration',
     body:

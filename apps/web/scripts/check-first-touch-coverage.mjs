@@ -81,20 +81,20 @@ const APPENDIX_A = [
   'billing.summary', 'billing.compute-breakdown', 'billing.student-accrual',
   'billing.trial-countdown', 'billing.read-only-banner', 'billing.bill-overview',
   'pricing.overview',
-  // Admin (16)
+  // Admin (17)
   'admin.cost-modeling.calibration', 'admin.cost-modeling.defensibility',
   'admin.cost-modeling.experiments', 'admin.llm-usage', 'admin.day-trader-runs',
   'admin.findings-inbox', 'admin.evaluations', 'admin.runs.list', 'admin.runs.detail',
   'admin.canonical-day', 'admin.proposals', 'admin.graduation-candidates',
   'admin.contract-editor', 'admin.notification-debug', 'admin.attribution',
-  'admin.domain-dashboard',
+  'admin.domain-dashboard', 'admin.user-billing',
   // Settings (6)
   'settings.onboarding', 'settings.opt-outs', 'settings.social-opt-outs',
   'settings.byo-credentials', 'settings.profile', 'settings.terms',
 ];
 
-if (APPENDIX_A.length !== 110) {
-  console.error(`Appendix A baseline is malformed: expected 110, got ${APPENDIX_A.length}`);
+if (APPENDIX_A.length !== 111) {
+  console.error(`Appendix A baseline is malformed: expected 111, got ${APPENDIX_A.length}`);
   process.exit(2);
 }
 const inventory = new Set(APPENDIX_A);

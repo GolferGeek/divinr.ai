@@ -29,6 +29,32 @@ Chrome-MCP exploratory walkthrough for humans / `divinr-test-agent --interactive
 Not part of the smoke spec — read-only smoke only. Add to a deeper spec when
 the calibration data has stabilized in non-prod envs.
 
+### 4. Admin user-billing view renders for a seeded user
+
+Canonical spec: `apps/e2e/tests/admin/user-billing.spec.ts`.
+
+**What**: Admin visits `/admin/users/<id>/billing` for a seeded user and sees
+the subscription card, authored-items table (or an empty-state line), events
+timeline, and the itemized monthly preview.
+
+- Preconditions: testing-team session has admin role. The seeded user id is
+  resolved dynamically — the spec picks the first row from
+  `GET /api/billing/preview`'s underlying user context (itself) so that it
+  exercises a real user without relying on hard-coded uuids.
+- Steps:
+  1. Fetch the logged-in user id via an API round-trip (e.g.
+     `page.request.get('/api/billing/subscription')` returns `{ user_id }`).
+  2. `page.goto('/admin/users/<user_id>/billing')`.
+  3. `await dismissWelcomeModal(page)`.
+  4. Assert `[data-testid="admin-user-billing"]` is visible.
+  5. Assert `[data-testid="admin-billing-subscription"]`,
+     `[data-testid="admin-billing-items"]`,
+     `[data-testid="admin-billing-events"]`,
+     `[data-testid="admin-billing-preview"]` each render.
+  6. Assert there is at least one `[data-testid="admin-billing-event-row"]`
+     (every backfilled user has a `migration_backfill` event).
+  7. No 5xx responses on `/admin/users/...` during the page load.
+
 ## Verify-command snippet
 
 ```sh
