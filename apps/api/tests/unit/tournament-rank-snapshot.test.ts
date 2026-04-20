@@ -42,7 +42,7 @@ async function testTiebreakerOrderBy(): Promise<void> {
   };
 
   const db = new MockDb(responder);
-  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any);
+  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any, { applyVisibilityFilter: (sql: string, params: unknown[]) => ({ sql, params }) } as any);
 
   const first = await svc.getLeaderboard('t1');
   const second = await svc.getLeaderboard('t1');
@@ -87,7 +87,7 @@ async function testSnapshotFilterAndInsert(): Promise<void> {
   };
 
   const db = new MockDb(responder);
-  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any);
+  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any, { applyVisibilityFilter: (sql: string, params: unknown[]) => ({ sql, params }) } as any);
 
   const result = await svc.snapshotDaily();
 
@@ -131,7 +131,7 @@ async function testEnvGate(): Promise<void> {
   process.env.MARKETS_DISABLE_RANK_SNAPSHOTS = 'true';
 
   const db = new MockDb(() => ({ data: [], error: null }));
-  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any);
+  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any, { applyVisibilityFilter: (sql: string, params: unknown[]) => ({ sql, params }) } as any);
 
   await svc.handleDailyRankSnapshotCron();
   assert(db.calls.length === 0, 'No DB calls issued when gate is true');
@@ -151,7 +151,7 @@ async function testSkipsNonActive(): Promise<void> {
   };
 
   const db = new MockDb(responder);
-  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any);
+  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any, { applyVisibilityFilter: (sql: string, params: unknown[]) => ({ sql, params }) } as any);
 
   const result = await svc.snapshotDaily();
   assert(result.snapshots === 0, 'No snapshots when there are no active tournaments');

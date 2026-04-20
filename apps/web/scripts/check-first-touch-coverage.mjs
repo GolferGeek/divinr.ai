@@ -87,13 +87,13 @@ const APPENDIX_A = [
   'admin.canonical-day', 'admin.proposals', 'admin.graduation-candidates',
   'admin.contract-editor', 'admin.notification-debug', 'admin.attribution',
   'admin.domain-dashboard',
-  // Settings (5)
-  'settings.onboarding', 'settings.opt-outs', 'settings.byo-credentials',
-  'settings.profile', 'settings.terms',
+  // Settings (6)
+  'settings.onboarding', 'settings.opt-outs', 'settings.social-opt-outs',
+  'settings.byo-credentials', 'settings.profile', 'settings.terms',
 ];
 
-if (APPENDIX_A.length !== 107) {
-  console.error(`Appendix A baseline is malformed: expected 107, got ${APPENDIX_A.length}`);
+if (APPENDIX_A.length !== 108) {
+  console.error(`Appendix A baseline is malformed: expected 108, got ${APPENDIX_A.length}`);
   process.exit(2);
 }
 const inventory = new Set(APPENDIX_A);

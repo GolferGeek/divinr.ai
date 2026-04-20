@@ -29,6 +29,7 @@ import { BillingModule } from './billing/billing.module';
 import { CostModelingModule } from './cost-modeling/cost-modeling.module';
 import { AttributionModule } from './attribution/attribution.module';
 import { CredentialsModule } from './credentials/credentials.module';
+import { UsersModule } from './users/users.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuthController } from './auth/auth.controller';
 import { InviteService } from './auth/invite.service';
@@ -57,6 +58,7 @@ import { InviteService } from './auth/invite.service';
     CostModelingModule,
     AttributionModule,
     CredentialsModule,
+    UsersModule,
   ],
   controllers: [HealthController, AuthController],
   providers: [

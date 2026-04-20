@@ -33,7 +33,8 @@ const CLUB       = 'club-1';
 
 function buildService(responder: (sql: string) => { data: unknown; error: null }) {
   const db = new MockDb(responder);
-  const svc = new ClubService(db as any, new StubSchema() as any, undefined as any, undefined as any);
+  const stubOptOuts = { applyVisibilityFilter(sql: string, params: unknown[]) { return { sql, params }; } } as any;
+  const svc = new ClubService(db as any, new StubSchema() as any, undefined as any, stubOptOuts, undefined as any);
   return { db, svc };
 }
 

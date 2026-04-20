@@ -35,6 +35,7 @@ import {
   INSTRUMENT_SCAFFOLD_PROMPT,
 } from './utils/scaffold-prompts';
 import { BillingService } from '../billing/billing.service';
+import { SocialOptOutService } from '../users/social-opt-out.service';
 import type {
   AssignAnalystInput,
   CreateAnalystInput,
@@ -192,6 +193,8 @@ export class MarketsService {
     private readonly affinity: AffinityService,
     @Inject(BillingService)
     private readonly billing: BillingService,
+    @Inject(SocialOptOutService)
+    private readonly optOuts: SocialOptOutService,
   ) {}
 
   private isExternalCrawlerSyncEnabled(force = false): boolean {
@@ -673,17 +676,27 @@ export class MarketsService {
     await this.schema.ensureSchema();
     await this.requireRead(userId);
 
+    // Club-shared analysts must respect the owner's social_visible_in_member_lists
+    // opt-out (attribution surface). Base analysts (user_id NULL) and the
+    // viewer's own analysts are never filtered.
     const result = await this.db.rawQuery(
       `
-      select *
-      from prediction.market_analysts
-      where (user_id IS NULL OR user_id = $1
-        OR id IN (
-          SELECT ca.analyst_id FROM prediction.club_analysts ca
-          JOIN prediction.club_members cm ON cm.club_id = ca.club_id
-          WHERE cm.user_id = $1
-        ))
-      order by case when user_id = $1 then 0 else 1 end, created_at asc
+      select ma.*
+      from prediction.market_analysts ma
+      left join authz.users u on u.id = ma.user_id
+      where (
+        ma.user_id IS NULL
+        OR ma.user_id = $1
+        OR (
+          ma.id IN (
+            SELECT ca.analyst_id FROM prediction.club_analysts ca
+            JOIN prediction.club_members cm ON cm.club_id = ca.club_id
+            WHERE cm.user_id = $1
+          )
+          AND (u.social_visible_in_member_lists IS NOT FALSE OR u.id = $1)
+        )
+      )
+      order by case when ma.user_id = $1 then 0 else 1 end, ma.created_at asc
       `,
       [userId],
     );

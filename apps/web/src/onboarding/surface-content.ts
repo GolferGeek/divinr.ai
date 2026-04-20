@@ -714,6 +714,14 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       "Mute whole categories of surfaces — tournaments, authoring, curricula. " +
       "Nothing is deleted; you can flip any of them back on later.",
   },
+  'settings.social-opt-outs': {
+    title: 'Visibility & social',
+    body:
+      "Choose where on Divinr your name shows up — club rosters, messaging " +
+      "search, tournament pages, leaderboards, and platform notifications. " +
+      "Toggling anything off keeps the underlying feature working; only the " +
+      "social surface changes.",
+  },
   'settings.byo-credentials': {
     title: 'Your model credentials',
     body:

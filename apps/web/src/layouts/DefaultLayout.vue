@@ -100,6 +100,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: 'Your Content', icon: createOutline, to: '/settings/authored-content' },
       { title: 'Onboarding', icon: schoolOutline, to: '/settings/onboarding' },
+      { title: 'Visibility & Social', icon: shieldOutline, to: '/settings/social-opt-outs' },
       { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine', adminOnly: true },
       { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary', adminOnly: true },
     ],

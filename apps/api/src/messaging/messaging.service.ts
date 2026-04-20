@@ -5,6 +5,7 @@ import { ObservabilityEventsService } from '@orchestratorai/planes/observability
 import { NIL_UUID } from '@orchestrator-ai/transport-types';
 import { MessagingSchemaService } from './messaging-schema.service';
 import { NotificationService } from '../markets/services/notification.service';
+import { SocialOptOutService } from '../users/social-opt-out.service';
 import type {
   Channel,
   ChannelScope,
@@ -20,6 +21,7 @@ export class MessagingService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(MessagingSchemaService) private readonly schema: MessagingSchemaService,
+    @Inject(SocialOptOutService) private readonly optOuts: SocialOptOutService,
     @Optional() @Inject(ObservabilityEventsService) private readonly observability?: ObservabilityEventsService,
     @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
   ) {}
@@ -706,12 +708,18 @@ export class MessagingService {
 
   // ─── User Search ──────────────────────────────────────────
 
-  async searchUsers(query: string): Promise<Array<{ id: string; display_name: string }>> {
+  async searchUsers(query: string, viewerId: string): Promise<Array<{ id: string; display_name: string }>> {
     await this.schema.ensureSchema();
-    const result = await this.db.rawQuery(
-      `SELECT id, email FROM auth.users WHERE email ILIKE $1 LIMIT 10`,
+    const filter = this.optOuts.applyVisibilityFilter(
+      `SELECT au.id, au.email
+       FROM auth.users au
+       JOIN authz.users u ON u.id = au.id
+       WHERE au.email ILIKE $1`,
       [`%${query}%`],
+      viewerId,
+      'social_messaging_enabled',
     );
+    const result = await this.db.rawQuery(filter.sql + ` LIMIT 10`, filter.params);
     if (result.error) {
       this.logger.warn(`User search failed: ${result.error.message}`);
       return [];

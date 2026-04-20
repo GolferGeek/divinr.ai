@@ -2040,8 +2040,8 @@ export class MarketsController {
     @Req() req: { user?: AuthenticatedUser },
     @Query('q') query?: string,
   ) {
-    this.getUser(req);
-    const users = await this.messaging.searchUsers(query || '');
+    const user = this.getUser(req);
+    const users = await this.messaging.searchUsers(query || '', user.id);
     return { data: users };
   }
 

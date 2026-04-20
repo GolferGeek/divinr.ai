@@ -64,9 +64,28 @@ await page.goto(`/clubs/${id}?tab=analytics`);
 await expect(page.locator('.analytics-grid')).toBeVisible();
 ```
 
+### 4. Member roster + analytics respect social opt-outs (future case)
+
+**What**: User A toggles `social_visible_in_member_lists` off at
+`/settings/social-opt-outs`. User B opens a club they share with A and confirms
+A is NOT in the Members tab roster. User A toggles
+`social_leaderboard_visible` off; B checks the club Analytics tab post-mortem
+top performers / biggest win-loss / contrarian spotlights and confirms A is
+not listed. Both toggles restored at end.
+
+Covered at the service layer by
+`apps/api/tests/unit/social-opt-out-coverage.test.ts` (grep-gate) plus the
+`applyVisibilityFilter` helper behavior in
+`apps/api/tests/unit/messaging-moderation.test.ts`. End-to-end two-user
+Playwright coverage is deferred until multi-user auth fixtures land.
+
 ## Chrome-MCP exploratory (not in CI)
 
 - `My Clubs` → `Discover` tab toggle — verify card list refreshes.
+- With user A signed in, navigate to `/settings/social-opt-outs`, toggle
+  `Appear in club member lists` off, switch to a club roster, confirm A is
+  still visible (owner exception). As user B, refresh the same roster and
+  confirm A is absent. Flip the toggle back on; confirm A reappears.
 - Click into a club; verify the legal disclaimer (`club` variant) appears above the tab bar.
 - Click each detail tab in order and confirm content loads (lazy-loaded by `loadTab(t)`).
 - Click a member row in the Members tab; confirm `MemberProfileDrawer` opens.

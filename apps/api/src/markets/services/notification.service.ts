@@ -26,6 +26,17 @@ export class NotificationService {
 
   async notify(userId: string, input: NotifyInput): Promise<string> {
     await this.schema.ensureSchema();
+
+    // Honor per-user social_notifications_enabled opt-out.
+    const optOutCheck = await this.db.rawQuery(
+      `select social_notifications_enabled from authz.users where id = $1`,
+      [userId],
+    );
+    const row = ((optOutCheck.data as Array<{ social_notifications_enabled: boolean | null }> | null) ?? [])[0];
+    if (row && row.social_notifications_enabled === false) {
+      return '';
+    }
+
     const id = randomUUID();
     const result = await this.db.rawQuery(
       `insert into prediction.notifications
@@ -109,7 +120,10 @@ export class NotificationService {
   async notifyAllUsers(input: NotifyInput): Promise<void> {
     await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
-      `select distinct user_id from prediction.user_portfolios`,
+      `select distinct up.user_id
+       from prediction.user_portfolios up
+       join authz.users u on u.id = up.user_id
+       where u.social_notifications_enabled IS NOT FALSE`,
     );
     const users = (result.data as Array<{ user_id: string }> | null) ?? [];
     for (const u of users) {

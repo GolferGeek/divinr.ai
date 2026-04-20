@@ -87,6 +87,7 @@ export const router = createRouter({
         { path: 'tournaments/:id/results', name: 'tournament-results', component: () => import('../views/TournamentResultsView.vue') },
         { path: 'settings/authored-content', name: 'authored-content', component: () => import('../views/AuthoredContentView.vue') },
         { path: 'settings/onboarding', name: 'onboarding-settings', component: () => import('../views/OnboardingSettingsView.vue') },
+        { path: 'settings/social-opt-outs', name: 'social-opt-outs', component: () => import('../views/settings/SocialOptOutsTab.vue') },
         { path: 'usage', name: 'usage', component: () => import('../views/UsageDashboardView.vue') },
         { path: 'billing/summary', name: 'billing-summary', component: () => import('../views/BillingSummaryView.vue') },
         { path: 'admin/cost/calibration', name: 'cost-calibration', component: () => import('../views/CostCalibrationView.vue') },

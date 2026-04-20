@@ -11,8 +11,10 @@ import { MessagingService } from '../messaging/messaging.service';
 import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { NotificationService } from '../markets/services/notification.service';
 import { MarketsSchemaService } from '../markets/schema/markets-schema.service';
+import { UsersModule } from '../users/users.module';
 
 @Module({
+  imports: [UsersModule],
   controllers: [ClubController],
   providers: [
     ClubSchemaService,

@@ -26,7 +26,7 @@ async function testLateralJoinShape(): Promise<void> {
   console.log('\nSQL shape (LEFT JOIN LATERAL prior-day snapshot):');
 
   const db = new MockDb([]);
-  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any);
+  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any, { applyVisibilityFilter: (sql: string, params: unknown[]) => ({ sql, params }) } as any);
   await svc.getLeaderboard('t1');
 
   assert(db.lastSql.includes('LEFT JOIN LATERAL'),
@@ -50,7 +50,7 @@ async function testNullPriorProducesNullDelta(): Promise<void> {
       prev_rank: null },
   ];
   const db = new MockDb(rows);
-  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any);
+  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any, { applyVisibilityFilter: (sql: string, params: unknown[]) => ({ sql, params }) } as any);
   const result = await svc.getLeaderboard('t1');
 
   assert(result.length === 1, 'one entry returned');
@@ -74,7 +74,7 @@ async function testPositiveAndNegativeDelta(): Promise<void> {
     // ordering here just reflects the stub; service maps by array index
   ];
   const db = new MockDb(rows);
-  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any);
+  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any, { applyVisibilityFilter: (sql: string, params: unknown[]) => ({ sql, params }) } as any);
   const result = await svc.getLeaderboard('t1');
 
   assert(result[0].rank === 1, 'first row gets rank 1');
@@ -98,7 +98,7 @@ async function testDownwardMover(): Promise<void> {
       prev_rank: 1 }, // delta: 1 - 2 = -1  (they were #1 yesterday, now #2)
   ];
   const db = new MockDb(rows);
-  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any);
+  const svc = new TournamentLeaderboardService(db as any, new StubSchema() as any, { applyVisibilityFilter: (sql: string, params: unknown[]) => ({ sql, params }) } as any);
   const result = await svc.getLeaderboard('t1');
 
   assert(result[1].rank === 2 && result[1].prev_rank === 1, 'slipped user: rank 2, prev 1');

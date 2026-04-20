@@ -119,6 +119,14 @@ const service = Object.create(MessagingService.prototype) as MessagingService;
 (service as any).db = stubDb;
 (service as any).schema = stubSchema;
 (service as any).logger = { log: () => {}, error: () => {}, warn: () => {} };
+(service as any).optOuts = {
+  applyVisibilityFilter(sql: string, params: unknown[], viewerId: string) {
+    return {
+      sql: sql + ` AND (u.social_messaging_enabled IS NOT FALSE OR u.id = $${params.length + 1})`,
+      params: [...params, viewerId],
+    };
+  },
+};
 
 // ─── Tests ───────────────────────────────────────────────────
 
@@ -191,7 +199,7 @@ const service = Object.create(MessagingService.prototype) as MessagingService;
 
   console.log('\nsearchUsers():');
   {
-    const users = await service.searchUsers('test');
+    const users = await service.searchUsers('test', 'viewer-1');
     assert(users.length === 1, 'returns one user');
     assert(users[0].display_name === 'testuser', 'correct display_name');
   }

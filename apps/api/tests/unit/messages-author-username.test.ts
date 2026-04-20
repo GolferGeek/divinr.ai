@@ -29,7 +29,8 @@ async function main(): Promise<void> {
   console.log('\n=== Messages Author Username Tests ===\n');
 
   const db = new MockDb();
-  const svc = new MessagingService(db as any, new StubSchema() as any);
+  const stubOptOuts = { applyVisibilityFilter: (sql: string, params: unknown[]) => ({ sql, params }) } as any;
+  const svc = new MessagingService(db as any, new StubSchema() as any, stubOptOuts);
 
   // Stub verifyMembership so we can drive listMessages without a real DB.
   (svc as any).verifyMembership = async () => undefined;

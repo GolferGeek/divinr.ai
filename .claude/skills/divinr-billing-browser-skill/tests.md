@@ -4,6 +4,7 @@ Playwright specs:
 
 - `apps/e2e/tests/billing/trial-countdown.spec.ts` — app-shell chip smoke, branch A / B tolerant.
 - `apps/e2e/tests/billing/read-only-banner.spec.ts` — in-content alert smoke, branch C tolerant.
+- `apps/e2e/tests/billing/social-opt-outs.spec.ts` — `/settings/social-opt-outs` page renders the five toggles, `GET` + `PATCH /api/users/:id/social-opt-outs` round-trip works, vocab guard clean.
 
 Storage state: `apps/e2e/.auth/testing-team.json` (populated by `scripts/prepare-auth-state.ts`). The `billing` project in `playwright.config.ts` uses this storage state via `PLAYWRIGHT_STORAGE_STATE`.
 
@@ -97,6 +98,20 @@ test('read-only banner is visible iff is_read_only; disclaimer + CTA present on 
   expect(serverErrors, `unexpected 5xx: ${serverErrors.join('\n')}`).toEqual([]);
 });
 ```
+
+### 3. Social opt-outs tab renders five toggles and round-trips PATCH
+
+**What**: Navigate to `/settings/social-opt-outs`. Confirm each of the five toggles
+(`social-opt-out-social_visible_in_member_lists`,
+`social-opt-out-social_messaging_enabled`,
+`social-opt-out-social_tournament_participation`,
+`social-opt-out-social_leaderboard_visible`,
+`social-opt-out-social_notifications_enabled`) is visible. Fetch
+`GET /api/users/:id/social-opt-outs` for the authenticated user, flip a flag via
+`PATCH`, confirm response echoes the new state, restore. Vocab guard clean.
+
+See `apps/e2e/tests/billing/social-opt-outs.spec.ts` for the canonical
+implementation.
 
 ## Chrome-MCP exploratory (not in CI)
 
