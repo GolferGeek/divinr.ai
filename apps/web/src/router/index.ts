@@ -17,6 +17,12 @@ export const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/pricing',
+      name: 'pricing',
+      component: () => import('../views/PricingView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/join',
       name: 'club-join-signup',
       component: () => import('../views/ClubJoinSignupView.vue'),

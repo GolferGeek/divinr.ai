@@ -54,6 +54,20 @@ test('authored-content hub loads (your content or upgrade CTA), no 5xx, vocab cl
 });
 ```
 
+### 3. Billing tab surfaces the itemized monthly bill
+
+**What**: The **Billing** segment tab on `/settings/authored-content` now renders
+the itemized bill from `GET /api/billing/preview`: Basic $50 line, optional
+per-rollup rows for Authored Analysts ($60 × N) and Authored Instruments
+($20 × M), BYO platform fee line when present, and a Monthly Total footer.
+Expanding a rollup reveals per-item rows with display names.
+
+Canonical coverage lives in the billing facet:
+`apps/e2e/tests/billing/bill-preview.spec.ts`
+(see `.claude/skills/divinr-billing-browser-skill/tests.md` Numbered case 4).
+This spec is runnable from the `billing` Playwright project; the `authoring`
+project does not duplicate it.
+
 ## Chrome-MCP exploratory (not in CI)
 
 - Switch through all five segment tabs (`analysts` -> `instruments` -> `wiring` -> `apikeys` -> `billing`) and verify each renders without console errors.

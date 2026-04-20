@@ -5,6 +5,8 @@ Playwright specs:
 - `apps/e2e/tests/billing/trial-countdown.spec.ts` — app-shell chip smoke, branch A / B tolerant.
 - `apps/e2e/tests/billing/read-only-banner.spec.ts` — in-content alert smoke, branch C tolerant.
 - `apps/e2e/tests/billing/social-opt-outs.spec.ts` — `/settings/social-opt-outs` page renders the five toggles, `GET` + `PATCH /api/users/:id/social-opt-outs` round-trip works, vocab guard clean.
+- `apps/e2e/tests/billing/bill-preview.spec.ts` — `GET /api/billing/preview` returns the itemized shape (basic, analysts, instruments, byoFee, total); arithmetic invariant `total = basic + $60·|analysts| + $20·|instruments| + byoFee` holds; BillingTab DOM reflects the payload.
+- `apps/e2e/tests/billing/pricing-page.spec.ts` — unauthenticated `/pricing` renders both cards with the $50/ $60/ $20/ $10 price points, "Start free trial" routes to `/login`, full disclaimer present, vocab clean.
 
 Storage state: `apps/e2e/.auth/testing-team.json` (populated by `scripts/prepare-auth-state.ts`). The `billing` project in `playwright.config.ts` uses this storage state via `PLAYWRIGHT_STORAGE_STATE`.
 
@@ -111,6 +113,28 @@ test('read-only banner is visible iff is_read_only; disclaimer + CTA present on 
 `PATCH`, confirm response echoes the new state, restore. Vocab guard clean.
 
 See `apps/e2e/tests/billing/social-opt-outs.spec.ts` for the canonical
+implementation.
+
+### 4. Monthly-bill itemization reflects authored content
+
+**What**: `GET /api/billing/preview` returns `{ basicMonthlyUsd,
+authoredAnalysts[], authoredInstruments[], byoPlatformFeeUsd, totalMonthlyUsd }`.
+The BillingTab renders one row per rollup (analysts / instruments), expandable
+to show per-item display names. Arithmetic: `total = basic + sum(authoredAnalysts) +
+sum(authoredInstruments) + byoFee`.
+
+See `apps/e2e/tests/billing/bill-preview.spec.ts` for the canonical
+implementation (branch-tolerant — asserts the shape and arithmetic against
+whatever the API returns for the logged-in user).
+
+### 5. Public pricing page is discoverable and routes to signup
+
+**What**: Unauthenticated `goto('/pricing')` loads without redirect. Two cards
+render: Basic ($50/mo + 30-day trial copy) and Authoring add-ons ($20, $60,
+$10 price points). "Start free trial" CTA routes to `/login`. Full disclaimer
+renders at the bottom. Vocabulary clean in non-disclaimer copy.
+
+See `apps/e2e/tests/billing/pricing-page.spec.ts` for the canonical
 implementation.
 
 ## Chrome-MCP exploratory (not in CI)

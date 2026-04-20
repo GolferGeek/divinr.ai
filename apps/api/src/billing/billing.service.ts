@@ -53,6 +53,8 @@ export interface BillingPreview {
     monthlyUsd: number;
     status: string;
   }>;
+  authoredAnalysts: Array<{ id: string | null; displayName: string; monthlyUsd: number }>;
+  authoredInstruments: Array<{ id: string | null; displayName: string; monthlyUsd: number }>;
   byoPlatformFeeUsd: number;
   totalMonthlyUsd: number;
 }
@@ -414,11 +416,52 @@ export class BillingService {
     const hasByo = rows.some(r => r.item_kind === 'byo_platform_fee');
     const byoFee = hasByo ? this.byoPlatformFeeUsd : 0;
 
+    const analystRows = contentRows.filter(r => r.item_kind === 'custom_analyst');
+    const instrumentRows = contentRows.filter(r => r.item_kind === 'custom_instrument');
+    const analystIds = analystRows.map(r => r.item_id).filter((id): id is string => !!id);
+    const instrumentIds = instrumentRows.map(r => r.item_id).filter((id): id is string => !!id);
+
+    const analystNames = await this.resolveAnalystNames(analystIds);
+    const instrumentNames = await this.resolveInstrumentNames(instrumentIds);
+
+    const authoredAnalysts = analystRows.map(r => ({
+      id: r.item_id,
+      displayName: (r.item_id && analystNames.get(r.item_id)) || 'Authored analyst',
+      monthlyUsd: r.monthly_usd_cents / 100,
+    }));
+    const authoredInstruments = instrumentRows.map(r => ({
+      id: r.item_id,
+      displayName: (r.item_id && instrumentNames.get(r.item_id)) || 'Authored instrument',
+      monthlyUsd: r.monthly_usd_cents / 100,
+    }));
+
     return {
       basicMonthlyUsd: basic,
       authoredItems,
+      authoredAnalysts,
+      authoredInstruments,
       byoPlatformFeeUsd: byoFee,
       totalMonthlyUsd: basic + contentTotal + byoFee,
     };
+  }
+
+  private async resolveAnalystNames(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map();
+    const result = await this.db.rawQuery(
+      `SELECT id, display_name, slug FROM prediction.market_analysts WHERE id = ANY($1::uuid[])`,
+      [ids],
+    );
+    const rows = (result.data as Array<{ id: string; display_name: string | null; slug: string | null }> | null) ?? [];
+    return new Map(rows.map(r => [r.id, r.display_name || r.slug || r.id]));
+  }
+
+  private async resolveInstrumentNames(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map();
+    const result = await this.db.rawQuery(
+      `SELECT id, symbol, name FROM prediction.instruments WHERE id = ANY($1::uuid[])`,
+      [ids],
+    );
+    const rows = (result.data as Array<{ id: string; symbol: string | null; name: string | null }> | null) ?? [];
+    return new Map(rows.map(r => [r.id, r.name || r.symbol || r.id]));
   }
 }

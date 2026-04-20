@@ -600,6 +600,22 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       'added. You can keep browsing analyses and portfolios; new authored content ' +
       'and trading actions resume the moment billing is active.',
   },
+  'billing.bill-overview': {
+    title: "What's on your bill",
+    body:
+      "Your monthly total rolls up the $50 Basic subscription plus any authored " +
+      "analysts ($60 each) or authored instruments ($20 each) you own, plus a $10 " +
+      "BYO platform fee if you're using your own API key. Expand a rollup row to " +
+      "see the per-item detail.",
+  },
+  'pricing.overview': {
+    title: 'Divinr pricing',
+    body:
+      "One plan, $50/month, 30-day free trial. Authored content is add-on: $60/mo " +
+      "per custom analyst, $20/mo per custom instrument, $10/mo BYO platform fee. " +
+      "Everything else — analyses, signals, risk debates, reasoning, performance, " +
+      "clubs — is included in Basic.",
+  },
 
   // ────────────────────────────── Admin ────────────────────────────────
   'admin.cost-modeling.calibration': {
