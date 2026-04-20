@@ -115,7 +115,7 @@ All new endpoints under `/clubs/rankings` prefix.
 - **Real-time ranking updates** — nightly batch is sufficient. No SSE for ranking changes.
 - **Private club rankings** — only public clubs appear in leaderboards.
 - **Cross-club tournament brackets** — future (club vs club tournaments).
-- **Prize/reward system for top clubs** — future (paid tiers).
+- **Prize/reward system for top clubs** — future. Note: paid-tier framing is retired per `docs/efforts/master-intention.md` §8; any prize system will ride on the single-tier billing model, not club-level billing.
 
 ## 7. Dependencies & Risks
 

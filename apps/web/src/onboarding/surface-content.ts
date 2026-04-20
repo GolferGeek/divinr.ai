@@ -583,8 +583,8 @@ export const surfaceContent: Record<string, SurfaceContent> = {
   'billing.student-accrual': {
     title: 'Student accrual',
     body:
-      "If you're in a club that sponsors student tiers, this shows the accrued " +
-      "usage that's covered by your sponsor rather than you.",
+      'Students on cost-pass-through accounts see accrued inference usage here ' +
+      "so it's clear what's accumulating against the monthly floor.",
   },
   'billing.trial-countdown': {
     title: 'Your free trial',
