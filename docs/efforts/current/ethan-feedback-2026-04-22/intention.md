@@ -102,7 +102,6 @@ Ship the "right" implementation: capture which articles actually fed into each p
 ## Open Questions for PRD Phase
 
 - **Item #1 root cause**: is `PredictorScoringPanel` genuinely broken, or is the tab intentionally redundant? Need to trace `predictors.store` before writing PRD.
-- **Item #4 write-site audit**: are there prediction-write sites beyond `prediction-runner.service.ts` (e.g. day-trader prediction writer) that also need to capture `contributing_article_ids`? Grep during PRD phase to build the full list.
 - **Item #5 extract heuristic**: first sentence vs. first 200 chars vs. LLM-generated summary? Probably start with "first paragraph, max 200 chars" and refine based on how the extracts read.
 - **Testing coverage**: items #1, #2, #5 extend existing deep skills (instruments, analysts, predictions). #3 affects every facet's `where.md` that references "instruments" — mechanical update. #4 extends the predictions deep skill with a Sources-section assertion.
 
