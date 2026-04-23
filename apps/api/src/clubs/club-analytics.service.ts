@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { ClubSchemaService } from './club-schema.service';
 import { ClubService } from './club.service';
+import { SocialOptOutService } from '../users/social-opt-out.service';
 
 export interface ClubAnalytics {
   member_count: number;
@@ -35,6 +36,7 @@ export class ClubAnalyticsService {
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ClubSchemaService) private readonly schema: ClubSchemaService,
     @Inject(ClubService) private readonly clubs: ClubService,
+    @Inject(SocialOptOutService) private readonly optOuts: SocialOptOutService,
   ) {}
 
   async getClubAnalytics(clubId: string, userId: string): Promise<ClubAnalytics> {
@@ -100,7 +102,7 @@ export class ClubAnalyticsService {
     const commonMistakes = (cmResult.data as Array<{ symbol: string; total_loss: number; trade_count: number }> | null) ?? [];
 
     // Contrarian spotlights: members who voted against consensus and were correct
-    const csResult = await this.db.rawQuery(
+    const csFilter = this.optOuts.applyVisibilityFilter(
       `SELECT DISTINCT v.user_id, u.display_name, p.symbol, v.direction
        FROM prediction.club_consensus_votes v
        JOIN prediction.club_consensus_polls p ON p.id = v.poll_id
@@ -114,8 +116,12 @@ export class ClubAnalyticsService {
            GROUP BY cv2.direction
            ORDER BY COUNT(*) DESC
            LIMIT 1
-         )
-       LIMIT 5`, [clubId]);
+         )`,
+      [clubId],
+      userId,
+      'social_leaderboard_visible',
+    );
+    const csResult = await this.db.rawQuery(csFilter.sql + ` LIMIT 5`, csFilter.params);
     const contrarianSpotlights = (csResult.data as Array<{ user_id: string; display_name: string | null; symbol: string; direction: string }> | null) ?? [];
 
     return {
@@ -153,14 +159,20 @@ export class ClubAnalyticsService {
     const entrantCount = ((ecResult.data as Array<{ count: number }> | null) ?? [{ count: 0 }])[0].count;
 
     // Top 3 performers
-    const topResult = await this.db.rawQuery(
+    const topFilter = this.optOuts.applyVisibilityFilter(
       `SELECT te.user_id, u.display_name, tp.initial_balance, tp.total_realized_pnl, tp.total_unrealized_pnl
        FROM prediction.tournament_entries te
        JOIN prediction.tournament_portfolios tp ON tp.id = te.portfolio_id
        LEFT JOIN authz.users u ON u.id = te.user_id
-       WHERE te.tournament_id = $1
-       ORDER BY (tp.total_realized_pnl + tp.total_unrealized_pnl) DESC
-       LIMIT 3`, [tournamentId]);
+       WHERE te.tournament_id = $1`,
+      [tournamentId],
+      userId,
+      'social_leaderboard_visible',
+    );
+    const topResult = await this.db.rawQuery(
+      topFilter.sql + ` ORDER BY (tp.total_realized_pnl + tp.total_unrealized_pnl) DESC LIMIT 3`,
+      topFilter.params,
+    );
     const topRows = (topResult.data as Array<{ user_id: string; display_name: string | null; initial_balance: number; total_realized_pnl: number; total_unrealized_pnl: number }> | null) ?? [];
 
     const topPerformers = [];
@@ -183,22 +195,36 @@ export class ClubAnalyticsService {
     }
 
     // Biggest win
-    const bwResult = await this.db.rawQuery(
+    const bwFilter = this.optOuts.applyVisibilityFilter(
       `SELECT tpos.user_id, u.display_name, tpos.symbol, tpos.realized_pnl
        FROM prediction.tournament_positions tpos
        LEFT JOIN authz.users u ON u.id = tpos.user_id
-       WHERE tpos.tournament_id = $1 AND tpos.status = 'closed'
-       ORDER BY tpos.realized_pnl DESC LIMIT 1`, [tournamentId]);
+       WHERE tpos.tournament_id = $1 AND tpos.status = 'closed'`,
+      [tournamentId],
+      userId,
+      'social_leaderboard_visible',
+    );
+    const bwResult = await this.db.rawQuery(
+      bwFilter.sql + ` ORDER BY tpos.realized_pnl DESC LIMIT 1`,
+      bwFilter.params,
+    );
     const bwRows = (bwResult.data as Array<{ user_id: string; display_name: string | null; symbol: string; realized_pnl: number }> | null) ?? [];
     const biggestWin = bwRows.length > 0 ? { user_id: bwRows[0].user_id, display_name: bwRows[0].display_name, symbol: bwRows[0].symbol, pnl: Number(bwRows[0].realized_pnl) } : null;
 
     // Biggest loss
-    const blResult = await this.db.rawQuery(
+    const blFilter = this.optOuts.applyVisibilityFilter(
       `SELECT tpos.user_id, u.display_name, tpos.symbol, tpos.realized_pnl
        FROM prediction.tournament_positions tpos
        LEFT JOIN authz.users u ON u.id = tpos.user_id
-       WHERE tpos.tournament_id = $1 AND tpos.status = 'closed'
-       ORDER BY tpos.realized_pnl ASC LIMIT 1`, [tournamentId]);
+       WHERE tpos.tournament_id = $1 AND tpos.status = 'closed'`,
+      [tournamentId],
+      userId,
+      'social_leaderboard_visible',
+    );
+    const blResult = await this.db.rawQuery(
+      blFilter.sql + ` ORDER BY tpos.realized_pnl ASC LIMIT 1`,
+      blFilter.params,
+    );
     const blRows = (blResult.data as Array<{ user_id: string; display_name: string | null; symbol: string; realized_pnl: number }> | null) ?? [];
     const biggestLoss = blRows.length > 0 ? { user_id: blRows[0].user_id, display_name: blRows[0].display_name, symbol: blRows[0].symbol, pnl: Number(blRows[0].realized_pnl) } : null;
 

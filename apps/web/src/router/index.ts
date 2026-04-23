@@ -17,6 +17,12 @@ export const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/pricing',
+      name: 'pricing',
+      component: () => import('../views/PricingView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/join',
       name: 'club-join-signup',
       component: () => import('../views/ClubJoinSignupView.vue'),
@@ -87,6 +93,7 @@ export const router = createRouter({
         { path: 'tournaments/:id/results', name: 'tournament-results', component: () => import('../views/TournamentResultsView.vue') },
         { path: 'settings/authored-content', name: 'authored-content', component: () => import('../views/AuthoredContentView.vue') },
         { path: 'settings/onboarding', name: 'onboarding-settings', component: () => import('../views/OnboardingSettingsView.vue') },
+        { path: 'settings/social-opt-outs', name: 'social-opt-outs', component: () => import('../views/settings/SocialOptOutsTab.vue') },
         { path: 'usage', name: 'usage', component: () => import('../views/UsageDashboardView.vue') },
         { path: 'billing/summary', name: 'billing-summary', component: () => import('../views/BillingSummaryView.vue') },
         { path: 'admin/cost/calibration', name: 'cost-calibration', component: () => import('../views/CostCalibrationView.vue') },
@@ -98,6 +105,7 @@ export const router = createRouter({
         { path: 'admin/attribution', name: 'admin-attribution', component: () => import('../views/AttributionAdminView.vue') },
         { path: 'admin/attribution/sources', name: 'admin-attribution-sources', component: () => import('../views/SourceQualityView.vue') },
         { path: 'admin/attribution/graduation-candidates', name: 'admin-attribution-graduation', component: () => import('../views/GraduationCandidatesView.vue') },
+        { path: 'admin/users/:id/billing', name: 'admin-user-billing', component: () => import('../views/AdminUserBillingView.vue') },
       ],
     },
     {

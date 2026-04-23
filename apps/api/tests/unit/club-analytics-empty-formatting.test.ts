@@ -41,7 +41,8 @@ async function emptyCase(): Promise<void> {
   };
 
   const db = new MockDb(responder);
-  const svc = new ClubAnalyticsService(db as any, new StubSchema() as any, new StubClubs() as any);
+  const stubOptOuts = { applyVisibilityFilter(sql: string, params: unknown[]) { return { sql, params }; } } as any;
+  const svc = new ClubAnalyticsService(db as any, new StubSchema() as any, new StubClubs() as any, stubOptOuts);
   const result = await svc.getClubAnalytics('club-1', 'user-1');
 
   assert(result.trades_count === 0, 'trades_count is 0 for a club with no closed tournament positions');
@@ -63,7 +64,8 @@ async function populatedCase(): Promise<void> {
   };
 
   const db = new MockDb(responder);
-  const svc = new ClubAnalyticsService(db as any, new StubSchema() as any, new StubClubs() as any);
+  const stubOptOuts = { applyVisibilityFilter(sql: string, params: unknown[]) { return { sql, params }; } } as any;
+  const svc = new ClubAnalyticsService(db as any, new StubSchema() as any, new StubClubs() as any, stubOptOuts);
   const result = await svc.getClubAnalytics('club-2', 'user-1');
 
   assert(result.trades_count === 5, 'trades_count reflects the SQL total');

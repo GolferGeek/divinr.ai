@@ -77,22 +77,24 @@ const APPENDIX_A = [
   'club.compare', 'club.rankings', 'club.invite-landing', 'club.join-signup',
   // Auth & onboarding (2)
   'auth.invite-signup', 'welcome-modal',
-  // Cost & billing (3)
+  // Cost & billing (7)
   'billing.summary', 'billing.compute-breakdown', 'billing.student-accrual',
-  // Admin (16)
+  'billing.trial-countdown', 'billing.read-only-banner', 'billing.bill-overview',
+  'pricing.overview',
+  // Admin (17)
   'admin.cost-modeling.calibration', 'admin.cost-modeling.defensibility',
   'admin.cost-modeling.experiments', 'admin.llm-usage', 'admin.day-trader-runs',
   'admin.findings-inbox', 'admin.evaluations', 'admin.runs.list', 'admin.runs.detail',
   'admin.canonical-day', 'admin.proposals', 'admin.graduation-candidates',
   'admin.contract-editor', 'admin.notification-debug', 'admin.attribution',
-  'admin.domain-dashboard',
-  // Settings (5)
-  'settings.onboarding', 'settings.opt-outs', 'settings.byo-credentials',
-  'settings.profile', 'settings.terms',
+  'admin.domain-dashboard', 'admin.user-billing',
+  // Settings (6)
+  'settings.onboarding', 'settings.opt-outs', 'settings.social-opt-outs',
+  'settings.byo-credentials', 'settings.profile', 'settings.terms',
 ];
 
-if (APPENDIX_A.length !== 105) {
-  console.error(`Appendix A baseline is malformed: expected 105, got ${APPENDIX_A.length}`);
+if (APPENDIX_A.length !== 111) {
+  console.error(`Appendix A baseline is malformed: expected 111, got ${APPENDIX_A.length}`);
   process.exit(2);
 }
 const inventory = new Set(APPENDIX_A);

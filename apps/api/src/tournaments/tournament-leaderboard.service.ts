@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { TournamentSchemaService } from './tournament-schema.service';
+import { SocialOptOutService } from '../users/social-opt-out.service';
 import type { Tournament, TournamentEntry } from './tournament.types';
 
 export interface LeaderboardEntry {
@@ -33,13 +34,19 @@ export class TournamentLeaderboardService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(TournamentSchemaService) private readonly schema: TournamentSchemaService,
+    @Inject(SocialOptOutService) private readonly optOuts: SocialOptOutService,
   ) {}
 
-  async getLeaderboard(tournamentId: string): Promise<LeaderboardEntry[]> {
+  /**
+   * `viewerId` is optional: internal callers (snapshots, finalize, lifecycle
+   * cron) need the true leaderboard regardless of opt-outs. The user-facing
+   * controller path always passes the viewer so `social_leaderboard_visible`
+   * is honored.
+   */
+  async getLeaderboard(tournamentId: string, viewerId?: string): Promise<LeaderboardEntry[]> {
     await this.schema.ensureSchema();
 
-    const result = await this.db.rawQuery(
-      `SELECT
+    const baseSql = `SELECT
          te.user_id,
          u.display_name,
          tp.initial_balance,
@@ -66,10 +73,14 @@ export class TournamentLeaderboardService {
          LIMIT 1
        ) s ON TRUE
        WHERE te.tournament_id = $1
-         AND coalesce(u.is_testing, false) = false
-       ORDER BY (tp.total_realized_pnl + tp.total_unrealized_pnl) DESC, te.user_id ASC`,
-      [tournamentId],
-    );
+         AND coalesce(u.is_testing, false) = false`;
+    const orderSql = ` ORDER BY (tp.total_realized_pnl + tp.total_unrealized_pnl) DESC, te.user_id ASC`;
+
+    const { sql, params } = viewerId
+      ? this.optOuts.applyVisibilityFilter(baseSql, [tournamentId], viewerId, 'social_leaderboard_visible')
+      : { sql: baseSql, params: [tournamentId] };
+
+    const result = await this.db.rawQuery(sql + orderSql, params);
     if (result.error) throw new Error(result.error.message);
 
     const rows = (result.data as Array<{
@@ -113,7 +124,7 @@ export class TournamentLeaderboardService {
     });
   }
 
-  async getResults(tournamentId: string): Promise<TournamentResults | null> {
+  async getResults(tournamentId: string, viewerId?: string): Promise<TournamentResults | null> {
     await this.schema.ensureSchema();
 
     // Verify tournament is completed
@@ -131,7 +142,7 @@ export class TournamentLeaderboardService {
     }
 
     // Get standings with final_rank
-    const leaderboard = await this.getLeaderboard(tournamentId);
+    const leaderboard = await this.getLeaderboard(tournamentId, viewerId);
     const entriesResult = await this.db.rawQuery(
       `SELECT user_id, final_rank FROM prediction.tournament_entries WHERE tournament_id = $1`,
       [tournamentId],

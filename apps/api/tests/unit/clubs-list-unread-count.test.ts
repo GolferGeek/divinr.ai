@@ -32,9 +32,10 @@ class StubMessaging {}
 
 function makeService(responder: (sql: string, params: unknown[]) => { data: unknown; error: null }): { svc: ClubService; db: MockDb } {
   const db = new MockDb(responder);
-  // ClubService takes (db, schema, messaging, notifications?). The notifications
-  // arg is @Optional so we omit it.
-  const svc = new ClubService(db as any, new StubSchema() as any, new StubMessaging() as any);
+  // ClubService takes (db, schema, messaging, optOuts, notifications?). The
+  // notifications arg is @Optional so we omit it.
+  const stubOptOuts = { applyVisibilityFilter(sql: string, params: unknown[]) { return { sql, params }; } } as any;
+  const svc = new ClubService(db as any, new StubSchema() as any, new StubMessaging() as any, stubOptOuts);
   return { svc, db };
 }
 

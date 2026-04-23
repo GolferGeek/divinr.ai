@@ -4,6 +4,7 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
 import { ClubSchemaService } from './club-schema.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { NotificationService } from '../markets/services/notification.service';
+import { SocialOptOutService } from '../users/social-opt-out.service';
 import type {
   Club,
   ClubMember,
@@ -29,6 +30,7 @@ export class ClubService {
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(ClubSchemaService) private readonly schema: ClubSchemaService,
     @Inject(MessagingService) private readonly messaging: MessagingService,
+    @Inject(SocialOptOutService) private readonly optOuts: SocialOptOutService,
     @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
   ) {}
 
@@ -294,13 +296,19 @@ export class ClubService {
     await this.schema.ensureSchema();
     await this.requireMembership(clubId, userId);
 
-    const result = await this.db.rawQuery(
+    const filter = this.optOuts.applyVisibilityFilter(
       `SELECT cm.*, u.display_name
        FROM prediction.club_members cm
        LEFT JOIN authz.users u ON u.id = cm.user_id
-       WHERE cm.club_id = $1
-       ORDER BY CASE cm.role WHEN 'owner' THEN 1 WHEN 'admin' THEN 2 ELSE 3 END, cm.joined_at ASC`,
+       WHERE cm.club_id = $1`,
       [clubId],
+      userId,
+      'social_visible_in_member_lists',
+    );
+    const result = await this.db.rawQuery(
+      filter.sql +
+        ` ORDER BY CASE cm.role WHEN 'owner' THEN 1 WHEN 'admin' THEN 2 ELSE 3 END, cm.joined_at ASC`,
+      filter.params,
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as ClubMember[] | null) ?? [];

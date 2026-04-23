@@ -18,6 +18,7 @@ import {
 } from '@orchestratorai/planes/auth';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { InviteService } from './invite.service';
+import { BillingService } from '../billing/billing.service';
 
 interface LoginBody {
   email?: string;
@@ -52,6 +53,7 @@ export class AuthController {
     @Inject(AUTH_SERVICE) private readonly authService: AuthServiceProvider,
     @Inject(InviteService) private readonly inviteService: InviteService,
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
+    @Inject(BillingService) private readonly billing: BillingService,
   ) {}
 
   /**
@@ -229,9 +231,17 @@ export class AuthController {
          ON CONFLICT DO NOTHING`,
         [club.id, userId],
       );
+
+      // 4. Seed a 30-day trial subscription. Non-fatal: missing subscription rows
+      // are swept up by the Phase 6 migration backfill cron.
+      try {
+        await this.billing.ensureSubscription(userId);
+      } catch {
+        // Log but do not block signup — billing backfill will catch this.
+      }
     }
 
-    // 4. Auto-login to get tokens
+    // 5. Auto-login to get tokens
     return this.authService.login({
       email: body.email,
       password: body.password,

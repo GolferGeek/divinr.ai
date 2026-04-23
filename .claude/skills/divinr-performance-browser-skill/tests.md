@@ -50,6 +50,19 @@ test('performance dashboard renders, vocabulary clean, no 5xx', async ({ page })
 });
 ```
 
+### Social opt-outs — analyst leaderboard visibility (forward-compatible note)
+
+**What**: The current `/performance` leaderboard is analyst-scoped (not
+per-user), so no user-visible row is hidden by `social_leaderboard_visible`
+today. When a cross-user surface lands (e.g., a "top traders" leaderboard),
+wire it through `SocialOptOutService.applyVisibilityFilter` with
+`social_leaderboard_visible` and extend this doc with a two-user verification
+case modeled on the clubs / tournaments entries.
+
+Service-layer coverage of the flag is asserted at
+`apps/api/tests/unit/social-opt-out-coverage.test.ts` via the
+clubs-analytics / tournaments-leaderboard surfaces.
+
 ## Chrome-MCP exploratory (not in CI)
 
 - Range segment switching: click `1W` → `1M` → `3M` → `All`, verify the equity-curve refetches

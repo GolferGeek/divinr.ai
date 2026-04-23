@@ -33,6 +33,7 @@ export default defineConfig({
     { name: 'instruments', testMatch: 'instruments/*.spec.ts' },
     { name: 'performance', testMatch: 'performance/*.spec.ts' },
     { name: 'authoring', testMatch: 'authoring/*.spec.ts' },
+    { name: 'billing', testMatch: 'billing/*.spec.ts' },
     { name: 'admin', testMatch: 'admin/*.spec.ts' },
   ],
 });

@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { TournamentSchemaService } from './tournament-schema.service';
+import { SocialOptOutService } from '../users/social-opt-out.service';
 import type {
   Tournament,
   TournamentEntry,
@@ -17,6 +18,7 @@ export class TournamentPortfolioService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(TournamentSchemaService) private readonly schema: TournamentSchemaService,
+    @Inject(SocialOptOutService) private readonly optOuts: SocialOptOutService,
   ) {}
 
   async enterTournament(tournamentId: string, userId: string): Promise<TournamentEntry> {
@@ -197,16 +199,24 @@ export class TournamentPortfolioService {
     return ((uResult.data as TournamentPosition[] | null) ?? [])[0]!;
   }
 
-  async listEntries(tournamentId: string): Promise<Array<TournamentEntry & { display_name?: string }>> {
+  async listEntries(
+    tournamentId: string,
+    viewerId: string,
+  ): Promise<Array<TournamentEntry & { display_name?: string }>> {
     await this.schema.ensureSchema();
-    const result = await this.db.rawQuery(
+    const filter = this.optOuts.applyVisibilityFilter(
       `SELECT te.*, u.display_name
        FROM prediction.tournament_entries te
        LEFT JOIN authz.users u ON u.id = te.user_id
        WHERE te.tournament_id = $1
-         AND coalesce(u.is_testing, false) = false
-       ORDER BY te.joined_at ASC`,
+         AND coalesce(u.is_testing, false) = false`,
       [tournamentId],
+      viewerId,
+      'social_tournament_participation',
+    );
+    const result = await this.db.rawQuery(
+      filter.sql + ` ORDER BY te.joined_at ASC`,
+      filter.params,
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as Array<TournamentEntry & { display_name?: string }> | null) ?? [];

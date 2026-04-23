@@ -39,7 +39,8 @@ async function main(): Promise<void> {
   };
 
   const db = new MockDb(responder);
-  const svc = new ClubService(db as any, new StubSchema() as any, new StubMessaging() as any);
+  const stubOptOuts = { applyVisibilityFilter(sql: string, params: unknown[]) { return { sql, params }; } } as any;
+  const svc = new ClubService(db as any, new StubSchema() as any, new StubMessaging() as any, stubOptOuts);
   const rows = await svc.discoverClubs('user-42');
 
   const discoverCall = db.calls.find(c => c.sql.includes('FROM prediction.clubs c'));

@@ -1,6 +1,6 @@
 ---
 product: divinr
-severity: major
+severity: P2
 capability: instruments
 surface-key: instrument.detail
 spec: apps/e2e/tests/instruments/smoke.spec.ts
@@ -9,6 +9,9 @@ first-seen: 2026-04-19T00:00:00Z
 last-seen: 2026-04-19T00:00:00Z
 regression-count: 0
 trace-artifact: null
+status: triaged
+triaged-date: 2026-04-20
+assigned-agent: divinr-product-agent
 ---
 
 ## What failed

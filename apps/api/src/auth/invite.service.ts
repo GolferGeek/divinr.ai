@@ -12,6 +12,7 @@ import {
   AUTH_SERVICE,
   type AuthServiceProvider,
 } from '@orchestratorai/planes/auth';
+import { BillingService } from '../billing/billing.service';
 
 interface InviteRow {
   id: string;
@@ -47,6 +48,7 @@ export class InviteService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(AUTH_SERVICE) private readonly authService: AuthServiceProvider,
+    @Inject(BillingService) private readonly billing: BillingService,
   ) {}
 
   async ensureSchema(): Promise<void> {
@@ -192,8 +194,9 @@ export class InviteService {
     }
 
     // Create user via Supabase auth service
+    let createdUserId: string | undefined;
     try {
-      await this.authService.createUser(
+      const createResult = await this.authService.createUser(
         {
           email,
           password,
@@ -203,6 +206,7 @@ export class InviteService {
         },
         invite.created_by,
       );
+      createdUserId = (createResult as unknown as Record<string, unknown>)?.id as string | undefined;
     } catch (err) {
       // Unclaim the invite so it can be retried
       await this.db.rawQuery(
@@ -212,6 +216,18 @@ export class InviteService {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`Failed to create user for invite ${invite.id}: ${message}`);
       throw new BadRequestException(`Account creation failed: ${message}`);
+    }
+
+    // Seed a 30-day trial subscription for the newly created user.
+    // Non-fatal if it errors: the user is created and can recover; billing cron
+    // + admin backfill will catch stragglers. Log loudly so ops notices.
+    if (createdUserId) {
+      try {
+        await this.billing.ensureSubscription(createdUserId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`ensureSubscription failed for new invite user ${createdUserId}: ${message}`);
+      }
     }
 
     // Auto-login and return JWT

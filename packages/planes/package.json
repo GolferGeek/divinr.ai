@@ -87,17 +87,18 @@
     "class-transformer": "latest",
     "class-validator": "latest",
     "dotenv": "latest",
-    "jose": "latest",
+    "jose": "^5.9.0",
     "mssql": "latest",
     "pg": "latest",
     "rxjs": "latest",
-    "uuid": "latest"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/express": "latest",
     "@types/mssql": "^9.1.11",
     "@types/node": "latest",
     "@types/pg": "^8.20.0",
+    "@types/uuid": "^9.0.8",
     "tsx": "^4.21.0",
     "typescript": "latest"
   }
