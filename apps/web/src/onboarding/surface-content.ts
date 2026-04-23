@@ -32,7 +32,7 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       'and the reasoning behind it. Tap a card to see the full debate and decide for yourself.',
   },
   instruments: {
-    title: 'The instruments we watch',
+    title: 'Research — the tickers we watch',
     body:
       'Every ticker we cover lives here. Open one to see how our analysts frame ' +
       'it — what debates they run, how they disagree, and what they think is ' +
@@ -111,6 +111,13 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       'by default — nothing touches real money unless you explicitly wire up a ' +
       "broker. Divinr shows analysis and signals; the decision is always yours.",
   },
+  'prediction.sources': {
+    title: 'Where the analysis came from',
+    body:
+      "The articles your analyst cited for this specific call. Tap a title to " +
+      "open the original article in a new tab. Older analyses (before this " +
+      "feature shipped) show a best-effort list of recent articles instead.",
+  },
   'tournament.picker': {
     title: 'Pick a tournament',
     body:
@@ -137,6 +144,13 @@ export const surfaceContent: Record<string, SurfaceContent> = {
     body:
       'Different analyst configurations see the same instrument differently. ' +
       'Flip between variants to compare how each one weighs the inputs.',
+  },
+  'instrument.article-relevance': {
+    title: 'Articles scored for this ticker',
+    body:
+      "This is where our analysts score the articles they've read for how " +
+      'relevant each one is to this ticker. Higher scores mean the article likely ' +
+      "fed into a recent analyst signal. Use this tab to audit which news shaped today's take.",
   },
 
   // ────────────────────────── Analyst surfaces ─────────────────────────

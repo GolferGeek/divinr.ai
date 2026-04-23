@@ -104,7 +104,7 @@ watch(() => route.query, () => {
 
     <ion-segment v-model="tab" style="margin-bottom:16px" data-tour="instrument-tabs">
       <ion-segment-button value="analysts"><ion-label>Analysts</ion-label></ion-segment-button>
-      <ion-segment-button value="predictors"><ion-label>AI Scoring</ion-label></ion-segment-button>
+      <ion-segment-button value="predictors"><ion-label>Article Relevance</ion-label></ion-segment-button>
     </ion-segment>
 
     <!-- Analysts Tab -->
@@ -134,6 +134,7 @@ watch(() => route.query, () => {
           :analyst="a"
           :predictions="predictions"
           :risks="riskAssessments"
+          :instrument-symbol="String(instrument?.['symbol'] ?? '')"
         />
       </div>
       <ion-note v-if="analysts.length === 0" color="primary" style="display:block;padding:16px">
@@ -141,7 +142,7 @@ watch(() => route.query, () => {
       </ion-note>
     </div>
 
-    <!-- AI Scoring Tab -->
+    <!-- Article Relevance Tab -->
     <div v-if="tab === 'predictors'">
       <PredictorScoringPanel v-if="instrument" :instrument-id="String(instrument['id'])" />
     </div>

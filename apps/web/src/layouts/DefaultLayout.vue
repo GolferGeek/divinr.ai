@@ -72,7 +72,7 @@ const navGroups: NavGroup[] = [
   {
     label: 'Markets',
     items: [
-      { title: 'Instruments', icon: statsChartOutline, to: '/instruments' },
+      { title: 'Research', icon: statsChartOutline, to: '/instruments' },
       { title: 'Portfolios', icon: briefcaseOutline, to: '/portfolios' },
       { title: 'Risk', icon: shieldOutline, to: '/risk' },
     ],

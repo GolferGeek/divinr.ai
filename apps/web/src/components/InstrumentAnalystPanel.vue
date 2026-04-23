@@ -3,11 +3,13 @@ import { computed, ref } from 'vue';
 import {
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonNote,
 } from '@ionic/vue';
+import PredictionSources from './PredictionSources.vue';
 
 const props = defineProps<{
   analyst: Record<string, unknown>;
   predictions: Record<string, unknown>[];
   risks: Record<string, unknown>[];
+  instrumentSymbol?: string;
 }>();
 
 const showHistory = ref(false);
@@ -55,6 +57,10 @@ function fmtConfidence(v: unknown): string {
           · horizon {{ latestPrediction['horizon_minutes'] }}m
           <div style="opacity:0.7;font-size:0.8rem">{{ fmtDate(latestPrediction['created_at']) }}</div>
           <div style="margin-top:4px">{{ latestPrediction['rationale'] }}</div>
+          <PredictionSources
+            :prediction-id="String(latestPrediction['id'] ?? '')"
+            :instrument-symbol="instrumentSymbol"
+          />
         </div>
         <ion-note v-else color="medium">No analyses yet.</ion-note>
       </div>

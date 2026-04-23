@@ -2,11 +2,12 @@
 import { onMounted, ref, computed, defineAsyncComponent } from 'vue';
 
 const CalibrationScatter = defineAsyncComponent(() => import('../components/CalibrationScatter.vue'));
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '../composables/useApi';
 import {
   IonButton, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonGrid, IonRow, IonCol, IonChip, IonProgressBar, IonNote, IonIcon,
+  useIonRouter,
 } from '@ionic/vue';
 import { arrowBackOutline } from 'ionicons/icons';
 
@@ -80,7 +81,17 @@ interface ReasoningPayload {
 }
 
 const route = useRoute();
+const router = useRouter();
+const ionRouter = useIonRouter();
 const api = useApi();
+
+function goBack() {
+  if (ionRouter.canGoBack()) {
+    ionRouter.back();
+  } else {
+    router.replace('/analysts');
+  }
+}
 const analyst = ref<Record<string, unknown> | null>(null);
 const loading = ref(true);
 const calibration = ref<CalibrationResponse | null>(null);
@@ -149,7 +160,7 @@ const sortedPredictions = computed<ResolvedPrediction[]>(() => calibration.value
 
 <template>
   <div>
-    <ion-button fill="clear" router-link="/analysts" style="margin-bottom:8px">
+    <ion-button fill="clear" data-test="analyst-performance-back" @click="goBack" style="margin-bottom:8px">
       <ion-icon slot="start" :icon="arrowBackOutline" />
       Back
     </ion-button>

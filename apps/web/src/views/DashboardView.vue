@@ -146,6 +146,11 @@ function sortedAnalysts(analysts: AnalystStance[]): AnalystStance[] {
   return affinityStore.sortByAffinity(analysts);
 }
 
+/** Affinity-sorted analysts, excluding flat stances (for the compact chip row). */
+function nonFlatAnalysts(analysts: AnalystStance[]): AnalystStance[] {
+  return sortedAnalysts(analysts).filter((a) => a.direction !== 'flat');
+}
+
 /** Get affinity score for an analyst (0-100 display). Returns null if no data. */
 function affinityBadge(analystId: string): string | null {
   const entry = affinityStore.affinityMap.get(analystId);
@@ -233,7 +238,7 @@ function formatStartShort(iso: string): string {
       <div class="pathway-card" @click="router.push('/instruments')">
         <ion-icon :icon="searchOutline" class="pathway-icon" />
         <div class="pathway-label">Research</div>
-        <div class="pathway-desc">Instruments &amp; analysis</div>
+        <div class="pathway-desc">Tickers &amp; analysis</div>
       </div>
       <div class="pathway-card" @click="router.push('/portfolios')">
         <ion-icon :icon="walletOutline" class="pathway-icon" />
@@ -291,7 +296,7 @@ function formatStartShort(iso: string): string {
           <ion-card>
             <ion-card-content class="ion-text-center">
               <div class="stat-value">{{ instruments.items.length }}</div>
-              <ion-note>Instruments</ion-note>
+              <ion-note>Tickers</ion-note>
             </ion-card-content>
           </ion-card>
         </ion-col>
@@ -354,89 +359,76 @@ function formatStartShort(iso: string): string {
             </ion-card-header>
 
             <ion-card-content style="display:flex;flex-direction:column;flex:1">
-              <!-- Analyst Stances -->
-              <div v-if="pred.analysts.length > 0" class="analyst-stances">
-                <div
-                  v-for="(a, aIdx) in sortedAnalysts(pred.analysts).filter(x => x.direction !== 'flat')"
-                  :key="a.analyst_id"
-                  class="stance-row clickable"
-                  @click.stop="openAnalystModal(pred, pred.analysts.indexOf(a))"
-                >
-                  <span class="stance-name">
-                    {{ shortName(a.analyst_name) }}
-                    <span v-if="affinityBadge(a.analyst_id)" class="affinity-badge">{{ affinityBadge(a.analyst_id) }}</span>
-                  </span>
+              <!-- Compact analyst stance chips (top 3 non-flat + "+N more") -->
+              <div v-if="pred.analysts.length > 0" class="stance-chip-row">
+                <template v-for="a in nonFlatAnalysts(pred.analysts).slice(0, 3)" :key="a.analyst_id">
                   <ion-chip
                     :color="directionColor(a.direction)"
-                    style="height:22px;font-size:0.75rem"
+                    class="stance-chip clickable"
+                    @click.stop="openAnalystModal(pred, pred.analysts.indexOf(a))"
                   >
                     <ion-icon :icon="directionIcon(a.direction)" style="font-size:0.7rem" />
-                    {{ a.direction }} {{ a.confidence }}%
+                    <span class="stance-chip-name">{{ shortName(a.analyst_name) }}</span>
+                    <span class="stance-chip-conf">{{ a.confidence }}%</span>
                   </ion-chip>
-                </div>
-                <div v-if="pred.analysts.filter(x => x.direction !== 'flat').length === 0" style="color:#999;font-size:0.8rem">
-                  All analysts neutral
-                </div>
+                </template>
+                <ion-chip
+                  v-if="nonFlatAnalysts(pred.analysts).length > 3"
+                  class="stance-chip more-chip clickable"
+                  @click.stop="openAnalystModal(pred, 0)"
+                >+{{ nonFlatAnalysts(pred.analysts).length - 3 }} more</ion-chip>
+                <span
+                  v-if="nonFlatAnalysts(pred.analysts).length === 0"
+                  class="stance-neutral"
+                >All analysts neutral</span>
               </div>
-              <div v-else style="color:#999;font-size:0.85rem;padding:8px 0">
-                Single analyst analysis
-              </div>
+              <div v-else class="stance-neutral">Single analyst analysis</div>
 
-              <!-- Bottom section: rationale + trade rec + footer — pushed to bottom -->
+              <!-- Bottom section: rationale + one-line trade rec + footer -->
               <div class="card-bottom-section" style="margin-top:auto">
 
-              <!-- Rationale preview -->
+              <!-- Rationale preview with inline Read more -->
               <div v-if="pred.arbitrator?.rationale" class="rationale-preview">
-                {{ pred.arbitrator.rationale.slice(0, 120) }}{{ pred.arbitrator.rationale.length > 120 ? '...' : '' }}
+                {{ pred.arbitrator.rationale.slice(0, 120) }}{{ pred.arbitrator.rationale.length > 120 ? '… ' : '' }}
+                <a
+                  v-if="pred.arbitrator.rationale.length > 120"
+                  class="read-more"
+                  data-test="dashboard-card-read-more"
+                  @click.stop="openAnalystModal(pred, 0)"
+                >Read more</a>
               </div>
 
-              <!-- Phase 6: Portfolio Manager trade recommendation -->
-              <div v-if="pred.trade_recommendation" class="trade-recommendation">
-                <div class="trade-rec-header">
-                  <ion-chip
-                    :color="actionColor(pred.trade_recommendation.action)"
-                    class="trade-action-chip"
-                  >
-                    {{ actionLabel(pred.trade_recommendation.action) }}
-                  </ion-chip>
-                  <span v-if="pred.trade_recommendation.is_calibrating" class="calibrating-badge" title="System is still building outcome history. Recommendations should be treated as provisional.">
-                    calibrating
-                  </span>
-                </div>
-                <div v-if="pred.trade_recommendation.action !== 'hold'" class="trade-rec-details">
-                  <div class="trade-rec-row">
-                    <span class="trade-rec-label">Size</span>
-                    <span class="trade-rec-value">{{ pred.trade_recommendation.quantity }} sh ({{ (pred.trade_recommendation.position_percent * 100).toFixed(1) }}%)</span>
-                  </div>
-                  <div class="trade-rec-row">
-                    <span class="trade-rec-label">Entry</span>
-                    <span class="trade-rec-value">{{ formatPrice(pred.trade_recommendation.entry_price) }}</span>
-                  </div>
-                  <div class="trade-rec-row">
-                    <span class="trade-rec-label">Stop</span>
-                    <span class="trade-rec-value">{{ formatPrice(pred.trade_recommendation.stop_loss) }}</span>
-                  </div>
-                  <div class="trade-rec-row">
-                    <span class="trade-rec-label">Target</span>
-                    <span class="trade-rec-value">{{ formatPrice(pred.trade_recommendation.take_profit) }}</span>
-                  </div>
-                </div>
-                <div v-else class="trade-rec-hold">
-                  Portfolio Manager signal: hold — Kelly fraction below threshold or arbitrator flat.
-                </div>
+              <!-- One-line trade signal -->
+              <div v-if="pred.trade_recommendation" class="trade-line">
+                <ion-chip
+                  :color="actionColor(pred.trade_recommendation.action)"
+                  class="trade-action-chip"
+                >{{ actionLabel(pred.trade_recommendation.action) }}</ion-chip>
+                <span
+                  v-if="pred.trade_recommendation.is_calibrating"
+                  class="calibrating-badge"
+                  title="System is still building outcome history. Signals should be treated as provisional."
+                >calibrating</span>
+                <span
+                  v-if="pred.trade_recommendation.action !== 'hold'"
+                  class="trade-line-spec"
+                >
+                  {{ pred.trade_recommendation.quantity }} sh ·
+                  {{ formatPrice(pred.trade_recommendation.entry_price) }} →
+                  {{ formatPrice(pred.trade_recommendation.take_profit) }}
+                </span>
+                <span v-else class="trade-line-hold">hold</span>
               </div>
 
-              <!-- Time and Actions -->
+              <!-- Footer: timestamp + single View CTA -->
               <div class="card-footer">
                 <ion-note>{{ timeAgo(pred.created_at) }}</ion-note>
-                <div class="action-buttons">
-                  <ion-button size="small" color="success" fill="outline" @click.stop="openAnalystModal(pred, 0)">
-                    View Analysis
-                  </ion-button>
-                  <ion-button v-if="canWrite" size="small" color="primary" @click.stop="openTradeModal(pred)">
-                    Trade
-                  </ion-button>
-                </div>
+                <ion-button
+                  size="small"
+                  color="primary"
+                  data-test="dashboard-card-view"
+                  @click.stop="openAnalystModal(pred, 0)"
+                >View</ion-button>
               </div>
               </div>
             </ion-card-content>
@@ -606,48 +598,33 @@ function formatStartShort(iso: string): string {
   opacity: 0.8;
 }
 
-.analyst-stances {
+.stance-chip-row {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 4px;
-  margin: 8px 0;
-}
-
-.stance-row {
-  display: flex;
-  justify-content: space-between;
+  margin: 6px 0 8px;
   align-items: center;
 }
 
-.stance-row.clickable {
-  cursor: pointer;
-  padding: 6px 4px;
-  min-height: 44px;
-  border-radius: 4px;
-  transition: background 0.15s;
+.stance-chip {
+  height: 22px;
+  font-size: 0.72rem;
+  margin: 0;
 }
-
-.stance-row.clickable:hover {
-  background: #f0f4ff;
-}
-
-.stance-name {
-  font-size: 0.8rem;
-  color: #666;
+.stance-chip.clickable { cursor: pointer; }
+.stance-chip-name { font-weight: 500; }
+.stance-chip-conf { opacity: 0.8; margin-left: 2px; }
+.more-chip {
+  background: #eef1f8;
+  color: #4b5563;
   font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
-.affinity-badge {
+
+.stance-neutral {
+  font-size: 0.78rem;
+  color: #999;
+  padding: 4px 0;
   display: inline-block;
-  font-size: 0.6rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  padding: 0 4px;
-  color: #aaa;
-  line-height: 1.4;
 }
 
 .card-bottom-section {
@@ -655,27 +632,27 @@ function formatStartShort(iso: string): string {
 }
 
 .rationale-preview {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: #888;
-  margin: 0 0 8px 0;
-  line-height: 1.4;
+  margin: 0 0 6px 0;
+  line-height: 1.35;
   border-top: 1px solid #eee;
-  padding-top: 8px;
+  padding-top: 6px;
+}
+.read-more {
+  color: var(--ion-color-primary);
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 .card-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid #eee;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
 }
 
 /* Equal-height cards in the same row */
@@ -698,74 +675,46 @@ ion-col {
     flex-wrap: wrap;
     gap: 8px;
   }
-
-  .trade-rec-row {
-    flex-direction: column;
-    gap: 2px;
-  }
 }
 
-/* Phase 6: Trade recommendation block */
-.trade-recommendation {
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 6px;
-  background: #fafbff;
-  border: 1px solid #e6eaff;
-}
-
-.trade-rec-header {
+/* Slim trade signal — single line */
+.trade-line {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 0.75rem;
 }
 
 .trade-action-chip {
   font-weight: 700;
-  letter-spacing: 0.5px;
-  height: 24px;
+  letter-spacing: 0.4px;
+  height: 22px;
   margin: 0;
 }
 
+.trade-line-spec {
+  color: #374151;
+  font-variant-numeric: tabular-nums;
+}
+
+.trade-line-hold {
+  color: #6b7280;
+  font-style: italic;
+}
+
 .calibrating-badge {
-  font-size: 0.7rem;
-  padding: 2px 8px;
+  font-size: 0.65rem;
+  padding: 1px 6px;
   background: #fff3cd;
   color: #856404;
   border: 1px solid #ffeeba;
   border-radius: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.3px;
   cursor: help;
 }
 
-.trade-rec-details {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.trade-rec-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.78rem;
-}
-
-.trade-rec-label {
-  color: #666;
-}
-
-.trade-rec-value {
-  color: #222;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-.trade-rec-hold {
-  font-size: 0.78rem;
-  color: #666;
-  font-style: italic;
-}
 </style>

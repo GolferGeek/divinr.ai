@@ -15,7 +15,7 @@ test.describe('instruments facet — smoke', () => {
     await dismissWelcomeModal(page);
 
     await expect(page).not.toHaveURL(/\/login/);
-    await expect(page.getByRole('heading', { name: /^instruments$/i, level: 1 }))
+    await expect(page.getByRole('heading', { name: /^research$/i, level: 1 }))
       .toBeVisible({ timeout: 10_000 });
 
     // Floor: at least one card OR the Add Instrument button. The view does not

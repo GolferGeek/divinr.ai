@@ -30,10 +30,12 @@ const APPENDIX_A = [
   // Top-level sections (11)
   'dashboard', 'predictions', 'instruments', 'portfolios', 'performance',
   'analysts', 'clubs', 'tournaments', 'messages', 'notifications', 'settings',
-  // Predictions & trade path (4)
-  'prediction.card', 'prediction.detail', 'prediction.trade-cta', 'tournament.picker',
-  // Instrument surfaces (3)
+  // Predictions & trade path (5)
+  'prediction.card', 'prediction.detail', 'prediction.trade-cta', 'prediction.sources',
+  'tournament.picker',
+  // Instrument surfaces (4)
   'instrument.detail', 'instrument.debate', 'instrument.variant-switcher',
+  'instrument.article-relevance',
   // Analyst surfaces (4)
   'analyst.detail', 'analyst.contract-viewer', 'analyst.calibration-drilldown', 'analyst.affinity',
   // Portfolio (4)
@@ -93,8 +95,8 @@ const APPENDIX_A = [
   'settings.byo-credentials', 'settings.profile', 'settings.terms',
 ];
 
-if (APPENDIX_A.length !== 111) {
-  console.error(`Appendix A baseline is malformed: expected 111, got ${APPENDIX_A.length}`);
+if (APPENDIX_A.length !== 113) {
+  console.error(`Appendix A baseline is malformed: expected 113, got ${APPENDIX_A.length}`);
   process.exit(2);
 }
 const inventory = new Set(APPENDIX_A);

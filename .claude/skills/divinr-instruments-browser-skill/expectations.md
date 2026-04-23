@@ -5,7 +5,7 @@
 ### List page
 
 - Route `/instruments` resolves without redirect to `/login` (storage-state authenticated).
-- `<h1>Instruments</h1>` is visible within 10s.
+- `<h1>Research</h1>` is visible within 10s.
 - Either at least one `ion-card` is visible **or** the `Add Instrument` button is visible. (The page does not render an explicit empty-state element today; the `Add Instrument` button is always present, so the floor is "heading + add button rendered.")
 - No HTTP 5xx responses from `divinr.ai` / `127.0.0.1:7100` / `127.0.0.1:7101` during the page lifecycle.
 
@@ -32,7 +32,7 @@ The detail page is **not** part of automated smoke today (LLM-authored rationale
 ## Fail conditions
 
 - List page redirects to `/login` → auth state stale; re-run `pnpm --filter @divinr/e2e exec tsx scripts/prepare-auth-state.ts`.
-- `<h1>Instruments</h1>` not visible within 10s → API outage or router change.
+- `<h1>Research</h1>` not visible within 10s → API outage or router change.
 - `Add Instrument` button missing → template regression (the button is unconditional).
 - Forbidden vocabulary found in the scoped list-page clone (excluding disclaimer + onboarding panel).
 - Any 5xx on `divinr.ai` / `127.0.0.1:7100` / `127.0.0.1:7101`.

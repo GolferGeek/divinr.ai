@@ -44,6 +44,24 @@ Primary section: Playwright cases the smoke spec encodes. Secondary section: Chr
 - Attach `page.on('console', …)` (filter per base skill's `patterns/console-network-capture.md`).
 - Assert captured app-code errors array is empty.
 
+### 6a. Dashboard prediction card — slim shape (spec: `apps/e2e/tests/predictions/dashboard-card.spec.ts`)
+
+- Surface: `/` (`DashboardView`).
+- Asserts `.prediction-card` present, renders `.stance-chip-row` (or `.stance-neutral` when all analysts are flat), has a single `[data-test="dashboard-card-view"]` CTA, and that the old dense elements (`.analyst-stances`, `.trade-rec-details`) are gone.
+- `test.skip()`s cleanly when no cards are seeded for the testing-team user.
+- Manual density check (1440×900, ≥5 cards above the fold) lives in the PR description, not the spec.
+
+### 6. Prediction sources component — collapse/expand + fallback
+
+- Spec: `apps/e2e/tests/predictions/sources.spec.ts` (alongside the smoke spec).
+- Surfaces: `/instruments/:id` (`InstrumentAnalystPanel`) and the `AnalystPredictionModal` Evidence tab.
+- Steps:
+  1. Navigate to `/instruments` and open the first instrument.
+  2. Locate `[data-test="prediction-sources"]` on the latest-signal block of an `InstrumentAnalystPanel`. `test.skip()` if absent (no seeded analyst signals for the testing-team user).
+  3. Click `[data-test="prediction-sources-toggle"]`.
+  4. Assert either `[data-test="prediction-sources-body"]` renders at least one row with an anchor whose `target="_blank"` and `rel="noopener noreferrer"`, OR the empty copy `No articles were used in this analysis.` is visible, OR the italic fallback banner `[data-test="prediction-sources-fallback"]` renders.
+- Vocabulary: body of `[data-test="prediction-sources-body"]` must not match `/prediction|predicted|recommendation|advice/i` (data-driven rationale strings excluded by scoping the assertion to the component shell — skip the rationale text node in the regex scope).
+
 ## Verify-command snippet
 
 ```sh

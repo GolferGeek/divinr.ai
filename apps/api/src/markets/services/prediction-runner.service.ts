@@ -81,7 +81,7 @@ export class PredictionRunnerService {
 
     // 2. Shared context: latest risk + active predictors
     const latestRisk = await this.getLatestRiskComposite(run.instrument_id);
-    const predictorLines = await this.loadPredictorLines(run.instrument_id);
+    const { lines: predictorLines } = await this.loadPredictorLines(run.instrument_id);
     const sharedContext = this.buildSharedContext(planeContext, latestRisk, predictorLines);
 
     // Freshness check — warn if risk is stale vs predictors.
@@ -220,7 +220,8 @@ export class PredictionRunnerService {
     }
 
     // Load per-analyst predictor lines (articles this analyst scored as relevant)
-    const analystPredictorLines = await this.loadPredictorLines(run.instrument_id, analyst.id);
+    const { lines: analystPredictorLines, articleIds: analystArticleIds } =
+      await this.loadPredictorLines(run.instrument_id, analyst.id);
     const analystPredictorContext = analystPredictorLines.length > 0
       ? `\nArticles you scored as relevant:\n${analystPredictorLines.join('\n')}`
       : '';
@@ -333,13 +334,15 @@ export class PredictionRunnerService {
       `insert into prediction.market_predictions
         (id, run_id, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
-         key_factors, risks, config_version_id, is_paper, source_context, llm_usage_id, author_user_id, created_at)
-       values ($1, $2, $3, $4, 'analyst', $5, $6, 240, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+         key_factors, risks, config_version_id, is_paper, source_context, llm_usage_id, author_user_id, contributing_article_ids, created_at)
+       values ($1, $2, $3, $4, 'analyst', $5, $6, 240, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         predictionId, run.id, run.instrument_id,
         analyst.id, parsed.direction, parsed.confidence, parsed.rationale,
         JSON.stringify(parsed.key_factors), JSON.stringify(parsed.risks),
-        configVersionId, isPaper, JSON.stringify(sourceContext), llmUsageId, triple.authorUserId, new Date().toISOString(),
+        configVersionId, isPaper, JSON.stringify(sourceContext), llmUsageId, triple.authorUserId,
+        JSON.stringify(analystArticleIds),
+        new Date().toISOString(),
       ],
     );
 
@@ -354,6 +357,7 @@ export class PredictionRunnerService {
       horizon_minutes: 240,
       rationale: parsed.rationale,
       created_at: new Date().toISOString(),
+      article_ids: analystArticleIds,
     };
 
     return { outcome, artifactId };
@@ -439,19 +443,26 @@ Respond ONLY with valid JSON.`;
       rationale_excerpt: o.rationale.slice(0, 200),
     }));
 
+    // Dedup'd union of article IDs that fed each analyst's reasoning.
+    const unionedArticleIds = [
+      ...new Set(analystOutcomes.flatMap((o) => o.article_ids ?? [])),
+    ];
+
     // Persist arbitrator prediction
     const predictionId = randomUUID();
     await this.db.rawQuery(
       `insert into prediction.market_predictions
         (id, run_id, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
-         key_factors, risks, lineage_json, llm_usage_id, author_user_id, created_at)
-       values ($1, $2, $3, null, 'arbitrator', $4, $5, 240, $6, $7, $8, $9, $10, $11, $12)`,
+         key_factors, risks, lineage_json, llm_usage_id, author_user_id, contributing_article_ids, created_at)
+       values ($1, $2, $3, null, 'arbitrator', $4, $5, 240, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         predictionId, run.id, run.instrument_id,
         parsed.direction, parsed.confidence, parsed.rationale,
         JSON.stringify(parsed.key_factors), JSON.stringify(parsed.risks),
-        JSON.stringify(lineage), llmUsageId, run.author_user_id ?? null, new Date().toISOString(),
+        JSON.stringify(lineage), llmUsageId, run.author_user_id ?? null,
+        JSON.stringify(unionedArticleIds),
+        new Date().toISOString(),
       ],
     );
 
@@ -465,6 +476,7 @@ Respond ONLY with valid JSON.`;
       horizon_minutes: 240,
       rationale: parsed.rationale,
       created_at: new Date().toISOString(),
+      article_ids: unionedArticleIds,
     };
 
     return { outcome, artifactId };
@@ -714,15 +726,18 @@ Respond ONLY with valid JSON.`;
     return null;
   }
 
-  private async loadPredictorLines(instrumentId: string, analystId?: string): Promise<string[]> {
+  private async loadPredictorLines(
+    instrumentId: string,
+    analystId?: string,
+  ): Promise<{ lines: string[]; articleIds: string[] }> {
     const query = analystId
-      ? `select mp.relevance_score, mp.rationale, ma.title
+      ? `select mp.article_id, mp.relevance_score, mp.rationale, ma.title
          from prediction.market_predictors mp
          join prediction.market_articles ma on ma.id = mp.article_id
          where mp.instrument_id = $1 and mp.status = 'active'
            and mp.scored_by_analyst_id = $2
          order by mp.relevance_score desc limit 20`
-      : `select mp.relevance_score, mp.rationale, ma.title
+      : `select mp.article_id, mp.relevance_score, mp.rationale, ma.title
          from prediction.market_predictors mp
          join prediction.market_articles ma on ma.id = mp.article_id
          where mp.instrument_id = $1 and mp.status = 'active'
@@ -731,12 +746,14 @@ Respond ONLY with valid JSON.`;
       ? [instrumentId, analystId]
       : [instrumentId];
     const result = await this.db.rawQuery(query, params);
-    const rows = (result.data as Array<{ relevance_score: number; rationale: string | null; title: string | null }> | null) ?? [];
-    return rows.map((r, i) => {
+    const rows = (result.data as Array<{ article_id: string; relevance_score: number; rationale: string | null; title: string | null }> | null) ?? [];
+    const lines = rows.map((r, i) => {
       const title = r.title ?? '(untitled)';
       const note = r.rationale ? ` — ${r.rationale.slice(0, 200)}` : '';
       return `${i + 1}. relevance=${Number(r.relevance_score).toFixed(2)} ${title}${note}`;
     });
+    const articleIds = rows.map((r) => r.article_id);
+    return { lines, articleIds };
   }
 
   private buildSharedContext(

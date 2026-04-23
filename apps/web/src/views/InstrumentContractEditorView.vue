@@ -280,7 +280,7 @@ const diffLines = computed<{ left: DiffLine[]; right: DiffLine[] }>(() => {
 
     <template v-if="data">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-        <router-link to="/instruments" style="text-decoration:none;color:var(--ion-color-primary);font-size:0.85rem">&larr; Instruments</router-link>
+        <router-link to="/instruments" style="text-decoration:none;color:var(--ion-color-primary);font-size:0.85rem">&larr; Research</router-link>
         <h1 style="margin:0">{{ data.symbol }} — Contract</h1>
         <ion-chip color="tertiary" style="font-size:0.7rem;height:22px">{{ data.assetType }}</ion-chip>
         <span style="font-size:0.85rem;opacity:0.7">{{ data.name }}</span>

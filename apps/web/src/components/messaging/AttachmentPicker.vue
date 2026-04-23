@@ -15,7 +15,7 @@ const results = ref<Array<{ id: string; label: string }>>([]);
 const searching = ref(false);
 
 const types = [
-  { value: 'instrument', label: 'Instruments' },
+  { value: 'instrument', label: 'Research' },
   { value: 'analyst', label: 'Analysts' },
   { value: 'prediction', label: 'Analyses' },
   { value: 'position', label: 'Positions' },

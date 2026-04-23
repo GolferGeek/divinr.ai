@@ -55,6 +55,36 @@ test('instruments list loads without 5xx and enforces vocabulary on the list sur
 
 Open `/instruments/<uuid>`, assert `<h1>` is the symbol (not "Loading..."), assert both `ion-segment-button[value="analysts"]` and `ion-segment-button[value="predictors"]` are present, and click each. Not in CI smoke until an instrument fixture exists with deterministic rationale strings.
 
+As of the 2026-04-22 Ethan-feedback effort, the second tab reads
+**"Article Relevance"** (formerly "AI Scoring"); the tab `value="predictors"`
+is unchanged so Playwright selectors keyed on the value continue to work.
+`PredictorScoringPanel.vue` renders each scored article with its title
+(external link, `target="_blank" rel="noopener noreferrer"`), published
+date, scoring-analyst display name, and the relevance score.
+
+### 2a. Article Relevance tab (spec: `apps/e2e/tests/instruments/article-relevance.spec.ts`)
+
+Asserts:
+- The second segment button reads "Article Relevance" (not "AI Scoring").
+- Clicking it renders either `[data-test="article-relevance-list"]` or
+  an explicit empty-state ("No articles scored yet for this ticker.").
+- Panel body is free of `recommendation` / `advice` vocabulary; article
+  rationale field is data-driven and therefore not asserted against the
+  `prediction` regex here.
+- No 5xx during load.
+
+`test.skip()`s cleanly when no seeded instrument is available.
+
+### 2b. Prediction Sources (covered by predictions facet spec)
+
+The `InstrumentAnalystPanel` on `/instruments/:id` now embeds
+`PredictionSources.vue` under each analyst's "Latest Signal" block
+(`[data-test="prediction-sources"]`). Its expand + fallback + external-link
+assertions live in `apps/e2e/tests/predictions/sources.spec.ts` (per
+`divinr-predictions-browser-skill/tests.md` §6), so the instruments facet
+does not duplicate them. Touch that spec if the component's contract
+changes.
+
 ### 3. (manual) Add Instrument modal
 
 Click `Add Instrument`, type symbol `TEST.X` + name `Smoke Test`, click Create, confirm card appears. Not in CI smoke (writes to prod).
