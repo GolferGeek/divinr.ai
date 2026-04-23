@@ -206,6 +206,7 @@ export interface PredictionOutcome {
   horizon_minutes: number;
   rationale: string;
   created_at: string;
+  article_ids?: string[];
 }
 
 export type PredictorStatus = 'active' | 'dismissed';
@@ -227,6 +228,12 @@ export interface MarketPredictor {
   crowd_reaction_confidence?: number | null;
   crowd_reaction_rationale?: string | null;
   estimated_reaction_window_minutes?: number | null;
+  scored_by_analyst_id?: string | null;
+  article_title?: string | null;
+  article_url?: string | null;
+  article_published_at?: string | null;
+  analyst_display_name?: string | null;
+  analyst_slug?: string | null;
 }
 
 export interface UpsertPredictorInput {

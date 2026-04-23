@@ -40,6 +40,24 @@ section: Chrome-MCP exploratory walkthrough for humans or
 - Push every response with status ≥ 500 (matching the host regex) into
   an array; `expect(serverErrors).toEqual([])` after `networkidle`.
 
+## Playwright cases (spec: `apps/e2e/tests/analysts/back-button.spec.ts`)
+
+### 4. In-page Back button on Analyst Performance view
+
+Covers the `AnalystPerformanceView` back-button regression fix (Ethan
+feedback 2026-04-22, item #2). Two cases:
+
+- **History path**: enter `/performance`, click a leaderboard row, land
+  on `/analysts/:id/performance`, click the in-page
+  `[data-test="analyst-performance-back"]` button → URL returns to
+  `/performance`.
+- **Deep-link fallback**: navigate directly to
+  `/analysts/:id/performance`, click Back → URL becomes `/analysts`
+  (no history → fallback).
+
+Both cases `test.skip()` cleanly when seed data is missing (no
+leaderboard rows / no analyst links).
+
 ## Verify-command snippet
 
 ```sh
@@ -47,6 +65,7 @@ cd apps/e2e
 pnpm exec playwright test --project=analysts
 # or single spec
 pnpm exec playwright test tests/analysts/smoke.spec.ts
+pnpm exec playwright test tests/analysts/back-button.spec.ts
 ```
 
 Expected output: 1 test, 1 passed. Trace artifact only on first retry

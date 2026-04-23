@@ -576,6 +576,7 @@ export class MarketsSchemaService {
       alter table prediction.market_predictions add column if not exists settled_at timestamptz;
       alter table prediction.market_predictions add column if not exists trade_metadata jsonb not null default '{}'::jsonb;
       alter table prediction.market_predictions add column if not exists llm_usage_id uuid;
+      alter table prediction.market_predictions add column if not exists contributing_article_ids jsonb;
       create index if not exists prediction_market_predictions_llm_usage_idx
         on prediction.market_predictions (llm_usage_id) where llm_usage_id is not null;
       create index if not exists prediction_market_predictions_unsettled_idx

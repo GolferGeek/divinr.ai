@@ -868,16 +868,54 @@ export class MarketsService {
     const analysts = (analystResult.data as Array<Record<string, unknown>> | null) ?? [];
     const analyst = analysts[0] ?? { id: pred.analyst_id, slug: '', display_name: 'Unknown', persona_prompt: '' };
 
-    // Load articles scored by this analyst for this instrument
-    const articlesResult = await this.db.rawQuery(
-      `select mp.relevance_score, mp.rationale, ma.id, ma.title, ma.url, ma.published_at
-       from prediction.market_predictors mp
-       join prediction.market_articles ma on ma.id = mp.article_id
-       where mp.scored_by_analyst_id = $1 and mp.instrument_id = $2 and mp.status = 'active'
-       order by mp.relevance_score desc limit 10`,
-      [pred.analyst_id, pred.instrument_id],
-    );
-    const articles = (articlesResult.data as Array<Record<string, unknown>> | null) ?? [];
+    // Load articles. If the prediction row carries `contributing_article_ids`
+    // (populated by the prediction-runner on new predictions), surface exactly
+    // those articles in stored order. Otherwise fall back to "recent articles
+    // this analyst scored as relevant" for pre-migration rows.
+    const storedArticleIdsRaw = pred.contributing_article_ids;
+    let storedArticleIds: string[] | null = null;
+    if (Array.isArray(storedArticleIdsRaw)) {
+      storedArticleIds = storedArticleIdsRaw.map(String);
+    } else if (typeof storedArticleIdsRaw === 'string') {
+      try {
+        const parsed = JSON.parse(storedArticleIdsRaw);
+        storedArticleIds = Array.isArray(parsed) ? parsed.map(String) : null;
+      } catch {
+        storedArticleIds = null;
+      }
+    }
+
+    let articles: Array<Record<string, unknown>> = [];
+    let fallback = false;
+    if (storedArticleIds === null) {
+      fallback = true;
+      const articlesResult = await this.db.rawQuery(
+        `select mp.relevance_score, mp.rationale, ma.id, ma.title, ma.url, ma.published_at
+         from prediction.market_predictors mp
+         join prediction.market_articles ma on ma.id = mp.article_id
+         where mp.scored_by_analyst_id = $1 and mp.instrument_id = $2 and mp.status = 'active'
+         order by mp.relevance_score desc limit 10`,
+        [pred.analyst_id, pred.instrument_id],
+      );
+      articles = (articlesResult.data as Array<Record<string, unknown>> | null) ?? [];
+    } else if (storedArticleIds.length > 0) {
+      const articlesResult = await this.db.rawQuery(
+        `select ma.id, ma.title, ma.url, ma.published_at,
+                mp.relevance_score, mp.rationale
+         from prediction.market_articles ma
+         left join prediction.market_predictors mp
+           on mp.article_id = ma.id
+          and mp.scored_by_analyst_id = $1
+          and mp.instrument_id = $2
+         where ma.id = any($3::text[])`,
+        [pred.analyst_id, pred.instrument_id, storedArticleIds],
+      );
+      const rows = (articlesResult.data as Array<Record<string, unknown>> | null) ?? [];
+      const byId = new Map(rows.map((r) => [String(r.id), r]));
+      articles = storedArticleIds
+        .map((id) => byId.get(id))
+        .filter((r): r is Record<string, unknown> => Boolean(r));
+    }
 
     // Load analyst's risk assessment for this instrument
     const riskResult = await this.db.rawQuery(
@@ -920,6 +958,7 @@ export class MarketsService {
         rationale: a.rationale,
         published_at: a.published_at,
       })),
+      fallback,
       riskAssessment: riskRows[0] ?? null,
       sourceData,
       memory: {
@@ -2516,8 +2555,15 @@ Respond ONLY with valid JSON.`,
 
     const result = await this.db.rawQuery(
       `
-      select mp.*
+      select mp.*,
+             ma.title as article_title,
+             ma.url as article_url,
+             ma.published_at as article_published_at,
+             man.display_name as analyst_display_name,
+             man.slug as analyst_slug
       from prediction.market_predictors mp
+      left join prediction.market_articles ma on ma.id = mp.article_id
+      left join prediction.market_analysts man on man.id = mp.scored_by_analyst_id
       where mp.instrument_id = $1
         ${statusClause}
       order by mp.relevance_score desc, mp.updated_at desc

@@ -67,3 +67,44 @@ page.locator('[surface-key="predictions"], [data-surface-key="predictions"]')
 ```
 
 (If the panel attribute is stripped post-render, the visible copy can be used: `page.getByText(/first touch|welcome/i)` — inspect the `surface-content.ts` entry for the exact string.)
+
+## Dashboard prediction card (slim)
+
+```ts
+const card = page.locator('.prediction-card').first();
+const chipRow = card.locator('.stance-chip-row');
+const viewBtn = card.locator('[data-test="dashboard-card-view"]');
+const readMore = card.locator('[data-test="dashboard-card-read-more"]');
+```
+
+The card no longer renders `.analyst-stances` (vertical stance list) or
+`.trade-rec-details` (four-row Size/Entry/Stop/Target). Those details moved
+into the `AnalystPredictionModal` — Stop and Target are asserted there.
+
+## Prediction Sources component
+
+`apps/web/src/components/PredictionSources.vue` — wired into `InstrumentAnalystPanel.vue`
+(per analyst signal) and echoed by the `AnalystPredictionModal` Evidence tab.
+
+```ts
+const sources = page.locator('[data-test="prediction-sources"]').first();
+const toggle = sources.locator('[data-test="prediction-sources-toggle"]');
+await toggle.click();
+const body = sources.locator('[data-test="prediction-sources-body"]');
+const rows = body.locator('[data-test="prediction-sources-row"]');
+const fallback = body.locator('[data-test="prediction-sources-fallback"]'); // italic banner for pre-migration predictions
+const empty = body.locator('[data-test="prediction-sources-empty"]');
+```
+
+External-link anchor assertions inside `rows`:
+
+```ts
+await expect(body.locator('a.article-title').first()).toHaveAttribute('target', '_blank');
+await expect(body.locator('a.article-title').first()).toHaveAttribute('rel', /noopener\s+noreferrer/);
+```
+
+Modal fallback banner (Evidence tab):
+
+```ts
+page.locator('[data-test="modal-sources-fallback"]');
+```

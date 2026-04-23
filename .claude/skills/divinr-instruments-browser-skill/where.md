@@ -5,7 +5,7 @@
 Page heading:
 
 ```ts
-page.getByRole('heading', { name: /^instruments$/i, level: 1 })
+page.getByRole('heading', { name: /^research$/i, level: 1 })
 ```
 
 Add Instrument button:
@@ -19,7 +19,7 @@ Cards (the InstrumentsView wraps each `IonCol > IonCard`):
 ```ts
 const cards = page.locator('ion-card');
 // Scope tighter if needed by anchoring to the heading container:
-const root = page.locator('h1', { hasText: /^Instruments$/ }).locator('..');
+const root = page.locator('h1', { hasText: /^Research$/ }).locator('..');
 const scopedCards = root.locator('ion-card');
 ```
 
@@ -49,7 +49,19 @@ Tab bar (Ionic segment with two values):
 
 ```ts
 const analystsTab = page.locator('ion-segment-button[value="analysts"]');
+// The second tab's `value` is still `predictors` for backwards compatibility,
+// but its label now reads "Article Relevance" (renamed from "AI Scoring" in
+// the 2026-04-22 Ethan-feedback effort).
 const predictorsTab = page.locator('ion-segment-button[value="predictors"]');
+```
+
+Article Relevance panel (rendered when `predictors` tab is active):
+
+```ts
+page.locator('[data-test="article-relevance-list"]');
+page.locator('[data-test="article-relevance-row"]');
+// Empty state fallback:
+page.getByText(/No articles scored yet for this ticker/i);
 ```
 
 Arbitrator synthesis card:

@@ -535,11 +535,19 @@ async function loadChallenges() {
           <div v-if="activeTab === 'evidence'">
             <div v-if="provenance.loading" class="section"><ion-note>Loading evidence...</ion-note></div>
             <div v-else-if="provenance.data" class="section">
+              <p
+                v-if="provenance.data.fallback"
+                class="fallback-banner"
+                data-test="modal-sources-fallback"
+              >
+                Articles used in this specific analysis weren't captured — showing recent articles
+                this analyst scored for {{ symbol }} instead.
+              </p>
               <h3>Articles Scored by This Analyst</h3>
               <div v-if="provenance.data.articles.length === 0"><ion-note>No articles scored yet</ion-note></div>
               <div v-for="article in [...provenance.data.articles].sort((a, b) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime())" :key="article.id" style="margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee">
                 <div style="display:flex;align-items:baseline;gap:8px">
-                  <a v-if="article.url" :href="article.url" target="_blank" rel="noopener" style="font-size:0.9rem;font-weight:500;color:var(--ion-color-primary);flex:1">
+                  <a v-if="article.url" :href="article.url" target="_blank" rel="noopener noreferrer" style="font-size:0.9rem;font-weight:500;color:var(--ion-color-primary);flex:1">
                     {{ article.title || '(untitled)' }}
                   </a>
                   <span v-else style="font-size:0.9rem;font-weight:500;flex:1">{{ article.title || '(untitled)' }}</span>
@@ -898,6 +906,17 @@ async function loadChallenges() {
 
 .section {
   margin-bottom: 20px;
+}
+
+.fallback-banner {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  font-style: italic;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--ion-color-medium-shade, #6b7280);
+  background: var(--ion-color-light, #f3f4f6);
+  border-radius: 6px;
 }
 
 .section h3 {

@@ -14,6 +14,7 @@ export interface ProvenanceData {
   };
   analyst: { id: string; slug: string; display_name: string; persona_prompt: string };
   articles: Array<{ id: string; title: string; url: string; relevance_score: number; rationale: string; published_at: string }>;
+  fallback: boolean;
   riskAssessment: { score: number; confidence: number; reasoning: string; evidence: unknown[] } | null;
   sourceData: Record<string, { name: string; dataTypes: string[]; charCount: number }>;
   memory: {

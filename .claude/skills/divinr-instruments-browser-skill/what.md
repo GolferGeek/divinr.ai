@@ -17,7 +17,7 @@
 ## Surface shape (list)
 
 ```
-Instruments                       [Add Instrument]
+Research                          [Add Instrument]
 +-------- AAPL -----------+  +-------- MSFT ----------+
 | Apple Inc.              |  | Microsoft Corp.        |
 | Price       $190.12     |  | Price       $410.55    |
