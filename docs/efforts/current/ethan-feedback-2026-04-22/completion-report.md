@@ -12,11 +12,11 @@
 
 ## What Shipped (by item)
 
-### Item #1 — Portfolio tabs differentiation (Phase 2)
-`PortfolioDashboardView.vue` now renders the My Portfolio / Analyst Portfolios / My Triples tabs as a real Ionic segment control with distinct headings, counts, and (where applicable) empty-state copy. The three sections each render under their own subheading and are swapped via the segment.
+### Item #1 — Instrument detail tab rename + enriched panel (Phase 2)
+`InstrumentDetailView.vue:107` second-tab label changed from `AI Scoring` → `Article Relevance` (segment `value="predictors"` identifier unchanged). `PredictorScoringPanel.vue` rewritten to render article rows with relevance chip + status chip + external-link article title (`target="_blank" rel="noopener noreferrer"` + `openOutline` icon) + scoring-analyst meta + published date + rationale. `markets.service.ts` `listPredictors` SQL widened to join `market_articles` + `market_analysts`; `MarketPredictor` type gained optional `article_title` / `article_url` / `article_published_at` / `analyst_display_name` / `analyst_slug` / `scored_by_analyst_id` fields. First-touch surface `instrument.article-relevance` wired with `<FirstTouchPanel>`. Playwright spec: `apps/e2e/tests/instruments/article-relevance.spec.ts`.
 
 ### Item #2 — Back button (Phase 1)
-Analyst performance view uses `useIonRouter().back()` to return to the correct previous screen. Covered by `apps/e2e/tests/performance/back-button.spec.ts`.
+Analyst performance view uses `useIonRouter().back()` to return to the correct previous screen. Covered by `apps/e2e/tests/analysts/back-button.spec.ts`.
 
 ### Item #3 — Nav rename "Instruments" → "Research" (Phase 6)
 - `DefaultLayout.vue:75` sidebar nav title: `Research`.
@@ -44,7 +44,7 @@ Playwright spec: `apps/e2e/tests/predictions/dashboard-card.spec.ts` asserts the
 | Phase | Status   | Notes |
 | ----- | -------- | ----- |
 | 1 — Back button                                | Complete | One-line fix; covered by a dedicated e2e. |
-| 2 — Portfolio tabs differentiation             | Complete | Segment + distinct empty states. |
+| 2 — Instrument tab rename + enriched panel     | Complete | `AI Scoring` → `Article Relevance`; panel rebuilt with article titles, links, scoring-analyst + published-date meta. |
 | 3 — Article sourcing schema + write path       | Complete | DDL re-entrant; fallback provenance service added with unit test. |
 | 4 — Article sourcing read path + UI            | Complete | Per-component fetch (not the Pinia singleton) to avoid cross-instance overwrites. Modal reused the existing Evidence tab; no duplicate component. |
 | 5 — Landing page card slim-down                | Complete | Bundle shrank; both old CSS blocks removed. |
@@ -57,7 +57,7 @@ Playwright spec: `apps/e2e/tests/predictions/dashboard-card.spec.ts` asserts the
 - **API `test:unit`**: green (triple-verified across Phases 3, 6, 7).
 - **API `test:compliance`**: Fails with `2 !== 1` for compliance-document count assertion. **Verified pre-existing on `main`** (checked out commit `8bc4854` and reproduced). Seed-data drift, not regression. Logged here for follow-up triage — not blocking merge.
 - **Playwright**:
-  - Our phase work is covered by `instruments/smoke`, `instruments/article-relevance`, `predictions/smoke`, `predictions/sources`, `predictions/dashboard-card`, `performance/back-button`, all passing (or skip-safe when seed data is absent).
+  - Our phase work is covered by `instruments/smoke`, `instruments/article-relevance`, `predictions/smoke`, `predictions/sources`, `predictions/dashboard-card`, `analysts/back-button`, all passing (or skip-safe when seed data is absent).
   - Full 11-project run shows 8 pre-existing failures — `portfolios/smoke`, `performance/smoke`, `authoring/smoke`, `billing` × 4, `admin/user-billing` — all verified pre-existing on `main` (same DB seed drift that affects the compliance suite). Not caused by this effort; not blocking merge.
 - **First-touch coverage**: `74 wired + 39 pending = 113 / 113`.
 - **Chrome-MCP U1–U5 walkthrough**: Deferred — the workflow's chrome browser cannot reach `127.0.0.1:7101` from this long-running session. Playwright specs cover the equivalent assertions for U1 (back button), U3 (Research heading), U4 (sources component), U5 (slim card shape). U2 is covered by `instruments/article-relevance.spec.ts`.
@@ -79,7 +79,7 @@ Playwright spec: `apps/e2e/tests/predictions/dashboard-card.spec.ts` asserts the
 
 - Branch: `effort/ethan-feedback-2026-04-22`
 - New Playwright specs:
-  - `apps/e2e/tests/performance/back-button.spec.ts`
+  - `apps/e2e/tests/analysts/back-button.spec.ts`
   - `apps/e2e/tests/predictions/sources.spec.ts`
   - `apps/e2e/tests/predictions/dashboard-card.spec.ts`
 - New Vue components: `apps/web/src/components/PredictionSources.vue`
