@@ -23,6 +23,7 @@ import { PositionSizingService } from './services/position-sizing.service';
 import { UserPortfolioService } from './services/user-portfolio.service';
 import { TradeRecommendationService } from './services/trade-recommendation.service';
 import { AffinityService } from './services/affinity.service';
+import { ArticleRelevanceService } from './services/article-relevance.service';
 import {
   parseContractMarkdown as parseContractMarkdownUtil,
   validateContractSections,
@@ -195,6 +196,8 @@ export class MarketsService {
     private readonly billing: BillingService,
     @Inject(SocialOptOutService)
     private readonly optOuts: SocialOptOutService,
+    @Inject(ArticleRelevanceService)
+    private readonly articleRelevance: ArticleRelevanceService,
   ) {}
 
   private isExternalCrawlerSyncEnabled(force = false): boolean {
@@ -439,6 +442,18 @@ export class MarketsService {
       } catch (err: any) {
         this.logger.warn(`Billing item creation failed for instrument ${created.id}: ${err.message}`);
       }
+    }
+
+    // Kick off a non-blocking article-relevance backfill so the new instrument
+    // gets classified against the last 7 days of articles instead of waiting
+    // for the next article to arrive. The scheduled pipeline only picks up
+    // articles with no relevance records at all, so brand-new instruments
+    // otherwise get zero coverage from the existing article pool.
+    if (wasInserted) {
+      this.articleRelevance.backfillForInstrument(created.id).catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Article-relevance backfill failed for instrument ${created.id}: ${msg}`);
+      });
     }
 
     return created;
