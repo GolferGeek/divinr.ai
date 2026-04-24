@@ -64,7 +64,7 @@ Integrate Stripe to support the single-tier + per-item billing model defined in 
 - A user can sign up, start a 30-day trial, add a card, and auto-convert to paid Basic at $50/mo
 - A user can author a custom instrument and see the $20 appear on next month's bill
 - A user can delete or donate an authored item and see the line item removed
-- A student user can verify .edu email and see their bill accrue via cost-pass-through
+- A student user can verify .edu email and see each authored item charged at `STUDENT_DISCOUNT_PCT` × the regular per-item price (no Basic monthly, no floor)
 - Stripe webhook events correctly update user state (active / expired / cancelled)
 - Admin can see any user's full billing picture in one view
 
