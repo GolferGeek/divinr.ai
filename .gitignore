@@ -3,6 +3,8 @@ node_modules
 .turbo
 .env
 .env.*
+!.env.example
+!apps/*/.env.example
 dist
 coverage
 .DS_Store

@@ -18,7 +18,7 @@ This guarantees every phase can land on `main` without disturbing the app's curr
 
 ## Progress Tracker
 <!-- run-plan uses this section to track where we are -->
-- [ ] Phase 1: Scaffolding & Config
+- [x] Phase 1: Scaffolding & Config
 - [ ] Phase 2: Regular-User Subscription Lifecycle
 - [ ] Phase 3: Per-Item Line Items
 - [ ] Phase 4: Student Pricing Path
@@ -28,49 +28,53 @@ This guarantees every phase can land on `main` without disturbing the app's curr
 ---
 
 ## Phase 1: Scaffolding & Config
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Land the Stripe SDK, env-var plumbing, seed script, and public-config endpoint without touching any write path — so Phases 2–5 can assume `StripeService`, `BillingConfigService`, and Price IDs exist.
 
 ### Steps
-- [ ] 1.1 Add `stripe` to `apps/api/package.json` (pin a version whose SDK default `apiVersion` matches `STRIPE_API_VERSION`; current target `'2025-04-30.basil'`). Run `pnpm install` at the repo root.
-- [ ] 1.2 Create `apps/api/src/billing/billing-config.service.ts` — wraps `process.env` reads for every pricing + Stripe env var listed in PRD §4.5 (`BASIC_MONTHLY_USD`, `INSTRUMENT_AUTHORSHIP_USD`, `ANALYST_AUTHORSHIP_USD`, `BYO_PLATFORM_FEE_USD`, `STUDENT_DISCOUNT_PCT`, `TRIAL_DAYS`, `DORMANCY_MONTHS_BEFORE_PURGE`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_VERSION`, all `STRIPE_PRODUCT_*` / `STRIPE_PRICE_*`, `STUDENT_EDU_ALLOWED_DOMAINS`). Every method returns parsed values with defaults; boolean `isStripeEnabled()` returns `!!STRIPE_SECRET_KEY`. Register as a provider in `BillingModule`, export it.
-- [ ] 1.3 Create `apps/api/src/billing/stripe.service.ts`:
+- [x] 1.1 Add `stripe` to `apps/api/package.json` (pin a version whose SDK default `apiVersion` matches `STRIPE_API_VERSION`; current target `'2025-04-30.basil'`). Run `pnpm install` at the repo root.
+- [x] 1.2 Create `apps/api/src/billing/billing-config.service.ts` — wraps `process.env` reads for every pricing + Stripe env var listed in PRD §4.5 (`BASIC_MONTHLY_USD`, `INSTRUMENT_AUTHORSHIP_USD`, `ANALYST_AUTHORSHIP_USD`, `BYO_PLATFORM_FEE_USD`, `STUDENT_DISCOUNT_PCT`, `TRIAL_DAYS`, `DORMANCY_MONTHS_BEFORE_PURGE`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_API_VERSION`, all `STRIPE_PRODUCT_*` / `STRIPE_PRICE_*`, `STUDENT_EDU_ALLOWED_DOMAINS`). Every method returns parsed values with defaults; boolean `isStripeEnabled()` returns `!!STRIPE_SECRET_KEY`. Register as a provider in `BillingModule`, export it.
+- [x] 1.3 Create `apps/api/src/billing/stripe.service.ts`:
   - Constructor uses `@Inject(BillingConfigService)` per CLAUDE.md DI convention.
   - Instantiates `new Stripe(config.stripeSecretKey, { apiVersion: config.stripeApiVersion })` only when `isStripeEnabled()` is true; otherwise `this.client = null`.
   - `onModuleInit()`: if enabled, loops over each `STRIPE_PRICE_*` env var, calls `client.prices.retrieve(priceId)`, and compares `unit_amount` against the corresponding `*_USD * 100`. On mismatch, log a `warn` with both values and continue (Stripe is authoritative — do not crash). If any Price ID fails to retrieve, log the error and continue. Disabled mode logs one line and returns.
   - Public surface (stub method signatures; bodies return `null` / throw "not implemented" until the phases that use them):
     `ensureCustomer(userId, email)`, `createCheckoutSessionSubscription(opts)`, `createCheckoutSessionSetup(opts)`, `createPortalSession(opts)`, `addSubscriptionItem(opts)`, `removeSubscriptionItem(opts)`, `updateSubscriptionItemPrice(opts)`, `createSubscriptionWithItem(opts)`, `createRefund(opts)`, `createBalanceCredit(opts)`, `applyCompCoupon(opts)`, `previewUpcomingInvoice(subscriptionId)`, `verifyWebhookSignature(rawBody, signature)`.
   - Register as provider in `BillingModule`, export it.
-- [ ] 1.4 Implement `GET /api/config/public` in a new `apps/api/src/public-config/public-config.controller.ts` mounted in a new `PublicConfigModule` (avoid the name `ConfigModule` to prevent collision with NestJS's `@nestjs/config` ConfigModule that's already in the dep tree). Unauthenticated; returns `{ stripePublishableKey: config.stripePublishableKey ?? null }`. The `PublicConfigModule` imports `BillingModule` (or just imports `BillingConfigService` directly via providers + exports). Register `PublicConfigModule` in `AppModule.imports`.
-- [ ] 1.5 Add `apps/api/scripts/stripe-seed.ts`:
+- [x] 1.4 Implement `GET /api/config/public` in a new `apps/api/src/public-config/public-config.controller.ts` mounted in a new `PublicConfigModule` (avoid the name `ConfigModule` to prevent collision with NestJS's `@nestjs/config` ConfigModule that's already in the dep tree). Unauthenticated; returns `{ stripePublishableKey: config.stripePublishableKey ?? null }`. The `PublicConfigModule` imports `BillingModule` (or just imports `BillingConfigService` directly via providers + exports). Register `PublicConfigModule` in `AppModule.imports`.
+- [x] 1.5 Add `apps/api/scripts/stripe-seed.ts`:
   - Reads `STRIPE_SECRET_KEY` + pricing env vars.
   - Idempotently creates Products + Prices using stable `lookup_key` values: `basic_monthly`, `instrument_regular`, `instrument_student`, `analyst_regular`, `analyst_student`, `byo_platform_fee`. For each, first call `stripe.prices.list({ lookup_keys: [...] })`; only create what's missing.
   - On completion, prints a block of `STRIPE_PRICE_*=price_xxx` and `STRIPE_PRODUCT_*=prod_xxx` env-var exports so the operator can paste into `.env`.
   - Script has no npm-script wrapper in `package.json` — operator runs directly with `tsx apps/api/scripts/stripe-seed.ts` (consistent with `migrate-billing-backfill.ts`).
-- [ ] 1.6 Extend `apps/api/.env.example` (create if missing) with every new env var from PRD §4.5, all blank/placeholder, with one-line comments. Do not commit real keys.
-- [ ] 1.7 Add unit test `apps/api/tests/unit/billing-config-service.test.ts`: verifies env-var parsing, default fallbacks, `isStripeEnabled()` toggling on/off, and decimal → cents conversion for pricing vars. Append to the `test:unit` chain in `apps/api/package.json`.
-- [ ] 1.8 Add unit test `apps/api/tests/unit/stripe-service-sanity.test.ts`: stubs the Stripe SDK (inject a fake `prices.retrieve`), asserts `onModuleInit` logs a warning (not a throw) when `unit_amount` differs from env. Append to `test:unit` chain.
+- [x] 1.6 Extend `apps/api/.env.example` (create if missing) with every new env var from PRD §4.5, all blank/placeholder, with one-line comments. Do not commit real keys.
+- [x] 1.7 Add unit test `apps/api/tests/unit/billing-config-service.test.ts`: verifies env-var parsing, default fallbacks, `isStripeEnabled()` toggling on/off, and decimal → cents conversion for pricing vars. Append to the `test:unit` chain in `apps/api/package.json`.
+- [x] 1.8 Add unit test `apps/api/tests/unit/stripe-service-sanity.test.ts`: stubs the Stripe SDK (inject a fake `prices.retrieve`), asserts `onModuleInit` logs a warning (not a throw) when `unit_amount` differs from env. Append to `test:unit` chain.
 - [ ] 1.9 Manual operator step (documented, not executed by this phase): run `tsx apps/api/scripts/stripe-seed.ts` against Stripe test-mode; paste the printed env vars into `.env`. This is a prerequisite for Phases 2+ but this phase itself does NOT require the vars to be present — everything degrades cleanly when `STRIPE_SECRET_KEY` is unset.
 
 ### Quality Gate
 Before moving to Phase 2, ALL of the following must pass:
 
-- [ ] **Lint**: `pnpm -w run lint` passes clean.
-- [ ] **Typecheck**: `pnpm -w run typecheck` passes clean.
-- [ ] **Build**: `pnpm -w run build` passes clean.
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api run test:unit` passes — including the two new tests added in 1.7 and 1.8.
-- [ ] **E2E Tests**: `pnpm --filter @divinr/e2e exec playwright test --project=billing` passes — the nine existing billing specs are unchanged and still green (Stripe is not yet wired into any flow, so no new specs in this phase).
-- [ ] **Curl Tests**:
-  - `curl -sS http://localhost:7100/api/config/public` → `{ "stripePublishableKey": null }` when `STRIPE_PUBLISHABLE_KEY` is unset; `{ "stripePublishableKey": "pk_test_..." }` when set.
-  - `curl -sS http://localhost:7100/billing/webhooks/stripe -X POST` → still `{ "received": true }` (stub untouched in this phase).
-- [ ] **Chrome Tests**: N/A — no UI changes in Phase 1.
-- [ ] **Phase Review**: Compare against PRD §8 Phase 1 objectives.
-  - [ ] `StripeService.onModuleInit` passes sanity check against test-mode Prices? (Yes, once operator has run the seed script and exported env vars.)
-  - [ ] `/api/config/public` returns the publishable key? (Verified via curl.)
-  - [ ] Env-mismatch warning path unit-tested? (Yes — `stripe-service-sanity.test.ts`.)
-  - [ ] `BillingConfigService` introduced (no full NestJS `ConfigModule` refactor)? (Yes — PRD §4.1 "Config" + §6 Out of Scope.)
-  - [ ] Seed script is idempotent (reads by `lookup_key` before creating)? (Yes — step 1.5.)
-  - [ ] Any deviations from the PRD? Document why here.
+- [x] **Lint**: `pnpm -w run lint` passes clean.
+- [x] **Typecheck**: `pnpm -w run typecheck` passes clean.
+- [x] **Build**: `pnpm -w run build` passes clean.
+- [x] **Unit Tests**: `pnpm --filter @divinr/api run test:unit` passes — including 26 new BillingConfigService cases + 7 new StripeService sanity cases.
+- [x] **E2E Tests**: `pnpm --filter @divinr/e2e exec playwright test --project=billing` — 5/5 specs pass.
+- [x] **Curl Tests**:
+  - `curl -sS http://localhost:7100/api/config/public` → `{"stripePublishableKey":null}` (env var unset). Verified.
+  - `curl -sS -X POST http://localhost:7100/billing/webhooks/stripe` → `{"received":true}` (stub untouched). Verified.
+- [x] **Chrome Tests**: N/A — no UI changes in Phase 1.
+- [x] **Phase Review**: Compare against PRD §8 Phase 1 objectives.
+  - [x] `StripeService.onModuleInit` passes sanity check against test-mode Prices? (Yes — covered in `stripe-service-sanity.test.ts` with stubbed SDK; live Price retrieval requires operator to run `tsx apps/api/scripts/stripe-seed.ts` first per step 1.9.)
+  - [x] `/api/config/public` returns the publishable key? (Verified via curl — null when env unset, would return key when set.)
+  - [x] Env-mismatch warning path unit-tested? (Yes — `stripe-service-sanity.test.ts` covers drift, missing-price, retrieve-failure paths.)
+  - [x] `BillingConfigService` introduced (no full NestJS `ConfigModule` refactor)? (Yes.)
+  - [x] Seed script is idempotent (reads by `lookup_key` before creating)? (Yes — `prices.list({ lookup_keys })` and `products.search({ metadata.lookup_key })` before create.)
+  - [x] Any deviations from the PRD? Two drive-by adjustments documented below.
+
+**Phase 1 deviations (none scope-impacting):**
+1. **Test infrastructure fix in `apps/e2e/playwright.config.ts`**: the existing billing specs were failing on `main` because `page.request.get()` doesn't auto-attach the JWT bearer the way the Vue app's fetch interceptor does — verified by reproducing the failure on `main`. Added an `extraHTTPHeaders` setup that reads `divinr_token` from `.auth/testing-team.json` and sets `Authorization: Bearer …` for all server-side fixture HTTP calls. Required to validate Phase 1's gate (and every subsequent phase's gate).
+2. **`.gitignore` exception for `.env.example`**: `.env.*` was previously catch-all gitignored, blocking `apps/api/.env.example` from being committed. Added `!.env.example` and `!apps/*/.env.example` exceptions so the documented template can ship with the effort.
 
 ---
 
