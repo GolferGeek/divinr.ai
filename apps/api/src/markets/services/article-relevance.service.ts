@@ -10,6 +10,11 @@ import { loadInstrumentContractFragment } from '../utils/instrument-contract-loa
 const STAGE1_TRAILING_INSTRUCTIONS =
   'Use the language "analysis" and "signal", never "advice" or "recommendation". Respond with valid JSON: {"is_relevant": true/false, "rationale": "brief explanation"}.';
 
+// Cap per-instrument backfill so a brand-new instrument can't stall behind a
+// 10k-article queue on first add — matches the 100-row cap used by the
+// scheduled `classifyNewArticles` path, with extra headroom for single-target work.
+const BACKFILL_RECENT_ARTICLE_LIMIT = 200;
+
 const STAGE1_HARDCODED_FALLBACK_PROMPT = (symbol: string, name: string): string =>
   `You are an instrument-relevance classifier. Determine if the article is relevant to the financial instrument ${symbol} (${name}). Respond with valid JSON: {"is_relevant": true/false, "rationale": "brief explanation"}. Use the language "analysis" and "signal", never "advice" or "recommendation".`;
 
@@ -153,7 +158,7 @@ export class ArticleRelevanceService {
            where air.article_id = ma.id and air.instrument_id = $1
          )
        order by coalesce(ma.published_at, ma.first_seen_at, ma.created_at) desc
-       limit 200`,
+       limit ${BACKFILL_RECENT_ARTICLE_LIMIT}`,
       [instrumentId],
     );
     return (res.data as ArticleRow[] | null) ?? [];

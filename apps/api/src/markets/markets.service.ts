@@ -449,6 +449,13 @@ export class MarketsService {
     // for the next article to arrive. The scheduled pipeline only picks up
     // articles with no relevance records at all, so brand-new instruments
     // otherwise get zero coverage from the existing article pool.
+    //
+    // Deliberately fire-and-forget: an in-flight backfill is dropped if the
+    // process restarts mid-run. The scheduled `classifyNewArticles` sweep does
+    // NOT heal this gap — it only touches articles with zero relevance records
+    // at all, so a half-complete backfill leaves the new instrument partially
+    // classified until someone re-triggers backfill manually. Acceptable for
+    // now given how rare mid-backfill restarts should be; revisit if we see it.
     if (wasInserted) {
       this.articleRelevance.backfillForInstrument(created.id).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
