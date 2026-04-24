@@ -10,6 +10,11 @@ import { loadInstrumentContractFragment } from '../utils/instrument-contract-loa
 const STAGE1_TRAILING_INSTRUCTIONS =
   'Use the language "analysis" and "signal", never "advice" or "recommendation". Respond with valid JSON: {"is_relevant": true/false, "rationale": "brief explanation"}.';
 
+// Cap per-instrument backfill so a brand-new instrument can't stall behind a
+// 10k-article queue on first add — matches the 100-row cap used by the
+// scheduled `classifyNewArticles` path, with extra headroom for single-target work.
+const BACKFILL_RECENT_ARTICLE_LIMIT = 200;
+
 const STAGE1_HARDCODED_FALLBACK_PROMPT = (symbol: string, name: string): string =>
   `You are an instrument-relevance classifier. Determine if the article is relevant to the financial instrument ${symbol} (${name}). Respond with valid JSON: {"is_relevant": true/false, "rationale": "brief explanation"}. Use the language "analysis" and "signal", never "advice" or "recommendation".`;
 
@@ -70,35 +75,93 @@ export class ArticleRelevanceService {
 
     for (const article of articles) {
       for (const instrument of instruments) {
-        const exists = await this.pairExists(article.id, instrument.id);
-        if (exists) continue;
-
-        result.pairsEvaluated++;
-        const keywordScore = instrumentKeywordScore(article, instrument);
-
-        if (keywordScore >= 0.7) {
-          await this.writeRelevance(article.id, instrument.id, true, 'keyword', keywordScore, null, null);
-          result.keywordDecided++;
-          result.relevantPairs++;
-        } else if (keywordScore === 0) {
-          await this.writeRelevance(article.id, instrument.id, false, 'keyword', 0, null, null);
-          result.keywordDecided++;
-        } else {
-          const llmResult = await this.llmClassify(article, instrument);
-          await this.writeRelevance(
-            article.id, instrument.id,
-            llmResult.isRelevant, 'llm', keywordScore,
-            llmResult.rationale, llmResult.llmUsageId,
-          );
-          result.llmDecided++;
-          if (llmResult.isRelevant) result.relevantPairs++;
-        }
+        await this.classifyPair(article, instrument, result);
       }
     }
 
     this.emit('complete', `Classified ${result.pairsEvaluated} pairs: ${result.keywordDecided} keyword, ${result.llmDecided} LLM, ${result.relevantPairs} relevant`);
     this.logger.log(`Article relevance: ${result.pairsEvaluated} pairs evaluated, ${result.relevantPairs} relevant`);
     return result;
+  }
+
+  /**
+   * Classify the recent article backlog against a single instrument.
+   * Called when a user adds a new instrument so it gets coverage from the
+   * existing article pool instead of waiting for new articles to arrive.
+   */
+  async backfillForInstrument(instrumentId: string): Promise<RelevanceResult> {
+    const result: RelevanceResult = { pairsEvaluated: 0, keywordDecided: 0, llmDecided: 0, relevantPairs: 0 };
+
+    const instrument = await this.getInstrumentById(instrumentId);
+    if (!instrument) return result;
+
+    const articles = await this.getRecentArticlesMissingPairForInstrument(instrumentId);
+    if (articles.length === 0) return result;
+
+    this.emit('start', `Backfilling ${articles.length} articles for instrument ${instrument.symbol}`);
+
+    for (const article of articles) {
+      await this.classifyPair(article, instrument, result);
+    }
+
+    this.emit('complete', `Backfill ${instrument.symbol}: ${result.pairsEvaluated} pairs, ${result.relevantPairs} relevant`);
+    this.logger.log(`Article relevance backfill ${instrument.symbol}: ${result.pairsEvaluated} pairs, ${result.relevantPairs} relevant`);
+    return result;
+  }
+
+  private async classifyPair(
+    article: ArticleRow,
+    instrument: InstrumentRow,
+    result: RelevanceResult,
+  ): Promise<void> {
+    const exists = await this.pairExists(article.id, instrument.id);
+    if (exists) return;
+
+    result.pairsEvaluated++;
+    const keywordScore = instrumentKeywordScore(article, instrument);
+
+    if (keywordScore >= 0.7) {
+      await this.writeRelevance(article.id, instrument.id, true, 'keyword', keywordScore, null, null);
+      result.keywordDecided++;
+      result.relevantPairs++;
+    } else if (keywordScore === 0) {
+      await this.writeRelevance(article.id, instrument.id, false, 'keyword', 0, null, null);
+      result.keywordDecided++;
+    } else {
+      const llmResult = await this.llmClassify(article, instrument);
+      await this.writeRelevance(
+        article.id, instrument.id,
+        llmResult.isRelevant, 'llm', keywordScore,
+        llmResult.rationale, llmResult.llmUsageId,
+      );
+      result.llmDecided++;
+      if (llmResult.isRelevant) result.relevantPairs++;
+    }
+  }
+
+  private async getInstrumentById(instrumentId: string): Promise<InstrumentRow | null> {
+    const res = await this.db.rawQuery(
+      `select id, symbol, name from prediction.instruments where id = $1 and is_active = true limit 1`,
+      [instrumentId],
+    );
+    const rows = (res.data as InstrumentRow[] | null) ?? [];
+    return rows[0] ?? null;
+  }
+
+  private async getRecentArticlesMissingPairForInstrument(instrumentId: string): Promise<ArticleRow[]> {
+    const res = await this.db.rawQuery(
+      `select ma.id, ma.title, ma.summary, ma.content
+       from prediction.market_articles ma
+       where coalesce(ma.published_at, ma.first_seen_at, ma.created_at) >= now() - interval '7 days'
+         and not exists (
+           select 1 from prediction.article_instrument_relevance air
+           where air.article_id = ma.id and air.instrument_id = $1
+         )
+       order by coalesce(ma.published_at, ma.first_seen_at, ma.created_at) desc
+       limit ${BACKFILL_RECENT_ARTICLE_LIMIT}`,
+      [instrumentId],
+    );
+    return (res.data as ArticleRow[] | null) ?? [];
   }
 
   private async getActiveInstruments(): Promise<InstrumentRow[]> {

@@ -138,7 +138,14 @@ function verdictColor(verdict: string): string {
       <ion-spinner v-if="loading" />
 
       <template v-if="!loading && currentComposite">
-        <ion-grid>
+        <!-- Risk Debate (overview): shown first so users see the synthesized
+             view before sifting through per-dimension and per-analyst detail. -->
+        <template v-if="debate">
+          <h2 style="margin-top:0;margin-bottom:8px">Risk Debate</h2>
+          <DebateSummary :debate="debate" />
+        </template>
+
+        <ion-grid :style="debate ? 'margin-top:16px' : ''">
           <ion-row>
             <ion-col size="12" size-md="4">
               <CompositeScoreGauge
@@ -192,12 +199,6 @@ function verdictColor(verdict: string): string {
               </ion-col>
             </ion-row>
           </ion-grid>
-        </template>
-
-        <!-- Debate Summary -->
-        <template v-if="debate">
-          <h2 style="margin-top:16px;margin-bottom:8px">Risk Debate</h2>
-          <DebateSummary :debate="debate" />
         </template>
       </template>
     </template>

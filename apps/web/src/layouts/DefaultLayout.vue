@@ -14,7 +14,7 @@ import {
   chatbubblesOutline, trophyOutline, peopleCircleOutline,
   chevronDownOutline, chevronForwardOutline, compassOutline,
   createOutline, analyticsOutline, ellipsisHorizontalOutline,
-  schoolOutline,
+  schoolOutline, cashOutline,
 } from 'ionicons/icons';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -67,6 +67,8 @@ const navGroups: NavGroup[] = [
     label: '',
     items: [
       { title: 'Dashboard', icon: gridOutline, to: '/' },
+      { title: 'Market Assistant', icon: bulbOutline, to: '/chat' },
+      { title: 'Trade', icon: cashOutline, to: '/tournaments' },
     ],
   },
   {
@@ -92,7 +94,6 @@ const navGroups: NavGroup[] = [
       { title: 'Clubs', icon: peopleCircleOutline, to: '/clubs' },
       { title: 'Tournaments', icon: trophyOutline, to: '/tournaments' },
       { title: 'Messages', icon: chatbubblesOutline, to: '/messages' },
-      { title: 'Assistant', icon: bulbOutline, to: '/chat' },
     ],
   },
   {

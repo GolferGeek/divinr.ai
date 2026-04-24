@@ -102,7 +102,12 @@ watch(() => route.query, () => {
     </div>
     <p style="margin-bottom:16px;opacity:0.7">{{ instrument?.['name'] }}</p>
 
-    <ion-segment v-model="tab" style="margin-bottom:16px" data-tour="instrument-tabs">
+    <ion-segment
+      :value="tab"
+      style="margin-bottom:16px"
+      data-tour="instrument-tabs"
+      @ionChange="tab = (($event.detail.value as string) ?? 'analysts')"
+    >
       <ion-segment-button value="analysts"><ion-label>Analysts</ion-label></ion-segment-button>
       <ion-segment-button value="predictors"><ion-label>Article Relevance</ion-label></ion-segment-button>
     </ion-segment>
