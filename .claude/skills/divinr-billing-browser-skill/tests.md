@@ -7,6 +7,8 @@ Playwright specs:
 - `apps/e2e/tests/billing/social-opt-outs.spec.ts` — `/settings/social-opt-outs` page renders the five toggles, `GET` + `PATCH /api/users/:id/social-opt-outs` round-trip works, vocab guard clean.
 - `apps/e2e/tests/billing/bill-preview.spec.ts` — `GET /api/billing/preview` returns the itemized shape (basic, analysts, instruments, byoFee, total); arithmetic invariant `total = basic + $60·|analysts| + $20·|instruments| + byoFee` holds; BillingTab DOM reflects the payload.
 - `apps/e2e/tests/billing/pricing-page.spec.ts` — unauthenticated `/pricing` renders both cards with the $50/ $60/ $20/ $10 price points, "Start free trial" routes to `/login`, full disclaimer present, vocab clean.
+- `apps/e2e/tests/billing/checkout-redirect.spec.ts` — clicking "Add a card" in `/billing-summary` POSTs `/api/billing/checkout-session` (intercepted) and `window.location` redirects to the returned Stripe URL. With Stripe disabled (`STRIPE_SECRET_KEY` unset) the API returns `{ url: null }` and the spec asserts no off-origin navigation + a warning toast.
+- `apps/e2e/tests/billing/webhook-lifecycle.spec.ts` — drives `POST /billing/webhooks/stripe` directly with a `crypto.createHmac`-signed `invoice.paid` payload; asserts 200 first delivery, `duplicate=true` on replay (event_id PK idempotency), and 400 on a bogus signature. Skipped when `STRIPE_WEBHOOK_SECRET` is absent.
 
 Storage state: `apps/e2e/.auth/testing-team.json` (populated by `scripts/prepare-auth-state.ts`). The `billing` project in `playwright.config.ts` uses this storage state via `PLAYWRIGHT_STORAGE_STATE`.
 
@@ -127,7 +129,26 @@ See `apps/e2e/tests/billing/bill-preview.spec.ts` for the canonical
 implementation (branch-tolerant — asserts the shape and arithmetic against
 whatever the API returns for the logged-in user).
 
-### 5. Public pricing page is discoverable and routes to signup
+### 5b. Checkout redirect round-trips through Stripe-hosted Checkout
+
+**What**: From `/billing-summary` (authenticated trial user with no card), click `[data-testid="billing-summary-add-card"]`. The POST to `/api/billing/checkout-session` is intercepted via `context.route()` and stubbed with a fake `https://checkout.stripe.com/c/pay/cs_test_stub` URL. Assert the page navigates to that URL (we never actually visit Stripe — keeps the spec deterministic and free of cross-origin redirects).
+
+When `STRIPE_SECRET_KEY` is unset, the spec exercises the no-op contract instead: API returns `{ url: null }`, no navigation, warning toast surfaces.
+
+See `apps/e2e/tests/billing/checkout-redirect.spec.ts`.
+
+### 5c. Webhook signature verification + event-id idempotency
+
+**What**: POST a synthetic `invoice.paid` payload to `/billing/webhooks/stripe` with a valid HMAC-SHA256 v1 signature derived from `STRIPE_WEBHOOK_SECRET`. Assert:
+- First delivery → 200 with `{ received: true }` (no duplicate flag)
+- Same `event_id` again → 200 with `{ received: true, duplicate: true }`
+- Bogus signature → 400
+
+Skipped when `STRIPE_WEBHOOK_SECRET` is unset (no key, no signature). To run locally: `stripe listen --forward-to localhost:7100/billing/webhooks/stripe` and copy the printed `whsec_*` into `apps/e2e/.env`.
+
+See `apps/e2e/tests/billing/webhook-lifecycle.spec.ts`.
+
+### 6. Public pricing page is discoverable and routes to signup
 
 **What**: Unauthenticated `goto('/pricing')` loads without redirect. Two cards
 render: Basic ($50/mo + 30-day trial copy) and Authoring add-ons ($20, $60,

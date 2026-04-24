@@ -1,14 +1,55 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { IonCard, IonCardHeader, IonCardTitle, IonCardContent } from '@ionic/vue';
+import { computed, onMounted, ref } from 'vue';
+import { IonButton, IonCard, IonCardHeader, IonCardTitle, IonCardContent, toastController } from '@ionic/vue';
 import { useBillingSummaryStore } from '../stores/billing-summary.store';
+import { useBillingStatusStore } from '../stores/billing-status.store';
+import { useStripeRedirect } from '../composables/useStripeRedirect';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useBillingSummaryStore();
-onMounted(() => store.fetchMySummary());
+const billing = useBillingStatusStore();
+const { redirectToCheckout, redirectToPortal } = useStripeRedirect();
+const redirecting = ref(false);
+
+onMounted(() => {
+  void store.fetchMySummary();
+  if (!billing.loaded) void billing.fetch();
+});
 
 function formatCost(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+const showAddCardCta = computed(() => !billing.hasCardOnFile);
+const showManageCta = computed(() => billing.hasCardOnFile);
+
+async function onAddCard() {
+  await runRedirect(() => redirectToCheckout(window.location.href));
+}
+
+async function onManage() {
+  await runRedirect(() => redirectToPortal(window.location.href));
+}
+
+async function runRedirect(call: () => Promise<{ ok: true; url: string } | { ok: false; error: { message: string } }>) {
+  if (redirecting.value) return;
+  redirecting.value = true;
+  try {
+    const result = await call();
+    if (result.ok) {
+      window.location.href = result.url;
+      return;
+    }
+    const toast = await toastController.create({
+      message: result.error.message,
+      duration: 4000,
+      color: 'warning',
+      position: 'top',
+    });
+    await toast.present();
+  } finally {
+    redirecting.value = false;
+  }
 }
 </script>
 
@@ -18,6 +59,32 @@ function formatCost(cents: number): string {
     <p style="color: var(--ion-color-medium); font-size: 14px;">
       Estimated compute cost for the current month, broken down by stage, triple, and model. This is an estimate of LLM compute consumption — does not include base subscription or authored-item fees.
     </p>
+
+    <div
+      v-if="billing.loaded"
+      class="billing-actions"
+      data-testid="billing-summary-actions"
+    >
+      <ion-button
+        v-if="showAddCardCta"
+        color="primary"
+        :disabled="redirecting"
+        data-testid="billing-summary-add-card"
+        @click="onAddCard"
+      >
+        Add a card
+      </ion-button>
+      <ion-button
+        v-if="showManageCta"
+        color="primary"
+        fill="outline"
+        :disabled="redirecting"
+        data-testid="billing-summary-manage"
+        @click="onManage"
+      >
+        Manage Billing
+      </ion-button>
+    </div>
 
     <div v-if="!store.mySummary" style="padding: 32px; text-align: center; color: var(--ion-color-medium);">
       Loading…
@@ -114,3 +181,12 @@ function formatCost(cents: number): string {
   <FirstTouchPanel surface-key="billing.summary" />
   </div>
 </template>
+
+<style scoped>
+.billing-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0 24px;
+}
+</style>

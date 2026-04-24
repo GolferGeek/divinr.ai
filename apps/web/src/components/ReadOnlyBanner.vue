@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
-import { IonButton, IonIcon } from '@ionic/vue';
+import { computed, onMounted, ref } from 'vue';
+import { IonButton, IonIcon, toastController } from '@ionic/vue';
 import { lockClosedOutline } from 'ionicons/icons';
-import { useRouter } from 'vue-router';
 import { useBillingStatusStore } from '../stores/billing-status.store';
 import { useFirstTouch } from '../composables/useFirstTouch';
+import { useStripeRedirect } from '../composables/useStripeRedirect';
 import FirstTouchPanel from './FirstTouchPanel.vue';
 import LegalDisclaimer from './LegalDisclaimer.vue';
 
 const billing = useBillingStatusStore();
-const router = useRouter();
 useFirstTouch('billing.read-only-banner');
+const { redirectToCheckout } = useStripeRedirect();
+const redirecting = ref(false);
 
 const purgeDateText = computed(() => {
   if (!billing.purgeScheduledAt) return '';
@@ -25,8 +26,25 @@ onMounted(() => {
   if (!billing.loaded) void billing.fetch();
 });
 
-function addCard(): void {
-  router.push('/settings/authored-content');
+async function addCard(): Promise<void> {
+  if (redirecting.value) return;
+  redirecting.value = true;
+  try {
+    const result = await redirectToCheckout(window.location.href);
+    if (result.ok) {
+      window.location.href = result.url;
+      return;
+    }
+    const toast = await toastController.create({
+      message: result.error.message,
+      duration: 4000,
+      color: 'warning',
+      position: 'top',
+    });
+    await toast.present();
+  } finally {
+    redirecting.value = false;
+  }
 }
 </script>
 

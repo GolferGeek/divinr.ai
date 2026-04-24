@@ -84,12 +84,18 @@ export class StripeService implements OnModuleInit {
   // real type even before the implementations exist.
   // ---------------------------------------------------------------------------
 
-  ensureCustomer(_userId: string, _email: string): Promise<{ customerId: string } | null> {
-    if (!this.client) return Promise.resolve(null);
-    throw new Error('StripeService.ensureCustomer not implemented yet (lands in Phase 2)');
+  async ensureCustomer(userId: string, email: string): Promise<{ customerId: string } | null> {
+    if (!this.client) return null;
+    // Idempotency keyed on userId so retried calls return the same customer
+    // rather than creating duplicates.
+    const customer = await this.client.customers.create(
+      { email, metadata: { userId } },
+      { idempotencyKey: `customer:${userId}` },
+    );
+    return { customerId: customer.id };
   }
 
-  createCheckoutSessionSubscription(_opts: {
+  async createCheckoutSessionSubscription(opts: {
     userId: string;
     customerId: string;
     priceIdBasic: string;
@@ -97,25 +103,54 @@ export class StripeService implements OnModuleInit {
     returnUrl: string;
     trialPeriodDays: number;
   }): Promise<{ url: string } | null> {
-    if (!this.client) return Promise.resolve(null);
-    throw new Error('StripeService.createCheckoutSessionSubscription not implemented yet (Phase 2)');
+    if (!this.client) return null;
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      { price: opts.priceIdBasic, quantity: 1 },
+      ...opts.currentAuthoredItemPriceIds.map((p) => ({ price: p, quantity: 1 })),
+    ];
+    const session = await this.client.checkout.sessions.create({
+      mode: 'subscription',
+      customer: opts.customerId,
+      line_items: lineItems,
+      subscription_data: {
+        trial_period_days: opts.trialPeriodDays > 0 ? opts.trialPeriodDays : undefined,
+        metadata: { userId: opts.userId },
+      },
+      success_url: opts.returnUrl,
+      cancel_url: opts.returnUrl,
+      metadata: { userId: opts.userId },
+    });
+    if (!session.url) return null;
+    return { url: session.url };
   }
 
-  createCheckoutSessionSetup(_opts: {
+  async createCheckoutSessionSetup(opts: {
     customerId: string;
     returnUrl: string;
     metadata: Record<string, string>;
   }): Promise<{ url: string } | null> {
-    if (!this.client) return Promise.resolve(null);
-    throw new Error('StripeService.createCheckoutSessionSetup not implemented yet (Phase 4)');
+    if (!this.client) return null;
+    const session = await this.client.checkout.sessions.create({
+      mode: 'setup',
+      customer: opts.customerId,
+      success_url: opts.returnUrl,
+      cancel_url: opts.returnUrl,
+      metadata: opts.metadata,
+    });
+    if (!session.url) return null;
+    return { url: session.url };
   }
 
-  createPortalSession(_opts: {
+  async createPortalSession(opts: {
     customerId: string;
     returnUrl: string;
   }): Promise<{ url: string } | null> {
-    if (!this.client) return Promise.resolve(null);
-    throw new Error('StripeService.createPortalSession not implemented yet (Phase 2)');
+    if (!this.client) return null;
+    const session = await this.client.billingPortal.sessions.create({
+      customer: opts.customerId,
+      return_url: opts.returnUrl,
+    });
+    return { url: session.url };
   }
 
   addSubscriptionItem(_opts: {
@@ -187,8 +222,37 @@ export class StripeService implements OnModuleInit {
     throw new Error('StripeService.previewUpcomingInvoice not implemented yet (Phase 3)');
   }
 
-  verifyWebhookSignature(_rawBody: Buffer, _signature: string): Stripe.Event | null {
+  /**
+   * Verify a Stripe webhook signature against STRIPE_WEBHOOK_SECRET.
+   * Returns the parsed event on success; returns null when Stripe is disabled.
+   * Throws (caller turns into 400) when the signature is malformed or invalid —
+   * Stripe constructs an error class that includes a useful message.
+   */
+  verifyWebhookSignature(rawBody: Buffer, signature: string): Stripe.Event | null {
     if (!this.client) return null;
-    throw new Error('StripeService.verifyWebhookSignature not implemented yet (Phase 2)');
+    const secret = this.config.stripeWebhookSecret;
+    if (!secret) {
+      throw new Error('STRIPE_WEBHOOK_SECRET not configured');
+    }
+    return this.client.webhooks.constructEvent(rawBody, signature, secret);
+  }
+
+  /**
+   * Retrieve a payment method by id and surface the card display fields we cache.
+   * Used by the payment_method.attached webhook handler.
+   */
+  async getPaymentMethodCardFields(paymentMethodId: string): Promise<{
+    last4: string;
+    expMonth: number;
+    expYear: number;
+  } | null> {
+    if (!this.client) return null;
+    const pm = await this.client.paymentMethods.retrieve(paymentMethodId);
+    if (pm.type !== 'card' || !pm.card) return null;
+    return {
+      last4: pm.card.last4,
+      expMonth: pm.card.exp_month,
+      expYear: pm.card.exp_year,
+    };
   }
 }

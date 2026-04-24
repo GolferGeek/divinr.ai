@@ -144,6 +144,11 @@ export class BillingService {
   async isReadOnly(userId: string): Promise<boolean> {
     const sub = await this.getSubscription(userId);
     if (!sub) return false;
+    // Intentional: 'past_due' is NOT read-only. Stripe's Smart Retry handles
+    // payment recovery, and only when retries exhaust does Stripe emit
+    // customer.subscription.deleted, which our webhook flips to 'canceled'.
+    // Until then the user keeps full access; the past_due state is surfaced
+    // purely at the UI layer via TrialCountdown.
     return sub.status === 'canceled' || sub.status === 'dormant';
   }
 
@@ -421,6 +426,67 @@ export class BillingService {
       duration_ms: Date.now() - started,
     }));
     return { warningsEmitted, purgesEmitted, errors };
+  }
+
+  // ─── Stripe-side mirror updates ──────────────────────────────
+  // These are thin wrappers that BillingService uses to keep its denormalized
+  // Stripe columns in sync with what we just wrote to (or learned from) Stripe.
+  // Webhook handlers route through here so the audit-trail / event-append
+  // semantics stay in one place.
+
+  async updateStripeFields(userId: string, fields: {
+    stripe_customer_id?: string | null;
+    stripe_subscription_id?: string | null;
+    stripe_latest_invoice_id?: string | null;
+    stripe_default_payment_method_id?: string | null;
+    stripe_price_id_basic?: string | null;
+    card_last4?: string | null;
+    card_exp_month?: number | null;
+    card_exp_year?: number | null;
+    status?: SubscriptionStatus;
+    trial_started_at?: string | null;
+    trial_ends_at?: string | null;
+    current_period_end?: string | null;
+  }): Promise<void> {
+    await this.schema.ensureSchema();
+    const sets: string[] = [];
+    const values: unknown[] = [userId];
+    let i = 2;
+    for (const [k, v] of Object.entries(fields)) {
+      if (v === undefined) continue;
+      sets.push(`${k} = $${i}`);
+      values.push(v);
+      i++;
+    }
+    if (sets.length === 0) return;
+    sets.push(`updated_at = now()`);
+    const result = await this.db.rawQuery(
+      `UPDATE billing.subscriptions SET ${sets.join(', ')} WHERE user_id = $1`,
+      values,
+    );
+    if (result.error) throw new Error(`updateStripeFields failed: ${result.error.message}`);
+  }
+
+  async getSubscriptionByStripeCustomerId(stripeCustomerId: string): Promise<BillingSubscription | null> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `SELECT * FROM billing.subscriptions WHERE stripe_customer_id = $1 LIMIT 1`,
+      [stripeCustomerId],
+    );
+    if (result.error) throw new Error(`getSubscriptionByStripeCustomerId failed: ${result.error.message}`);
+    const rows = (result.data as BillingSubscription[] | null) ?? [];
+    return rows[0] ?? null;
+  }
+
+  async getSubscriptionByStripeSubscriptionId(stripeSubscriptionId: string): Promise<BillingSubscription | null> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `SELECT * FROM billing.subscriptions WHERE stripe_subscription_id = $1 LIMIT 1`,
+      [stripeSubscriptionId],
+    );
+    if (result.error) throw new Error(`getSubscriptionByStripeSubscriptionId failed: ${result.error.message}`);
+    const rows = (result.data as BillingSubscription[] | null) ?? [];
+    return rows[0] ?? null;
   }
 
   // ─── Authored items ──────────────────────────────────────────

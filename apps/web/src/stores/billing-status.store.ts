@@ -11,6 +11,7 @@ export interface BillingStatus {
   purge_scheduled_at: string | null;
   is_read_only: boolean;
   days_until_purge: number | null;
+  has_card_on_file: boolean;
 }
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -26,11 +27,16 @@ export const useBillingStatusStore = defineStore('billing-status', () => {
   const purgeScheduledAt = ref<string | null>(null);
   const isReadOnly = ref(false);
   const daysUntilPurge = ref<number | null>(null);
+  const hasCardOnFile = ref(false);
   const loaded = ref(false);
   const loading = ref(false);
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   const isTrial = computed(() => status.value === 'trial');
+  const isPastDue = computed(() => status.value === 'past_due');
+  // Surfaced by TrialCountdown to choose the "Add a card to continue" variant
+  // when a user is in trial but hasn't yet attached a payment method.
+  const needsCardSetup = computed(() => isTrial.value && !hasCardOnFile.value);
   const daysUntilTrialEnd = computed<number | null>(() => {
     if (!trialEndsAt.value) return null;
     const diffMs = new Date(trialEndsAt.value).getTime() - Date.now();
@@ -48,6 +54,7 @@ export const useBillingStatusStore = defineStore('billing-status', () => {
       purgeScheduledAt.value = data.purge_scheduled_at;
       isReadOnly.value = !!data.is_read_only;
       daysUntilPurge.value = data.days_until_purge;
+      hasCardOnFile.value = !!data.has_card_on_file;
       loaded.value = true;
     } catch {
       // Non-fatal — if the endpoint is unreachable (no auth yet, API down),
@@ -77,14 +84,16 @@ export const useBillingStatusStore = defineStore('billing-status', () => {
     purgeScheduledAt.value = null;
     isReadOnly.value = false;
     daysUntilPurge.value = null;
+    hasCardOnFile.value = false;
     loaded.value = false;
     stopAutoRefresh();
   }
 
   return {
     status, trialEndsAt, expiredAt, purgeScheduledAt, isReadOnly, daysUntilPurge,
+    hasCardOnFile,
     loaded, loading,
-    isTrial, daysUntilTrialEnd,
+    isTrial, isPastDue, needsCardSetup, daysUntilTrialEnd,
     fetch, startAutoRefresh, stopAutoRefresh, clear,
   };
 });

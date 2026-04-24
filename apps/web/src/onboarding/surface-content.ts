@@ -604,8 +604,11 @@ export const surfaceContent: Record<string, SurfaceContent> = {
     title: 'Your free trial',
     body:
       "You're on the free trial. This chip shows how many days you have left " +
-      "before the account converts or goes read-only. Add a card any time from " +
-      'Settings → Your Content to keep going without interruption.',
+      "before the account converts or goes read-only. " +
+      "If a payment ever fails, this same chip turns yellow with “Payment failed — retrying” " +
+      "while Stripe automatically retries the charge — your account stays fully usable. " +
+      "If you haven’t added a card yet, the chip becomes a blue “Add a card” button that opens " +
+      "Stripe’s hosted Checkout in one click.",
   },
   'billing.read-only-banner': {
     title: 'Your trial has ended',
