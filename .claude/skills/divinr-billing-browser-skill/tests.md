@@ -9,6 +9,7 @@ Playwright specs:
 - `apps/e2e/tests/billing/pricing-page.spec.ts` — unauthenticated `/pricing` renders both cards with the $50/ $60/ $20/ $10 price points, "Start free trial" routes to `/login`, full disclaimer present, vocab clean.
 - `apps/e2e/tests/billing/checkout-redirect.spec.ts` — clicking "Add a card" in `/billing-summary` POSTs `/api/billing/checkout-session` (intercepted) and `window.location` redirects to the returned Stripe URL. With Stripe disabled (`STRIPE_SECRET_KEY` unset) the API returns `{ url: null }` and the spec asserts no off-origin navigation + a warning toast.
 - `apps/e2e/tests/billing/webhook-lifecycle.spec.ts` — drives `POST /billing/webhooks/stripe` directly with a `crypto.createHmac`-signed `invoice.paid` payload; asserts 200 first delivery, `duplicate=true` on replay (event_id PK idempotency), and 400 on a bogus signature. Skipped when `STRIPE_WEBHOOK_SECRET` is absent.
+- `apps/e2e/tests/billing/per-item-proration.spec.ts` — asserts `GET /billing/preview` returns the additive `upcomingInvoice` field with `{ amountDue, currency, lineItems[] }` whenever the user has a Stripe subscription. Skipped when `STRIPE_SECRET_KEY` is unset OR the user has no subscription yet (run after manually completing Stripe Checkout).
 
 Storage state: `apps/e2e/.auth/testing-team.json` (populated by `scripts/prepare-auth-state.ts`). The `billing` project in `playwright.config.ts` uses this storage state via `PLAYWRIGHT_STORAGE_STATE`.
 
@@ -136,6 +137,14 @@ whatever the API returns for the logged-in user).
 When `STRIPE_SECRET_KEY` is unset, the spec exercises the no-op contract instead: API returns `{ url: null }`, no navigation, warning toast surfaces.
 
 See `apps/e2e/tests/billing/checkout-redirect.spec.ts`.
+
+### 5d. Per-item proration mirrors authored content into the upcoming invoice
+
+**What**: When a user authors a custom instrument or analyst, `BillingService.addAuthoredItem` writes the DB row first and then mirrors to Stripe via `subscriptionItems.create` with `proration_behavior: 'create_prorations'`. Cancellation calls `subscriptionItems.del` with the same proration setting. The next `GET /billing/preview` call returns an `upcomingInvoice` block computed by `stripe.invoices.createPreview`, surfaced in `BillingSummaryView` as a small table above the LLM-cost rollup.
+
+The `per-item-proration.spec.ts` asserts the contract shape (additive field, well-formed line items). Live exercise of the add/delete/credit-back proration math requires walking through Stripe Checkout first to populate `stripe_subscription_id`.
+
+See `apps/e2e/tests/billing/per-item-proration.spec.ts`.
 
 ### 5c. Webhook signature verification + event-id idempotency
 

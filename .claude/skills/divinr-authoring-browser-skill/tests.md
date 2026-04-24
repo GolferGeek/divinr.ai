@@ -68,6 +68,12 @@ Canonical coverage lives in the billing facet:
 This spec is runnable from the `billing` Playwright project; the `authoring`
 project does not duplicate it.
 
+The Stripe-side per-item proration (authoring an instrument adds a prorated
+subscription item; deleting credits back) lives in
+`apps/e2e/tests/billing/per-item-proration.spec.ts` — run after walking the
+"Add a card" Stripe Checkout flow so the test user has a `stripe_subscription_id`.
+See `.claude/skills/divinr-billing-browser-skill/tests.md` Numbered case 5d.
+
 ## Chrome-MCP exploratory (not in CI)
 
 - Switch through all five segment tabs (`analysts` -> `instruments` -> `wiring` -> `apikeys` -> `billing`) and verify each renders without console errors.

@@ -2,14 +2,18 @@ import { defineConfig } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-try {
-  const raw = readFileSync(resolve(process.cwd(), '.env'), 'utf8');
-  for (const line of raw.split(/\r?\n/)) {
-    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2];
+// Load env from both apps/e2e/.env (test-user creds) and the repo-root .env
+// (Stripe keys, etc). apps/e2e/.env wins on conflict because it's loaded first.
+for (const path of ['.env', '../../.env']) {
+  try {
+    const raw = readFileSync(resolve(process.cwd(), path), 'utf8');
+    for (const line of raw.split(/\r?\n/)) {
+      const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+      if (m && !(m[1] in process.env)) process.env[m[1]] = m[2];
+    }
+  } catch {
+    // both .env files optional
   }
-} catch {
-  // .env optional
 }
 
 // The web app appends `Authorization: Bearer <divinr_token>` from localStorage
@@ -39,6 +43,10 @@ try {
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
+  // Local Postgres (port 7011) connection pool starts thrashing past ~4
+  // concurrent workers — each worker fans out into many schema-ensure +
+  // markets queries on the first page load. Two is comfortable.
+  workers: 2,
   retries: 1,
   reporter: [['list'], ['json', { outputFile: 'test-results/results.json' }]],
   use: {

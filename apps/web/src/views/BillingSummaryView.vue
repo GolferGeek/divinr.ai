@@ -4,6 +4,7 @@ import { IonButton, IonCard, IonCardHeader, IonCardTitle, IonCardContent, toastC
 import { useBillingSummaryStore } from '../stores/billing-summary.store';
 import { useBillingStatusStore } from '../stores/billing-status.store';
 import { useStripeRedirect } from '../composables/useStripeRedirect';
+import { useApi } from '../composables/useApi';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useBillingSummaryStore();
@@ -11,9 +12,28 @@ const billing = useBillingStatusStore();
 const { redirectToCheckout, redirectToPortal } = useStripeRedirect();
 const redirecting = ref(false);
 
+interface UpcomingInvoice {
+  amountDue: number;
+  currency: string;
+  dueDate: string | null;
+  lineItems: Array<{ description: string; amountCents: number; priceId: string | null }>;
+}
+const upcomingInvoice = ref<UpcomingInvoice | null>(null);
+
+async function fetchUpcomingInvoice(): Promise<void> {
+  try {
+    const api = useApi('/api/billing');
+    const preview = await api.get<{ upcomingInvoice: UpcomingInvoice | null }>('/preview');
+    upcomingInvoice.value = preview.upcomingInvoice;
+  } catch {
+    upcomingInvoice.value = null;
+  }
+}
+
 onMounted(() => {
   void store.fetchMySummary();
   if (!billing.loaded) void billing.fetch();
+  void fetchUpcomingInvoice();
 });
 
 function formatCost(cents: number): string {
@@ -84,6 +104,48 @@ async function runRedirect(call: () => Promise<{ ok: true; url: string } | { ok:
       >
         Manage Billing
       </ion-button>
+    </div>
+
+    <div
+      v-if="upcomingInvoice"
+      class="upcoming-invoice"
+      data-testid="upcoming-invoice"
+    >
+      <h3>Upcoming invoice</h3>
+      <p style="font-size: 13px; color: var(--ion-color-medium); margin: 0 0 8px;">
+        Live preview from Stripe of what you'll be charged on the next billing cycle.
+        <span v-if="upcomingInvoice.dueDate"> Due {{ new Date(upcomingInvoice.dueDate).toLocaleDateString() }}.</span>
+      </p>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="text-align: left; border-bottom: 2px solid var(--ion-color-medium);">
+            <th style="padding: 8px;">Description</th>
+            <th style="padding: 8px; text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="(line, i) in upcomingInvoice.lineItems"
+            :key="i"
+            style="border-bottom: 1px solid var(--ion-color-light);"
+            :data-testid="`upcoming-invoice-line-${i}`"
+          >
+            <td style="padding: 8px;">{{ line.description || '—' }}</td>
+            <td
+              style="padding: 8px; text-align: right;"
+              :style="{ color: line.amountCents < 0 ? 'var(--ion-color-success)' : undefined }"
+            >
+              {{ formatCost(line.amountCents) }}
+            </td>
+          </tr>
+          <tr style="border-top: 2px solid var(--ion-color-medium); font-weight: bold;">
+            <td style="padding: 8px;">Total due</td>
+            <td style="padding: 8px; text-align: right;" data-testid="upcoming-invoice-total">
+              {{ formatCost(upcomingInvoice.amountDue) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <div v-if="!store.mySummary" style="padding: 32px; text-align: center; color: var(--ion-color-medium);">
@@ -188,5 +250,12 @@ async function runRedirect(call: () => Promise<{ ok: true; url: string } | { ok:
   gap: 12px;
   flex-wrap: wrap;
   margin: 16px 0 24px;
+}
+
+.upcoming-invoice {
+  margin: 0 0 32px;
+  padding: 16px;
+  background: var(--ion-color-light, #f5f5f5);
+  border-radius: 8px;
 }
 </style>

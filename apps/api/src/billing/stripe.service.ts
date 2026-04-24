@@ -153,22 +153,36 @@ export class StripeService implements OnModuleInit {
     return { url: session.url };
   }
 
-  addSubscriptionItem(_opts: {
+  async addSubscriptionItem(opts: {
     subscriptionId: string;
     priceId: string;
     idempotencyKey: string;
     metadata: Record<string, string>;
   }): Promise<{ subscriptionItemId: string } | null> {
-    if (!this.client) return Promise.resolve(null);
-    throw new Error('StripeService.addSubscriptionItem not implemented yet (Phase 3)');
+    if (!this.client) return null;
+    const item = await this.client.subscriptionItems.create(
+      {
+        subscription: opts.subscriptionId,
+        price: opts.priceId,
+        quantity: 1,
+        proration_behavior: 'create_prorations',
+        metadata: opts.metadata,
+      },
+      { idempotencyKey: opts.idempotencyKey },
+    );
+    return { subscriptionItemId: item.id };
   }
 
-  removeSubscriptionItem(_opts: {
+  async removeSubscriptionItem(opts: {
     subscriptionItemId: string;
     idempotencyKey: string;
   }): Promise<void> {
-    if (!this.client) return Promise.resolve();
-    throw new Error('StripeService.removeSubscriptionItem not implemented yet (Phase 3)');
+    if (!this.client) return;
+    await this.client.subscriptionItems.del(
+      opts.subscriptionItemId,
+      { proration_behavior: 'create_prorations' },
+      { idempotencyKey: opts.idempotencyKey },
+    );
   }
 
   updateSubscriptionItemPrice(_opts: {
@@ -217,9 +231,46 @@ export class StripeService implements OnModuleInit {
     throw new Error('StripeService.applyCompCoupon not implemented yet (Phase 5)');
   }
 
-  previewUpcomingInvoice(_subscriptionId: string): Promise<unknown | null> {
-    if (!this.client) return Promise.resolve(null);
-    throw new Error('StripeService.previewUpcomingInvoice not implemented yet (Phase 3)');
+  /**
+   * Returns a preview of the upcoming invoice for a subscription, mapped to the
+   * shape BillingSummaryView expects. Never throws — preview is best-effort
+   * cosmetics on top of the DB-computed bill.
+   */
+  async previewUpcomingInvoice(subscriptionId: string): Promise<{
+    amountDue: number;
+    currency: string;
+    dueDate: string | null;
+    lineItems: Array<{ description: string; amountCents: number; priceId: string | null }>;
+  } | null> {
+    if (!this.client) return null;
+    try {
+      // The SDK's invoices.createPreview takes options.subscription. Some older
+      // versions exposed retrieveUpcoming; createPreview is the current name.
+      const inv = await (this.client.invoices as unknown as {
+        createPreview: (params: { subscription: string }) => Promise<{
+          amount_due: number;
+          currency: string;
+          next_payment_attempt: number | null;
+          due_date: number | null;
+          lines: { data: Array<{ description: string | null; amount: number; price: { id: string } | null }> };
+        }>;
+      }).createPreview({ subscription: subscriptionId });
+      const dueEpoch = inv.next_payment_attempt ?? inv.due_date;
+      return {
+        amountDue: inv.amount_due,
+        currency: inv.currency,
+        dueDate: dueEpoch ? new Date(dueEpoch * 1000).toISOString() : null,
+        lineItems: inv.lines.data.map((l) => ({
+          description: l.description ?? '',
+          amountCents: l.amount,
+          priceId: l.price?.id ?? null,
+        })),
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`previewUpcomingInvoice failed for ${subscriptionId}: ${msg}`);
+      return null;
+    }
   }
 
   /**

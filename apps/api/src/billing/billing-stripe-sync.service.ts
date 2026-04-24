@@ -94,6 +94,26 @@ export class BillingStripeSyncService {
         triggeredBy: 'stripe',
       });
     }
+
+    // Re-sync the per-item Price mirror. Catches mid-stream Price swaps —
+    // primarily the .edu-lapse path (Phase 4) where every authored item flips
+    // from student to regular Price in a single subscription.update event.
+    await this.syncAuthoredItemPrices(sub);
+  }
+
+  private async syncAuthoredItemPrices(sub: Stripe.Subscription): Promise<void> {
+    for (const item of sub.items?.data ?? []) {
+      const itemPriceId = item.price?.id;
+      if (!itemPriceId || !item.id) continue;
+      // Only update if our mirror has a different price id for this subscription_item.
+      // Using rawQuery via the BillingService helper to avoid touching unrelated rows.
+      await this.billingRawUpdate(
+        `UPDATE billing.authored_items
+         SET stripe_price_id = $2
+         WHERE stripe_subscription_item_id = $1 AND (stripe_price_id IS NULL OR stripe_price_id <> $2)`,
+        [item.id, itemPriceId],
+      );
+    }
   }
 
   private async handleSubscriptionDeleted(event: Stripe.Event): Promise<void> {

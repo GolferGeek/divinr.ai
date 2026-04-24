@@ -1,6 +1,8 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Optional, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { BillingSchemaService } from './billing-schema.service';
+import { BillingConfigService } from './billing-config.service';
+import { StripeService } from './stripe.service';
 
 export type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled' | 'dormant';
 export type SubscriptionEventTrigger = 'system' | 'user' | 'admin' | 'stripe';
@@ -69,6 +71,11 @@ export class BillingService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(BillingSchemaService) private readonly schema: BillingSchemaService,
+    // BillingConfigService and StripeService are @Optional so unit tests that
+    // bypass DI (Object.create-based construction) don't have to mock them.
+    // Production wiring always supplies both via BillingModule.
+    @Optional() @Inject(BillingConfigService) private readonly billingConfig?: BillingConfigService,
+    @Optional() @Inject(StripeService) private readonly stripeSvc?: StripeService,
   ) {}
 
   // ─── Pricing helpers ──────────────────────────────────────────
@@ -503,8 +510,15 @@ export class BillingService {
     );
     if (result.error) throw new Error(`addAuthoredItem failed: ${result.error.message}`);
     const rows = (result.data as BillingAuthoredItem[] | null) ?? [];
+    const row = rows[0];
     this.logger.log(`Billing item added: ${kind} ${itemId} for user ${userId} at ${cents} cents/mo`);
-    return rows[0];
+
+    // Best-effort mirror to Stripe. Skip silently when Stripe isn't wired
+    // (feature flag), when this kind has no Stripe Price (overrides), or when
+    // the user has no subscription yet (trial-no-card — Checkout Session
+    // includes these items as line_items at first-card time).
+    await this.maybeMirrorAddToStripe(userId, row);
+    return row;
   }
 
   async cancelAuthoredItem(userId: string, kind: ItemKind, itemId: string | null): Promise<void> {
@@ -512,11 +526,91 @@ export class BillingService {
     const result = await this.db.rawQuery(
       `UPDATE billing.authored_items
        SET status = 'canceled', canceled_at = now()
-       WHERE user_id = $1 AND item_kind = $2 AND item_id = $3 AND status = 'active'`,
+       WHERE user_id = $1 AND item_kind = $2 AND item_id = $3 AND status = 'active'
+       RETURNING *`,
       [userId, kind, itemId],
     );
     if (result.error) throw new Error(`cancelAuthoredItem failed: ${result.error.message}`);
+    const rows = (result.data as BillingAuthoredItem[] | null) ?? [];
     this.logger.log(`Billing item canceled: ${kind} ${itemId} for user ${userId}`);
+
+    // Mirror cancellations to Stripe (one removeSubscriptionItem per row).
+    // Wrapped in try/catch — best-effort v1, logged with full context for ops
+    // reconciliation if Stripe rejects a delete.
+    for (const r of rows) {
+      await this.maybeMirrorCancelToStripe(userId, r);
+    }
+  }
+
+  // ─── Stripe mirror for authored items ─────────────────────────
+  // Best-effort v1 — DB write happens first, Stripe call follows. Failures
+  // post-DB-write are logged with full context so the operator can reconcile
+  // via the Stripe dashboard. Idempotency key is derived from {row.id}:{action}
+  // so retried mirror calls are safe.
+
+  private async maybeMirrorAddToStripe(userId: string, row: BillingAuthoredItem): Promise<void> {
+    if (!this.stripeSvc?.isEnabled() || !this.billingConfig) return;
+    if (row.item_kind === 'byo_platform_fee') return; // BYO wires in Phase 5
+    if (row.item_kind !== 'custom_instrument' && row.item_kind !== 'custom_analyst') return; // overrides not billed
+    const sub = await this.getSubscription(userId);
+    if (!sub?.stripe_subscription_id) {
+      this.logger.log(`addAuthoredItem: skipping Stripe mirror for ${row.id} (user has no subscription yet)`);
+      return;
+    }
+    // is_student lookup deferred to Phase 4; for now treat every user as regular.
+    const priceId = this.billingConfig.priceForKind(row.item_kind, false);
+    if (!priceId) {
+      this.logger.warn(`addAuthoredItem: no Stripe Price configured for kind=${row.item_kind}; skipping mirror`);
+      return;
+    }
+    try {
+      const result = await this.stripeSvc.addSubscriptionItem({
+        subscriptionId: sub.stripe_subscription_id,
+        priceId,
+        idempotencyKey: `authored_item:${row.id}:add`,
+        metadata: { authoredItemId: row.id, userId },
+      });
+      if (!result) return;
+      await this.db.rawQuery(
+        `UPDATE billing.authored_items
+         SET stripe_subscription_item_id = $1, stripe_price_id = $2
+         WHERE id = $3`,
+        [result.subscriptionItemId, priceId, row.id],
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Stripe addSubscriptionItem failed: ${msg} ` +
+        `(userId=${userId}, authoredItemId=${row.id}, kind=${row.item_kind}, itemId=${row.item_id ?? 'null'}, ` +
+        `subscriptionId=${sub.stripe_subscription_id}, priceId=${priceId}). ` +
+        `Row remains with null stripe_subscription_item_id; reconcile manually.`,
+      );
+    }
+  }
+
+  private async maybeMirrorCancelToStripe(userId: string, row: BillingAuthoredItem): Promise<void> {
+    if (!this.stripeSvc?.isEnabled()) return;
+    if (!row.stripe_subscription_item_id) return; // never mirrored, nothing to delete
+    try {
+      await this.stripeSvc.removeSubscriptionItem({
+        subscriptionItemId: row.stripe_subscription_item_id,
+        idempotencyKey: `authored_item:${row.id}:remove`,
+      });
+      // Clear so a re-add for the same kind/itemId can mirror again cleanly.
+      await this.db.rawQuery(
+        `UPDATE billing.authored_items
+         SET stripe_subscription_item_id = NULL, stripe_price_id = NULL
+         WHERE id = $1`,
+        [row.id],
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Stripe removeSubscriptionItem failed: ${msg} ` +
+        `(userId=${userId}, authoredItemId=${row.id}, subscriptionItemId=${row.stripe_subscription_item_id}). ` +
+        `Row remains with stripe_subscription_item_id populated; reconcile manually.`,
+      );
+    }
   }
 
   // ─── Billing preview ─────────────────────────────────────────

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Controller,
   Get,
+  HttpCode,
   Inject,
   Logger,
   Post,
@@ -42,7 +43,19 @@ export class BillingController {
   async getPreview(@Req() req: any) {
     const userId = req.user?.id;
     if (!userId) throw new BadRequestException('Authentication required');
-    return this.billing.getBillingPreview(userId);
+    const preview = await this.billing.getBillingPreview(userId);
+    // Additive Stripe-side upcoming-invoice preview (Phase 3). Backward-compatible:
+    // existing consumers that don't read upcomingInvoice see the same shape they did
+    // before. Falls back to null when Stripe is disabled, the user has no
+    // subscription yet, or Stripe rejects the createPreview call.
+    let upcomingInvoice: Awaited<ReturnType<StripeService['previewUpcomingInvoice']>> | null = null;
+    if (this.stripeSvc.isEnabled()) {
+      const sub = await this.subscriptionRow(userId);
+      if (sub?.stripe_subscription_id) {
+        upcomingInvoice = await this.stripeSvc.previewUpcomingInvoice(sub.stripe_subscription_id);
+      }
+    }
+    return { ...preview, upcomingInvoice };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -171,6 +184,7 @@ export class BillingController {
   // ─── Stripe webhooks ─────────────────────────────────────────
 
   @SkipReadOnly()
+  @HttpCode(200)
   @Post('webhooks/stripe')
   async handleStripeWebhook(@Req() req: any) {
     if (!this.stripeSvc.isEnabled()) {
