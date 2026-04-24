@@ -159,6 +159,7 @@ Includes:
 - Contract overrides on existing base entities: TBD (possibly free on enabled items, small fee otherwise)
 - Source selection from existing sources: free
 - Custom source ingestion (BYO RSS/API): out of scope for v1
+- Proration on mid-cycle add/remove (standard Stripe subscription-item behavior — authoring a new instrument on day 15 charges a half-month line item; deleting it on day 20 credits back the remainder)
 
 ### 4.4 BYO API Keys (premium models)
 
@@ -167,18 +168,23 @@ Includes:
 - User's provider bills them directly for inference; Divinr never sees those costs
 - Non-BYO users run on Divinr's models (gemma local, frontier via Divinr's budget per cost modeling)
 
-### 4.5 Student Pricing (cost-pass-through)
+### 4.5 Student Pricing (flat discount on authorship)
 
 - `.edu` email verification gates a **Student** membership modifier
-- Monthly bill = actual compute cost as calculated by the cost-modeling system, with zero markup
-- Floor: `STUDENT_FLOOR_USD` to prevent abuse (small — e.g., $10/mo)
-- No per-item markup (students pay compute, not the $20/$60 markup-inclusive fees)
-- `.edu` lapse → graceful transition to regular Basic with full data preservation
+- Base content access is **free** — no `BASIC_MONTHLY_USD` for students
+- Per-item authorship is discounted by `STUDENT_DISCOUNT_PCT` (default `0.10` — students pay 10% of the regular per-item price)
+  - Current numbers: $2 per custom instrument, $6 per custom analyst
+- No BYO platform fee, no floor, no separate cost-pass-through accrual
+- A student with zero authored items owes $0 and still gets full base access
+- Proration on mid-cycle add/remove (same behavior as regular users)
+- `.edu` lapse → graceful transition to regular Basic with full data preservation (existing authored items re-price at 100%, `BASIC_MONTHLY_USD` kicks in)
+
+**Retired concepts:** `STUDENT_FLOOR_USD` (no floor needed when the bill derives from item count × fixed discount) and the variable cost-pass-through billing path (cost-modeling-system still computes unit economics internally, but students no longer pay "actual compute cost per month" — they pay a predictable flat discount on the published per-item price).
 
 ### 4.6 Operational Principle: Pricing in ENV
 
 Every pricing lever lives in environment variables:
-`BASIC_MONTHLY_USD`, `INSTRUMENT_AUTHORSHIP_USD`, `ANALYST_AUTHORSHIP_USD`, `BYO_PLATFORM_FEE_USD`, `REGULAR_MARKUP_PCT`, `STUDENT_FLOOR_USD`, `TRIAL_DAYS`, `DORMANCY_MONTHS_BEFORE_PURGE`, etc.
+`BASIC_MONTHLY_USD`, `INSTRUMENT_AUTHORSHIP_USD`, `ANALYST_AUTHORSHIP_USD`, `BYO_PLATFORM_FEE_USD`, `STUDENT_DISCOUNT_PCT`, `TRIAL_DAYS`, `DORMANCY_MONTHS_BEFORE_PURGE`, etc.
 
 Rapid pricing experimentation is a first-class capability, not a refactor.
 
@@ -298,7 +304,7 @@ This document retires the following earlier concepts:
 - **"Divinr Basic as free default"** — retired. Basic is $50/mo. Free trial is 30 days only.
 - **Default "Divinr Basic" social club + auto-enrollment** — retired. Clubs are entirely opt-in; no default club exists.
 - **Trial-expired → downgrade-to-free** — retired. Read-only 6-month dormancy → purge.
-- **Fixed student tier / free for students** — retired. Students pay cost-pass-through.
+- **Cost-pass-through student billing with `STUDENT_FLOOR_USD`** — retired 2026-04-24. Superseded by a flat `STUDENT_DISCOUNT_PCT` (default 10%) on per-item authorship, with free base access and no floor. See §4.5.
 
 These concepts should be purged from `roadmap.md`, the relevant memory files (`project_strategy.md`), and any sub-intentions still referencing them.
 
@@ -333,7 +339,7 @@ These concepts should be purged from `roadmap.md`, the relevant memory files (`p
 - `community-boards` (graduated content showcase with attribution)
 
 **Student experience:**
-- `student-accounts` (.edu-gated cost-pass-through accounts; depends on cost-modeling)
+- `student-accounts` (.edu-gated accounts with `STUDENT_DISCOUNT_PCT` applied to per-item authorship; no Basic subscription, no cost-pass-through)
 
 **Experience polish & expansion:**
 - `club-tournament-experience-polish` (intern showcase)
