@@ -77,6 +77,7 @@ export class BillingController {
     const userId = req.user?.id;
     if (!userId) throw new BadRequestException('Authentication required');
     const sub = await this.billing.getSubscription(userId);
+    const isStudent = await this.isStudentUser(userId);
     const nowMs = Date.now();
     const daysUntilPurge = sub?.purge_scheduled_at
       ? Math.max(0, Math.ceil((new Date(sub.purge_scheduled_at).getTime() - nowMs) / (24 * 60 * 60 * 1000)))
@@ -93,6 +94,10 @@ export class BillingController {
       // when status==='trial' but no card has been attached yet. Driven by the
       // payment_method.attached webhook caching card_last4 on the subscription row.
       has_card_on_file: !!(sub as unknown as { card_last4?: string | null } | null)?.card_last4,
+      // Phase 4: students need to add a card BEFORE authoring (lazy subscription
+      // creation needs a payment method to attach). Regular trial users can
+      // author freely during trial without a card. The frontend gate uses this.
+      is_student: isStudent,
     };
   }
 
@@ -135,6 +140,20 @@ export class BillingController {
       await this.billing.updateStripeFields(userId, { stripe_customer_id: customerId });
     }
 
+    // Phase 4: students go through setup-mode Checkout (card-only, no
+    // subscription) — their subscription is lazily created on first authored
+    // item via createSubscriptionWithItem with the student Price.
+    const isStudent = await this.isStudentUser(userId);
+    if (isStudent) {
+      const session = await this.stripeSvc.createCheckoutSessionSetup({
+        customerId,
+        returnUrl,
+        metadata: { userId },
+      });
+      if (!session) return { url: null, message: 'Stripe Checkout session unavailable' };
+      return { url: session.url };
+    }
+
     const basicPriceId = this.config.stripePriceBasicMonthly;
     if (!basicPriceId) {
       throw new BadRequestException('STRIPE_PRICE_BASIC_MONTHLY is not configured');
@@ -150,6 +169,16 @@ export class BillingController {
     });
     if (!session) return { url: null, message: 'Stripe Checkout session unavailable' };
     return { url: session.url };
+  }
+
+  private async isStudentUser(userId: string): Promise<boolean> {
+    const result = await this.db.rawQuery(
+      `SELECT is_student FROM authz.users WHERE id = $1`,
+      [userId],
+    );
+    if (result.error) return false;
+    const rows = (result.data as Array<{ is_student: boolean }> | null) ?? [];
+    return rows[0]?.is_student === true;
   }
 
   @UseGuards(JwtAuthGuard)

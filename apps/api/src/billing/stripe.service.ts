@@ -185,23 +185,35 @@ export class StripeService implements OnModuleInit {
     );
   }
 
-  updateSubscriptionItemPrice(_opts: {
+  async updateSubscriptionItemPrice(opts: {
     subscriptionItemId: string;
     newPriceId: string;
     idempotencyKey: string;
   }): Promise<void> {
-    if (!this.client) return Promise.resolve();
-    throw new Error('StripeService.updateSubscriptionItemPrice not implemented yet (Phase 4)');
+    if (!this.client) return;
+    await this.client.subscriptionItems.update(
+      opts.subscriptionItemId,
+      { price: opts.newPriceId, proration_behavior: 'create_prorations' },
+      { idempotencyKey: opts.idempotencyKey },
+    );
   }
 
-  createSubscriptionWithItem(_opts: {
+  async createSubscriptionWithItem(opts: {
     customerId: string;
     priceId: string;
     idempotencyKey: string;
     metadata: Record<string, string>;
   }): Promise<{ subscriptionId: string } | null> {
-    if (!this.client) return Promise.resolve(null);
-    throw new Error('StripeService.createSubscriptionWithItem not implemented yet (Phase 4)');
+    if (!this.client) return null;
+    const sub = await this.client.subscriptions.create(
+      {
+        customer: opts.customerId,
+        items: [{ price: opts.priceId, quantity: 1 }],
+        metadata: opts.metadata,
+      },
+      { idempotencyKey: opts.idempotencyKey },
+    );
+    return { subscriptionId: sub.id };
   }
 
   createRefund(_opts: {

@@ -5,6 +5,7 @@ import {
   Get,
   Inject,
   Param,
+  Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import {
   type BillingSubscription,
   type SubscriptionEvent,
 } from './billing.service';
+import { BillingLifecycleCron } from './cron/billing-lifecycle.cron';
 
 interface AuthenticatedUser {
   id: string;
@@ -76,5 +78,48 @@ export class AdminBillingController {
       events: SubscriptionEvent[];
       preview: Awaited<ReturnType<BillingService['getBillingPreview']>>;
     };
+  }
+}
+
+/**
+ * Operator-facing routes for cron triggers + (Phase 5) refund/credit/comp.
+ * Lives in a second controller so the path prefix stays /admin/billing while
+ * the per-user view above stays /admin/users/:id/billing.
+ */
+@Controller('admin/billing')
+export class AdminBillingOpsController {
+  constructor(
+    @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
+    @Inject(BillingLifecycleCron) private readonly cron: BillingLifecycleCron,
+  ) {}
+
+  private getUser(req: { user?: AuthenticatedUser }): AuthenticatedUser {
+    if (!req.user?.id) throw new BadRequestException('Authentication required');
+    return req.user;
+  }
+
+  private async requireAdmin(user: AuthenticatedUser): Promise<void> {
+    const result = await this.db.rawQuery(
+      `SELECT r.name FROM authz.rbac_user_roles ur
+       JOIN authz.rbac_roles r ON r.id = ur.role_id
+       WHERE ur.user_id = $1 AND r.name IN ('super-admin', 'admin', 'owner')
+       LIMIT 1`,
+      [user.id],
+    );
+    const rows = (result.data as Array<{ name: string }> | null) ?? [];
+    if (rows.length === 0) throw new ForbiddenException('Admin access required');
+  }
+
+  /**
+   * Triggers the .edu re-verification cron on demand. Used by Phase 4
+   * student-lapse spec to drive the re-pricing flow without waiting for
+   * the daily 03:00 UTC tick. RBAC reuses generic admin role today; will
+   * narrow to admin.billing.comp permission in Phase 5 once that's seeded.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('run-cron/edu-reverify')
+  async runEduReverify(@Req() req: { user?: AuthenticatedUser }) {
+    await this.requireAdmin(this.getUser(req));
+    return this.cron.reverifyStudents();
   }
 }

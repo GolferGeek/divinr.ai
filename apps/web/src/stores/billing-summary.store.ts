@@ -19,7 +19,6 @@ export interface ConfigurationOverride {
 
 export interface StudentAccrual {
   rawCostCents: number;
-  withFloorCents: number;
   breakdownByTriple: Array<{ analystId: string | null; instrumentId: string | null; costCents: number }>;
   daysIntoPeriod: number;
   projectedMonthlyCents: number;

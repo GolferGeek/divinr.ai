@@ -12,6 +12,7 @@ export interface BillingStatus {
   is_read_only: boolean;
   days_until_purge: number | null;
   has_card_on_file: boolean;
+  is_student: boolean;
 }
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -28,6 +29,7 @@ export const useBillingStatusStore = defineStore('billing-status', () => {
   const isReadOnly = ref(false);
   const daysUntilPurge = ref<number | null>(null);
   const hasCardOnFile = ref(false);
+  const isStudent = ref(false);
   const loaded = ref(false);
   const loading = ref(false);
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -37,6 +39,10 @@ export const useBillingStatusStore = defineStore('billing-status', () => {
   // Surfaced by TrialCountdown to choose the "Add a card to continue" variant
   // when a user is in trial but hasn't yet attached a payment method.
   const needsCardSetup = computed(() => isTrial.value && !hasCardOnFile.value);
+  // Phase 4 gate: students must have a card BEFORE authoring (lazy subscription
+  // creation needs a payment method to attach). Regular trial users author
+  // freely; the trial accumulator handles them at first-card time.
+  const studentNeedsCardForAuthoring = computed(() => isStudent.value && !hasCardOnFile.value);
   const daysUntilTrialEnd = computed<number | null>(() => {
     if (!trialEndsAt.value) return null;
     const diffMs = new Date(trialEndsAt.value).getTime() - Date.now();
@@ -55,6 +61,7 @@ export const useBillingStatusStore = defineStore('billing-status', () => {
       isReadOnly.value = !!data.is_read_only;
       daysUntilPurge.value = data.days_until_purge;
       hasCardOnFile.value = !!data.has_card_on_file;
+      isStudent.value = !!data.is_student;
       loaded.value = true;
     } catch {
       // Non-fatal — if the endpoint is unreachable (no auth yet, API down),
@@ -85,15 +92,16 @@ export const useBillingStatusStore = defineStore('billing-status', () => {
     isReadOnly.value = false;
     daysUntilPurge.value = null;
     hasCardOnFile.value = false;
+    isStudent.value = false;
     loaded.value = false;
     stopAutoRefresh();
   }
 
   return {
     status, trialEndsAt, expiredAt, purgeScheduledAt, isReadOnly, daysUntilPurge,
-    hasCardOnFile,
+    hasCardOnFile, isStudent,
     loaded, loading,
-    isTrial, isPastDue, needsCardSetup, daysUntilTrialEnd,
+    isTrial, isPastDue, needsCardSetup, studentNeedsCardForAuthoring, daysUntilTrialEnd,
     fetch, startAutoRefresh, stopAutoRefresh, clear,
   };
 });

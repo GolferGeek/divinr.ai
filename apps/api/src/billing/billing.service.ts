@@ -552,20 +552,78 @@ export class BillingService {
     if (!this.stripeSvc?.isEnabled() || !this.billingConfig) return;
     if (row.item_kind === 'byo_platform_fee') return; // BYO wires in Phase 5
     if (row.item_kind !== 'custom_instrument' && row.item_kind !== 'custom_analyst') return; // overrides not billed
-    const sub = await this.getSubscription(userId);
-    if (!sub?.stripe_subscription_id) {
-      this.logger.log(`addAuthoredItem: skipping Stripe mirror for ${row.id} (user has no subscription yet)`);
+
+    const isStudent = await this.isStudentUser(userId);
+    const priceId = this.billingConfig.priceForKind(row.item_kind, isStudent);
+    if (!priceId) {
+      this.logger.warn(`addAuthoredItem: no Stripe Price configured for kind=${row.item_kind} student=${isStudent}; skipping mirror`);
       return;
     }
-    // is_student lookup deferred to Phase 4; for now treat every user as regular.
-    const priceId = this.billingConfig.priceForKind(row.item_kind, false);
-    if (!priceId) {
-      this.logger.warn(`addAuthoredItem: no Stripe Price configured for kind=${row.item_kind}; skipping mirror`);
+
+    const sub = await this.getSubscription(userId);
+    let subscriptionId = sub?.stripe_subscription_id ?? null;
+
+    // Phase 4 student path: students don't get a subscription at signup
+    // (the trial mechanic is handled differently — they only pay for what they
+    // author). On their first authored item AND with a card already on file
+    // (i.e. they completed setup-mode Checkout), lazily create the subscription
+    // so the authorship item has somewhere to land.
+    if (!subscriptionId && isStudent) {
+      if (!sub?.stripe_customer_id) {
+        this.logger.log(`addAuthoredItem: student ${userId} has no Stripe customer yet; skipping mirror (frontend should redirect to setup-mode Checkout first)`);
+        return;
+      }
+      try {
+        const created = await this.stripeSvc.createSubscriptionWithItem({
+          customerId: sub.stripe_customer_id,
+          priceId,
+          idempotencyKey: `subscription:${userId}:lazy`,
+          metadata: { userId, lazy_create: 'student_first_item' },
+        });
+        if (!created) {
+          this.logger.warn(`addAuthoredItem: lazy createSubscriptionWithItem returned null for student ${userId}`);
+          return;
+        }
+        subscriptionId = created.subscriptionId;
+        await this.updateStripeFields(userId, {
+          stripe_subscription_id: subscriptionId,
+          status: 'active',
+        });
+        // The Stripe subscription's first (and only) item carries this Price —
+        // we'll learn the subscription_item_id on the subscription.created
+        // webhook callback. For immediate row mirroring, query the subscription
+        // back to get the item id.
+        const client = this.stripeSvc.getClient();
+        if (client && subscriptionId) {
+          const fetched = await client.subscriptions.retrieve(subscriptionId);
+          const itemId = fetched.items?.data?.[0]?.id ?? null;
+          if (itemId) {
+            await this.db.rawQuery(
+              `UPDATE billing.authored_items
+               SET stripe_subscription_item_id = $1, stripe_price_id = $2
+               WHERE id = $3`,
+              [itemId, priceId, row.id],
+            );
+          }
+        }
+        return;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `Stripe lazy createSubscriptionWithItem failed: ${msg} ` +
+          `(userId=${userId}, authoredItemId=${row.id}, customerId=${sub.stripe_customer_id}, priceId=${priceId}).`,
+        );
+        return;
+      }
+    }
+
+    if (!subscriptionId) {
+      this.logger.log(`addAuthoredItem: skipping Stripe mirror for ${row.id} (user has no subscription yet)`);
       return;
     }
     try {
       const result = await this.stripeSvc.addSubscriptionItem({
-        subscriptionId: sub.stripe_subscription_id,
+        subscriptionId,
         priceId,
         idempotencyKey: `authored_item:${row.id}:add`,
         metadata: { authoredItemId: row.id, userId },
@@ -582,10 +640,20 @@ export class BillingService {
       this.logger.error(
         `Stripe addSubscriptionItem failed: ${msg} ` +
         `(userId=${userId}, authoredItemId=${row.id}, kind=${row.item_kind}, itemId=${row.item_id ?? 'null'}, ` +
-        `subscriptionId=${sub.stripe_subscription_id}, priceId=${priceId}). ` +
+        `subscriptionId=${subscriptionId}, priceId=${priceId}). ` +
         `Row remains with null stripe_subscription_item_id; reconcile manually.`,
       );
     }
+  }
+
+  private async isStudentUser(userId: string): Promise<boolean> {
+    const result = await this.db.rawQuery(
+      `SELECT is_student FROM authz.users WHERE id = $1`,
+      [userId],
+    );
+    if (result.error) return false;
+    const rows = (result.data as Array<{ is_student: boolean }> | null) ?? [];
+    return rows[0]?.is_student === true;
   }
 
   private async maybeMirrorCancelToStripe(userId: string, row: BillingAuthoredItem): Promise<void> {

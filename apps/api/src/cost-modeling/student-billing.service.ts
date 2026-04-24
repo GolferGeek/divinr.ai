@@ -1,9 +1,23 @@
+/**
+ * StudentBillingService — informational only since the stripe-integration
+ * effort retired the variable cost-pass-through accrual path.
+ *
+ * Students are now billed via Stripe at a flat 10% of regular per-item
+ * Prices (see BillingConfigService.priceForKind + BillingService.maybeMirrorAddToStripe).
+ * This service still surfaces LLM-cost summaries for the operator/educator
+ * dashboard (`/billing/summary` LLM-cost rollup, /admin cost views) but those
+ * numbers no longer feed billing.
+ *
+ * The historical `withFloorCents` field and `STUDENT_FLOOR_USD` env var were
+ * dropped by the stripe-integration effort; consumers that previously read
+ * them should switch to GET /billing/preview's upcomingInvoice for what's
+ * actually being billed.
+ */
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 
 export interface StudentAccrual {
   rawCostCents: number;
-  withFloorCents: number;
   breakdownByTriple: Array<{ analystId: string | null; instrumentId: string | null; costCents: number }>;
   daysIntoPeriod: number;
   projectedMonthlyCents: number;
@@ -12,7 +26,6 @@ export interface StudentAccrual {
 
 export interface MonthlyCostResult {
   rawCostCents: number;
-  withFloorCents: number;
 }
 
 export interface MySummary {
@@ -68,13 +81,6 @@ export class StudentBillingService {
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {}
 
-  private envInt(name: string, fallback: number): number {
-    const raw = process.env[name];
-    const parsed = raw ? parseInt(raw, 10) : NaN;
-    return Number.isFinite(parsed) ? parsed : fallback;
-  }
-
-  private studentFloorCents(): number { return this.envInt('STUDENT_FLOOR_USD', 10) * 100; }
   private currentMonth(): string { return new Date().toISOString().slice(0, 7); }
   private priorMonth(): string {
     const d = new Date();
@@ -91,8 +97,7 @@ export class StudentBillingService {
     );
     const rows = (result.data as Array<{ total_cost_cents: string | number }> | null) ?? [];
     const rawCostCents = Number(rows[0]?.total_cost_cents ?? 0);
-    const floor = this.studentFloorCents();
-    return { rawCostCents, withFloorCents: Math.max(rawCostCents, floor) };
+    return { rawCostCents };
   }
 
   async getStudentAccrual(userId: string): Promise<StudentAccrual> {

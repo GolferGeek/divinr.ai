@@ -32,24 +32,25 @@ function buildService(db: MockDb): StudentBillingService {
 async function main(): Promise<void> {
   console.log('\n=== Student Billing Service Tests ===\n');
   const ORIGINAL_ENV = { ...process.env };
-  process.env.STUDENT_FLOOR_USD = '10';
+  // STUDENT_FLOOR_USD retired in stripe-integration effort — student billing
+  // is now flat 10% of regular per-item Prices via Stripe. This service
+  // remains for the informational compute-cost dashboard only.
 
-  console.log('getUserCostCentsThisMonth: applies floor when raw < floor:');
+  console.log('getUserCostCentsThisMonth: returns raw monthly cost in cents:');
   {
     const db = new MockDb(() => ({ data: [{ total_cost_cents: 200 }] })); // $2 raw
     const svc = buildService(db);
     const result = await svc.getUserCostCentsThisMonth('user-1');
     assert(result.rawCostCents === 200, 'rawCostCents = 200');
-    assert(result.withFloorCents === 1000, 'withFloorCents = floor of 1000 ($10)');
+    assert(!('withFloorCents' in result), 'withFloorCents field removed');
   }
 
-  console.log('\ngetUserCostCentsThisMonth: keeps raw when raw > floor:');
+  console.log('\ngetUserCostCentsThisMonth: surfaces full raw amount:');
   {
     const db = new MockDb(() => ({ data: [{ total_cost_cents: 5000 }] })); // $50 raw
     const svc = buildService(db);
     const result = await svc.getUserCostCentsThisMonth('user-2');
     assert(result.rawCostCents === 5000, 'rawCostCents = 5000');
-    assert(result.withFloorCents === 5000, 'withFloorCents = 5000 (above floor)');
   }
 
   console.log('\ngetUserCostCentsThisMonth: zero when no usage row:');
@@ -58,7 +59,6 @@ async function main(): Promise<void> {
     const svc = buildService(db);
     const result = await svc.getUserCostCentsThisMonth('user-3');
     assert(result.rawCostCents === 0, 'rawCostCents = 0');
-    assert(result.withFloorCents === 1000, 'withFloorCents = floor');
   }
 
   console.log('\ngetStudentAccrual: includes triple breakdown and projection:');

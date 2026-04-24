@@ -22,14 +22,12 @@ function formatCost(cents: number): string {
 <template>
   <IonCard v-if="visible && store.studentAccrual" style="border-left: 4px solid var(--ion-color-tertiary);">
     <IonCardContent style="padding: 12px 16px;">
-      <div style="font-weight: 600; margin-bottom: 4px;">Student account — this month so far</div>
-      <div style="font-size: 22px; font-weight: bold;">{{ formatCost(store.studentAccrual.withFloorCents) }}</div>
+      <div style="font-weight: 600; margin-bottom: 4px;">Student account — LLM compute usage this month</div>
+      <div style="font-size: 22px; font-weight: bold;">{{ formatCost(store.studentAccrual.rawCostCents) }}</div>
       <div style="color: var(--ion-color-medium); font-size: 13px;">
         Across {{ store.studentAccrual.breakdownByTriple.length }} triple(s) over {{ store.studentAccrual.daysIntoPeriod }} day(s).
         Projected monthly: ~{{ formatCost(store.studentAccrual.projectedMonthlyCents) }}.
-        <span v-if="store.studentAccrual.withFloorCents > store.studentAccrual.rawCostCents">
-          (Floor applied — raw {{ formatCost(store.studentAccrual.rawCostCents) }}.)
-        </span>
+        Informational only — your bill is computed from authored content, not compute usage.
       </div>
     </IonCardContent>
   

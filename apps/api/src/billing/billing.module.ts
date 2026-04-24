@@ -6,12 +6,12 @@ import { BillingConfigService } from './billing-config.service';
 import { StripeService } from './stripe.service';
 import { BillingStripeSyncService } from './billing-stripe-sync.service';
 import { BillingController } from './billing.controller';
-import { AdminBillingController } from './admin-billing.controller';
+import { AdminBillingController, AdminBillingOpsController } from './admin-billing.controller';
 import { BillingLifecycleCron } from './cron/billing-lifecycle.cron';
 import { ReadOnlyGuard } from './read-only.guard';
 
 @Module({
-  controllers: [BillingController, AdminBillingController],
+  controllers: [BillingController, AdminBillingController, AdminBillingOpsController],
   providers: [
     BillingSchemaService,
     BillingService,

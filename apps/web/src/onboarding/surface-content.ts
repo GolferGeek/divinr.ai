@@ -628,10 +628,13 @@ export const surfaceContent: Record<string, SurfaceContent> = {
   'pricing.overview': {
     title: 'Divinr pricing',
     body:
-      "One plan, $50/month, 30-day free trial. Authored content is add-on: $60/mo " +
-      "per custom analyst, $20/mo per custom instrument, $10/mo BYO platform fee. " +
-      "Everything else — analyses, signals, risk debates, reasoning, performance, " +
-      "clubs — is included in Basic.",
+      "One plan, $50/month, 30-day free trial — no card required to start. " +
+      "Make it yours: author your own instrument ($20/mo) or analyst ($60/mo); " +
+      "BYO API key adds a $10/mo platform fee. " +
+      "Students with a verified .edu email skip Basic entirely and pay 10% on authored " +
+      "content ($2/mo per instrument, $6/mo per analyst — zero authored items, zero bill). " +
+      "Everything else — analyses, signals, risk debates, reasoning, performance, clubs — " +
+      "is included.",
   },
 
   // ────────────────────────────── Admin ────────────────────────────────
