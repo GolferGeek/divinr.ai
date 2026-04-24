@@ -39,7 +39,7 @@ async function toggle() {
     error.value = null;
     try {
       const res = await api.get<ProvenancePayload>(
-        `/markets/predictions/${props.predictionId}/provenance`,
+        `/predictions/${props.predictionId}/provenance`,
       );
       payload.value = { articles: res.articles ?? [], fallback: Boolean(res.fallback) };
     } catch (err) {
