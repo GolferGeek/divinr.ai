@@ -66,6 +66,9 @@ This doc is the single place to look up "what does Divinr ship today?" Anything 
 - **LLM usage + cost dashboards** — admin surfaces showing where compute went. Shipped.
 - **Notifications** — rank changes, mentor activity, system updates; preference controls. Shipped.
 - **Auth + invite flow** — invite-gated signup, club-invite landing, tournament-invite landing. Shipped.
+- **Stripe billing + lifecycle** — 30-day free trial with no card required, Stripe-hosted Checkout for "Add a card", auto-conversion to paid Basic at trial end, prorated per-item line items for authored content, BYO platform fee, Stripe Customer Portal for self-serve card / cancel, automatic past-due → cancellation flow with 6-month read-only dormancy. Currently on test-mode keys; live cutover deferred to a separate effort. Shipped.
+- **`.edu` student pricing** — `.edu` email at signup unlocks 90% off authored content ($2/instrument, $6/analyst) and skips the $50 Basic monthly. Status re-checked daily by cron. Shipped.
+- **Operator billing tools** — admin user-billing view with Payment Methods, Invoice History, Stripe Events panels; one-click Refund / Credit / Comp actions; webhook-health 7-day rollup. RBAC-gated. Shipped.
 
 ## Legal & Trust
 
