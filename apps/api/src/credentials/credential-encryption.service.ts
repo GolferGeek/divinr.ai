@@ -8,6 +8,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
+const toBytes = (b: Buffer): Uint8Array => new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+
 @Injectable()
 export class CredentialEncryptionService {
   private readonly key: Buffer;
@@ -31,15 +33,15 @@ export class CredentialEncryptionService {
 
   encrypt(plaintext: string): { ciphertext: Buffer; iv: Buffer; tag: Buffer } {
     const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', this.key, iv);
-    const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+    const cipher = createCipheriv('aes-256-gcm', toBytes(this.key), toBytes(iv));
+    const encrypted = Buffer.concat([toBytes(cipher.update(plaintext, 'utf8')), toBytes(cipher.final())]);
     const tag = cipher.getAuthTag();
     return { ciphertext: encrypted, iv, tag };
   }
 
   decrypt(ciphertext: Buffer, iv: Buffer, tag: Buffer): string {
-    const decipher = createDecipheriv('aes-256-gcm', this.key, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+    const decipher = createDecipheriv('aes-256-gcm', toBytes(this.key), toBytes(iv));
+    decipher.setAuthTag(toBytes(tag));
+    return Buffer.concat([toBytes(decipher.update(toBytes(ciphertext))), toBytes(decipher.final())]).toString('utf8');
   }
 }
