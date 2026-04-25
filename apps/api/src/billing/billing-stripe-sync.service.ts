@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Stripe from 'stripe';
+import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { BillingService, type SubscriptionStatus } from './billing.service';
 import { StripeService } from './stripe.service';
 import { BillingConfigService } from './billing-config.service';
@@ -24,6 +25,7 @@ export class BillingStripeSyncService {
     @Inject(BillingService) private readonly billing: BillingService,
     @Inject(StripeService) private readonly stripe: StripeService,
     @Inject(BillingConfigService) private readonly config: BillingConfigService,
+    @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {}
 
   async handle(event: Stripe.Event): Promise<void> {
@@ -243,12 +245,12 @@ export class BillingStripeSyncService {
   }
 
   private async billingRawUpdate(sql: string, params: unknown[]): Promise<{ error: { message: string } | null }> {
-    // Reach into BillingService's db handle. BillingService doesn't expose its
-    // own "execute arbitrary SQL" surface (and shouldn't), but we need it for
-    // the few subscription_events / notifications inserts that don't have a
-    // dedicated method. Lives behind a private accessor for visibility.
-    const db = (this.billing as unknown as { db: { rawQuery(sql: string, params: unknown[]): Promise<{ error: { message: string } | null }> } }).db;
-    return db.rawQuery(sql, params);
+    // The handful of side-effects that don't have a dedicated BillingService
+    // method — subscription_events / notify.notifications inserts — go through
+    // the DI'd DATABASE_SERVICE directly. Keeps BillingService's surface clean
+    // and avoids reaching into its private fields.
+    const result = await this.db.rawQuery(sql, params);
+    return { error: result.error };
   }
 }
 
@@ -259,7 +261,12 @@ function mapStripeStatus(stripeStatus: Stripe.Subscription.Status): Subscription
     case 'past_due': return 'past_due';
     case 'unpaid': return 'past_due';
     case 'canceled': return 'canceled';
-    case 'incomplete': return 'trial';
+    // 'incomplete' = subscription created, first invoice didn't get paid within
+    // 23h. The user needs to take action (3DS confirm, fix card, etc) — that's
+    // closer to past_due than trial. Maps to past_due so the local UI surfaces
+    // a yellow chip immediately rather than waiting 23h for the
+    // 'incomplete_expired' webhook to flip them to canceled.
+    case 'incomplete': return 'past_due';
     case 'incomplete_expired': return 'canceled';
     case 'paused': return 'past_due';
     default: return 'active';

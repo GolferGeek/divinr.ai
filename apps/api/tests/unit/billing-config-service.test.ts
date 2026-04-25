@@ -66,7 +66,7 @@ function main() {
     assert(c.instrumentAuthorshipUsdCents === 2000, 'INSTRUMENT_AUTHORSHIP_USD default = $20 (2000c)');
     assert(c.analystAuthorshipUsdCents === 6000, 'ANALYST_AUTHORSHIP_USD default = $60 (6000c)');
     assert(c.byoPlatformFeeUsdCents === 1000, 'BYO_PLATFORM_FEE_USD default = $10 (1000c)');
-    assert(c.studentDiscountPct === 10, 'STUDENT_DISCOUNT_PCT default = 10');
+    assert(c.studentPriceFractionPct === 10, 'STUDENT_DISCOUNT_PCT default = 10 (i.e. student pays 10% of regular)');
     assert(c.trialDays === 30, 'TRIAL_DAYS default = 30');
     assert(c.dormancyMonthsBeforePurge === 6, 'DORMANCY_MONTHS_BEFORE_PURGE default = 6');
   });

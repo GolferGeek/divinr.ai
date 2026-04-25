@@ -42,13 +42,14 @@ function makeStubs(opts?: { initialStatus?: string; userId?: string; customerId?
   const rawQueries: Array<{ sql: string; params: unknown[] }> = [];
   let currentStatus = initialStatus;
 
-  const billing = {
-    db: {
-      rawQuery: async (sql: string, params: unknown[]) => {
-        rawQueries.push({ sql, params });
-        return { error: null };
-      },
+  const db = {
+    rawQuery: async (sql: string, params: unknown[]) => {
+      rawQueries.push({ sql, params });
+      return { error: null };
     },
+  };
+
+  const billing = {
     getSubscription: async (uid: string) => {
       if (uid !== userId) return null;
       return { user_id: uid, status: currentStatus, stripe_customer_id: customerId, stripe_subscription_id: 'sub_test' };
@@ -67,7 +68,7 @@ function makeStubs(opts?: { initialStatus?: string; userId?: string; customerId?
     },
   };
 
-  return { billing, updates, events, rawQueries, currentStatus: () => currentStatus };
+  return { billing, db, updates, events, rawQueries, currentStatus: () => currentStatus };
 }
 
 async function main() {
@@ -79,7 +80,7 @@ async function main() {
   // ─── customer.subscription.created → mirror + initial event ───
   {
     const stubs = makeStubs({ initialStatus: 'trial' });
-    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config);
+    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config, stubs.db as any);
     const event = {
       id: 'evt_1',
       type: 'customer.subscription.created',
@@ -106,7 +107,7 @@ async function main() {
   // ─── customer.subscription.updated, no status change → no event row ───
   {
     const stubs = makeStubs({ initialStatus: 'active' });
-    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config);
+    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config, stubs.db as any);
     const event = {
       id: 'evt_2',
       type: 'customer.subscription.updated',
@@ -129,7 +130,7 @@ async function main() {
   // ─── customer.subscription.updated, status flipped → event row ───
   {
     const stubs = makeStubs({ initialStatus: 'trial' });
-    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config);
+    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config, stubs.db as any);
     const event = {
       id: 'evt_3',
       type: 'customer.subscription.updated',
@@ -152,7 +153,7 @@ async function main() {
   // ─── customer.subscription.deleted → canceled + purge_scheduled_at ───
   {
     const stubs = makeStubs({ initialStatus: 'active' });
-    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config);
+    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config, stubs.db as any);
     const event = {
       id: 'evt_4',
       type: 'customer.subscription.deleted',
@@ -168,7 +169,7 @@ async function main() {
   // ─── invoice.paid: trial → active ───
   {
     const stubs = makeStubs({ initialStatus: 'trial' });
-    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config);
+    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config, stubs.db as any);
     const event = {
       id: 'evt_5',
       type: 'invoice.paid',
@@ -182,7 +183,7 @@ async function main() {
   // ─── invoice.payment_failed: active → past_due, but no read-only ───
   {
     const stubs = makeStubs({ initialStatus: 'active' });
-    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config);
+    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config, stubs.db as any);
     const event = {
       id: 'evt_6',
       type: 'invoice.payment_failed',
@@ -196,7 +197,7 @@ async function main() {
   // ─── payment_method.attached → caches card_last4 / exp ───
   {
     const stubs = makeStubs({ initialStatus: 'trial' });
-    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config);
+    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config, stubs.db as any);
     const event = {
       id: 'evt_7',
       type: 'payment_method.attached',
@@ -219,7 +220,7 @@ async function main() {
   // ─── unknown event type: no-op ───
   {
     const stubs = makeStubs({ initialStatus: 'active' });
-    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config);
+    const svc = new BillingStripeSyncService(stubs.billing as any, stripeStub as any, config, stubs.db as any);
     await svc.handle({ id: 'evt_8', type: 'price.created', data: { object: {} } } as unknown as Stripe.Event);
     assert(stubs.updates.length === 0 && stubs.events.length === 0, 'unknown type silently ignored');
   }

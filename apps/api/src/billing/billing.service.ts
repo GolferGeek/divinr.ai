@@ -79,20 +79,27 @@ export class BillingService {
   ) {}
 
   // ─── Pricing helpers ──────────────────────────────────────────
+  // Route through BillingConfigService when DI provided it (production path).
+  // Fall back to direct env reads when not — keeps tests that construct
+  // BillingService via Object.create without going through Nest DI working.
 
   private get basicMonthlyUsd(): number {
+    if (this.billingConfig) return this.billingConfig.basicMonthlyUsdCents / 100;
     return Number(process.env.BASIC_MONTHLY_USD ?? '50');
   }
 
   private get byoPlatformFeeUsd(): number {
+    if (this.billingConfig) return this.billingConfig.byoPlatformFeeUsdCents / 100;
     return Number(process.env.BYO_PLATFORM_FEE_USD ?? '10');
   }
 
   private centsForKind(kind: ItemKind): number {
     switch (kind) {
       case 'custom_analyst':
+        if (this.billingConfig) return this.billingConfig.analystAuthorshipUsdCents;
         return Number(process.env.ANALYST_AUTHORSHIP_USD ?? '60') * 100;
       case 'custom_instrument':
+        if (this.billingConfig) return this.billingConfig.instrumentAuthorshipUsdCents;
         return Number(process.env.INSTRUMENT_AUTHORSHIP_USD ?? '20') * 100;
       case 'analyst_contract_override':
       case 'instrument_contract_override':

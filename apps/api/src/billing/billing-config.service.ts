@@ -80,7 +80,13 @@ export class BillingConfigService {
     return this.parseUsdToCents(process.env.BYO_PLATFORM_FEE_USD, 10);
   }
 
-  get studentDiscountPct(): number {
+  /**
+   * Fraction (as a percentage) of regular per-item price that students pay.
+   * Default 10 means students pay 10% of regular — i.e. 90% off, $2/instrument
+   * vs $20 regular. Despite the env-var name `STUDENT_DISCOUNT_PCT`, the value
+   * is the price-fraction the student pays, not the discount applied.
+   */
+  get studentPriceFractionPct(): number {
     const raw = process.env.STUDENT_DISCOUNT_PCT;
     if (!raw) return 10;
     const n = Number(raw);
@@ -143,9 +149,9 @@ export class BillingConfigService {
     return [
       { envName: 'STRIPE_PRICE_BASIC_MONTHLY', expectedCents: this.basicMonthlyUsdCents, priceId: this.stripePriceBasicMonthly },
       { envName: 'STRIPE_PRICE_INSTRUMENT_REGULAR', expectedCents: this.instrumentAuthorshipUsdCents, priceId: this.stripePriceInstrumentRegular },
-      { envName: 'STRIPE_PRICE_INSTRUMENT_STUDENT', expectedCents: Math.round(this.instrumentAuthorshipUsdCents * (this.studentDiscountPct / 100)), priceId: this.stripePriceInstrumentStudent },
+      { envName: 'STRIPE_PRICE_INSTRUMENT_STUDENT', expectedCents: Math.round(this.instrumentAuthorshipUsdCents * (this.studentPriceFractionPct / 100)), priceId: this.stripePriceInstrumentStudent },
       { envName: 'STRIPE_PRICE_ANALYST_REGULAR', expectedCents: this.analystAuthorshipUsdCents, priceId: this.stripePriceAnalystRegular },
-      { envName: 'STRIPE_PRICE_ANALYST_STUDENT', expectedCents: Math.round(this.analystAuthorshipUsdCents * (this.studentDiscountPct / 100)), priceId: this.stripePriceAnalystStudent },
+      { envName: 'STRIPE_PRICE_ANALYST_STUDENT', expectedCents: Math.round(this.analystAuthorshipUsdCents * (this.studentPriceFractionPct / 100)), priceId: this.stripePriceAnalystStudent },
       { envName: 'STRIPE_PRICE_BYO_PLATFORM_FEE', expectedCents: this.byoPlatformFeeUsdCents, priceId: this.stripePriceByoPlatformFee },
     ];
   }
