@@ -62,21 +62,31 @@ if [ "$HAS_STRIPE_KEY" = true ]; then
   elif [ -x "$HOME/.local/bin/stripe" ]; then
     STRIPE_BIN="$HOME/.local/bin/stripe"
   fi
-  if [ -n "$STRIPE_BIN" ]; then
-    nohup "$STRIPE_BIN" listen --forward-to "localhost:$API_PORT/billing/webhooks/stripe" > "$LOG_STRIPE" 2>&1 &
-    STRIPE_PID=$!
-    echo "✓ stripe listen pid=$STRIPE_PID  logs=$LOG_STRIPE"
-    # Wait for the "Ready!" line so the script doesn't exit before the secret is logged
-    for i in $(seq 1 10); do
-      if grep -q "Ready!" "$LOG_STRIPE" 2>/dev/null; then
-        WHSEC="$(grep -oE 'whsec_[a-z0-9]+' "$LOG_STRIPE" | head -1)"
-        echo "✓ stripe listen ready, signing secret: ${WHSEC:0:14}…"
-        break
-      fi
-      sleep 1
-    done
-  else
-    echo "○ stripe CLI not found — skipping webhook listener (install: https://docs.stripe.com/stripe-cli)"
+  if [ -z "$STRIPE_BIN" ]; then
+    echo "× STRIPE_SECRET_KEY is set but stripe CLI is missing — webhook listener required." >&2
+    echo "  Install: brew install stripe/stripe-cli/stripe   (or download from https://github.com/stripe/stripe-cli/releases)" >&2
+    echo "  Then:    stripe login" >&2
+    echo "  To boot without Stripe instead, comment out STRIPE_SECRET_KEY in $ENV_FILE." >&2
+    exit 1
+  fi
+  nohup "$STRIPE_BIN" listen --forward-to "localhost:$API_PORT/billing/webhooks/stripe" > "$LOG_STRIPE" 2>&1 &
+  STRIPE_PID=$!
+  echo "✓ stripe listen pid=$STRIPE_PID  logs=$LOG_STRIPE"
+  # Wait for the "Ready!" line so the script doesn't exit before the secret is logged
+  STRIPE_READY=false
+  for i in $(seq 1 15); do
+    if grep -q "Ready!" "$LOG_STRIPE" 2>/dev/null; then
+      WHSEC="$(grep -oE 'whsec_[a-z0-9]+' "$LOG_STRIPE" | head -1)"
+      echo "✓ stripe listen ready, signing secret: ${WHSEC:0:14}…"
+      STRIPE_READY=true
+      break
+    fi
+    sleep 1
+  done
+  if [ "$STRIPE_READY" = false ]; then
+    echo "× stripe listen failed to reach 'Ready!' within 15s — see $LOG_STRIPE" >&2
+    echo "  Common cause: 'stripe login' not run on this machine, or session expired." >&2
+    exit 1
   fi
 else
   echo "○ STRIPE_SECRET_KEY not set — skipping webhook listener"
