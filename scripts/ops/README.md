@@ -29,10 +29,17 @@ automatically, or honors `NODE_BIN=...` / `STRIPE_BIN=...` overrides.
 ### Manage
 
 ```bash
-sudo systemctl restart divinr-api
-sudo systemctl restart divinr-stripe-listen
+pnpm restart                           # restart both units (shortcut)
 sudo systemctl status  divinr-api
 journalctl -u divinr-api -f
+```
+
+`pnpm restart` is a thin wrapper around `sudo systemctl restart
+divinr-api divinr-stripe-listen` — handy after SSH'ing into spark for
+a quick bounce. For a code-change deploy, pull and rebuild first:
+
+```bash
+git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm restart
 ```
 
 **Do not run `pnpm --filter @divinr/api run dev:up` on spark after

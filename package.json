@@ -14,6 +14,7 @@
     "test:compliance": "turbo run test:compliance",
     "test:markets": "turbo run test:markets",
     "e2e": "pnpm --filter @divinr/e2e run e2e",
+    "restart": "bash scripts/ops/restart.sh",
     "verify:markets": "node scripts/verify-markets-readiness.mjs",
     "typecheck": "turbo run typecheck"
   },
