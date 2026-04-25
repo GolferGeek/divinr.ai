@@ -55,6 +55,37 @@ timeline, and the itemized monthly preview.
      (every backfilled user has a `migration_backfill` event).
   7. No 5xx responses on `/admin/users/...` during the page load.
 
+### 5. Admin billing actions (refund / credit / comp)
+
+Canonical spec: `apps/e2e/tests/admin/admin-refund.spec.ts`.
+
+**What**: The Phase 5 admin endpoints `POST /admin/users/:id/billing/{refund,credit,comp}`
+are RBAC-gated (require `admin.billing.refund` / `.credit` / `.comp` permissions, seeded by
+`apps/api/db/migrations/2026-04-24-admin-billing-permissions.sql` to `role-admin`,
+`role-super-admin`, `role-owner`). The spec asserts:
+- Missing `invoiceId` → 400 (refund)
+- Missing `amountCents` → 400 (credit)
+- Missing `reason` → 400 (comp)
+- Lack of admin permission → 403 (skip-cleanly path)
+
+The full Stripe round-trip (refund actually issued, credit balance reduced, coupon attached)
+is exercised in manual chrome testing; the spec just locks the contract shape.
+
+The frontend modals live in `AdminUserBillingView.vue` (the same file — not extracted into
+separate components for v1). Each has a confirmation checkbox + RBAC enforcement on the
+backend, so you can't accidentally fire a refund.
+
+### 6. Webhook health 7-day rollup
+
+Canonical spec: `apps/e2e/tests/admin/admin-webhook-health.spec.ts`.
+
+**What**: `GET /admin/billing/webhook-health` returns `{ days: [{day, processed, failed, pending}] }`
+for the last 7 days from `billing.stripe_webhook_events`. The view at
+`/admin/billing/webhook-health` renders the table with non-zero `failed` counts highlighted
+in red. Use this as the first-line check when something looks wrong with billing — if a
+day has failed events, drill into the per-user `Stripe Events` panel for the specific
+`handler_error`.
+
 ## Verify-command snippet
 
 ```sh

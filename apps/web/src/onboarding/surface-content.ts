@@ -638,6 +638,14 @@ export const surfaceContent: Record<string, SurfaceContent> = {
   },
 
   // ────────────────────────────── Admin ────────────────────────────────
+  'admin.billing-webhook-health': {
+    title: 'Stripe webhook health',
+    body:
+      'Counts of Stripe webhook deliveries by day for the last week. Non-zero ' +
+      'failed means a handler threw — open the user-billing view for the affected ' +
+      "user's Stripe Events panel to see the specific handler_error. Pending = " +
+      'received but not yet processed (rare; usually means the handler is mid-flight).',
+  },
   'admin.user-billing': {
     title: 'Admin user billing',
     body:

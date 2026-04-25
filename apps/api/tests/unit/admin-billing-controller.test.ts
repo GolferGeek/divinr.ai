@@ -62,6 +62,15 @@ async function expectThrows(fn: () => Promise<unknown>, expectedType: typeof Err
   catch (err) { return err instanceof expectedType; }
 }
 
+// Stub StripeService — Phase 5 added stripe panel data to getUserBilling.
+// Disabled returns empty arrays so the existing assertions still hold.
+const fakeStripe = {
+  isEnabled: () => false,
+  listPaymentMethods: async () => [],
+  listInvoices: async () => [],
+  previewUpcomingInvoice: async () => null,
+};
+
 async function main(): Promise<void> {
   console.log('\n=== AdminBillingController Tests ===\n');
 
@@ -70,7 +79,7 @@ async function main(): Promise<void> {
     const db = makeDb(false);
     const { service } = makeBillingSpy();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ctl = new AdminBillingController(db as any, service as any);
+    const ctl = new AdminBillingController(db as any, service as any, fakeStripe as any);
     const threw = await expectThrows(
       () => ctl.getUserBilling({ user: { id: 'regular-user' } }, 'target-user'),
       ForbiddenException,
@@ -83,7 +92,7 @@ async function main(): Promise<void> {
     const db = makeDb(true);
     const { service } = makeBillingSpy();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ctl = new AdminBillingController(db as any, service as any);
+    const ctl = new AdminBillingController(db as any, service as any, fakeStripe as any);
     const threw = await expectThrows(
       () => ctl.getUserBilling({} as any, 'target-user'),
       BadRequestException,
@@ -99,7 +108,7 @@ async function main(): Promise<void> {
     const db = makeDb(true, items, events);
     const { service, calls } = makeBillingSpy({ subscription });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ctl = new AdminBillingController(db as any, service as any);
+    const ctl = new AdminBillingController(db as any, service as any, fakeStripe as any);
     const res = await ctl.getUserBilling({ user: { id: 'admin-user' } }, 'target-user');
     assert('subscription' in res && 'authored_items' in res && 'events' in res && 'preview' in res, 'admin payload carries the four keys');
     assert(res.subscription === subscription, 'subscription pass-through matches BillingService.getSubscription');

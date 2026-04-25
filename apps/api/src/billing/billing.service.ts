@@ -550,13 +550,22 @@ export class BillingService {
 
   private async maybeMirrorAddToStripe(userId: string, row: BillingAuthoredItem): Promise<void> {
     if (!this.stripeSvc?.isEnabled() || !this.billingConfig) return;
-    if (row.item_kind === 'byo_platform_fee') return; // BYO wires in Phase 5
-    if (row.item_kind !== 'custom_instrument' && row.item_kind !== 'custom_analyst') return; // overrides not billed
+    // overrides aren't billed yet (master-intention §4.3 marks contract overrides TBD)
+    if (
+      row.item_kind !== 'custom_instrument' &&
+      row.item_kind !== 'custom_analyst' &&
+      row.item_kind !== 'byo_platform_fee'
+    ) return;
 
     const isStudent = await this.isStudentUser(userId);
-    const priceId = this.billingConfig.priceForKind(row.item_kind, isStudent);
+    let priceId: string | null;
+    if (row.item_kind === 'byo_platform_fee') {
+      priceId = this.billingConfig.stripePriceByoPlatformFee;
+    } else {
+      priceId = this.billingConfig.priceForKind(row.item_kind, isStudent);
+    }
     if (!priceId) {
-      this.logger.warn(`addAuthoredItem: no Stripe Price configured for kind=${row.item_kind} student=${isStudent}; skipping mirror`);
+      this.logger.warn(`addAuthoredItem: no Stripe Price configured for kind=${row.item_kind}; skipping mirror`);
       return;
     }
 
