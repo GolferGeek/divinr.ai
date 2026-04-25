@@ -1,0 +1,24 @@
+# Template — paths get substituted by scripts/ops/install-services.sh
+# Installed copy lives at /etc/systemd/system/divinr-api.service
+[Unit]
+Description=Divinr.ai API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=golfergeek
+Group=golfergeek
+WorkingDirectory=__REPO_ROOT__/apps/api
+EnvironmentFile=__REPO_ROOT__/.env
+ExecStart=__NODE_BIN__ dist/src/main.js
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=divinr-api
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,44 @@
 # Divinr.ai Ops Scripts
 
+## API + Stripe-listener systemd units (spark)
+
+Two units in `systemd/` boot the production stack on the spark machine:
+
+- `divinr-api.service` — runs the built API (`node dist/src/main.js`) with
+  `Restart=always`. Reads env from repo-root `.env`. Logs to journald
+  (`journalctl -u divinr-api -f`).
+- `divinr-stripe-listen.service` — runs `stripe listen --forward-to
+  localhost:7100/billing/webhooks/stripe`. Depends on a previous
+  `stripe login` having populated `~/.config/stripe/config.toml`. Will
+  go away once the dashboard-registered webhook lands (per the
+  stripe-cutover runbook).
+
+### Install on spark
+
+```bash
+cd ~/projects/divinr.ai
+git pull
+pnpm install && pnpm --filter @divinr/api run build  # if dist/ is stale
+bash scripts/ops/install-services.sh
+```
+
+The install script is idempotent — re-run it after a code update to
+refresh the unit files. It detects `node` and `stripe` paths
+automatically, or honors `NODE_BIN=...` / `STRIPE_BIN=...` overrides.
+
+### Manage
+
+```bash
+sudo systemctl restart divinr-api
+sudo systemctl restart divinr-stripe-listen
+sudo systemctl status  divinr-api
+journalctl -u divinr-api -f
+```
+
+**Do not run `pnpm --filter @divinr/api run dev:up` on spark after
+installing these units** — it would `pkill` the systemd-managed node
+and trigger a restart fight. `dev-up.sh` is for the dev Mac only.
+
 ## Postgres Backup
 
 Automated backups of the Supabase Postgres database to the external drive mounted at `/mnt/divinr-backup`.

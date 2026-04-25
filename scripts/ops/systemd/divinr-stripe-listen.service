@@ -1,0 +1,27 @@
+# Template — paths get substituted by scripts/ops/install-services.sh
+# Installed copy lives at /etc/systemd/system/divinr-stripe-listen.service
+#
+# This unit assumes someone has run `stripe login` once on this machine
+# under the same user account; the resulting ~/.config/stripe/config.toml
+# is what authenticates `stripe listen`. It will exit-loop if the session
+# expires — refresh via `stripe login` and `systemctl restart`.
+[Unit]
+Description=Divinr.ai Stripe webhook forwarder (test mode)
+After=divinr-api.service
+Requires=divinr-api.service
+
+[Service]
+Type=simple
+User=golfergeek
+Group=golfergeek
+Environment=HOME=/home/golfergeek
+WorkingDirectory=/home/golfergeek
+ExecStart=__STRIPE_BIN__ listen --forward-to localhost:7100/billing/webhooks/stripe
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=divinr-stripe-listen
+
+[Install]
+WantedBy=multi-user.target
