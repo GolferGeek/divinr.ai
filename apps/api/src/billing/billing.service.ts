@@ -1,6 +1,8 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Optional, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { BillingSchemaService } from './billing-schema.service';
+import { BillingConfigService } from './billing-config.service';
+import { StripeService } from './stripe.service';
 
 export type SubscriptionStatus = 'trial' | 'active' | 'past_due' | 'canceled' | 'dormant';
 export type SubscriptionEventTrigger = 'system' | 'user' | 'admin' | 'stripe';
@@ -69,23 +71,35 @@ export class BillingService {
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(BillingSchemaService) private readonly schema: BillingSchemaService,
+    // BillingConfigService and StripeService are @Optional so unit tests that
+    // bypass DI (Object.create-based construction) don't have to mock them.
+    // Production wiring always supplies both via BillingModule.
+    @Optional() @Inject(BillingConfigService) private readonly billingConfig?: BillingConfigService,
+    @Optional() @Inject(StripeService) private readonly stripeSvc?: StripeService,
   ) {}
 
   // ─── Pricing helpers ──────────────────────────────────────────
+  // Route through BillingConfigService when DI provided it (production path).
+  // Fall back to direct env reads when not — keeps tests that construct
+  // BillingService via Object.create without going through Nest DI working.
 
   private get basicMonthlyUsd(): number {
+    if (this.billingConfig) return this.billingConfig.basicMonthlyUsdCents / 100;
     return Number(process.env.BASIC_MONTHLY_USD ?? '50');
   }
 
   private get byoPlatformFeeUsd(): number {
+    if (this.billingConfig) return this.billingConfig.byoPlatformFeeUsdCents / 100;
     return Number(process.env.BYO_PLATFORM_FEE_USD ?? '10');
   }
 
   private centsForKind(kind: ItemKind): number {
     switch (kind) {
       case 'custom_analyst':
+        if (this.billingConfig) return this.billingConfig.analystAuthorshipUsdCents;
         return Number(process.env.ANALYST_AUTHORSHIP_USD ?? '60') * 100;
       case 'custom_instrument':
+        if (this.billingConfig) return this.billingConfig.instrumentAuthorshipUsdCents;
         return Number(process.env.INSTRUMENT_AUTHORSHIP_USD ?? '20') * 100;
       case 'analyst_contract_override':
       case 'instrument_contract_override':
@@ -144,6 +158,11 @@ export class BillingService {
   async isReadOnly(userId: string): Promise<boolean> {
     const sub = await this.getSubscription(userId);
     if (!sub) return false;
+    // Intentional: 'past_due' is NOT read-only. Stripe's Smart Retry handles
+    // payment recovery, and only when retries exhaust does Stripe emit
+    // customer.subscription.deleted, which our webhook flips to 'canceled'.
+    // Until then the user keeps full access; the past_due state is surfaced
+    // purely at the UI layer via TrialCountdown.
     return sub.status === 'canceled' || sub.status === 'dormant';
   }
 
@@ -423,6 +442,67 @@ export class BillingService {
     return { warningsEmitted, purgesEmitted, errors };
   }
 
+  // ─── Stripe-side mirror updates ──────────────────────────────
+  // These are thin wrappers that BillingService uses to keep its denormalized
+  // Stripe columns in sync with what we just wrote to (or learned from) Stripe.
+  // Webhook handlers route through here so the audit-trail / event-append
+  // semantics stay in one place.
+
+  async updateStripeFields(userId: string, fields: {
+    stripe_customer_id?: string | null;
+    stripe_subscription_id?: string | null;
+    stripe_latest_invoice_id?: string | null;
+    stripe_default_payment_method_id?: string | null;
+    stripe_price_id_basic?: string | null;
+    card_last4?: string | null;
+    card_exp_month?: number | null;
+    card_exp_year?: number | null;
+    status?: SubscriptionStatus;
+    trial_started_at?: string | null;
+    trial_ends_at?: string | null;
+    current_period_end?: string | null;
+  }): Promise<void> {
+    await this.schema.ensureSchema();
+    const sets: string[] = [];
+    const values: unknown[] = [userId];
+    let i = 2;
+    for (const [k, v] of Object.entries(fields)) {
+      if (v === undefined) continue;
+      sets.push(`${k} = $${i}`);
+      values.push(v);
+      i++;
+    }
+    if (sets.length === 0) return;
+    sets.push(`updated_at = now()`);
+    const result = await this.db.rawQuery(
+      `UPDATE billing.subscriptions SET ${sets.join(', ')} WHERE user_id = $1`,
+      values,
+    );
+    if (result.error) throw new Error(`updateStripeFields failed: ${result.error.message}`);
+  }
+
+  async getSubscriptionByStripeCustomerId(stripeCustomerId: string): Promise<BillingSubscription | null> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `SELECT * FROM billing.subscriptions WHERE stripe_customer_id = $1 LIMIT 1`,
+      [stripeCustomerId],
+    );
+    if (result.error) throw new Error(`getSubscriptionByStripeCustomerId failed: ${result.error.message}`);
+    const rows = (result.data as BillingSubscription[] | null) ?? [];
+    return rows[0] ?? null;
+  }
+
+  async getSubscriptionByStripeSubscriptionId(stripeSubscriptionId: string): Promise<BillingSubscription | null> {
+    await this.schema.ensureSchema();
+    const result = await this.db.rawQuery(
+      `SELECT * FROM billing.subscriptions WHERE stripe_subscription_id = $1 LIMIT 1`,
+      [stripeSubscriptionId],
+    );
+    if (result.error) throw new Error(`getSubscriptionByStripeSubscriptionId failed: ${result.error.message}`);
+    const rows = (result.data as BillingSubscription[] | null) ?? [];
+    return rows[0] ?? null;
+  }
+
   // ─── Authored items ──────────────────────────────────────────
 
   async addAuthoredItem(userId: string, kind: ItemKind, itemId: string | null): Promise<BillingAuthoredItem> {
@@ -437,8 +517,15 @@ export class BillingService {
     );
     if (result.error) throw new Error(`addAuthoredItem failed: ${result.error.message}`);
     const rows = (result.data as BillingAuthoredItem[] | null) ?? [];
+    const row = rows[0];
     this.logger.log(`Billing item added: ${kind} ${itemId} for user ${userId} at ${cents} cents/mo`);
-    return rows[0];
+
+    // Best-effort mirror to Stripe. Skip silently when Stripe isn't wired
+    // (feature flag), when this kind has no Stripe Price (overrides), or when
+    // the user has no subscription yet (trial-no-card — Checkout Session
+    // includes these items as line_items at first-card time).
+    await this.maybeMirrorAddToStripe(userId, row);
+    return row;
   }
 
   async cancelAuthoredItem(userId: string, kind: ItemKind, itemId: string | null): Promise<void> {
@@ -446,11 +533,168 @@ export class BillingService {
     const result = await this.db.rawQuery(
       `UPDATE billing.authored_items
        SET status = 'canceled', canceled_at = now()
-       WHERE user_id = $1 AND item_kind = $2 AND item_id = $3 AND status = 'active'`,
+       WHERE user_id = $1 AND item_kind = $2 AND item_id = $3 AND status = 'active'
+       RETURNING *`,
       [userId, kind, itemId],
     );
     if (result.error) throw new Error(`cancelAuthoredItem failed: ${result.error.message}`);
+    const rows = (result.data as BillingAuthoredItem[] | null) ?? [];
     this.logger.log(`Billing item canceled: ${kind} ${itemId} for user ${userId}`);
+
+    // Mirror cancellations to Stripe (one removeSubscriptionItem per row).
+    // Wrapped in try/catch — best-effort v1, logged with full context for ops
+    // reconciliation if Stripe rejects a delete.
+    for (const r of rows) {
+      await this.maybeMirrorCancelToStripe(userId, r);
+    }
+  }
+
+  // ─── Stripe mirror for authored items ─────────────────────────
+  // Best-effort v1 — DB write happens first, Stripe call follows. Failures
+  // post-DB-write are logged with full context so the operator can reconcile
+  // via the Stripe dashboard. Idempotency key is derived from {row.id}:{action}
+  // so retried mirror calls are safe.
+
+  private async maybeMirrorAddToStripe(userId: string, row: BillingAuthoredItem): Promise<void> {
+    if (!this.stripeSvc?.isEnabled() || !this.billingConfig) return;
+    // overrides aren't billed yet (master-intention §4.3 marks contract overrides TBD)
+    if (
+      row.item_kind !== 'custom_instrument' &&
+      row.item_kind !== 'custom_analyst' &&
+      row.item_kind !== 'byo_platform_fee'
+    ) return;
+
+    const isStudent = await this.isStudentUser(userId);
+    let priceId: string | null;
+    if (row.item_kind === 'byo_platform_fee') {
+      priceId = this.billingConfig.stripePriceByoPlatformFee;
+    } else {
+      priceId = this.billingConfig.priceForKind(row.item_kind, isStudent);
+    }
+    if (!priceId) {
+      this.logger.warn(`addAuthoredItem: no Stripe Price configured for kind=${row.item_kind}; skipping mirror`);
+      return;
+    }
+
+    const sub = await this.getSubscription(userId);
+    let subscriptionId = sub?.stripe_subscription_id ?? null;
+
+    // Phase 4 student path: students don't get a subscription at signup
+    // (the trial mechanic is handled differently — they only pay for what they
+    // author). On their first authored item AND with a card already on file
+    // (i.e. they completed setup-mode Checkout), lazily create the subscription
+    // so the authorship item has somewhere to land.
+    if (!subscriptionId && isStudent) {
+      if (!sub?.stripe_customer_id) {
+        this.logger.log(`addAuthoredItem: student ${userId} has no Stripe customer yet; skipping mirror (frontend should redirect to setup-mode Checkout first)`);
+        return;
+      }
+      try {
+        const created = await this.stripeSvc.createSubscriptionWithItem({
+          customerId: sub.stripe_customer_id,
+          priceId,
+          idempotencyKey: `subscription:${userId}:lazy`,
+          metadata: { userId, lazy_create: 'student_first_item' },
+        });
+        if (!created) {
+          this.logger.warn(`addAuthoredItem: lazy createSubscriptionWithItem returned null for student ${userId}`);
+          return;
+        }
+        subscriptionId = created.subscriptionId;
+        await this.updateStripeFields(userId, {
+          stripe_subscription_id: subscriptionId,
+          status: 'active',
+        });
+        // The Stripe subscription's first (and only) item carries this Price —
+        // we'll learn the subscription_item_id on the subscription.created
+        // webhook callback. For immediate row mirroring, query the subscription
+        // back to get the item id.
+        const client = this.stripeSvc.getClient();
+        if (client && subscriptionId) {
+          const fetched = await client.subscriptions.retrieve(subscriptionId);
+          const itemId = fetched.items?.data?.[0]?.id ?? null;
+          if (itemId) {
+            await this.db.rawQuery(
+              `UPDATE billing.authored_items
+               SET stripe_subscription_item_id = $1, stripe_price_id = $2
+               WHERE id = $3`,
+              [itemId, priceId, row.id],
+            );
+          }
+        }
+        return;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `Stripe lazy createSubscriptionWithItem failed: ${msg} ` +
+          `(userId=${userId}, authoredItemId=${row.id}, customerId=${sub.stripe_customer_id}, priceId=${priceId}).`,
+        );
+        return;
+      }
+    }
+
+    if (!subscriptionId) {
+      this.logger.log(`addAuthoredItem: skipping Stripe mirror for ${row.id} (user has no subscription yet)`);
+      return;
+    }
+    try {
+      const result = await this.stripeSvc.addSubscriptionItem({
+        subscriptionId,
+        priceId,
+        idempotencyKey: `authored_item:${row.id}:add`,
+        metadata: { authoredItemId: row.id, userId },
+      });
+      if (!result) return;
+      await this.db.rawQuery(
+        `UPDATE billing.authored_items
+         SET stripe_subscription_item_id = $1, stripe_price_id = $2
+         WHERE id = $3`,
+        [result.subscriptionItemId, priceId, row.id],
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Stripe addSubscriptionItem failed: ${msg} ` +
+        `(userId=${userId}, authoredItemId=${row.id}, kind=${row.item_kind}, itemId=${row.item_id ?? 'null'}, ` +
+        `subscriptionId=${subscriptionId}, priceId=${priceId}). ` +
+        `Row remains with null stripe_subscription_item_id; reconcile manually.`,
+      );
+    }
+  }
+
+  private async isStudentUser(userId: string): Promise<boolean> {
+    const result = await this.db.rawQuery(
+      `SELECT is_student FROM authz.users WHERE id = $1`,
+      [userId],
+    );
+    if (result.error) return false;
+    const rows = (result.data as Array<{ is_student: boolean }> | null) ?? [];
+    return rows[0]?.is_student === true;
+  }
+
+  private async maybeMirrorCancelToStripe(userId: string, row: BillingAuthoredItem): Promise<void> {
+    if (!this.stripeSvc?.isEnabled()) return;
+    if (!row.stripe_subscription_item_id) return; // never mirrored, nothing to delete
+    try {
+      await this.stripeSvc.removeSubscriptionItem({
+        subscriptionItemId: row.stripe_subscription_item_id,
+        idempotencyKey: `authored_item:${row.id}:remove`,
+      });
+      // Clear so a re-add for the same kind/itemId can mirror again cleanly.
+      await this.db.rawQuery(
+        `UPDATE billing.authored_items
+         SET stripe_subscription_item_id = NULL, stripe_price_id = NULL
+         WHERE id = $1`,
+        [row.id],
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Stripe removeSubscriptionItem failed: ${msg} ` +
+        `(userId=${userId}, authoredItemId=${row.id}, subscriptionItemId=${row.stripe_subscription_item_id}). ` +
+        `Row remains with stripe_subscription_item_id populated; reconcile manually.`,
+      );
+    }
   }
 
   // ─── Billing preview ─────────────────────────────────────────

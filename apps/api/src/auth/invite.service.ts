@@ -13,6 +13,7 @@ import {
   type AuthServiceProvider,
 } from '@orchestratorai/planes/auth';
 import { BillingService } from '../billing/billing.service';
+import { BillingConfigService } from '../billing/billing-config.service';
 
 interface InviteRow {
   id: string;
@@ -49,6 +50,7 @@ export class InviteService {
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
     @Inject(AUTH_SERVICE) private readonly authService: AuthServiceProvider,
     @Inject(BillingService) private readonly billing: BillingService,
+    @Inject(BillingConfigService) private readonly billingConfig: BillingConfigService,
   ) {}
 
   async ensureSchema(): Promise<void> {
@@ -228,6 +230,25 @@ export class InviteService {
         const message = err instanceof Error ? err.message : String(err);
         this.logger.error(`ensureSubscription failed for new invite user ${createdUserId}: ${message}`);
       }
+
+      // .edu student verification — fires when the signup email's domain suffix
+      // matches STUDENT_EDU_ALLOWED_DOMAINS (default: 'edu'). Sets is_student
+      // so Phase 4 student-Price routing kicks in for any custom analyst /
+      // instrument they author. Re-checked monthly by billing-lifecycle.cron.
+      try {
+        if (matchesEduDomain(email, this.billingConfig.studentEduAllowedDomains)) {
+          await this.db.rawQuery(
+            `UPDATE authz.users
+             SET is_student = true, edu_email = $2, edu_last_verified_at = now()
+             WHERE id = $1`,
+            [createdUserId, email],
+          );
+          this.logger.log(`Student verified at signup: userId=${createdUserId} email=${email}`);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`.edu verification failed for ${createdUserId}: ${message}`);
+      }
     }
 
     // Auto-login and return JWT
@@ -267,4 +288,24 @@ export class InviteService {
     const rows = (result.data as Array<{ display_name: string; email: string; status: string }> | null) ?? [];
     return rows.length > 0 ? rows[0] : null;
   }
+}
+
+/**
+ * Returns true when `email`'s domain ends in any of the configured suffixes.
+ * Suffix matching: `edu` matches both `harvard.edu` and `mit.edu`; `ac.uk`
+ * matches `cam.ac.uk` but not `ac.com`. Match is case-insensitive.
+ *
+ * Exported via module-internal scope only (no `export` keyword) — kept in
+ * one file with the only caller for now. Promote to a shared helper if a
+ * second consumer ever needs it.
+ */
+function matchesEduDomain(email: string, allowedSuffixes: string[]): boolean {
+  const at = email.lastIndexOf('@');
+  if (at < 0 || at === email.length - 1) return false;
+  const domain = email.slice(at + 1).toLowerCase();
+  for (const suffix of allowedSuffixes) {
+    const s = suffix.toLowerCase().replace(/^\./, '');
+    if (domain === s || domain.endsWith('.' + s)) return true;
+  }
+  return false;
 }

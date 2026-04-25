@@ -604,8 +604,11 @@ export const surfaceContent: Record<string, SurfaceContent> = {
     title: 'Your free trial',
     body:
       "You're on the free trial. This chip shows how many days you have left " +
-      "before the account converts or goes read-only. Add a card any time from " +
-      'Settings → Your Content to keep going without interruption.',
+      "before the account converts or goes read-only. " +
+      "If a payment ever fails, this same chip turns yellow with “Payment failed — retrying” " +
+      "while Stripe automatically retries the charge — your account stays fully usable. " +
+      "If you haven’t added a card yet, the chip becomes a blue “Add a card” button that opens " +
+      "Stripe’s hosted Checkout in one click.",
   },
   'billing.read-only-banner': {
     title: 'Your trial has ended',
@@ -625,13 +628,24 @@ export const surfaceContent: Record<string, SurfaceContent> = {
   'pricing.overview': {
     title: 'Divinr pricing',
     body:
-      "One plan, $50/month, 30-day free trial. Authored content is add-on: $60/mo " +
-      "per custom analyst, $20/mo per custom instrument, $10/mo BYO platform fee. " +
-      "Everything else — analyses, signals, risk debates, reasoning, performance, " +
-      "clubs — is included in Basic.",
+      "One plan, $50/month, 30-day free trial — no card required to start. " +
+      "Make it yours: author your own instrument ($20/mo) or analyst ($60/mo); " +
+      "BYO API key adds a $10/mo platform fee. " +
+      "Students with a verified .edu email skip Basic entirely and pay 10% on authored " +
+      "content ($2/mo per instrument, $6/mo per analyst — zero authored items, zero bill). " +
+      "Everything else — analyses, signals, risk debates, reasoning, performance, clubs — " +
+      "is included.",
   },
 
   // ────────────────────────────── Admin ────────────────────────────────
+  'admin.billing-webhook-health': {
+    title: 'Stripe webhook health',
+    body:
+      'Counts of Stripe webhook deliveries by day for the last week. Non-zero ' +
+      'failed means a handler threw — open the user-billing view for the affected ' +
+      "user's Stripe Events panel to see the specific handler_error. Pending = " +
+      'received but not yet processed (rare; usually means the handler is mid-flight).',
+  },
   'admin.user-billing': {
     title: 'Admin user billing',
     body:

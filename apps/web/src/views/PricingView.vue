@@ -30,6 +30,10 @@ const authoringLines = [
   { label: 'Custom analyst', price: '$60/mo each' },
   { label: 'Bring-your-own API key', price: '$10/mo platform fee' },
 ];
+const studentAuthoringLines = [
+  { label: 'Custom instrument', price: '$2/mo each' },
+  { label: 'Custom analyst', price: '$6/mo each' },
+];
 </script>
 
 <template>
@@ -68,7 +72,7 @@ const authoringLines = [
 
       <div class="card card-authoring" data-testid="pricing-card-authoring">
         <div class="card-head">
-          <h2>Author custom content</h2>
+          <h2>Make it yours</h2>
           <p class="subhead-sm">Optional add-ons. Only charged while active.</p>
         </div>
         <ul class="addons">
@@ -78,8 +82,26 @@ const authoringLines = [
           </li>
         </ul>
         <p class="note">
-          Build your own analysts and instruments on top of Basic. Cancel any time —
+          Author your own analysts and instruments on top of Basic. Cancel any time —
           billing stops the month the item is deactivated.
+        </p>
+      </div>
+
+      <div class="card card-student" data-testid="pricing-card-student">
+        <div class="card-head">
+          <h2>Students</h2>
+          <p class="subhead-sm">.edu email gets you 90% off authored content. No Basic monthly.</p>
+        </div>
+        <ul class="addons">
+          <li v-for="line in studentAuthoringLines" :key="line.label">
+            <span class="addon-label">{{ line.label }}</span>
+            <span class="addon-price">{{ line.price }}</span>
+          </li>
+        </ul>
+        <p class="note">
+          Sign up with your .edu email and you only pay for what you author — at 10% of
+          the regular per-item price. A student with zero authored items owes $0/month.
+          Status is re-checked monthly.
         </p>
       </div>
     </section>

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { toastController } from '@ionic/vue';
 import { useAnalystsStore } from '../stores/analysts.store';
 import { useCanWrite } from '../composables/useCanWrite';
+import { useBillingStatusStore } from '../stores/billing-status.store';
+import { useStripeRedirect } from '../composables/useStripeRedirect';
 import {
   IonGrid, IonRow, IonCol, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonButton, IonChip, IonModal, IonItem, IonInput, IonTextarea,
@@ -12,13 +15,40 @@ import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 
 const store = useAnalystsStore();
 const { canWrite } = useCanWrite();
+const billing = useBillingStatusStore();
+const { redirectToCheckout } = useStripeRedirect();
 const dialog = ref(false);
 const form = ref({ slug: '', displayName: '', personaPrompt: '' });
 
-onMounted(() => store.fetch());
+onMounted(() => {
+  store.fetch();
+  if (!billing.loaded) void billing.fetch();
+});
 
 async function handleCreate() {
   if (!form.value.slug || !form.value.displayName || !form.value.personaPrompt) return;
+
+  // Phase 4 student gate: students must have a card on file before authoring
+  // (Stripe lazily creates their subscription with the student-Price line item
+  // on first authored item — no card means nothing to attach the item to).
+  // Regular trial users author freely; the trial accumulator handles them at
+  // first-card time.
+  if (billing.studentNeedsCardForAuthoring) {
+    const result = await redirectToCheckout(window.location.href);
+    if (result.ok) {
+      window.location.href = result.url;
+      return;
+    }
+    const toast = await toastController.create({
+      message: result.error.message,
+      duration: 4000,
+      color: 'warning',
+      position: 'top',
+    });
+    await toast.present();
+    return;
+  }
+
   await store.create(form.value.slug, form.value.displayName, form.value.personaPrompt);
   await store.fetch();
   dialog.value = false;

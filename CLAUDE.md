@@ -2,6 +2,32 @@
 
 Conventions a future Claude needs to know before editing this repo.
 
+## Stripe local development
+
+The API + Stripe webhook forwarder boot together via:
+
+```bash
+pnpm --filter @divinr/api run dev:up
+```
+
+That script (`apps/api/scripts/dev-up.sh`) kills any prior instance, starts
+`node dist/src/main.js` in the background (logs at `/tmp/divinr-api.log`),
+and — when `STRIPE_SECRET_KEY` is set in the repo-root `.env` — also starts
+`stripe listen --forward-to localhost:7100/billing/webhooks/stripe`
+(logs at `/tmp/divinr-stripe-listen.log`). The signing-secret prefix gets
+echoed back so you can sanity-check it matches `STRIPE_WEBHOOK_SECRET` in
+`.env`.
+
+If `stripe` (the CLI) is missing, install with the prebuilt binary from
+`https://github.com/stripe/stripe-cli/releases` (Ubuntu ARM64 → `linux_arm64.tar.gz`)
+into `~/.local/bin/`, then `~/.local/bin/stripe login --non-interactive`
+and follow the URL it prints.
+
+The whole pipeline is gated on `STRIPE_SECRET_KEY` presence — when unset,
+every Stripe code path returns `null` / no-op and the app behaves exactly as
+it did before billing was wired. To run the API without Stripe, just comment
+out `STRIPE_SECRET_KEY` in `.env` and re-run `dev:up`.
+
 ## NestJS DI: always use explicit `@Inject(ClassName)` on every constructor param
 
 The API runs tests via `tsx` (esbuild), which does **not** emit TypeScript's
