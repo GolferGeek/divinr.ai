@@ -15,6 +15,8 @@
     "test:markets": "turbo run test:markets",
     "e2e": "pnpm --filter @divinr/e2e run e2e",
     "restart": "bash scripts/ops/restart.sh",
+    "spark:restart": "bash scripts/ops/spark-restart.sh",
+    "spark:deploy": "bash scripts/ops/spark-deploy.sh",
     "verify:markets": "node scripts/verify-markets-readiness.mjs",
     "typecheck": "turbo run typecheck"
   },

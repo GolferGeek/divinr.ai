@@ -28,15 +28,26 @@ automatically, or honors `NODE_BIN=...` / `STRIPE_BIN=...` overrides.
 
 ### Manage
 
+**From the Mac dev box (no SSH needed):**
+
 ```bash
-pnpm restart                           # restart both units (shortcut)
+pnpm spark:restart   # ssh into spark and bounce both units
+pnpm spark:deploy    # ssh into spark, git pull, install, build, restart
+```
+
+Both wrap `ssh -t golfergeek@spark-51e5.local …`; the TTY lets sudo
+prompt for a password if you haven't set up passwordless sudo for the
+`divinr-*` units. Override the SSH target via `SPARK_SSH=…` env var.
+
+**On spark itself (e.g., from a Cursor SSH terminal):**
+
+```bash
+pnpm restart                           # bounce both units
 sudo systemctl status  divinr-api
 journalctl -u divinr-api -f
 ```
 
-`pnpm restart` is a thin wrapper around `sudo systemctl restart
-divinr-api divinr-stripe-listen` — handy after SSH'ing into spark for
-a quick bounce. For a code-change deploy, pull and rebuild first:
+For a code-change deploy from on-spark, pull and rebuild first:
 
 ```bash
 git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm restart
