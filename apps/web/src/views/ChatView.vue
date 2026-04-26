@@ -1,39 +1,86 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, nextTick, onMounted } from 'vue';
 import { IonButton, IonNote } from '@ionic/vue';
-import { useApi } from '../composables/useApi';
+import { useLearningPanelApi } from '../api/learning-panel';
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  citations: Array<{ source: string; title: string; content: string }>;
 }
 
-const api = useApi();
+const api = useLearningPanelApi();
 const messages = ref<ChatMessage[]>([]);
 const input = ref('');
 const loading = ref(false);
 const chatContainer = ref<HTMLElement | null>(null);
+const threadId = ref<string | null>(null);
+const starterPrompts = ref<string[]>([]);
+
+function hydrateThread(thread: {
+  id: string;
+  messages: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    createdAt: string;
+    citations: Array<{ source: string; title: string; content: string }>;
+  }>;
+}) {
+  threadId.value = thread.id;
+  messages.value = thread.messages.map((message) => ({
+    role: message.role,
+    content: message.content,
+    timestamp: new Date(message.createdAt),
+    citations: message.citations ?? [],
+  }));
+}
+
+async function loadBootstrap() {
+  try {
+    const bootstrap = await api.getBootstrap('chat');
+    starterPrompts.value = bootstrap.starterPrompts;
+    const latestThread = bootstrap.threads[0];
+    if (latestThread) {
+      const result = await api.getThread(latestThread.id);
+      hydrateThread(result.thread);
+      await scrollToBottom();
+    }
+  } catch {
+    starterPrompts.value = [];
+  }
+}
 
 async function sendMessage() {
   const text = input.value.trim();
   if (!text || loading.value) return;
 
-  messages.value.push({ role: 'user', content: text, timestamp: new Date() });
+  messages.value.push({ role: 'user', content: text, timestamp: new Date(), citations: [] });
   input.value = '';
   loading.value = true;
   await scrollToBottom();
 
   try {
-    const result = await api.post<{ response: string; reasoning: string | null }>('/chat/ask', {
-      message: text,
-    });
-    messages.value.push({ role: 'assistant', content: result.response, timestamp: new Date() });
+    if (!threadId.value) {
+      const result = await api.createThread({
+        originSurfaceKey: 'chat',
+        initialMessage: text,
+      });
+      hydrateThread(result.thread);
+    } else {
+      const result = await api.appendMessage(threadId.value, {
+        message: text,
+        surfaceKey: 'chat',
+      });
+      hydrateThread(result.thread);
+    }
   } catch (err) {
     messages.value.push({
       role: 'assistant',
       content: 'Sorry, I had trouble processing that. Please try again.',
       timestamp: new Date(),
+      citations: [],
     });
   } finally {
     loading.value = false;
@@ -58,30 +105,42 @@ function handleKeydown(e: KeyboardEvent) {
     sendMessage();
   }
 }
+
+onMounted(loadBootstrap);
 </script>
 
 <template>
   <div class="chat-container">
     <div class="chat-header">
-      <h2>Market Assistant</h2>
-      <IonNote>Ask about instruments, analyses, analyst reasoning, or market signals</IonNote>
+      <h2>Learning Panel</h2>
+      <IonNote>Ask about analyses, risk, portfolios, clubs, tournaments, or what to learn next</IonNote>
     </div>
 
     <div ref="chatContainer" class="chat-messages">
       <div v-if="messages.length === 0" class="chat-empty">
-        <p style="font-size:1.1rem;font-weight:600;margin-bottom:8px">Welcome to the Divinr Assistant</p>
+        <p style="font-size:1.1rem;font-weight:600;margin-bottom:8px">Welcome to the Learning Panel</p>
         <p style="opacity:0.7">Try asking:</p>
         <div class="suggestions">
-          <button class="suggestion-chip" @click="input = 'How is AAPL doing today?'; sendMessage()">How is AAPL doing today?</button>
-          <button class="suggestion-chip" @click="input = 'Which analysts are most confident right now?'; sendMessage()">Which analysts are most confident right now?</button>
-          <button class="suggestion-chip" @click="input = 'Summarize today\'s market activity'; sendMessage()">Summarize today's market activity</button>
-          <button class="suggestion-chip" @click="input = 'What risks should I watch?'; sendMessage()">What risks should I watch?</button>
+          <button
+            v-for="prompt in starterPrompts"
+            :key="prompt"
+            class="suggestion-chip"
+            @click="input = prompt; sendMessage()"
+          >{{ prompt }}</button>
         </div>
       </div>
 
       <div v-for="(msg, i) in messages" :key="i" :class="['chat-message', msg.role]">
         <div class="message-bubble">
           <div class="message-content">{{ msg.content }}</div>
+          <div v-if="msg.role === 'assistant' && msg.citations.length > 0" class="message-citations">
+            <div class="message-citations-label">Grounded in</div>
+            <ul>
+              <li v-for="citation in msg.citations" :key="`${citation.source}-${citation.title}`">
+                {{ citation.title }}
+              </li>
+            </ul>
+          </div>
           <div class="message-time">{{ formatTime(msg.timestamp) }}</div>
         </div>
       </div>
@@ -105,6 +164,8 @@ function handleKeydown(e: KeyboardEvent) {
         Send
       </IonButton>
     </div>
+
+    <FirstTouchPanel surface-key="chat" />
   </div>
 </template>
 
@@ -210,6 +271,28 @@ function handleKeydown(e: KeyboardEvent) {
   font-size: 0.65rem;
   opacity: 0.5;
   margin-top: 4px;
+}
+
+.message-citations {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 0.72rem;
+}
+
+.chat-message.assistant .message-citations {
+  border-top-color: var(--ion-color-step-250, #d8d8d8);
+}
+
+.message-citations-label {
+  opacity: 0.7;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.message-citations ul {
+  margin: 0;
+  padding-left: 16px;
 }
 
 .chat-input-area {

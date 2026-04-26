@@ -12,7 +12,8 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
  */
 @Injectable()
 export class FirstTouchSchemaService {
-  private schemaReady = false;
+  private static schemaReady = false;
+  private static schemaReadyPromise: Promise<void> | null = null;
   private readonly logger = new Logger(FirstTouchSchemaService.name);
 
   constructor(
@@ -20,9 +21,14 @@ export class FirstTouchSchemaService {
   ) {}
 
   async ensureSchema(): Promise<void> {
-    if (this.schemaReady) return;
+    if (FirstTouchSchemaService.schemaReady) return;
+    if (FirstTouchSchemaService.schemaReadyPromise) {
+      await FirstTouchSchemaService.schemaReadyPromise;
+      return;
+    }
 
-    const ddl = `
+    FirstTouchSchemaService.schemaReadyPromise = (async () => {
+      const ddl = `
       CREATE TABLE IF NOT EXISTS prediction.user_surface_touches (
         user_id           TEXT NOT NULL,
         surface_key       TEXT NOT NULL,
@@ -35,11 +41,20 @@ export class FirstTouchSchemaService {
         ON prediction.user_surface_touches(user_id);
     `;
 
-    const result = await this.db.rawQuery(ddl);
-    if (result.error) {
-      this.logger.error(`ensureSchema failed: ${result.error.message}`);
-      throw new Error(result.error.message);
+      const result = await this.db.rawQuery(ddl);
+      if (result.error) {
+        this.logger.error(`ensureSchema failed: ${result.error.message}`);
+        throw new Error(result.error.message);
+      }
+      FirstTouchSchemaService.schemaReady = true;
+    })();
+
+    try {
+      await FirstTouchSchemaService.schemaReadyPromise;
+    } finally {
+      if (!FirstTouchSchemaService.schemaReady) {
+        FirstTouchSchemaService.schemaReadyPromise = null;
+      }
     }
-    this.schemaReady = true;
   }
 }

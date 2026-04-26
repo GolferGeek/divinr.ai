@@ -7,7 +7,8 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
  */
 @Injectable()
 export class MessagingSchemaService {
-  private schemaReady = false;
+  private static schemaReady = false;
+  private static schemaReadyPromise: Promise<void> | null = null;
   private readonly logger = new Logger(MessagingSchemaService.name);
 
   constructor(
@@ -15,9 +16,14 @@ export class MessagingSchemaService {
   ) {}
 
   async ensureSchema(): Promise<void> {
-    if (this.schemaReady) return;
+    if (MessagingSchemaService.schemaReady) return;
+    if (MessagingSchemaService.schemaReadyPromise) {
+      await MessagingSchemaService.schemaReadyPromise;
+      return;
+    }
 
-    const ddl = `
+    MessagingSchemaService.schemaReadyPromise = (async () => {
+      const ddl = `
       CREATE SCHEMA IF NOT EXISTS messaging;
 
       -- Channels
@@ -85,12 +91,21 @@ export class MessagingSchemaService {
         ON messaging.channels(scope, scope_id);
     `;
 
-    const result = await this.db.rawQuery(ddl);
-    if (result.error) {
-      throw new Error(`Messaging schema creation failed: ${result.error.message}`);
-    }
+      const result = await this.db.rawQuery(ddl);
+      if (result.error) {
+        throw new Error(`Messaging schema creation failed: ${result.error.message}`);
+      }
 
-    this.schemaReady = true;
-    this.logger.log('Messaging schema ready');
+      MessagingSchemaService.schemaReady = true;
+      this.logger.log('Messaging schema ready');
+    })();
+
+    try {
+      await MessagingSchemaService.schemaReadyPromise;
+    } finally {
+      if (!MessagingSchemaService.schemaReady) {
+        MessagingSchemaService.schemaReadyPromise = null;
+      }
+    }
   }
 }

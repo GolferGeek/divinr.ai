@@ -43,6 +43,10 @@ export default defineConfig({
     port: Number(process.env.VITE_WEB_PORT) || 7101,
     allowedHosts: ['divinr.ai', 'www.divinr.ai', 'localhost'],
     proxy: {
+      '/api/learning-panel': {
+        target: `http://localhost:${process.env.VITE_API_PORT || '7100'}`,
+        changeOrigin: true,
+      },
       '/api': {
         target: `http://localhost:${process.env.VITE_API_PORT || '7100'}`,
         changeOrigin: true,

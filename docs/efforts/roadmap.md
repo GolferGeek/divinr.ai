@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-23 (user-billing-model merged via PR #69 and archived; ethan-feedback-2026-04-22 promoted to current)
+**Last updated:** 2026-04-26 (promoted platform-learning-panel to current; added mastery-level follow-on in future)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -36,13 +36,13 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 **Infrastructure:** DGX Spark running gemma4 (local inference, zero cost). Hardening in place (backups, service recovery).
 **Users:** 3 active (demo-user, golfergeek, ethan); St. Thomas intern joining shortly; broader beta pending architecture work.
 **Business model direction:** See [master-intention.md](master-intention.md). Single $50/mo Basic tier. Per-item authorship ($20/instrument, $60/analyst). Clubs are purely social. No multi-tier ladder. Cost-pass-through for students.
-**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) — single $50/mo Basic tier + trial → read-only → purge lifecycle + itemized bill + admin read-only view all shipped; **no Stripe code or env vars required yet** (`stripe-integration` picks that up next). Current pass is `ethan-feedback-2026-04-22`: five-item beta-polish batch from Ethan (portfolio-tab bug, analyst-performance back-nav bug, "Instruments" → "Research" nav rename, article-source discoverability on analyst recommendations, shorter landing-page reports with "read more"). `stripe-integration` is the natural follow-on after Ethan's feedback ships.
+**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) — single $50/mo Basic tier + trial → read-only → purge lifecycle + itemized bill + admin read-only view all shipped; **no Stripe code or env vars required yet** (`stripe-integration` picks that up next). The current build pass is `platform-learning-panel`: promote the existing `Market Assistant` into a shell-integrated, platform-managed Learning Panel that teaches users through Divinr-grounded answers before the later mastery-level/nav-simplification effort lands. `ethan-feedback-2026-04-22` remains queued as a follow-on polish batch.
 
 ---
 
 ## Current Effort
 
-- **[ethan-feedback-2026-04-22](current/ethan-feedback-2026-04-22/intention.md)** — five-item beta-polish batch from Ethan: (1) portfolio stocks Analysts vs. AI Scoring tabs show identical content (bug on `InstrumentDetailView`), (2) in-page back button on `AnalystPerformanceView` hard-codes `/analysts` instead of using history, (3) rename "Instruments" nav label to "Research" (user-visible copy only; paths/identifiers unchanged), (4) article-source discoverability on analyst recommendations (investigate first — may split to a follow-up effort if sources aren't on the prediction record), (5) shorter per-stock reports on the landing page with a "Read more" affordance that opens full detail + sources. Ships in days, beta-coolness-polish shape (mirrors `club-tournament-experience-polish`).
+- **[platform-learning-panel](current/platform-learning-panel/intention.md)** — promote the existing `Market Assistant` into a shell-integrated, Divinr-grounded Learning Panel. Platform-managed Claude usage, no default web research, persistent threads with compaction, app-shell launcher/drawer, and usage metering through existing LLM usage logging. Chosen ahead of the broader mastery-level effort so the panel can become the educational spine first; the later mastery effort will simplify the left nav and progression model around this panel.
 
 ---
 
@@ -71,7 +71,8 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Next — Queued Efforts
 
-_Empty. `ethan-feedback-2026-04-22` is the only in-flight effort. The natural follow-on is `stripe-integration` (currently in `future/`), which graduates to `next/` once Ethan's batch ships._
+- `mastery-levels-learning-profile` — familiarity-based progressive disclosure and left-nav simplification, now intentionally sequenced after `platform-learning-panel` so the panel can teach users through the surfaces that remain.
+- `ethan-feedback-2026-04-22` — five-item beta-polish batch from Ethan, still valid but no longer the active effort in this checkout.
 
 ---
 
@@ -84,6 +85,10 @@ Preserved from prior planning because the concepts remain pertinent, but deferre
 - _`user-billing-model` — shipped 2026-04-23 via PR #69 (see Recently Shipped)_
 - [stripe-integration](future/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
 - [student-accounts](future/student-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing
+
+### Learning & Mastery Experience (deferred)
+
+- [mastery-levels-learning-profile](future/mastery-levels-learning-profile/intention.md) — familiarity-based progressive disclosure: Level 1 keeps the left nav focused on analyses/signals, risk, trades, portfolio comparison, and the Learning Panel; later levels reveal clubs/tournaments, community creation, builder surfaces, and operator tools.
 
 ### Graduation & Contribution Layer (deferred)
 

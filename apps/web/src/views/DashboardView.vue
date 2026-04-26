@@ -247,8 +247,8 @@ function formatStartShort(iso: string): string {
       </div>
       <div class="pathway-card" @click="router.push('/chat')">
         <ion-icon :icon="chatbubblesOutline" class="pathway-icon" />
-        <div class="pathway-label">Assistant</div>
-        <div class="pathway-desc">Ask about the market</div>
+        <div class="pathway-label">Learning Panel</div>
+        <div class="pathway-desc">Ask about the platform</div>
       </div>
     </div>
 

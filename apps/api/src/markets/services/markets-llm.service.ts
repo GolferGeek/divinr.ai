@@ -33,6 +33,8 @@ export interface LlmTextResult {
   reasoning?: string;
   /** Primary key (uuid) of the llm_usage row written for this call. Stamp this onto any analysis row produced from the call. */
   llmUsageId?: string;
+  promptTokens?: number;
+  completionTokens?: number;
 }
 
 /**
@@ -147,8 +149,9 @@ export class MarketsLlmService {
     provider: string,
     model: string,
   ): LlmTextResult {
+    const metadata = this.extractMetadata(response);
     if (typeof response === 'string') {
-      return { text: response, provider, model };
+      return { text: response, provider, model, promptTokens: metadata.tokensIn, completionTokens: metadata.tokensOut };
     }
     return {
       text: response?.content || JSON.stringify(response),
@@ -156,6 +159,8 @@ export class MarketsLlmService {
       model,
       reasoning: response?.metadata?.thinking,
       llmUsageId: response?.metadata?.requestId,
+      promptTokens: metadata.tokensIn,
+      completionTokens: metadata.tokensOut,
     };
   }
 

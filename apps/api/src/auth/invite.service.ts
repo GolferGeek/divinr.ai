@@ -3,7 +3,7 @@
  * Effort: beta-user-share-path.
  *
  * Creates invite tokens, validates them, and handles invite-based signup
- * that creates a Supabase user with the member role (full read/write access).
+ * that creates a Supabase user with the beta_reader role (read-only access).
  */
 import { Injectable, Inject, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -95,7 +95,7 @@ export class InviteService {
 
     await this.db.rawQuery(
       `INSERT INTO authz.invites (id, email, token, role_name, created_by, expires_at)
-       VALUES ($1, $2, $3, 'member', $4, $5)`,
+       VALUES ($1, $2, $3, 'beta_reader', $4, $5)`,
       [id, email ?? null, token, createdBy, expiresAt],
     );
 

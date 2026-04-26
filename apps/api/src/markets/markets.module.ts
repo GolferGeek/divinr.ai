@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MarketsController } from './markets.controller';
 import { MarketsService } from './markets.service';
 import { MarketsSchemaService } from './schema/markets-schema.service';
@@ -54,6 +54,7 @@ import { MessagingService } from '../messaging/messaging.service';
 import { TournamentModule } from '../tournaments/tournament.module';
 import { BillingModule } from '../billing/billing.module';
 import { UsersModule } from '../users/users.module';
+import { LearningPanelModule } from '../learning-panel/learning-panel.module';
 import { PolygonAdapter } from './adapters/polygon.adapter';
 import { FmpAdapter } from './adapters/fmp.adapter';
 import { TwelveDataAdapter } from './adapters/twelve-data.adapter';
@@ -63,7 +64,7 @@ import { SecEdgarAdapter } from './adapters/sec-edgar.adapter';
 import { RedditAdapter } from './adapters/reddit.adapter';
 
 @Module({
-  imports: [TournamentModule, BillingModule, UsersModule],
+  imports: [TournamentModule, BillingModule, UsersModule, forwardRef(() => LearningPanelModule)],
   controllers: [MarketsController],
   providers: [
     PolygonAdapter,

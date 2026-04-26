@@ -10,7 +10,8 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
  */
 @Injectable()
 export class MarketsSchemaService {
-  private schemaReady = false;
+  private static schemaReady = false;
+  private static schemaReadyPromise: Promise<void> | null = null;
   private readonly logger = new Logger(MarketsSchemaService.name);
 
   constructor(
@@ -18,9 +19,14 @@ export class MarketsSchemaService {
   ) {}
 
   async ensureSchema(): Promise<void> {
-    if (this.schemaReady) return;
+    if (MarketsSchemaService.schemaReady) return;
+    if (MarketsSchemaService.schemaReadyPromise) {
+      await MarketsSchemaService.schemaReadyPromise;
+      return;
+    }
 
-    const ddl = `
+    MarketsSchemaService.schemaReadyPromise = (async () => {
+      const ddl = `
       create schema if not exists prediction;
 
       -- Dead table cleanup: drop legacy tables superseded by market_analysts / analyst_config_versions
@@ -69,24 +75,33 @@ export class MarketsSchemaService {
       ${this.dayTraderRunsDdl()}
     `;
 
-    const result = await this.db.rawQuery(ddl);
-    if (result.error) {
-      throw new Error(`Schema creation failed: ${result.error.message}`);
-    }
+      const result = await this.db.rawQuery(ddl);
+      if (result.error) {
+        throw new Error(`Schema creation failed: ${result.error.message}`);
+      }
 
-    await this.preflightUserScopedUniqueness();
-    await this.seedDefaultDomains();
-    await this.seedDefaultSources();
-    await this.seedDefaultRiskDimensions();
-    await this.seedDefaultPositionSizing();
-    await this.migrateAnalystNames();
-    await this.seedDataSources();
-    await this.seedPortfolioManagerAnalyst();
-    await this.seedPortfolioFoundation();
-    await this.dropOrganizationSlugColumns();
-    await this.verifyBaseInstrumentsHaveContracts();
-    this.schemaReady = true;
-    this.logger.log('Prediction schema ready');
+      await this.preflightUserScopedUniqueness();
+      await this.seedDefaultDomains();
+      await this.seedDefaultSources();
+      await this.seedDefaultRiskDimensions();
+      await this.seedDefaultPositionSizing();
+      await this.migrateAnalystNames();
+      await this.seedDataSources();
+      await this.seedPortfolioManagerAnalyst();
+      await this.seedPortfolioFoundation();
+      await this.dropOrganizationSlugColumns();
+      await this.verifyBaseInstrumentsHaveContracts();
+      MarketsSchemaService.schemaReady = true;
+      this.logger.log('Prediction schema ready');
+    })();
+
+    try {
+      await MarketsSchemaService.schemaReadyPromise;
+    } finally {
+      if (!MarketsSchemaService.schemaReady) {
+        MarketsSchemaService.schemaReadyPromise = null;
+      }
+    }
   }
 
   /**

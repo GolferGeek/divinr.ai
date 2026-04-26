@@ -88,6 +88,12 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       'Your preferences live here: what you author, how you get notified, ' +
       'walkthrough controls, billing. Poke around — nothing is saved until you act.',
   },
+  chat: {
+    title: 'Your Learning Panel',
+    body:
+      'Ask what the system does, what to learn next, how analysts think, how risk is framed, or how clubs and tournaments fit together. ' +
+      'This panel is grounded in Divinr itself, so treat it as an in-product guide rather than open-ended web research.',
+  },
 
   // ───────────────────── Analyses & trade path ──────────────────────
   'prediction.card': {

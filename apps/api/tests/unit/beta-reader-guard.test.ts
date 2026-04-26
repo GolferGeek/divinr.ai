@@ -1,6 +1,9 @@
 /**
  * Compliance test: verifies every mutation handler in markets.controller.ts
- * calls requireWriteAccess. Admin-only handlers are exempt (requireAdmin blocks beta_reader).
+ * calls requireWriteAccess unless it is explicitly exempt by design.
+ * Admin-only handlers are exempt (requireAdmin blocks beta_reader).
+ * Learning Panel compatibility route `/chat/ask` is also exempt because it is
+ * intentionally available to read-only users.
  * Effort: beta-user-share-path.
  */
 import { readFileSync } from 'node:fs';
@@ -59,6 +62,10 @@ const adminPaths = new Set([
   'portfolios/admin/monthly-reset',
 ]);
 
+const readOnlySafePaths = new Set([
+  'chat/ask',
+]);
+
 let nonAdminCount = 0;
 let guardedCount = 0;
 
@@ -69,6 +76,15 @@ for (const m of matches) {
     assert(
       methodBody.includes('requireAdmin'),
       `[ADMIN] ${m.method} ${m.path} — guarded by requireAdmin`,
+    );
+    continue;
+  }
+
+  if (readOnlySafePaths.has(m.path)) {
+    const methodBody = getMethodBody(lines, m.lineIndex);
+    assert(
+      methodBody.includes('@SkipReadOnly()') || lines.slice(Math.max(0, m.lineIndex - 2), m.lineIndex + 1).join('\n').includes('@SkipReadOnly()'),
+      `[SAFE] ${m.method} ${m.path} — explicitly exempt from read-only blocking`,
     );
     continue;
   }

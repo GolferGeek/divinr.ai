@@ -67,7 +67,7 @@ const navGroups: NavGroup[] = [
     label: '',
     items: [
       { title: 'Dashboard', icon: gridOutline, to: '/' },
-      { title: 'Market Assistant', icon: bulbOutline, to: '/chat' },
+      { title: 'Learning Panel', icon: bulbOutline, to: '/chat' },
       { title: 'Trade', icon: cashOutline, to: '/tournaments' },
     ],
   },
