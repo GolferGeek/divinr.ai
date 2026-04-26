@@ -4,11 +4,11 @@
 #   git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm restart
 #
 # Override defaults via env:
-#   SPARK_SSH=golfergeek@spark-51e5.local
+#   SPARK_SSH=golfergeek@spark-51e5      (Tailscale MagicDNS name; works on or off-LAN)
 #   SPARK_REPO_DIR=~/projects/divinr.ai
 set -e
 
-SPARK_SSH="${SPARK_SSH:-golfergeek@spark-51e5.local}"
+SPARK_SSH="${SPARK_SSH:-golfergeek@spark-51e5}"
 SPARK_REPO_DIR="${SPARK_REPO_DIR:-~/projects/divinr.ai}"
 
 REMOTE_CMD='set -e; git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm restart'

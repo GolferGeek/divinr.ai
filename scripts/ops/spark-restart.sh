@@ -4,11 +4,11 @@
 # prompt comes through interactively if passwordless sudo isn't set up.
 #
 # Override defaults via env:
-#   SPARK_SSH=golfergeek@spark-51e5.local
+#   SPARK_SSH=golfergeek@spark-51e5      (Tailscale MagicDNS name; works on or off-LAN)
 #   SPARK_REPO_DIR=~/projects/divinr.ai
 set -e
 
-SPARK_SSH="${SPARK_SSH:-golfergeek@spark-51e5.local}"
+SPARK_SSH="${SPARK_SSH:-golfergeek@spark-51e5}"
 SPARK_REPO_DIR="${SPARK_REPO_DIR:-~/projects/divinr.ai}"
 
 echo "→ ssh $SPARK_SSH 'cd $SPARK_REPO_DIR && pnpm restart'"
