@@ -102,7 +102,7 @@ Phase 2 notes:
 - [x] 3.4 Add citations metadata to assistant messages so the UI can render what doc/surface/entity grounded the answer.
 - [x] 3.5 Update prompt policy to enforce analysis/signal vocabulary and educational framing with no recommendation/advice language.
 - [x] 3.6 Add first-touch content entries to `apps/web/src/onboarding/surface-content.ts` for any new panel surfaces introduced in this phase.
-- [ ] 3.7 Testing-coverage update: stub a new `.agents/skills/divinr-learning-panel-browser-skill/` folder with the six required files, register a `learning-panel` Playwright project in `apps/e2e/playwright.config.ts`, and add at least one green spec under `apps/e2e/tests/learning-panel/`.
+- [x] 3.7 Testing-coverage update: stub a new `.agents/skills/divinr-learning-panel-browser-skill/` folder with the six required files, register a `learning-panel` Playwright project in `apps/e2e/playwright.config.ts`, and add at least one green spec under `apps/e2e/tests/learning-panel/`.
 
 ### Quality Gate
 Before moving to Phase 4, ALL of the following must pass:
@@ -110,7 +110,7 @@ Before moving to Phase 4, ALL of the following must pass:
 - [ ] **Lint**: `pnpm lint`
 - [ ] **Build**: `pnpm build`
 - [ ] **Unit Tests**: `pnpm --filter @divinr/api run test:unit`
-- [ ] **E2E Tests**:
+- [x] **E2E Tests**:
   `pnpm --filter @divinr/e2e run prepare-auth`
   `pnpm --filter @divinr/e2e run e2e --project=learning-panel`
 - [ ] **Curl Tests**:
@@ -120,9 +120,15 @@ Before moving to Phase 4, ALL of the following must pass:
   Ask a corpus-grounded question and verify the answer cites Divinr docs/surfaces.
   Confirm there is no UI affordance or backend behavior for external web search.
 - [ ] **Phase Review**: Compare implementation against Phase 3 objectives in the PRD
-  - [ ] Did we accomplish what we said we would?
-  - [ ] Does the code align with the PRD requirements?
-  - [ ] Are there any deviations? If so, document why.
+  - [x] Did we accomplish what we said we would?
+  - [x] Does the code align with the PRD requirements?
+  - [x] Are there any deviations? If so, document why.
+
+Phase 3 notes:
+- The Learning Panel now pulls a curated corpus from repo-backed content in `docs/features.md` and renders visible `Grounded in` citations in the chat UI.
+- First-touch coverage for the `/chat` surface is wired with `surface-key="chat"`.
+- The Learning Panel browser skill and `learning-panel` Playwright project are in place with a green smoke spec.
+- Local e2e execution currently uses self-auth inside the spec because this checkout does not include `apps/e2e/.env` test-user credentials for `prepare-auth`.
 
 ---
 

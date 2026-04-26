@@ -68,5 +68,6 @@ export default defineConfig({
     { name: 'authoring', testMatch: 'authoring/*.spec.ts' },
     { name: 'billing', testMatch: 'billing/*.spec.ts' },
     { name: 'admin', testMatch: 'admin/*.spec.ts' },
+    { name: 'learning-panel', testMatch: 'learning-panel/*.spec.ts' },
   ],
 });
