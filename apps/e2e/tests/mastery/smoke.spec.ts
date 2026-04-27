@@ -27,7 +27,7 @@ async function authenticate(page: Parameters<typeof test>[0]['page']) {
     localStorage.setItem('divinr_user', me.id ?? '');
     localStorage.setItem('divinr_token', login.accessToken);
     localStorage.setItem('divinr_refresh_token', login.refreshToken ?? '');
-    localStorage.setItem('divinr_role', 'member');
+    localStorage.setItem('divinr_role', me.globalRole ?? me.role ?? 'member');
     localStorage.setItem('divinr_email', me.email ?? '');
     localStorage.setItem('divinr_display_name', me.displayName ?? me.email ?? '');
   }, { login: auth, me });

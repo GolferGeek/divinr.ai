@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, nextTick } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonGrid, IonRow, IonCol,
@@ -20,6 +20,7 @@ import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 import UserUsageWidget from '../components/UserUsageWidget.vue';
 import StudentAccrualWidget from '../components/StudentAccrualWidget.vue';
 import { pluralize } from '../utils/format';
+import { useMasteryStore } from '../stores/mastery.store';
 
 interface AnalystStance {
   prediction_id: string;
@@ -74,6 +75,7 @@ const affinityStore = useAffinityStore();
 const { canWrite } = useCanWrite();
 const router = useRouter();
 const { get } = useApi();
+const mastery = useMasteryStore();
 
 const predictions = ref<DashboardPrediction[]>([]);
 const loading = ref(true);
@@ -122,6 +124,8 @@ function openTradeModal(pred: DashboardPrediction) {
 
 const tournamentStore = useTournamentStore();
 const clubStore = useClubStore();
+const showCommunitySurfaces = computed(() => mastery.canViewLevel('competitive_participation'));
+const showBuilderSurfaces = computed(() => mastery.canViewLevel('builder'));
 
 onMounted(async () => {
   await instruments.fetch().catch(() => {});
@@ -230,12 +234,20 @@ function formatStartShort(iso: string): string {
         <div class="pathway-label">Tournaments</div>
         <div class="pathway-desc">Compete with other traders</div>
       </div>
-      <div class="pathway-card" @click="router.push('/clubs')">
+      <div
+        v-if="showCommunitySurfaces"
+        class="pathway-card"
+        @click="router.push('/clubs')"
+      >
         <ion-icon :icon="peopleOutline" class="pathway-icon" />
         <div class="pathway-label">Clubs</div>
         <div class="pathway-desc">Your groups &amp; social</div>
       </div>
-      <div class="pathway-card" @click="router.push('/instruments')">
+      <div
+        v-if="showBuilderSurfaces"
+        class="pathway-card"
+        @click="router.push('/instruments')"
+      >
         <ion-icon :icon="searchOutline" class="pathway-icon" />
         <div class="pathway-label">Research</div>
         <div class="pathway-desc">Tickers &amp; analysis</div>
@@ -253,7 +265,11 @@ function formatStartShort(iso: string): string {
     </div>
 
     <!-- Your Clubs -->
-    <IonCard v-if="clubStore.myClubs.length > 0" class="club-dashboard-card" data-tour="dashboard-club-card">
+    <IonCard
+      v-if="showCommunitySurfaces && clubStore.myClubs.length > 0"
+      class="club-dashboard-card"
+      data-tour="dashboard-club-card"
+    >
       <IonCardHeader>
         <IonCardTitle>Your Clubs</IonCardTitle>
       </IonCardHeader>
@@ -268,7 +284,10 @@ function formatStartShort(iso: string): string {
     </IonCard>
 
     <!-- Your Tournaments -->
-    <IonCard v-if="tournamentStore.myEntries.length > 0" class="tournament-dashboard-card">
+    <IonCard
+      v-if="showCommunitySurfaces && tournamentStore.myEntries.length > 0"
+      class="tournament-dashboard-card"
+    >
       <IonCardHeader>
         <IonCardTitle>Your Tournaments</IonCardTitle>
       </IonCardHeader>

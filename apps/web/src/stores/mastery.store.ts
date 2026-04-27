@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { useMasteryApi, type MasteryProfile } from '../api/mastery';
+import { DEMO_USER_EMAIL, DEMO_USER_MASTERY_SEEDED_KEY } from '../auth/bootstrap-auth';
 import {
   masteryLevelRank,
   type MasteryLevel,
@@ -41,7 +42,18 @@ export const useMasteryStore = defineStore('mastery', () => {
   async function fetch(): Promise<void> {
     loading.value = true;
     try {
-      profile.value = await api.getProfile();
+      let nextProfile = await api.getProfile();
+      if (
+        auth.email === DEMO_USER_EMAIL &&
+        !localStorage.getItem(DEMO_USER_MASTERY_SEEDED_KEY) &&
+        (nextProfile.currentLevel !== DEFAULT_LEVEL || nextProfile.preferredLevel !== DEFAULT_LEVEL)
+      ) {
+        nextProfile = await api.updateProfile({ preferredLevel: DEFAULT_LEVEL });
+        localStorage.setItem(DEMO_USER_MASTERY_SEEDED_KEY, '1');
+      } else if (auth.email === DEMO_USER_EMAIL && !localStorage.getItem(DEMO_USER_MASTERY_SEEDED_KEY)) {
+        localStorage.setItem(DEMO_USER_MASTERY_SEEDED_KEY, '1');
+      }
+      profile.value = nextProfile;
       loaded.value = true;
     } finally {
       loading.value = false;

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { DEMO_USER_MASTERY_SEEDED_KEY } from '../auth/bootstrap-auth';
 
 export const useAuthStore = defineStore('auth', () => {
   const userId = ref(localStorage.getItem('divinr_user') || '');
@@ -97,6 +98,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('divinr_display_name');
     localStorage.removeItem('divinr_org');
     localStorage.removeItem('divinr_org_role');
+    localStorage.removeItem(DEMO_USER_MASTERY_SEEDED_KEY);
   }
 
   const isConfigured = () => userId.value.length > 0;
