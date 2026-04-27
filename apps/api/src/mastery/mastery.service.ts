@@ -64,11 +64,11 @@ export class MasteryService {
   ) {}
 
   async getProfile(userId: string): Promise<MasteryProfilePayload> {
-    const profile = await this.getOrCreateProfileRow(userId);
     const [milestones, learningPanelUsage] = await Promise.all([
       this.deriveMilestones(userId),
       this.getLearningPanelUsage(userId),
     ]);
+    const profile = await this.getOrCreateProfileRow(userId, milestones);
 
     const currentLevel = profile.preferred_level ?? profile.mastery_level;
     return {
@@ -125,12 +125,16 @@ export class MasteryService {
     };
   }
 
-  private async getOrCreateProfileRow(userId: string): Promise<LearningProfileRow> {
+  private async getOrCreateProfileRow(
+    userId: string,
+    milestones: MasteryMilestones,
+  ): Promise<LearningProfileRow> {
+    const inferredLevel = this.inferInitialLevel(milestones);
     const insertResult = await this.db.rawQuery(
-      `INSERT INTO prediction.user_learning_profiles (user_id)
-       VALUES ($1)
+      `INSERT INTO prediction.user_learning_profiles (user_id, mastery_level)
+       VALUES ($1, $2)
        ON CONFLICT (user_id) DO NOTHING`,
-      [userId],
+      [userId, inferredLevel],
     );
     if (insertResult.error) {
       throw new Error(`Failed to init learning profile: ${insertResult.error.message}`);
@@ -239,6 +243,14 @@ export class MasteryService {
     return MASTERY_LEVEL_ORDER
       .slice(0, idx + 1)
       .flatMap((entry) => VISIBLE_SURFACE_SUMMARY[entry]);
+  }
+
+  private inferInitialLevel(milestones: MasteryMilestones): MasteryLevel {
+    if (milestones.firstAuthoredItem) return 'builder';
+    if (milestones.firstClubJoined || milestones.firstTournamentJoined) {
+      return 'competitive_participation';
+    }
+    return 'core_trading';
   }
 
   private readExists(

@@ -8,7 +8,7 @@
 - [x] Phase 1: Inventory and Policy Lock
 - [x] Phase 2: Learning Profile Persistence
 - [x] Phase 3: Level-Aware Shell Navigation
-- [ ] Phase 4: Route Behavior and Learning Panel Integration
+- [x] Phase 4: Route Behavior and Learning Panel Integration
 - [ ] Phase 5: Progression UX and Coverage
 
 ---
@@ -89,7 +89,7 @@ Before moving to Phase 4, ALL of the following must pass:
 ---
 
 ## Phase 4: Route Behavior and Learning Panel Integration
-**Status**: In Progress
+**Status**: Complete
 **Objective**: Make hidden surfaces and the Learning Panel level-aware, coherent, and explainable.
 
 ### Steps
@@ -123,9 +123,9 @@ Before moving to Phase 5, ALL of the following must pass:
 
 ### Steps
 - [x] 5.1 Add any required settings/home affordance for manual complexity opt-up if the locked policy permits it.
-- [ ] 5.2 Update first-touch inventory/content for any newly introduced or materially changed mastery/profile surfaces.
+- [x] 5.2 Update first-touch inventory/content for any newly introduced or materially changed mastery/profile surfaces.
 - [x] 5.3 Extend or create browser-skill coverage for Level 1 core-loop visibility, Level 2/3 reveal paths, and route fallback behavior.
-- [ ] 5.4 Validate existing-user seeding and upgrade behavior so current users do not lose access unexpectedly.
+- [x] 5.4 Validate existing-user seeding and upgrade behavior so current users do not lose access unexpectedly.
 - [ ] 5.5 Update roadmap/current-effort docs and archive state on completion.
 
 ### Quality Gate

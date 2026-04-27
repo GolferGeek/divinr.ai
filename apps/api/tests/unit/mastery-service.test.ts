@@ -26,9 +26,14 @@ function test(name: string, fn: () => void | Promise<void>) {
   }
 }
 
-function makeHarness() {
+function makeHarness(options?: {
+  firstTournamentJoined?: boolean;
+  firstClubJoined?: boolean;
+  firstAuthoredItem?: boolean;
+  masteryLevel?: 'core_trading' | 'competitive_participation' | 'community_creation' | 'builder' | 'operator';
+}) {
   const profileRow = {
-    mastery_level: 'core_trading',
+    mastery_level: options?.masteryLevel ?? 'core_trading',
     preferred_level: null,
     updated_at: '2026-04-27T00:00:00.000Z',
   };
@@ -38,6 +43,9 @@ function makeHarness() {
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
 
       if (normalized.includes('insert into prediction.user_learning_profiles')) {
+        if (normalized.includes('(user_id, mastery_level)') && params.length >= 2 && profileRow.mastery_level === 'core_trading') {
+          profileRow.mastery_level = (params[1] as typeof profileRow.mastery_level) ?? profileRow.mastery_level;
+        }
         if (sql.toLowerCase().includes('do update')) {
           profileRow.preferred_level = (params[1] as typeof profileRow.preferred_level) ?? null;
         }
@@ -53,15 +61,15 @@ function makeHarness() {
       }
 
       if (normalized.includes('from prediction.tournament_entries')) {
-        return { data: [{ present: true }], error: null };
+        return { data: [{ present: options?.firstTournamentJoined ?? true }], error: null };
       }
 
       if (normalized.includes('from prediction.club_members')) {
-        return { data: [{ present: false }], error: null };
+        return { data: [{ present: options?.firstClubJoined ?? false }], error: null };
       }
 
       if (normalized.includes('from billing.authored_items')) {
-        return { data: [{ present: false }], error: null };
+        return { data: [{ present: options?.firstAuthoredItem ?? false }], error: null };
       }
 
       throw new Error(`Unhandled SQL: ${normalized}`);
@@ -112,7 +120,7 @@ async function main() {
   await test('getProfile returns persisted level plus derived milestones', async () => {
     const { service } = makeHarness();
     const profile = await service.getProfile('user-1');
-    assert.equal(profile.currentLevel, 'core_trading');
+    assert.equal(profile.currentLevel, 'competitive_participation');
     assert.equal(profile.preferredLevel, null);
     assert.equal(profile.milestones.firstTrade, true);
     assert.equal(profile.milestones.firstTournamentJoined, true);
@@ -120,6 +128,16 @@ async function main() {
     assert.equal(profile.milestones.firstPortfolioComparison, true);
     assert.equal(profile.learningPanel.usage.totalCalls, 4);
     assert.ok(profile.nextSuggestedSteps.length > 0);
+  });
+
+  await test('existing authored users seed into builder visibility', async () => {
+    const { service } = makeHarness({
+      firstTournamentJoined: true,
+      firstClubJoined: true,
+      firstAuthoredItem: true,
+    });
+    const profile = await service.getProfile('user-1');
+    assert.equal(profile.currentLevel, 'builder');
   });
 
   await test('updatePreferredLevel persists a new preferred level', async () => {

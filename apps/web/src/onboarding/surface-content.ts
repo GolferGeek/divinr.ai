@@ -762,9 +762,9 @@ export const surfaceContent: Record<string, SurfaceContent> = {
   'settings.onboarding': {
     title: 'Onboarding controls',
     body:
-      "Turn walkthroughs off, replay a section, or show every intro again. " +
-      "Handy when Divinr adds new surfaces — or when you're bringing a friend " +
-      "aboard.",
+      "Turn walkthroughs off, replay a section, show every intro again, or " +
+      "choose how much of Divinr stays visible in the shell. Handy when Divinr " +
+      "adds new surfaces — or when you're bringing a friend aboard.",
   },
   'settings.opt-outs': {
     title: 'Opt-outs',
