@@ -40,19 +40,23 @@ pnpm spark:deploy    # ssh into spark, git pull, install, rebuild api + web, res
 Both wrap `ssh -t golfergeek@spark-51e5.local …`; the TTY lets sudo
 prompt for a password if you haven't set up passwordless sudo for the
 `divinr-*` units. Override the SSH target via `SPARK_SSH=…` env var.
+`spark:deploy` prefers `pnpm` when it is on `PATH`, and falls back to
+`corepack pnpm` if Spark only has Node/Corepack installed. Both wrappers
+restart the services via `bash scripts/ops/restart.sh` on Spark rather than
+relying on lifecycle-script semantics remotely.
 
 **On spark itself (e.g., from a Cursor SSH terminal):**
 
 ```bash
-pnpm restart                           # bounce both units
-sudo systemctl status  divinr-api
+bash scripts/ops/restart.sh           # bounce both units
+sudo systemctl status divinr-api
 journalctl -u divinr-api -f
 ```
 
 For a code-change deploy from on-spark, pull and rebuild first:
 
 ```bash
-git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build && pnpm restart
+git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build && bash scripts/ops/restart.sh
 ```
 
 **Do not run `pnpm --filter @divinr/api run dev:up` on spark after
