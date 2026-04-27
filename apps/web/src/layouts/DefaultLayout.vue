@@ -130,6 +130,18 @@ const learningPanelSurfaceKey = computed(() => {
   return 'chat';
 });
 
+const learningPanelInstrumentId = computed(() => {
+  const queryInstrumentId = route.query.instrumentId;
+  if (typeof queryInstrumentId === 'string' && queryInstrumentId.length > 0) {
+    return queryInstrumentId;
+  }
+  if (route.path.startsWith('/instruments/')) {
+    const routeId = route.params.id;
+    if (typeof routeId === 'string' && routeId.length > 0) return routeId;
+  }
+  return '';
+});
+
 function openLearningPanel() {
   sidebarOpen.value = false;
   if (route.path === '/chat') return;
@@ -370,6 +382,17 @@ onBeforeUnmount(() => {
     </div>
     <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false" />
     <ActivityPanel />
+    <button
+      v-if="route.path !== '/chat'"
+      class="learning-panel-fab"
+      :class="{ active: learningPanelOpen }"
+      type="button"
+      aria-label="Open Learning Panel quick access"
+      title="Open Learning Panel"
+      @click="toggleLearningPanel"
+    >
+      <ion-icon :icon="bulbOutline" />
+    </button>
     <IonModal
       :is-open="learningPanelOpen"
       @did-dismiss="learningPanelOpen = false"
@@ -381,6 +404,7 @@ onBeforeUnmount(() => {
         embedded
         show-close
         :surface-key="learningPanelSurfaceKey"
+        :instrument-id="learningPanelInstrumentId"
         @close="learningPanelOpen = false"
       />
     </IonModal>
@@ -492,6 +516,32 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.learning-panel-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 54px;
+  height: 54px;
+  border: none;
+  border-radius: 50%;
+  background: var(--ion-color-primary, #3880ff);
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  cursor: pointer;
+}
+
+.learning-panel-fab ion-icon {
+  font-size: 1.3rem;
+}
+
+.learning-panel-fab.active {
+  background: var(--ion-color-primary-shade, #3171e0);
+}
+
 .tour-progress-badge {
   position: absolute;
   top: 4px;
@@ -599,6 +649,13 @@ onBeforeUnmount(() => {
     bottom: 0;
     background: rgba(0, 0, 0, 0.3);
     z-index: 999;
+  }
+
+  .learning-panel-fab {
+    right: 14px;
+    bottom: 14px;
+    width: 50px;
+    height: 50px;
   }
 }
 
