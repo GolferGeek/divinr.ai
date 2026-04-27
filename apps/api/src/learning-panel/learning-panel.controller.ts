@@ -91,4 +91,18 @@ export class LearningPanelController {
     const user = this.getUser(req);
     return this.learningPanel.appendMessage(user.id, threadId, body);
   }
+
+  @Post('messages/:messageId/feedback')
+  async submitFeedback(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('messageId') messageId: string,
+    @Body()
+    body: {
+      feedback: 'helpful' | 'unhelpful';
+      note?: string;
+    },
+  ) {
+    const user = this.getUser(req);
+    return this.learningPanel.submitFeedback(user.id, messageId, body);
+  }
 }

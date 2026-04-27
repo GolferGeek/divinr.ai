@@ -70,6 +70,23 @@ export class LearningPanelSchemaService {
         last_compacted_message_id UUID,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+
+      CREATE TABLE IF NOT EXISTS prediction.learning_panel_feedback (
+        id UUID PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        thread_id UUID NOT NULL REFERENCES prediction.learning_panel_threads(id) ON DELETE CASCADE,
+        message_id UUID NOT NULL REFERENCES prediction.learning_panel_messages(id) ON DELETE CASCADE,
+        feedback TEXT NOT NULL CHECK (feedback IN ('helpful', 'unhelpful')),
+        note TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (user_id, message_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS prediction_learning_panel_feedback_thread_idx
+        ON prediction.learning_panel_feedback (thread_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS prediction_learning_panel_feedback_message_idx
+        ON prediction.learning_panel_feedback (message_id);
     `;
 
         const result = await this.db.rawQuery(ddl);

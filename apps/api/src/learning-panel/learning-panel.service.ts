@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
@@ -9,6 +11,7 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
 import { randomUUID } from 'node:crypto';
 import { CredentialsService } from '../credentials/credentials.service';
 import { MarketsLlmService, type LlmTextResult } from '../markets/services/markets-llm.service';
+import { LlmUsageQueryService } from '../markets/services/llm-usage-query.service';
 import {
   LearningPanelContextService,
   type LearningPanelUserContext,
@@ -20,6 +23,7 @@ import {
 import { LearningPanelSchemaService } from './learning-panel-schema.service';
 
 type LearningPanelRole = 'user' | 'assistant';
+type LearningPanelFeedbackValue = 'helpful' | 'unhelpful';
 
 interface LearningPanelModeInput {
   mode?: 'platform' | 'byo';
@@ -33,6 +37,7 @@ interface LearningPanelMessage {
   createdAt: string;
   citations: LearningPanelCorpusChunk[];
   llmUsageId: string | null;
+  feedback: LearningPanelFeedbackRecord | null;
 }
 
 interface LearningPanelThreadRecord {
@@ -66,6 +71,24 @@ interface LearningPanelMessageRecord {
   createdAt: string;
 }
 
+interface LearningPanelFeedbackRecord {
+  messageId: string;
+  feedback: LearningPanelFeedbackValue;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LearningPanelUsageStatus {
+  totalCalls: number;
+  totalCostCents: number;
+  callLimit: number;
+  costLimitCents: number;
+  warningThresholdRatio: number;
+  warning: boolean;
+  blocked: boolean;
+}
+
 export interface LearningPanelThreadPayload {
   id: string;
   title: string;
@@ -81,6 +104,22 @@ export interface LearningPanelThreadPayload {
   };
 }
 
+export interface LearningPanelBootstrapPayload {
+  enabled: boolean;
+  modelProvider: string;
+  modelName: string;
+  webResearchEnabled: boolean;
+  starterPrompts: string[];
+  threads: Array<{
+    id: string;
+    title: string;
+    originSurfaceKey: string | null;
+    lastMessageAt: string;
+    preview: string;
+  }>;
+  usage: LearningPanelUsageStatus;
+}
+
 @Injectable()
 export class LearningPanelService {
   private readonly logger = new Logger(LearningPanelService.name);
@@ -91,10 +130,11 @@ export class LearningPanelService {
     @Inject(LearningPanelCorpusService) private readonly corpus: LearningPanelCorpusService,
     @Inject(LearningPanelContextService) private readonly contextService: LearningPanelContextService,
     @Inject(MarketsLlmService) private readonly marketsLlm: MarketsLlmService,
+    @Inject(LlmUsageQueryService) private readonly usageQuery: LlmUsageQueryService,
     @Inject(CredentialsService) private readonly credentials: CredentialsService,
   ) {}
 
-  async getBootstrap(userId: string, surfaceKey?: string) {
+  async getBootstrap(userId: string, surfaceKey?: string): Promise<LearningPanelBootstrapPayload> {
     return {
       enabled: this.isEnabled(),
       modelProvider: this.getConfig().provider,
@@ -102,6 +142,7 @@ export class LearningPanelService {
       webResearchEnabled: false,
       starterPrompts: this.corpus.getStarterPrompts(surfaceKey),
       threads: await this.listThreads(userId),
+      usage: await this.getUsageStatus(userId),
     };
   }
 
@@ -145,7 +186,11 @@ export class LearningPanelService {
     const thread = await this.getOwnedThread(userId, threadId);
     const messages = await this.fetchVisibleMessages(threadId);
     const state = await this.getThreadState(threadId);
-    return this.toPayload(thread, messages, state);
+    const feedbackByMessageId = await this.getFeedbackByMessageIds(
+      userId,
+      messages.map((message) => message.id),
+    );
+    return this.toPayload(thread, messages, state, feedbackByMessageId);
   }
 
   async createThread(
@@ -157,9 +202,10 @@ export class LearningPanelService {
       mode?: 'platform' | 'byo';
       credentialId?: string;
     },
-  ): Promise<{ thread: LearningPanelThreadPayload }> {
+  ): Promise<{ thread: LearningPanelThreadPayload; usage: LearningPanelUsageStatus }> {
     const message = this.normalizeMessage(input.initialMessage);
     await this.resolveGenerationMode(userId, input);
+    await this.assertWithinUsageLimits(userId);
 
     const threadId = randomUUID();
     const now = new Date().toISOString();
@@ -204,7 +250,10 @@ export class LearningPanelService {
     await this.persistMessage(threadId, assistantMessage);
     await this.syncThreadDerivedState(threadId, assistantMessage.createdAt);
 
-    return { thread: await this.getThread(userId, threadId) };
+    return {
+      thread: await this.getThread(userId, threadId),
+      usage: await this.getUsageStatus(userId),
+    };
   }
 
   async appendMessage(
@@ -217,10 +266,11 @@ export class LearningPanelService {
       mode?: 'platform' | 'byo';
       credentialId?: string;
     },
-  ): Promise<{ thread: LearningPanelThreadPayload }> {
+  ): Promise<{ thread: LearningPanelThreadPayload; usage: LearningPanelUsageStatus }> {
     const thread = await this.getOwnedThread(userId, threadId);
     const message = this.normalizeMessage(input.message);
     await this.resolveGenerationMode(userId, input);
+    await this.assertWithinUsageLimits(userId);
 
     const now = new Date().toISOString();
     const userMessage = await this.persistMessage(threadId, {
@@ -249,7 +299,79 @@ export class LearningPanelService {
     await this.syncThreadDerivedState(threadId, assistantMessage.createdAt);
     await this.compactThreadIfNeeded(threadId);
 
-    return { thread: await this.getThread(userId, threadId) };
+    return {
+      thread: await this.getThread(userId, threadId),
+      usage: await this.getUsageStatus(userId),
+    };
+  }
+
+  async submitFeedback(
+    userId: string,
+    messageId: string,
+    input: { feedback: LearningPanelFeedbackValue; note?: string | null },
+  ): Promise<{ feedback: LearningPanelFeedbackRecord }> {
+    if (input.feedback !== 'helpful' && input.feedback !== 'unhelpful') {
+      throw new BadRequestException('feedback must be helpful or unhelpful');
+    }
+
+    const note = typeof input.note === 'string' ? input.note.trim().slice(0, 500) : null;
+    const messageResult = await this.db.rawQuery(
+      `SELECT m.id::text AS id,
+              m.thread_id::text AS thread_id,
+              m.role
+         FROM prediction.learning_panel_messages m
+         JOIN prediction.learning_panel_threads t
+           ON t.id = m.thread_id
+        WHERE m.id = $1::uuid
+          AND t.user_id = $2
+          AND t.archived_at IS NULL
+        LIMIT 1`,
+      [messageId, userId],
+    );
+    if (messageResult.error) {
+      throw new Error(`Failed to read learning panel message for feedback: ${messageResult.error.message}`);
+    }
+    const messageRow = ((messageResult.data as Array<Record<string, unknown>> | null) ?? [])[0];
+    if (!messageRow) {
+      throw new NotFoundException('Learning panel message not found');
+    }
+    if (String(messageRow.role) !== 'assistant') {
+      throw new BadRequestException('Feedback can only be submitted for assistant messages');
+    }
+
+    const result = await this.db.rawQuery(
+      `INSERT INTO prediction.learning_panel_feedback
+        (id, user_id, thread_id, message_id, feedback, note, created_at, updated_at)
+       VALUES ($1::uuid, $2, $3::uuid, $4::uuid, $5, $6, now(), now())
+       ON CONFLICT (user_id, message_id) DO UPDATE
+         SET feedback = EXCLUDED.feedback,
+             note = EXCLUDED.note,
+             updated_at = now()
+       RETURNING message_id::text AS message_id,
+                 feedback,
+                 note,
+                 created_at,
+                 updated_at`,
+      [randomUUID(), userId, String(messageRow.thread_id), messageId, input.feedback, note],
+    );
+    if (result.error) {
+      throw new Error(`Failed to persist learning panel feedback: ${result.error.message}`);
+    }
+
+    const row = ((result.data as Array<Record<string, unknown>> | null) ?? [])[0];
+    if (!row) {
+      throw new Error('Learning panel feedback write returned no row');
+    }
+
+    return {
+      feedback: {
+        messageId: String(row.message_id),
+        feedback: row.feedback as LearningPanelFeedbackValue,
+        note: (row.note as string | null) ?? null,
+        createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at),
+      },
+    };
   }
 
   async createLegacyReply(
@@ -257,6 +379,7 @@ export class LearningPanelService {
     message: string,
     instrumentId?: string,
   ): Promise<{ response: string; reasoning: string | null }> {
+    await this.assertWithinUsageLimits(userId);
     const assistantMessage = await this.generateAssistantMessage(
       userId,
       message,
@@ -289,7 +412,50 @@ export class LearningPanelService {
       compactionTriggerMessages: Number(process.env.LEARNING_PANEL_COMPACTION_TRIGGER_MESSAGES || 12),
       recentContextMessages: Math.max(2, Number(process.env.LEARNING_PANEL_RECENT_CONTEXT_MESSAGES || 6)),
       maxSummaryChars: Number(process.env.LEARNING_PANEL_MAX_SUMMARY_CHARS || 6000),
+      monthlyCallLimit: Math.max(1, Number(process.env.LEARNING_PANEL_MONTHLY_CALL_LIMIT || 150)),
+      monthlyCostLimitCents: Math.max(1, Number(process.env.LEARNING_PANEL_MONTHLY_COST_LIMIT_CENTS || 200)),
+      warningThresholdRatio: Math.min(0.99, Math.max(0.1, Number(process.env.LEARNING_PANEL_WARNING_THRESHOLD_RATIO || 0.8))),
     };
+  }
+
+  private async getUsageStatus(userId: string): Promise<LearningPanelUsageStatus> {
+    const now = new Date();
+    const startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    const endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1) - 1).toISOString();
+    const summary = await this.usageQuery.getSummary({
+      userId,
+      stage: 'learning_panel',
+      startDate,
+      endDate,
+    });
+    const config = this.getConfig();
+    const callRatio = summary.total_calls / config.monthlyCallLimit;
+    const costRatio = summary.total_cost_cents / config.monthlyCostLimitCents;
+    const blocked = summary.total_calls >= config.monthlyCallLimit || summary.total_cost_cents >= config.monthlyCostLimitCents;
+    const warning = !blocked && Math.max(callRatio, costRatio) >= config.warningThresholdRatio;
+
+    return {
+      totalCalls: summary.total_calls,
+      totalCostCents: summary.total_cost_cents,
+      callLimit: config.monthlyCallLimit,
+      costLimitCents: config.monthlyCostLimitCents,
+      warningThresholdRatio: config.warningThresholdRatio,
+      warning,
+      blocked,
+    };
+  }
+
+  private async assertWithinUsageLimits(userId: string): Promise<void> {
+    const usage = await this.getUsageStatus(userId);
+    if (!usage.blocked) {
+      return;
+    }
+
+    throw new HttpException({
+      code: 'learning_panel_limit_reached',
+      message: 'Learning Panel monthly usage limit reached.',
+      usage,
+    }, HttpStatus.TOO_MANY_REQUESTS);
   }
 
   private normalizeMessage(message: string): string {
@@ -433,6 +599,42 @@ export class LearningPanelService {
       completionTokens: this.toNumberOrNull(row.completion_tokens),
       createdAt: String(row.created_at),
     }));
+  }
+
+  private async getFeedbackByMessageIds(
+    userId: string,
+    messageIds: string[],
+  ): Promise<Map<string, LearningPanelFeedbackRecord>> {
+    if (messageIds.length === 0) {
+      return new Map();
+    }
+
+    const result = await this.db.rawQuery(
+      `SELECT message_id::text AS message_id,
+              feedback,
+              note,
+              created_at,
+              updated_at
+         FROM prediction.learning_panel_feedback
+        WHERE user_id = $1
+          AND message_id = ANY($2::uuid[])`,
+      [userId, messageIds],
+    );
+    if (result.error) {
+      throw new Error(`Failed to read learning panel feedback: ${result.error.message}`);
+    }
+
+    const map = new Map<string, LearningPanelFeedbackRecord>();
+    for (const row of ((result.data as Array<Record<string, unknown>> | null) ?? [])) {
+      map.set(String(row.message_id), {
+        messageId: String(row.message_id),
+        feedback: row.feedback as LearningPanelFeedbackValue,
+        note: (row.note as string | null) ?? null,
+        createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at),
+      });
+    }
+    return map;
   }
 
   private async persistMessage(
@@ -716,6 +918,7 @@ export class LearningPanelService {
     thread: LearningPanelThreadRecord,
     messages: LearningPanelMessageRecord[],
     state: LearningPanelThreadStateRecord,
+    feedbackByMessageId: Map<string, LearningPanelFeedbackRecord>,
   ): LearningPanelThreadPayload {
     return {
       id: thread.id,
@@ -730,6 +933,7 @@ export class LearningPanelService {
         createdAt: message.createdAt,
         citations: message.citations,
         llmUsageId: message.llmUsageId,
+        feedback: feedbackByMessageId.get(message.id) ?? null,
       })),
       summary: {
         summaryMarkdown: state.summaryMarkdown,

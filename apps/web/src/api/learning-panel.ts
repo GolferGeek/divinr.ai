@@ -7,6 +7,13 @@ export interface LearningPanelMessage {
   createdAt: string;
   citations: Array<{ source: string; title: string; content: string }>;
   llmUsageId: string | null;
+  feedback: {
+    messageId: string;
+    feedback: 'helpful' | 'unhelpful';
+    note: string | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
 }
 
 export interface LearningPanelThread {
@@ -16,6 +23,16 @@ export interface LearningPanelThread {
   createdAt: string;
   updatedAt: string;
   messages: LearningPanelMessage[];
+}
+
+export interface LearningPanelUsageStatus {
+  totalCalls: number;
+  totalCostCents: number;
+  callLimit: number;
+  costLimitCents: number;
+  warningThresholdRatio: number;
+  warning: boolean;
+  blocked: boolean;
 }
 
 export function useLearningPanelApi() {
@@ -29,6 +46,7 @@ export function useLearningPanelApi() {
         modelName: string;
         webResearchEnabled: boolean;
         starterPrompts: string[];
+        usage: LearningPanelUsageStatus;
         threads: Array<{
           id: string;
           title: string;
@@ -41,12 +59,24 @@ export function useLearningPanelApi() {
       originSurfaceKey?: string;
       initialMessage: string;
       instrumentId?: string;
-    }) => api.post<{ thread: LearningPanelThread }>('/learning-panel/threads', body),
+    }) => api.post<{ thread: LearningPanelThread; usage: LearningPanelUsageStatus }>('/learning-panel/threads', body),
     getThread: (threadId: string) =>
       api.get<{ thread: LearningPanelThread }>(`/learning-panel/threads/${threadId}`),
     appendMessage: (
       threadId: string,
       body: { message: string; surfaceKey?: string; instrumentId?: string },
-    ) => api.post<{ thread: LearningPanelThread }>(`/learning-panel/threads/${threadId}/messages`, body),
+    ) => api.post<{ thread: LearningPanelThread; usage: LearningPanelUsageStatus }>(`/learning-panel/threads/${threadId}/messages`, body),
+    submitFeedback: (
+      messageId: string,
+      body: { feedback: 'helpful' | 'unhelpful'; note?: string },
+    ) => api.post<{
+      feedback: {
+        messageId: string;
+        feedback: 'helpful' | 'unhelpful';
+        note: string | null;
+        createdAt: string;
+        updatedAt: string;
+      };
+    }>(`/learning-panel/messages/${messageId}/feedback`, body),
   };
 }

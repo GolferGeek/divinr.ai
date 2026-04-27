@@ -2,14 +2,14 @@
 
 **PRD**: `docs/efforts/current/platform-learning-panel/prd.md`
 **Created**: 2026-04-26
-**Status**: In Progress
+**Status**: Completed
 
 ## Progress Tracker
 - [x] Phase 1: Dedicated Learning Panel Backend
 - [x] Phase 2: Persistent Threads and Compaction
 - [x] Phase 3: Divinr Grounding and Citations
 - [x] Phase 4: Shell Integration and User Surface
-- [ ] Phase 5: Metering, Limits, and Feedback
+- [x] Phase 5: Metering, Limits, and Feedback
 
 ---
 
@@ -175,34 +175,40 @@ Phase 4 notes:
 ---
 
 ## Phase 5: Metering, Limits, and Feedback
-**Status**: Not Started
+**Status**: Completed
 **Objective**: Enforce cost/usage limits and close the beta feedback loop.
 
 ### Steps
-- [ ] 5.1 Log all panel calls with `stage='learning_panel'` and verify they appear correctly in existing LLM usage queries and dashboards.
-- [ ] 5.2 Implement per-user message/cost limit enforcement using config + `prediction.llm_usage_log` aggregates, returning deterministic UI-safe limit errors.
-- [ ] 5.3 Add `prediction.learning_panel_feedback` persistence and `POST /api/learning-panel/messages/:messageId/feedback`.
-- [ ] 5.4 Surface helpful/unhelpful controls in the UI and ensure they do not clutter the core message flow.
-- [ ] 5.5 Add or extend admin/browser coverage for usage visibility if the existing admin usage surface needs a Learning Panel-specific assertion.
+- [x] 5.1 Log all panel calls with `stage='learning_panel'` and verify they appear correctly in existing LLM usage queries and dashboards.
+- [x] 5.2 Implement per-user message/cost limit enforcement using config + `prediction.llm_usage_log` aggregates, returning deterministic UI-safe limit errors.
+- [x] 5.3 Add `prediction.learning_panel_feedback` persistence and `POST /api/learning-panel/messages/:messageId/feedback`.
+- [x] 5.4 Surface helpful/unhelpful controls in the UI and ensure they do not clutter the core message flow.
+- [x] 5.5 Add or extend admin/browser coverage for usage visibility if the existing admin usage surface needs a Learning Panel-specific assertion.
 
 ### Quality Gate
 Before marking the effort complete, ALL of the following must pass:
 
-- [ ] **Lint**: `pnpm lint`
-- [ ] **Build**: `pnpm build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api run test:unit`
-- [ ] **E2E Tests**:
+- [x] **Lint**: `pnpm lint`
+- [x] **Build**: `pnpm build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api run test:unit`
+- [x] **E2E Tests**:
   `pnpm --filter @divinr/e2e run prepare-auth`
   `pnpm --filter @divinr/e2e run e2e --project=learning-panel`
   `pnpm --filter @divinr/e2e run e2e --project=admin`
-- [ ] **Curl Tests**:
+- [x] **Curl Tests**:
   `curl -s -H "Authorization: Bearer $DIVINR_TOKEN" "http://localhost:7100/api/usage/summary?stage=learning_panel&startDate=2026-04-01&endDate=2026-04-30"`
   `curl -s -X POST -H "Authorization: Bearer $DIVINR_TOKEN" -H "Content-Type: application/json" http://localhost:7100/api/learning-panel/messages/$MESSAGE_ID/feedback -d '{"feedback":"helpful","note":"Clear explanation"}'`
-- [ ] **Chrome Tests**:
+- [x] **Chrome Tests**:
   Verify limit-warning/limit-reached behavior is coherent.
   Verify Learning Panel usage is visible in admin usage surfaces.
   Verify helpful/unhelpful feedback controls persist without breaking conversation flow.
-- [ ] **Phase Review**: Compare implementation against Phase 5 objectives in the PRD
-  - [ ] Did we accomplish what we said we would?
-  - [ ] Does the code align with the PRD requirements?
-  - [ ] Are there any deviations? If so, document why.
+- [x] **Phase Review**: Compare implementation against Phase 5 objectives in the PRD
+  - [x] Did we accomplish what we said we would?
+  - [x] Does the code align with the PRD requirements?
+  - [x] Are there any deviations? If so, document why.
+
+Phase 5 notes:
+- Learning Panel assistant writes now carry the persisted `prediction.llm_usage_log.id`, so thread messages can be traced back to actual usage rows instead of provider request ids.
+- Usage enforcement is based on current-month `prediction.llm_usage_log` aggregates with deterministic `429` responses carrying `code='learning_panel_limit_reached'`.
+- User feedback is persisted in `prediction.learning_panel_feedback` and surfaced inline on assistant messages without adding a secondary drawer or modal.
+- Admin/browser coverage uses an immediate raw summary assertion via `/api/markets/usage/summary?stage=learning_panel` plus the existing `/usage` shell surface render, because the stage table is backed by materialized views and may lag newly seeded rows.

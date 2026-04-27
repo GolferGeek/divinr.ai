@@ -26,7 +26,7 @@ test.describe('admin facet — smoke', () => {
 
     // (a) Heading visible (h2 in CostCalibrationView).
     await expect(
-      page.getByRole('heading', { name: /cost calibration/i }),
+      page.getByRole('heading', { name: /cost calibration/i, level: 2 }),
     ).toBeVisible({ timeout: 10_000 });
 
     // (b) Content container visible — the calibration table is always rendered
@@ -38,5 +38,48 @@ test.describe('admin facet — smoke', () => {
     // (d) No 5xx on the happy path.
     await page.waitForLoadState('networkidle');
     expect(serverErrors, `unexpected 5xx: ${serverErrors.join('\n')}`).toEqual([]);
+  });
+
+  test('shows learning-panel usage in the LLM usage dashboard', async ({ page }) => {
+    await page.goto('/');
+    await dismissWelcomeModal(page);
+    await expect(page).not.toHaveURL(/\/login/);
+
+    const seedStatus = await page.evaluate(async () => {
+      const token = localStorage.getItem('divinr_token');
+      const response = await fetch('/api/learning-panel/threads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          originSurfaceKey: 'chat',
+          initialMessage: 'How do clubs work in Divinr?',
+        }),
+      });
+      return response.status;
+    });
+    expect(seedStatus, 'learning-panel seed request must succeed').toBe(201);
+
+    const summary = await page.evaluate(async () => {
+      const token = localStorage.getItem('divinr_token');
+      const now = new Date();
+      const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const endDate = now.toISOString().slice(0, 10);
+      const response = await fetch(`/api/markets/usage/summary?stage=learning_panel&startDate=${startDate}&endDate=${endDate}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      return response.ok ? response.json() : { total_calls: -1, total_cost_cents: -1 };
+    });
+    expect(summary.total_calls, 'learning-panel usage summary should include the seeded call').toBeGreaterThan(0);
+
+    await page.goto('/usage');
+    await dismissWelcomeModal(page);
+    await expect(page).not.toHaveURL(/\/(login|welcome)/);
+    await expect(
+      page.getByRole('heading', { name: /llm usage dashboard/i, level: 2 }),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/total calls/i).first()).toBeVisible({ timeout: 10_000 });
   });
 });

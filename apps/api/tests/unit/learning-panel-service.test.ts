@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
 import { LearningPanelService } from '../../src/learning-panel/learning-panel.service';
 
 let passed = 0;
@@ -57,6 +57,16 @@ interface StateRow {
   updated_at: string;
 }
 
+interface FeedbackRow {
+  user_id: string;
+  thread_id: string;
+  message_id: string;
+  feedback: 'helpful' | 'unhelpful';
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 function normalizeSql(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim().toLowerCase();
 }
@@ -65,13 +75,19 @@ function makeHarness() {
   const threads = new Map<string, ThreadRow>();
   const messages: MessageRow[] = [];
   const states = new Map<string, StateRow>();
+  const feedback = new Map<string, FeedbackRow>();
   const prompts: Array<{ systemPrompt: string; userPrompt: string }> = [];
+  const usageSummary = { total_calls: 0, total_tokens_in: 0, total_tokens_out: 0, total_cost_cents: 0 };
 
   const db = {
     rawQuery: async (sql: string, params: unknown[] = []) => {
       const normalized = normalizeSql(sql);
 
       if (normalized.startsWith('create table if not exists prediction.learning_panel_threads')) {
+        return { data: [], error: null };
+      }
+
+      if (normalized.startsWith('create table if not exists prediction.learning_panel_feedback')) {
         return { data: [], error: null };
       }
 
@@ -206,6 +222,63 @@ function makeHarness() {
         return { data: rows, error: null };
       }
 
+      if (normalized.includes('from prediction.llm_usage_log')) {
+        return { data: [usageSummary], error: null };
+      }
+
+      if (normalized.includes('select message_id::text as message_id') && normalized.includes('from prediction.learning_panel_feedback')) {
+        const [userId, messageIds] = params as [string, string[]];
+        return {
+          data: [...feedback.values()]
+            .filter((row) => row.user_id === userId && messageIds.includes(row.message_id))
+            .map((row) => ({
+              message_id: row.message_id,
+              feedback: row.feedback,
+              note: row.note,
+              created_at: row.created_at,
+              updated_at: row.updated_at,
+            })),
+          error: null,
+        };
+      }
+
+      if (normalized.includes('select m.id::text as id') && normalized.includes('from prediction.learning_panel_messages m')) {
+        const [messageId, userId] = params as [string, string];
+        const message = messages.find((row) => row.id === messageId);
+        const thread = message ? threads.get(message.thread_id) : null;
+        const rows = message && thread && thread.user_id === userId && thread.archived_at === null
+          ? [{ id: message.id, thread_id: message.thread_id, role: message.role }]
+          : [];
+        return { data: rows, error: null };
+      }
+
+      if (normalized.includes('insert into prediction.learning_panel_feedback')) {
+        const [_id, userId, threadId, messageId, value, note] =
+          params as [string, string, string, string, 'helpful' | 'unhelpful', string | null];
+        const existing = feedback.get(`${userId}:${messageId}`);
+        const now = new Date().toISOString();
+        const row: FeedbackRow = {
+          user_id: userId,
+          thread_id: threadId,
+          message_id: messageId,
+          feedback: value,
+          note,
+          created_at: existing?.created_at ?? now,
+          updated_at: now,
+        };
+        feedback.set(`${userId}:${messageId}`, row);
+        return {
+          data: [{
+            message_id: row.message_id,
+            feedback: row.feedback,
+            note: row.note,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+          }],
+          error: null,
+        };
+      }
+
       if (normalized.includes('select i.symbol')) {
         return { data: [], error: null };
       }
@@ -245,6 +318,9 @@ function makeHarness() {
   const credentials = {
     listCredentials: async () => [{ id: 'cred-1', provider: 'anthropic', label: 'Anthropic' }],
   };
+  const usageQuery = {
+    getSummary: async () => usageSummary,
+  };
 
   const service = new LearningPanelService(
     db as any,
@@ -252,10 +328,11 @@ function makeHarness() {
     corpus as any,
     contextService as any,
     marketsLlm as any,
+    usageQuery as any,
     credentials as any,
   );
 
-  return { service, threads, messages, states, prompts };
+  return { service, threads, messages, states, feedback, prompts, usageSummary };
 }
 
 async function expectThrows(
@@ -285,6 +362,7 @@ async function main() {
     assert.equal(result.webResearchEnabled, false);
     assert.deepEqual(result.starterPrompts, ['What should I learn first?']);
     assert.ok(Array.isArray(result.threads));
+    assert.equal(result.usage.totalCalls, 0);
   });
 
   await test('createThread persists thread, state, and assistant reply', async () => {
@@ -381,6 +459,52 @@ async function main() {
     }),
     NotFoundException,
     'BYO mode requires a known credential id',
+  );
+
+  await test('submitFeedback persists helpful/unhelpful state on assistant messages', async () => {
+    const { service } = makeHarness();
+    const created = await service.createThread('user-1', {
+      originSurfaceKey: 'chat',
+      initialMessage: 'What should I learn first?',
+    });
+    const assistantMessageId = created.thread.messages[1]?.id;
+    assert.ok(assistantMessageId);
+
+    const first = await service.submitFeedback('user-1', assistantMessageId!, {
+      feedback: 'helpful',
+    });
+    assert.equal(first.feedback.feedback, 'helpful');
+
+    const thread = await service.getThread('user-1', created.thread.id);
+    assert.equal(thread.messages[1]?.feedback?.feedback, 'helpful');
+  });
+
+  await expectThrows(
+    async () => {
+      const { service } = makeHarness();
+      const created = await service.createThread('user-1', {
+        originSurfaceKey: 'chat',
+        initialMessage: 'What should I learn first?',
+      });
+      await service.submitFeedback('user-1', created.thread.messages[0]!.id, {
+        feedback: 'helpful',
+      });
+    },
+    BadRequestException,
+    'rejects feedback on user-authored messages',
+  );
+
+  await expectThrows(
+    async () => {
+      const { service, usageSummary } = makeHarness();
+      usageSummary.total_calls = 150;
+      await service.createThread('user-1', {
+        originSurfaceKey: 'chat',
+        initialMessage: 'Blocked turn',
+      });
+    },
+    HttpException,
+    'blocks message generation once monthly usage limit is reached',
   );
 
   test('markets chat route is explicitly exempt from read-only blocking and delegates to learning panel', () => {

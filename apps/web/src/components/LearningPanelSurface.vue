@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { IonButton, IonIcon, IonNote, IonSpinner } from '@ionic/vue';
-import { addOutline, closeOutline, listOutline } from 'ionicons/icons';
+import { addOutline, closeOutline, listOutline, thumbsDownOutline, thumbsUpOutline } from 'ionicons/icons';
 import FirstTouchPanel from './FirstTouchPanel.vue';
-import { useLearningPanelApi, type LearningPanelThread } from '../api/learning-panel';
+import {
+  useLearningPanelApi,
+  type LearningPanelThread,
+  type LearningPanelUsageStatus,
+} from '../api/learning-panel';
 
 interface Citation {
   source: string;
@@ -17,6 +21,13 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   citations: Citation[];
+  feedback: {
+    messageId: string;
+    feedback: 'helpful' | 'unhelpful';
+    note: string | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
 }
 
 interface ThreadSummary {
@@ -51,6 +62,10 @@ const threadId = ref<string | null>(null);
 const starterPrompts = ref<string[]>([]);
 const threadSummaries = ref<ThreadSummary[]>([]);
 const threadListOpen = ref(false);
+const usage = ref<LearningPanelUsageStatus | null>(null);
+const feedbackSubmitting = ref<Record<string, boolean>>({});
+const feedbackError = ref<string | null>(null);
+const sendError = ref<string | null>(null);
 
 const contextLabels: Record<string, string> = {
   chat: 'the app overall',
@@ -79,8 +94,20 @@ function hydrateThread(thread: LearningPanelThread) {
     content: message.content,
     timestamp: new Date(message.createdAt),
     citations: message.citations ?? [],
+    feedback: message.feedback ?? null,
   }));
   upsertThreadSummary(thread);
+}
+
+function usageLabel(currentUsage: LearningPanelUsageStatus | null): string | null {
+  if (!currentUsage) return null;
+  if (currentUsage.blocked) {
+    return `Monthly panel limit reached (${currentUsage.totalCalls}/${currentUsage.callLimit} turns).`;
+  }
+  if (currentUsage.warning) {
+    return `Approaching monthly panel limit (${currentUsage.totalCalls}/${currentUsage.callLimit} turns).`;
+  }
+  return null;
 }
 
 function upsertThreadSummary(thread: LearningPanelThread) {
@@ -110,6 +137,7 @@ async function loadBootstrap() {
     const bootstrap = await api.getBootstrap(props.surfaceKey);
     starterPrompts.value = bootstrap.starterPrompts;
     threadSummaries.value = bootstrap.threads;
+    usage.value = bootstrap.usage;
     if (!threadId.value && !hasMessages.value && bootstrap.threads[0]) {
       const result = await api.getThread(bootstrap.threads[0].id);
       hydrateThread(result.thread);
@@ -139,9 +167,11 @@ async function openThread(selectedThreadId: string) {
 async function sendMessage(prompt?: string) {
   const text = (prompt ?? input.value).trim();
   if (!text || loading.value) return;
+  if (usage.value?.blocked) return;
 
   if (!prompt) input.value = '';
   loading.value = true;
+  sendError.value = null;
   await scrollToBottom();
 
   try {
@@ -151,25 +181,54 @@ async function sendMessage(prompt?: string) {
         initialMessage: text,
       });
       hydrateThread(result.thread);
+      usage.value = result.usage;
     } else {
       const result = await api.appendMessage(threadId.value, {
         message: text,
         surfaceKey: props.surfaceKey,
       });
       hydrateThread(result.thread);
+      usage.value = result.usage;
     }
     threadListOpen.value = false;
-  } catch {
-    messages.value.push({
-      id: `error-${Date.now()}`,
-      role: 'assistant',
-      content: 'Sorry, I had trouble processing that. Please try again.',
-      timestamp: new Date(),
-      citations: [],
-    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('learning_panel_limit_reached')) {
+      sendError.value = 'Monthly Learning Panel limit reached. Ask an admin if you need more capacity.';
+      if (threadId.value) {
+        void loadBootstrap();
+      }
+    } else {
+      messages.value.push({
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: 'Sorry, I had trouble processing that. Please try again.',
+        timestamp: new Date(),
+        citations: [],
+        feedback: null,
+      });
+    }
   } finally {
     loading.value = false;
     await scrollToBottom();
+  }
+}
+
+async function submitFeedback(messageId: string, feedback: 'helpful' | 'unhelpful') {
+  if (feedbackSubmitting.value[messageId]) return;
+  feedbackSubmitting.value = { ...feedbackSubmitting.value, [messageId]: true };
+  feedbackError.value = null;
+  try {
+    const result = await api.submitFeedback(messageId, { feedback });
+    messages.value = messages.value.map((message) => (
+      message.id === messageId
+        ? { ...message, feedback: result.feedback }
+        : message
+    ));
+  } catch {
+    feedbackError.value = 'Could not save feedback.';
+  } finally {
+    feedbackSubmitting.value = { ...feedbackSubmitting.value, [messageId]: false };
   }
 }
 
@@ -253,6 +312,7 @@ onMounted(() => {
               <h2>Learning Panel</h2>
             </div>
             <IonNote>Ask about {{ contextLabel }}, risk, portfolios, clubs, tournaments, or what to learn next</IonNote>
+            <IonNote v-if="usageLabel(usage)" :color="usage?.blocked ? 'danger' : 'warning'">{{ usageLabel(usage) }}</IonNote>
           </div>
           <IonButton
             v-if="showClose"
@@ -296,6 +356,26 @@ onMounted(() => {
                 </ul>
               </div>
               <div class="message-time">{{ formatTime(message.timestamp) }}</div>
+              <div v-if="message.role === 'assistant'" class="message-feedback">
+                <IonButton
+                  size="small"
+                  fill="clear"
+                  :color="message.feedback?.feedback === 'helpful' ? 'success' : 'medium'"
+                  :disabled="feedbackSubmitting[message.id]"
+                  @click="submitFeedback(message.id, 'helpful')"
+                >
+                  <IonIcon slot="icon-only" :icon="thumbsUpOutline" />
+                </IonButton>
+                <IonButton
+                  size="small"
+                  fill="clear"
+                  :color="message.feedback?.feedback === 'unhelpful' ? 'danger' : 'medium'"
+                  :disabled="feedbackSubmitting[message.id]"
+                  @click="submitFeedback(message.id, 'unhelpful')"
+                >
+                  <IonIcon slot="icon-only" :icon="thumbsDownOutline" />
+                </IonButton>
+              </div>
             </div>
           </div>
 
@@ -307,14 +387,17 @@ onMounted(() => {
         </div>
 
         <div class="chat-input-area">
+          <div v-if="sendError || feedbackError" class="chat-error">
+            {{ sendError || feedbackError }}
+          </div>
           <textarea
             v-model="input"
             placeholder="Ask about your instruments, analysts, or market signals..."
             rows="1"
-            :disabled="loading"
+            :disabled="loading || usage?.blocked"
             @keydown="handleKeydown"
           />
-          <IonButton :disabled="!input.trim() || loading" @click="sendMessage()">
+          <IonButton :disabled="!input.trim() || loading || usage?.blocked" @click="sendMessage()">
             Send
           </IonButton>
         </div>
@@ -587,6 +670,13 @@ onMounted(() => {
   margin-top: 4px;
 }
 
+.message-feedback {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+}
+
 .message-citations {
   margin-top: 10px;
   padding-top: 8px;
@@ -610,11 +700,18 @@ onMounted(() => {
 }
 
 .chat-input-area {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: flex-end;
   padding: 12px 18px 16px;
   border-top: 1px solid var(--ion-color-step-150, #eee);
+}
+
+.chat-error {
+  grid-column: 1 / -1;
+  color: var(--ion-color-danger);
+  font-size: 0.8rem;
 }
 
 .chat-input-area textarea {

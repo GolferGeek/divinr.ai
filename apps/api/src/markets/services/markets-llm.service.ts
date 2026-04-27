@@ -182,10 +182,13 @@ export class MarketsLlmService {
     meta: { tokensIn: number; tokensOut: number },
   ): Promise<void> {
     if (!usageContext) return;
-    await this.usageLogger.record(
+    const usageId = await this.usageLogger.record(
       result, usageContext, Date.now() - startMs,
       promptText, meta.tokensIn, meta.tokensOut,
     );
+    if (usageId) {
+      result.llmUsageId = usageId;
+    }
   }
 
   private async recordUsageError(
