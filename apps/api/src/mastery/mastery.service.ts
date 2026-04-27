@@ -26,13 +26,13 @@ const VISIBLE_SURFACE_SUMMARY: Record<MasteryLevel, string[]> = {
     'risk',
     'trade',
     'portfolios',
-    'performance',
-    'billing',
-    'onboarding',
   ],
   competitive_participation: [
+    'performance',
     'clubs',
     'tournaments',
+    'billing',
+    'onboarding',
     'visibility and social settings',
   ],
   community_creation: [

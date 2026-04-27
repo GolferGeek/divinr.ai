@@ -31,11 +31,13 @@ async function authenticate(page: Parameters<typeof test>[0]['page']) {
     localStorage.setItem('divinr_email', me.email ?? '');
     localStorage.setItem('divinr_display_name', me.displayName ?? me.email ?? '');
   }, { login: auth, me });
+
+  return { auth, apiBase };
 }
 
 test.describe('mastery facet — smoke', () => {
   test('level 1 hides advanced nav, falls back from clubs, and can opt up to level 2', async ({ page }) => {
-    await authenticate(page);
+    const { auth, apiBase } = await authenticate(page);
 
     await page.goto('/');
     await dismissWelcomeModal(page);
@@ -46,6 +48,10 @@ test.describe('mastery facet — smoke', () => {
     await expect(sidebar.getByText('Analyses')).toBeVisible();
     await expect(sidebar.getByText('Risk')).toBeVisible();
     await expect(sidebar.getByText('Portfolios')).toBeVisible();
+    await expect(sidebar.getByText('Performance')).toHaveCount(0);
+    await expect(sidebar.getByText('Onboarding')).toHaveCount(0);
+    await expect(sidebar.getByText('Billing Summary')).toHaveCount(0);
+    await expect(sidebar.getByText('Visibility & Social')).toHaveCount(0);
     await expect(sidebar.getByText('Clubs')).toHaveCount(0);
     await expect(sidebar.getByText('Your Content')).toHaveCount(0);
 
@@ -66,5 +72,10 @@ test.describe('mastery facet — smoke', () => {
 
     await page.goto('/clubs');
     await expect(page).toHaveURL(/\/clubs$/);
+
+    await page.request.post(`${apiBase}/api/mastery/profile`, {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+      data: { preferredLevel: 'core_trading' },
+    });
   });
 });

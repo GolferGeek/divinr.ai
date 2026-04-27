@@ -87,7 +87,7 @@ export const masteryNavGroups: MasteryNavGroup[] = [
     items: [
       { title: 'Research', icon: compassOutline, to: '/instruments', minLevel: 'builder' },
       { title: 'Analysts', icon: peopleOutline, to: '/analysts', minLevel: 'builder' },
-      { title: 'Performance', icon: trendingUpOutline, to: '/performance', minLevel: 'core_trading' },
+      { title: 'Performance', icon: trendingUpOutline, to: '/performance', minLevel: 'competitive_participation' },
       { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination', minLevel: 'operator', adminOnly: true },
       { title: 'Affinity', icon: heartOutline, to: '/affinity', minLevel: 'operator', adminOnly: true },
     ],
@@ -104,10 +104,10 @@ export const masteryNavGroups: MasteryNavGroup[] = [
     label: 'Settings',
     items: [
       { title: 'Your Content', icon: createOutline, to: '/settings/authored-content', minLevel: 'builder' },
-      { title: 'Onboarding', icon: schoolOutline, to: '/settings/onboarding', minLevel: 'core_trading', alwaysVisible: true },
-      { title: 'Visibility & Social', icon: shieldOutline, to: '/settings/social-opt-outs', minLevel: 'competitive_participation', alwaysVisible: true },
+      { title: 'Onboarding', icon: schoolOutline, to: '/settings/onboarding', minLevel: 'competitive_participation' },
+      { title: 'Visibility & Social', icon: shieldOutline, to: '/settings/social-opt-outs', minLevel: 'competitive_participation' },
       { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine', minLevel: 'operator', adminOnly: true },
-      { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary', minLevel: 'core_trading', alwaysVisible: true },
+      { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary', minLevel: 'competitive_participation' },
     ],
   },
   {
@@ -174,7 +174,7 @@ export const masteryRoutePolicies: MasteryRoutePolicy[] = [
   { path: '/performance', minLevel: 'core_trading' },
   { path: '/settings/onboarding', minLevel: 'core_trading', alwaysVisible: true },
   { path: '/billing/summary', minLevel: 'core_trading', alwaysVisible: true },
-  { path: '/settings/social-opt-outs', minLevel: 'competitive_participation', alwaysVisible: true },
+  { path: '/settings/social-opt-outs', minLevel: 'competitive_participation' },
   { path: '/attribution/mine', minLevel: 'operator', adminOnly: true },
   { path: '/usage', minLevel: 'operator', adminOnly: true },
   { path: '/admin/cost/calibration', minLevel: 'operator', adminOnly: true },
