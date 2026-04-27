@@ -23,6 +23,6 @@ import { LearningPanelService } from './learning-panel.service';
     LearningPanelContextService,
     LearningPanelService,
   ],
-  exports: [LearningPanelService],
+  exports: [LearningPanelService, LearningPanelSchemaService],
 })
 export class LearningPanelModule {}

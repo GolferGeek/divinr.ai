@@ -1,5 +1,9 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import {
+  REQUEST_SCHEMA_BOOTSTRAP_LOCK,
+  RuntimeSchemaBootstrapCoordinator,
+} from '../../bootstrap/runtime-schema-bootstrap-coordinator';
 
 /**
  * Manages all DDL for the prediction schema and default data seeding.
@@ -20,13 +24,15 @@ export class MarketsSchemaService {
 
   async ensureSchema(): Promise<void> {
     if (MarketsSchemaService.schemaReady) return;
-    if (MarketsSchemaService.schemaReadyPromise) {
-      await MarketsSchemaService.schemaReadyPromise;
-      return;
-    }
+    await RuntimeSchemaBootstrapCoordinator.runExclusive(REQUEST_SCHEMA_BOOTSTRAP_LOCK, async () => {
+      if (MarketsSchemaService.schemaReady) return;
+      if (MarketsSchemaService.schemaReadyPromise) {
+        await MarketsSchemaService.schemaReadyPromise;
+        return;
+      }
 
-    MarketsSchemaService.schemaReadyPromise = (async () => {
-      const ddl = `
+      MarketsSchemaService.schemaReadyPromise = (async () => {
+        const ddl = `
       create schema if not exists prediction;
 
       -- Dead table cleanup: drop legacy tables superseded by market_analysts / analyst_config_versions
@@ -75,33 +81,34 @@ export class MarketsSchemaService {
       ${this.dayTraderRunsDdl()}
     `;
 
-      const result = await this.db.rawQuery(ddl);
-      if (result.error) {
-        throw new Error(`Schema creation failed: ${result.error.message}`);
-      }
+        const result = await this.db.rawQuery(ddl);
+        if (result.error) {
+          throw new Error(`Schema creation failed: ${result.error.message}`);
+        }
 
-      await this.preflightUserScopedUniqueness();
-      await this.seedDefaultDomains();
-      await this.seedDefaultSources();
-      await this.seedDefaultRiskDimensions();
-      await this.seedDefaultPositionSizing();
-      await this.migrateAnalystNames();
-      await this.seedDataSources();
-      await this.seedPortfolioManagerAnalyst();
-      await this.seedPortfolioFoundation();
-      await this.dropOrganizationSlugColumns();
-      await this.verifyBaseInstrumentsHaveContracts();
-      MarketsSchemaService.schemaReady = true;
-      this.logger.log('Prediction schema ready');
-    })();
+        await this.preflightUserScopedUniqueness();
+        await this.seedDefaultDomains();
+        await this.seedDefaultSources();
+        await this.seedDefaultRiskDimensions();
+        await this.seedDefaultPositionSizing();
+        await this.migrateAnalystNames();
+        await this.seedDataSources();
+        await this.seedPortfolioManagerAnalyst();
+        await this.seedPortfolioFoundation();
+        await this.dropOrganizationSlugColumns();
+        await this.verifyBaseInstrumentsHaveContracts();
+        MarketsSchemaService.schemaReady = true;
+        this.logger.log('Prediction schema ready');
+      })();
 
-    try {
-      await MarketsSchemaService.schemaReadyPromise;
-    } finally {
-      if (!MarketsSchemaService.schemaReady) {
-        MarketsSchemaService.schemaReadyPromise = null;
+      try {
+        await MarketsSchemaService.schemaReadyPromise;
+      } finally {
+        if (!MarketsSchemaService.schemaReady) {
+          MarketsSchemaService.schemaReadyPromise = null;
+        }
       }
-    }
+    });
   }
 
   /**

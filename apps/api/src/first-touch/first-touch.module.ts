@@ -8,6 +8,6 @@ import { FirstTouchService } from './first-touch.service';
   imports: [OnboardingModule],
   controllers: [FirstTouchController],
   providers: [FirstTouchSchemaService, FirstTouchService],
-  exports: [FirstTouchService],
+  exports: [FirstTouchService, FirstTouchSchemaService],
 })
 export class FirstTouchModule {}

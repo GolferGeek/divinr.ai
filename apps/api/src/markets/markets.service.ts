@@ -3951,7 +3951,6 @@ Respond ONLY with valid JSON.`,
     analystId?: string;
     authorUserId?: string | null;
   }) {
-    await this.schema.ensureSchema();
     await this.requireRead(input.userId);
 
     let query = `select mp.*, ma.display_name as analyst_name

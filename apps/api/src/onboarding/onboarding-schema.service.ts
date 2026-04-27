@@ -1,5 +1,9 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import {
+  REQUEST_SCHEMA_BOOTSTRAP_LOCK,
+  RuntimeSchemaBootstrapCoordinator,
+} from '../bootstrap/runtime-schema-bootstrap-coordinator';
 
 /**
  * Idempotent DDL for authz.user_preferences.
@@ -22,13 +26,28 @@ export class OnboardingSchemaService {
 
   async ensureSchema(): Promise<void> {
     if (OnboardingSchemaService.schemaReady) return;
-    if (OnboardingSchemaService.schemaReadyPromise) {
-      await OnboardingSchemaService.schemaReadyPromise;
-      return;
-    }
+    await RuntimeSchemaBootstrapCoordinator.runExclusive(REQUEST_SCHEMA_BOOTSTRAP_LOCK, async () => {
+      if (OnboardingSchemaService.schemaReady) return;
+      if (OnboardingSchemaService.schemaReadyPromise) {
+        await OnboardingSchemaService.schemaReadyPromise;
+        return;
+      }
 
-    OnboardingSchemaService.schemaReadyPromise = (async () => {
-      const ddl = `
+      OnboardingSchemaService.schemaReadyPromise = (async () => {
+        const ddl = `
+      CREATE SCHEMA IF NOT EXISTS authz;
+
+      CREATE TABLE IF NOT EXISTS authz.users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        display_name TEXT,
+        organization_slug TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        is_testing BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
       CREATE TABLE IF NOT EXISTS authz.user_preferences (
         user_id TEXT PRIMARY KEY REFERENCES authz.users(id) ON DELETE CASCADE,
         onboarding_state JSONB NOT NULL DEFAULT jsonb_build_object(
@@ -47,20 +66,21 @@ export class OnboardingSchemaService {
         ON authz.user_preferences(updated_at);
     `;
 
-      const result = await this.db.rawQuery(ddl);
-      if (result.error) {
-        this.logger.error(`ensureSchema failed: ${result.error.message}`);
-        throw new Error(result.error.message);
-      }
-      OnboardingSchemaService.schemaReady = true;
-    })();
+        const result = await this.db.rawQuery(ddl);
+        if (result.error) {
+          this.logger.error(`ensureSchema failed: ${result.error.message}`);
+          throw new Error(result.error.message);
+        }
+        OnboardingSchemaService.schemaReady = true;
+      })();
 
-    try {
-      await OnboardingSchemaService.schemaReadyPromise;
-    } finally {
-      if (!OnboardingSchemaService.schemaReady) {
-        OnboardingSchemaService.schemaReadyPromise = null;
+      try {
+        await OnboardingSchemaService.schemaReadyPromise;
+      } finally {
+        if (!OnboardingSchemaService.schemaReady) {
+          OnboardingSchemaService.schemaReadyPromise = null;
+        }
       }
-    }
+    });
   }
 }

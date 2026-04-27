@@ -1,5 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import {
+  REQUEST_SCHEMA_BOOTSTRAP_LOCK,
+  RuntimeSchemaBootstrapCoordinator,
+} from '../bootstrap/runtime-schema-bootstrap-coordinator';
 
 @Injectable()
 export class LearningPanelSchemaService {
@@ -13,13 +17,17 @@ export class LearningPanelSchemaService {
 
   async ensureSchema(): Promise<void> {
     if (LearningPanelSchemaService.schemaReady) return;
-    if (LearningPanelSchemaService.schemaReadyPromise) {
-      await LearningPanelSchemaService.schemaReadyPromise;
-      return;
-    }
+    await RuntimeSchemaBootstrapCoordinator.runExclusive(REQUEST_SCHEMA_BOOTSTRAP_LOCK, async () => {
+      if (LearningPanelSchemaService.schemaReady) return;
+      if (LearningPanelSchemaService.schemaReadyPromise) {
+        await LearningPanelSchemaService.schemaReadyPromise;
+        return;
+      }
 
-    LearningPanelSchemaService.schemaReadyPromise = (async () => {
-      const ddl = `
+      LearningPanelSchemaService.schemaReadyPromise = (async () => {
+        const ddl = `
+      CREATE SCHEMA IF NOT EXISTS prediction;
+
       CREATE TABLE IF NOT EXISTS prediction.learning_panel_threads (
         id UUID PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -64,22 +72,23 @@ export class LearningPanelSchemaService {
       );
     `;
 
-      const result = await this.db.rawQuery(ddl);
-      if (result.error) {
-        this.logger.error(`ensureSchema failed: ${result.error.message}`);
-        throw new Error(result.error.message);
-      }
+        const result = await this.db.rawQuery(ddl);
+        if (result.error) {
+          this.logger.error(`ensureSchema failed: ${result.error.message}`);
+          throw new Error(result.error.message);
+        }
 
-      LearningPanelSchemaService.schemaReady = true;
-      this.logger.log('Learning panel schema ready');
-    })();
+        LearningPanelSchemaService.schemaReady = true;
+        this.logger.log('Learning panel schema ready');
+      })();
 
-    try {
-      await LearningPanelSchemaService.schemaReadyPromise;
-    } finally {
-      if (!LearningPanelSchemaService.schemaReady) {
-        LearningPanelSchemaService.schemaReadyPromise = null;
+      try {
+        await LearningPanelSchemaService.schemaReadyPromise;
+      } finally {
+        if (!LearningPanelSchemaService.schemaReady) {
+          LearningPanelSchemaService.schemaReadyPromise = null;
+        }
       }
-    }
+    });
   }
 }

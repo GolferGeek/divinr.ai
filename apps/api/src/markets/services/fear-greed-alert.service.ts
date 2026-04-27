@@ -239,7 +239,6 @@ export class FearGreedAlertService {
   // ─── Read API ─────────────────────────────────────────────────
 
   async getAlerts(userId: string, unreadOnly = false): Promise<FearGreedAlert[]> {
-    await this.schema.ensureSchema();
     const whereClause = unreadOnly
       ? 'where user_id = $1 and is_read = false'
       : 'where user_id = $1';
@@ -255,7 +254,6 @@ export class FearGreedAlertService {
   }
 
   async getUnreadCount(userId: string): Promise<number> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `select count(*) as cnt from prediction.fear_greed_alerts
        where user_id = $1 and is_read = false`,

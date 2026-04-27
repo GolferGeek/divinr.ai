@@ -557,7 +557,6 @@ export class MessagingService {
   }
 
   async getUnreadCounts(userId: string): Promise<Record<string, number>> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT cm.channel_id,
          COUNT(m.id)::int AS unread_count

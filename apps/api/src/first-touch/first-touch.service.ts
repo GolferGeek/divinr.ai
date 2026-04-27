@@ -26,8 +26,6 @@ export class FirstTouchService {
   ) {}
 
   async getState(userId: string): Promise<FirstTouchState> {
-    await this.schema.ensureSchema();
-
     const [touched, onboardingState] = await Promise.all([
       this.fetchTouchedKeys(userId),
       this.onboarding.getState(userId),

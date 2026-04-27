@@ -75,7 +75,6 @@ export class NotificationService {
   }
 
   async getNotifications(userId: string, unreadOnly = false): Promise<Notification[]> {
-    await this.schema.ensureSchema();
     const whereClause = unreadOnly
       ? 'where user_id = $1 and is_read = false'
       : 'where user_id = $1';
@@ -91,7 +90,6 @@ export class NotificationService {
   }
 
   async getUnreadCount(userId: string): Promise<number> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `select count(*) as cnt from prediction.notifications
        where user_id = $1 and is_read = false`,

@@ -157,8 +157,6 @@ export class AffinityService {
    * Get the full affinity profile for a user — all analyst affinities sorted by score.
    */
   async getUserAffinityProfile(userId: string): Promise<Array<UserAnalystAffinity & { display_name: string; slug: string }>> {
-    await this.schema.ensureSchema();
-
     const result = await this.db.rawQuery(
       `select a.*, ma.display_name, ma.slug
        from prediction.user_analyst_affinity a
@@ -306,8 +304,6 @@ export class AffinityService {
    * Get contrarian alerts for a user.
    */
   async getContrarianAlerts(userId: string, unreadOnly = false): Promise<ContrarianAlert[]> {
-    await this.schema.ensureSchema();
-
     const whereClause = unreadOnly
       ? `where a.user_id = $1 and a.is_read = false`
       : `where a.user_id = $1`;

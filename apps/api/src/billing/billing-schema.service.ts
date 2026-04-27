@@ -1,5 +1,9 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import {
+  REQUEST_SCHEMA_BOOTSTRAP_LOCK,
+  RuntimeSchemaBootstrapCoordinator,
+} from '../bootstrap/runtime-schema-bootstrap-coordinator';
 
 @Injectable()
 export class BillingSchemaService {
@@ -13,12 +17,14 @@ export class BillingSchemaService {
 
   async ensureSchema(): Promise<void> {
     if (BillingSchemaService.schemaReady) return;
-    if (BillingSchemaService.schemaReadyPromise) {
-      await BillingSchemaService.schemaReadyPromise;
-      return;
-    }
-    BillingSchemaService.schemaReadyPromise = (async () => {
-      const ddl = `
+    await RuntimeSchemaBootstrapCoordinator.runExclusive(REQUEST_SCHEMA_BOOTSTRAP_LOCK, async () => {
+      if (BillingSchemaService.schemaReady) return;
+      if (BillingSchemaService.schemaReadyPromise) {
+        await BillingSchemaService.schemaReadyPromise;
+        return;
+      }
+      BillingSchemaService.schemaReadyPromise = (async () => {
+        const ddl = `
       CREATE SCHEMA IF NOT EXISTS billing;
 
       CREATE TABLE IF NOT EXISTS billing.subscriptions (
@@ -76,18 +82,19 @@ export class BillingSchemaService {
         created_at timestamptz NOT NULL DEFAULT now()
       );
     `;
-      const result = await this.db.rawQuery(ddl);
-      if (result.error) throw new Error(`Billing schema creation failed: ${result.error.message}`);
-      BillingSchemaService.schemaReady = true;
-      this.logger.log('Billing schema ready');
-    })();
+        const result = await this.db.rawQuery(ddl);
+        if (result.error) throw new Error(`Billing schema creation failed: ${result.error.message}`);
+        BillingSchemaService.schemaReady = true;
+        this.logger.log('Billing schema ready');
+      })();
 
-    try {
-      await BillingSchemaService.schemaReadyPromise;
-    } finally {
-      if (!BillingSchemaService.schemaReady) {
-        BillingSchemaService.schemaReadyPromise = null;
+      try {
+        await BillingSchemaService.schemaReadyPromise;
+      } finally {
+        if (!BillingSchemaService.schemaReady) {
+          BillingSchemaService.schemaReadyPromise = null;
+        }
       }
-    }
+    });
   }
 }

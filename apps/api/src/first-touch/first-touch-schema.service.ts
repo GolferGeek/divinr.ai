@@ -1,5 +1,9 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import {
+  REQUEST_SCHEMA_BOOTSTRAP_LOCK,
+  RuntimeSchemaBootstrapCoordinator,
+} from '../bootstrap/runtime-schema-bootstrap-coordinator';
 
 /**
  * Idempotent DDL for prediction.user_surface_touches.
@@ -22,13 +26,17 @@ export class FirstTouchSchemaService {
 
   async ensureSchema(): Promise<void> {
     if (FirstTouchSchemaService.schemaReady) return;
-    if (FirstTouchSchemaService.schemaReadyPromise) {
-      await FirstTouchSchemaService.schemaReadyPromise;
-      return;
-    }
+    await RuntimeSchemaBootstrapCoordinator.runExclusive(REQUEST_SCHEMA_BOOTSTRAP_LOCK, async () => {
+      if (FirstTouchSchemaService.schemaReady) return;
+      if (FirstTouchSchemaService.schemaReadyPromise) {
+        await FirstTouchSchemaService.schemaReadyPromise;
+        return;
+      }
 
-    FirstTouchSchemaService.schemaReadyPromise = (async () => {
-      const ddl = `
+      FirstTouchSchemaService.schemaReadyPromise = (async () => {
+        const ddl = `
+      CREATE SCHEMA IF NOT EXISTS prediction;
+
       CREATE TABLE IF NOT EXISTS prediction.user_surface_touches (
         user_id           TEXT NOT NULL,
         surface_key       TEXT NOT NULL,
@@ -41,20 +49,21 @@ export class FirstTouchSchemaService {
         ON prediction.user_surface_touches(user_id);
     `;
 
-      const result = await this.db.rawQuery(ddl);
-      if (result.error) {
-        this.logger.error(`ensureSchema failed: ${result.error.message}`);
-        throw new Error(result.error.message);
-      }
-      FirstTouchSchemaService.schemaReady = true;
-    })();
+        const result = await this.db.rawQuery(ddl);
+        if (result.error) {
+          this.logger.error(`ensureSchema failed: ${result.error.message}`);
+          throw new Error(result.error.message);
+        }
+        FirstTouchSchemaService.schemaReady = true;
+      })();
 
-    try {
-      await FirstTouchSchemaService.schemaReadyPromise;
-    } finally {
-      if (!FirstTouchSchemaService.schemaReady) {
-        FirstTouchSchemaService.schemaReadyPromise = null;
+      try {
+        await FirstTouchSchemaService.schemaReadyPromise;
+      } finally {
+        if (!FirstTouchSchemaService.schemaReady) {
+          FirstTouchSchemaService.schemaReadyPromise = null;
+        }
       }
-    }
+    });
   }
 }

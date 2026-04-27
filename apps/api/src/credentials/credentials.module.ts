@@ -9,6 +9,6 @@ import { CredentialsController } from './credentials.controller';
   imports: [BillingModule],
   controllers: [CredentialsController],
   providers: [CredentialsSchemaService, CredentialEncryptionService, CredentialsService],
-  exports: [CredentialsService],
+  exports: [CredentialsService, CredentialsSchemaService],
 })
 export class CredentialsModule {}

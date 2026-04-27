@@ -25,8 +25,6 @@ export class OnboardingService {
   ) {}
 
   async getState(userId: string): Promise<OnboardingState> {
-    await this.schema.ensureSchema();
-
     // Lazy-init the row with the default onboarding_state. If it exists, this
     // is a no-op; if it doesn't, we get the default via the column default.
     const insertResult = await this.db.rawQuery(

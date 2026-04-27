@@ -132,7 +132,6 @@ export class BillingService {
   }
 
   async getSubscription(userId: string): Promise<BillingSubscription | null> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT * FROM billing.subscriptions WHERE user_id = $1`,
       [userId],
