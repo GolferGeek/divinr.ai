@@ -33,6 +33,14 @@ export interface MasteryProfilePayload {
   updatedAt: string;
 }
 
+export interface LearningPanelMasteryContext {
+  currentLevel: MasteryLevel;
+  effectiveLevel: MasteryLevel;
+  nextLevel: MasteryLevel | null;
+  visibleSurfaces: string[];
+  nextSuggestedSteps: string[];
+}
+
 export const MASTERY_LEVEL_ORDER: MasteryLevel[] = [
   'core_trading',
   'competitive_participation',

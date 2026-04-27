@@ -301,6 +301,15 @@ function makeHarness() {
       onboardingCompleted: false,
     }),
   };
+  const mastery = {
+    getLearningPanelContext: async () => ({
+      currentLevel: 'core_trading',
+      effectiveLevel: 'core_trading',
+      nextLevel: 'competitive_participation',
+      visibleSurfaces: ['dashboard', 'learning panel', 'analyses'],
+      nextSuggestedSteps: ['Compare your portfolio against the analyst portfolios.'],
+    }),
+  };
   const marketsLlm = {
     buildExecutionContext: () => ({ conversationId: 'c1' }),
     generateText: async (_ctx: unknown, systemPrompt: string, userPrompt: string) => {
@@ -327,6 +336,7 @@ function makeHarness() {
     schema as any,
     corpus as any,
     contextService as any,
+    mastery as any,
     marketsLlm as any,
     usageQuery as any,
     credentials as any,
@@ -363,11 +373,13 @@ async function main() {
     assert.deepEqual(result.starterPrompts, ['What should I learn first?']);
     assert.ok(Array.isArray(result.threads));
     assert.equal(result.usage.totalCalls, 0);
+    assert.equal(result.mastery.currentLevel, 'core_trading');
+    assert.equal(result.mastery.nextLevel, 'competitive_participation');
   });
 
   await test('createThread persists thread, state, and assistant reply', async () => {
     const { service, threads, messages, states } = makeHarness();
-    const result = await service.createThread('user-1', {
+    const result = await service.createThread('user-1', undefined, {
       originSurfaceKey: 'chat',
       initialMessage: 'What should I learn first?',
     });
@@ -383,11 +395,11 @@ async function main() {
 
   await test('appendMessage persists history and listThreads returns newest preview', async () => {
     const { service } = makeHarness();
-    const created = await service.createThread('user-1', {
+    const created = await service.createThread('user-1', undefined, {
       originSurfaceKey: 'chat',
       initialMessage: 'What should I learn first?',
     });
-    const result = await service.appendMessage('user-1', created.thread.id, {
+    const result = await service.appendMessage('user-1', undefined, created.thread.id, {
       message: 'Tell me more',
       surfaceKey: 'chat',
     });
@@ -408,16 +420,17 @@ async function main() {
 
     try {
       const { service, prompts } = makeHarness();
-      const created = await service.createThread('user-1', {
+      const created = await service.createThread('user-1', undefined, {
         originSurfaceKey: 'chat',
         initialMessage: 'What should I learn first?',
       });
-      await service.appendMessage('user-1', created.thread.id, { message: 'Second question', surfaceKey: 'chat' });
-      const result = await service.appendMessage('user-1', created.thread.id, { message: 'Third question', surfaceKey: 'chat' });
+      await service.appendMessage('user-1', undefined, created.thread.id, { message: 'Second question', surfaceKey: 'chat' });
+      const result = await service.appendMessage('user-1', undefined, created.thread.id, { message: 'Third question', surfaceKey: 'chat' });
 
       assert.ok((result.thread.summary?.summaryMarkdown ?? '').includes('Compacted conversation summary'));
       assert.ok(result.thread.summary?.lastCompactedMessageId);
       assert.equal(result.thread.summary?.messageCount, 6);
+      assert.ok(prompts.at(-1)?.systemPrompt.includes('Current mastery level: core_trading'));
       assert.ok(prompts.at(-1)?.systemPrompt.includes('Compacted thread summary'));
     } finally {
       if (prior === undefined) delete process.env.LEARNING_PANEL_COMPACTION_TRIGGER_MESSAGES;
@@ -428,7 +441,7 @@ async function main() {
   });
 
   await expectThrows(
-    () => makeHarness().service.createThread('user-1', { initialMessage: '   ' }),
+    () => makeHarness().service.createThread('user-1', undefined, { initialMessage: '   ' }),
     BadRequestException,
     'rejects whitespace-only initial message',
   );
@@ -441,7 +454,7 @@ async function main() {
 
   await test('BYO mode validates credential existence without enabling BYO execution', async () => {
     const { service } = makeHarness();
-    const result = await service.createThread('user-1', {
+    const result = await service.createThread('user-1', undefined, {
       originSurfaceKey: 'chat',
       initialMessage: 'Use BYO later',
       mode: 'byo',
@@ -451,7 +464,7 @@ async function main() {
   });
 
   await expectThrows(
-    () => makeHarness().service.createThread('user-1', {
+    () => makeHarness().service.createThread('user-1', undefined, {
       originSurfaceKey: 'chat',
       initialMessage: 'Missing credential',
       mode: 'byo',
@@ -463,7 +476,7 @@ async function main() {
 
   await test('submitFeedback persists helpful/unhelpful state on assistant messages', async () => {
     const { service } = makeHarness();
-    const created = await service.createThread('user-1', {
+    const created = await service.createThread('user-1', undefined, {
       originSurfaceKey: 'chat',
       initialMessage: 'What should I learn first?',
     });
@@ -482,7 +495,7 @@ async function main() {
   await expectThrows(
     async () => {
       const { service } = makeHarness();
-      const created = await service.createThread('user-1', {
+      const created = await service.createThread('user-1', undefined, {
         originSurfaceKey: 'chat',
         initialMessage: 'What should I learn first?',
       });
@@ -498,7 +511,7 @@ async function main() {
     async () => {
       const { service, usageSummary } = makeHarness();
       usageSummary.total_calls = 150;
-      await service.createThread('user-1', {
+      await service.createThread('user-1', undefined, {
         originSurfaceKey: 'chat',
         initialMessage: 'Blocked turn',
       });

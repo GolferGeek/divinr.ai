@@ -1,4 +1,5 @@
 import { useApi } from '../composables/useApi';
+import type { MasteryLevel } from '../mastery/mastery-config';
 
 export interface LearningPanelMessage {
   id: string;
@@ -35,6 +36,14 @@ export interface LearningPanelUsageStatus {
   blocked: boolean;
 }
 
+export interface LearningPanelMasterySummary {
+  currentLevel: MasteryLevel;
+  effectiveLevel: MasteryLevel;
+  nextLevel: MasteryLevel | null;
+  visibleSurfaces: string[];
+  nextSuggestedSteps: string[];
+}
+
 export function useLearningPanelApi() {
   const api = useApi('/api');
 
@@ -46,6 +55,7 @@ export function useLearningPanelApi() {
         modelName: string;
         webResearchEnabled: boolean;
         starterPrompts: string[];
+        mastery: LearningPanelMasterySummary;
         usage: LearningPanelUsageStatus;
         threads: Array<{
           id: string;

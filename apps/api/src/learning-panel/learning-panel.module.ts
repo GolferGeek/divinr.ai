@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { CredentialsModule } from '../credentials/credentials.module';
 import { FirstTouchModule } from '../first-touch/first-touch.module';
+import { MasteryModule } from '../mastery/mastery.module';
 import { MarketsModule } from '../markets/markets.module';
 import { OnboardingModule } from '../onboarding/onboarding.module';
 import { LearningPanelController } from './learning-panel.controller';
@@ -14,6 +15,7 @@ import { LearningPanelService } from './learning-panel.service';
     forwardRef(() => MarketsModule),
     FirstTouchModule,
     OnboardingModule,
+    MasteryModule,
     CredentialsModule,
   ],
   controllers: [LearningPanelController],

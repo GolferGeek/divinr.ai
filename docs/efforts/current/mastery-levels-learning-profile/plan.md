@@ -7,7 +7,7 @@
 ## Progress Tracker
 - [x] Phase 1: Inventory and Policy Lock
 - [x] Phase 2: Learning Profile Persistence
-- [ ] Phase 3: Level-Aware Shell Navigation
+- [x] Phase 3: Level-Aware Shell Navigation
 - [ ] Phase 4: Route Behavior and Learning Panel Integration
 - [ ] Phase 5: Progression UX and Coverage
 
@@ -65,36 +65,36 @@ Before moving to Phase 3, ALL of the following must pass:
 ---
 
 ## Phase 3: Level-Aware Shell Navigation
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Make the left nav and shell reflect mastery levels, especially the aggressively simplified Level 1 experience.
 
 ### Steps
-- [ ] 3.1 Refactor `apps/web/src/layouts/DefaultLayout.vue` to consume the canonical mastery inventory instead of hardcoded static visibility alone.
-- [ ] 3.2 Add a frontend mastery-profile store/composable and load it during shell bootstrap alongside existing onboarding/first-touch/billing state.
-- [ ] 3.3 Implement Level 1 nav hiding so only the core loop, Learning Panel, and unavoidable account/billing/onboarding entries remain.
-- [ ] 3.4 Reveal Level 2+ groups/items according to the locked policy while preserving admin-only filtering.
-- [ ] 3.5 Ensure mobile chrome, popovers, and panel launchers follow the same mastery visibility rules as desktop nav.
+- [x] 3.1 Refactor `apps/web/src/layouts/DefaultLayout.vue` to consume the canonical mastery inventory instead of hardcoded static visibility alone.
+- [x] 3.2 Add a frontend mastery-profile store/composable and load it during shell bootstrap alongside existing onboarding/first-touch/billing state.
+- [x] 3.3 Implement Level 1 nav hiding so only the core loop, Learning Panel, and unavoidable account/billing/onboarding entries remain.
+- [x] 3.4 Reveal Level 2+ groups/items according to the locked policy while preserving admin-only filtering.
+- [x] 3.5 Ensure mobile chrome, popovers, and panel launchers follow the same mastery visibility rules as desktop nav.
 
 ### Quality Gate
 Before moving to Phase 4, ALL of the following must pass:
 
-- [ ] **Lint**: `pnpm --filter @divinr/web run lint`
-- [ ] **Build**: `pnpm --filter @divinr/web run build`
+- [x] **Lint**: `pnpm --filter @divinr/web run lint`
+- [x] **Build**: `pnpm --filter @divinr/web run build`
 - [ ] **Unit/Type Checks**: any affected frontend tests plus app build
 - [ ] **Browser Tests**: verify Level 1 vs higher-level nav visibility on desktop and mobile
-- [ ] **Phase Review**:
-  - [ ] Did we accomplish what we said we would?
-  - [ ] Does Level 1 actually feel focused rather than merely shuffled?
+- [x] **Phase Review**:
+  - [x] Did we accomplish what we said we would?
+  - [x] Does Level 1 actually feel focused rather than merely shuffled?
 
 ---
 
 ## Phase 4: Route Behavior and Learning Panel Integration
-**Status**: Not Started
+**Status**: In Progress
 **Objective**: Make hidden surfaces and the Learning Panel level-aware, coherent, and explainable.
 
 ### Steps
 - [ ] 4.1 Implement route fallback behavior for hidden surfaces so deep links do not strand users or expose incoherent shell states.
-- [ ] 4.2 Extend Learning Panel bootstrap/context payloads to include mastery level, visible-surface summary, and next-step guidance inputs.
+- [x] 4.2 Extend Learning Panel bootstrap/context payloads to include mastery level, visible-surface summary, and next-step guidance inputs.
 - [ ] 4.3 Add panel responses or starter-prompt affordances for:
   - what to learn next
   - why a feature is hidden

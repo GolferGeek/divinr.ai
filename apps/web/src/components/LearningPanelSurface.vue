@@ -5,6 +5,7 @@ import { addOutline, closeOutline, listOutline, thumbsDownOutline, thumbsUpOutli
 import FirstTouchPanel from './FirstTouchPanel.vue';
 import {
   useLearningPanelApi,
+  type LearningPanelMasterySummary,
   type LearningPanelThread,
   type LearningPanelUsageStatus,
 } from '../api/learning-panel';
@@ -63,6 +64,7 @@ const starterPrompts = ref<string[]>([]);
 const threadSummaries = ref<ThreadSummary[]>([]);
 const threadListOpen = ref(false);
 const usage = ref<LearningPanelUsageStatus | null>(null);
+const mastery = ref<LearningPanelMasterySummary | null>(null);
 const feedbackSubmitting = ref<Record<string, boolean>>({});
 const feedbackError = ref<string | null>(null);
 const sendError = ref<string | null>(null);
@@ -85,6 +87,14 @@ const contextLabels: Record<string, string> = {
 
 const contextLabel = computed(() => contextLabels[props.surfaceKey] ?? 'this part of Divinr');
 const hasMessages = computed(() => messages.value.length > 0);
+
+function formatLevelLabel(level: string | null | undefined): string {
+  if (!level) return '';
+  return level
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 function hydrateThread(thread: LearningPanelThread) {
   threadId.value = thread.id;
@@ -138,6 +148,7 @@ async function loadBootstrap() {
     starterPrompts.value = bootstrap.starterPrompts;
     threadSummaries.value = bootstrap.threads;
     usage.value = bootstrap.usage;
+    mastery.value = bootstrap.mastery;
     if (!threadId.value && !hasMessages.value && bootstrap.threads[0]) {
       const result = await api.getThread(bootstrap.threads[0].id);
       hydrateThread(result.thread);
@@ -146,6 +157,7 @@ async function loadBootstrap() {
   } catch {
     starterPrompts.value = [];
     threadSummaries.value = [];
+    mastery.value = null;
   } finally {
     bootstrapping.value = false;
   }
@@ -312,6 +324,10 @@ onMounted(() => {
               <h2>Learning Panel</h2>
             </div>
             <IonNote>Ask about {{ contextLabel }}, risk, portfolios, clubs, tournaments, or what to learn next</IonNote>
+            <IonNote v-if="mastery">
+              Level: {{ formatLevelLabel(mastery.currentLevel) }}
+              <template v-if="mastery.nextLevel">. Next: {{ formatLevelLabel(mastery.nextLevel) }}</template>
+            </IonNote>
             <IonNote v-if="usageLabel(usage)" :color="usage?.blocked ? 'danger' : 'warning'">{{ usageLabel(usage) }}</IonNote>
           </div>
           <IonButton
@@ -334,6 +350,9 @@ onMounted(() => {
           <div v-else-if="!hasMessages" class="chat-empty">
             <p class="chat-empty-title">Welcome to the Learning Panel</p>
             <p class="chat-empty-body">This panel is grounded in Divinr itself. Start with one of these prompts.</p>
+            <ul v-if="mastery?.nextSuggestedSteps?.length" class="mastery-next-steps">
+              <li v-for="step in mastery.nextSuggestedSteps" :key="step">{{ step }}</li>
+            </ul>
             <div class="suggestions">
               <button
                 v-for="prompt in starterPrompts"
@@ -592,6 +611,18 @@ onMounted(() => {
 
 .chat-empty-body {
   margin: 0;
+}
+
+.mastery-next-steps {
+  margin: 14px auto 0;
+  padding-left: 18px;
+  max-width: 520px;
+  text-align: left;
+  color: var(--ion-text-color);
+}
+
+.mastery-next-steps li + li {
+  margin-top: 8px;
 }
 
 .loading-state {

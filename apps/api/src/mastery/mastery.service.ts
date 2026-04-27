@@ -4,6 +4,7 @@ import { FirstTouchService } from '../first-touch/first-touch.service';
 import { LlmUsageQueryService } from '../markets/services/llm-usage-query.service';
 import { OnboardingService } from '../onboarding/onboarding.service';
 import {
+  type LearningPanelMasteryContext,
   type MasteryLevel,
   MASTERY_LEVEL_ORDER,
   type MasteryMilestones,
@@ -15,6 +16,43 @@ interface LearningProfileRow {
   preferred_level: MasteryLevel | null;
   updated_at: string;
 }
+
+const ADMIN_ROLES = new Set(['super-admin', 'owner']);
+const VISIBLE_SURFACE_SUMMARY: Record<MasteryLevel, string[]> = {
+  core_trading: [
+    'dashboard',
+    'learning panel',
+    'analyses',
+    'risk',
+    'trade',
+    'portfolios',
+    'performance',
+    'billing',
+    'onboarding',
+  ],
+  competitive_participation: [
+    'clubs',
+    'tournaments',
+    'visibility and social settings',
+  ],
+  community_creation: [
+    'club creation',
+    'tournament creation',
+    'messages',
+  ],
+  builder: [
+    'research',
+    'analysts',
+    'your content',
+  ],
+  operator: [
+    'operator dashboards',
+    'system runs',
+    'LLM usage',
+    'cost modeling',
+    'attribution admin',
+  ],
+};
 
 @Injectable()
 export class MasteryService {
@@ -68,6 +106,23 @@ export class MasteryService {
     }
 
     return this.getProfile(userId);
+  }
+
+  async getLearningPanelContext(
+    userId: string,
+    userRole?: string,
+  ): Promise<LearningPanelMasteryContext> {
+    const profile = await this.getProfile(userId);
+    const effectiveLevel = ADMIN_ROLES.has(userRole ?? '')
+      ? 'operator'
+      : profile.currentLevel;
+    return {
+      currentLevel: profile.currentLevel,
+      effectiveLevel,
+      nextLevel: this.getNextLevel(profile.currentLevel),
+      visibleSurfaces: this.getVisibleSurfaceSummary(effectiveLevel),
+      nextSuggestedSteps: profile.nextSuggestedSteps,
+    };
   }
 
   private async getOrCreateProfileRow(userId: string): Promise<LearningProfileRow> {
@@ -170,6 +225,20 @@ export class MasteryService {
       suggestions.push('Use the Learning Panel to review what is available at your current level and what to learn next.');
     }
     return suggestions.slice(0, 3);
+  }
+
+  private getNextLevel(level: MasteryLevel): MasteryLevel | null {
+    const idx = MASTERY_LEVEL_ORDER.indexOf(level);
+    if (idx < 0 || idx >= MASTERY_LEVEL_ORDER.length - 1) return null;
+    return MASTERY_LEVEL_ORDER[idx + 1];
+  }
+
+  private getVisibleSurfaceSummary(level: MasteryLevel): string[] {
+    const idx = MASTERY_LEVEL_ORDER.indexOf(level);
+    if (idx < 0) return [...VISIBLE_SURFACE_SUMMARY.core_trading];
+    return MASTERY_LEVEL_ORDER
+      .slice(0, idx + 1)
+      .flatMap((entry) => VISIBLE_SURFACE_SUMMARY[entry]);
   }
 
   private readExists(

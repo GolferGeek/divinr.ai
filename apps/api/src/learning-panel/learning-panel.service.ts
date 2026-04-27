@@ -10,6 +10,8 @@ import {
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
 import { randomUUID } from 'node:crypto';
 import { CredentialsService } from '../credentials/credentials.service';
+import { MasteryService } from '../mastery/mastery.service';
+import type { LearningPanelMasteryContext } from '../mastery/mastery.types';
 import { MarketsLlmService, type LlmTextResult } from '../markets/services/markets-llm.service';
 import { LlmUsageQueryService } from '../markets/services/llm-usage-query.service';
 import {
@@ -118,6 +120,7 @@ export interface LearningPanelBootstrapPayload {
     preview: string;
   }>;
   usage: LearningPanelUsageStatus;
+  mastery: LearningPanelMasteryContext;
 }
 
 @Injectable()
@@ -129,12 +132,17 @@ export class LearningPanelService {
     @Inject(LearningPanelSchemaService) private readonly schema: LearningPanelSchemaService,
     @Inject(LearningPanelCorpusService) private readonly corpus: LearningPanelCorpusService,
     @Inject(LearningPanelContextService) private readonly contextService: LearningPanelContextService,
+    @Inject(MasteryService) private readonly mastery: MasteryService,
     @Inject(MarketsLlmService) private readonly marketsLlm: MarketsLlmService,
     @Inject(LlmUsageQueryService) private readonly usageQuery: LlmUsageQueryService,
     @Inject(CredentialsService) private readonly credentials: CredentialsService,
   ) {}
 
-  async getBootstrap(userId: string, surfaceKey?: string): Promise<LearningPanelBootstrapPayload> {
+  async getBootstrap(
+    userId: string,
+    surfaceKey?: string,
+    userRole?: string,
+  ): Promise<LearningPanelBootstrapPayload> {
     return {
       enabled: this.isEnabled(),
       modelProvider: this.getConfig().provider,
@@ -143,6 +151,7 @@ export class LearningPanelService {
       starterPrompts: this.corpus.getStarterPrompts(surfaceKey),
       threads: await this.listThreads(userId),
       usage: await this.getUsageStatus(userId),
+      mastery: await this.mastery.getLearningPanelContext(userId, userRole),
     };
   }
 
@@ -195,6 +204,7 @@ export class LearningPanelService {
 
   async createThread(
     userId: string,
+    userRole: string | undefined,
     input: {
       originSurfaceKey?: string;
       initialMessage: string;
@@ -240,6 +250,7 @@ export class LearningPanelService {
 
     const assistantMessage = await this.generateAssistantMessage(
       userId,
+      userRole,
       message,
       input.originSurfaceKey,
       input.instrumentId,
@@ -258,6 +269,7 @@ export class LearningPanelService {
 
   async appendMessage(
     userId: string,
+    userRole: string | undefined,
     threadId: string,
     input: {
       message: string;
@@ -288,6 +300,7 @@ export class LearningPanelService {
 
     const assistantMessage = await this.generateAssistantMessage(
       userId,
+      userRole,
       message,
       input.surfaceKey ?? thread.originSurfaceKey ?? undefined,
       input.instrumentId,
@@ -770,6 +783,7 @@ export class LearningPanelService {
 
   private async generateAssistantMessage(
     userId: string,
+    userRole: string | undefined,
     message: string,
     surfaceKey?: string,
     instrumentId?: string,
@@ -778,6 +792,7 @@ export class LearningPanelService {
   ): Promise<Omit<LearningPanelMessageRecord, 'threadId'>> {
     const config = this.getConfig();
     const context = await this.contextService.getUserContext(userId, surfaceKey);
+    const masteryContext = await this.mastery.getLearningPanelContext(userId, userRole);
     const citations = (await this.corpus.getRelevantChunks(surfaceKey)).slice(
       0,
       config.maxRetrievedChunks,
@@ -788,6 +803,7 @@ export class LearningPanelService {
       : '';
     const systemPrompt = this.buildSystemPrompt(
       context,
+      masteryContext,
       citations,
       marketContext,
       surfaceKey,
@@ -851,6 +867,7 @@ export class LearningPanelService {
 
   private buildSystemPrompt(
     context: LearningPanelUserContext,
+    masteryContext: LearningPanelMasteryContext,
     citations: LearningPanelCorpusChunk[],
     marketContext: string,
     surfaceKey: string | undefined,
@@ -867,6 +884,11 @@ export class LearningPanelService {
       'Explain analyses, signals, risk, portfolios, clubs, tournaments, and visible app capabilities.',
       'Use the words "analysis" and "signal" in user-facing language. Avoid "prediction", "advice", and "recommendation".',
       'Do not provide investment advice, trade recommendations, or open web research.',
+      `Current mastery level: ${masteryContext.currentLevel}`,
+      `Effective visible level in the shell: ${masteryContext.effectiveLevel}`,
+      `Visible surfaces at this level: ${masteryContext.visibleSurfaces.join(', ')}`,
+      `Suggested next steps: ${masteryContext.nextSuggestedSteps.join(' | ')}`,
+      masteryContext.nextLevel ? `Next mastery level: ${masteryContext.nextLevel}` : 'No higher mastery level is available.',
       `Current surface: ${surfaceKey ?? 'general'}`,
       `Touched surfaces: ${seen}`,
       `Completed onboarding steps: ${steps}`,

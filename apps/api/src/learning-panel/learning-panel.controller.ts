@@ -41,7 +41,7 @@ export class LearningPanelController {
     @Query('surfaceKey') surfaceKey?: string,
   ) {
     const user = this.getUser(req);
-    return this.learningPanel.getBootstrap(user.id, surfaceKey);
+    return this.learningPanel.getBootstrap(user.id, surfaceKey, user.role);
   }
 
   @Get('threads')
@@ -63,7 +63,7 @@ export class LearningPanelController {
     },
   ) {
     const user = this.getUser(req);
-    return this.learningPanel.createThread(user.id, body);
+    return this.learningPanel.createThread(user.id, user.role, body);
   }
 
   @Get('threads/:threadId')
@@ -89,7 +89,7 @@ export class LearningPanelController {
     },
   ) {
     const user = this.getUser(req);
-    return this.learningPanel.appendMessage(user.id, threadId, body);
+    return this.learningPanel.appendMessage(user.id, user.role, threadId, body);
   }
 
   @Post('messages/:messageId/feedback')
