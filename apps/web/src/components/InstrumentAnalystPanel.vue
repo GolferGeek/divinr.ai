@@ -37,6 +37,20 @@ function fmtConfidence(v: unknown): string {
   // API returns integer percentages (e.g. 70 for 70%), not decimals
   return n > 1 ? `${Math.round(n)}%` : `${Math.round(n * 100)}%`;
 }
+
+function ratingForDirection(direction: unknown): 'Buy' | 'Sell' | 'Hold' {
+  const normalized = String(direction ?? '').toLowerCase();
+  if (normalized === 'up' || normalized === 'bullish' || normalized === 'long') return 'Buy';
+  if (normalized === 'down' || normalized === 'bearish' || normalized === 'short') return 'Sell';
+  return 'Hold';
+}
+
+function ratingColor(direction: unknown): 'success' | 'danger' | 'medium' {
+  const rating = ratingForDirection(direction);
+  if (rating === 'Buy') return 'success';
+  if (rating === 'Sell') return 'danger';
+  return 'medium';
+}
 </script>
 
 <template>
@@ -52,9 +66,19 @@ function fmtConfidence(v: unknown): string {
       <div style="margin-bottom:12px">
         <div style="font-weight:600;margin-bottom:4px">Latest Signal</div>
         <div v-if="latestPrediction">
-          <strong>{{ latestPrediction['predicted_direction'] }}</strong>
-          · {{ fmtConfidence(latestPrediction['confidence']) }}
-          · horizon {{ latestPrediction['horizon_minutes'] }}m
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <ion-note style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em">
+              Analyst view
+            </ion-note>
+            <ion-note
+              :color="ratingColor(latestPrediction['predicted_direction'])"
+              style="font-size:0.85rem;font-weight:700"
+            >
+              {{ ratingForDirection(latestPrediction['predicted_direction']) }}
+            </ion-note>
+            <span style="font-size:0.85rem;opacity:0.75">{{ fmtConfidence(latestPrediction['confidence']) }} confidence</span>
+            <span style="font-size:0.85rem;opacity:0.75">horizon {{ latestPrediction['horizon_minutes'] }}m</span>
+          </div>
           <div style="opacity:0.7;font-size:0.8rem">{{ fmtDate(latestPrediction['created_at']) }}</div>
           <div style="margin-top:4px">{{ latestPrediction['rationale'] }}</div>
           <PredictionSources

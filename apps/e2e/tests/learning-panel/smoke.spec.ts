@@ -86,7 +86,8 @@ test.describe('learning-panel facet — smoke', () => {
     await dismissWelcomeModal(page);
 
     await expect(page).toHaveURL(/\/predictions$/);
-    await page.getByRole('button', { name: /open learning panel/i }).click();
+    await expect(page.getByRole('button', { name: /open learning panel quick access/i })).toBeVisible();
+    await page.getByRole('button', { name: 'Open Learning Panel', exact: true }).click();
     await expect(page.getByRole('heading', { name: /learning panel/i, level: 2 })).toBeVisible({
       timeout: 15_000,
     });

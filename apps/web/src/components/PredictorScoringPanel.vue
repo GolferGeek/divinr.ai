@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { usePredictorsStore } from '../stores/predictors.store';
 import { useApi } from '../composables/useApi';
+import { useMasteryStore } from '../stores/mastery.store';
 import {
   IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonButton, IonChip, IonList, IonItem, IonLabel, IonCheckbox, IonNote, IonIcon,
@@ -19,11 +20,26 @@ function fmtDate(raw: unknown): string {
 const props = defineProps<{ instrumentId: string }>();
 const predictors = usePredictorsStore();
 const api = useApi();
+const mastery = useMasteryStore();
 
 const articles = ref<Record<string, unknown>[]>([]);
 const selectedArticles = ref<string[]>([]);
 const scoringResult = ref<Record<string, unknown> | null>(null);
 const loading = ref(false);
+const canRescoreArticles = computed(() => mastery.canViewLevel('builder'));
+const groupedPredictors = computed(() => {
+  const groups = new Map<string, Record<string, unknown>[]>();
+  for (const item of predictors.items) {
+    const key = String(item['analyst_display_name'] || 'Shared context');
+    const existing = groups.get(key) ?? [];
+    existing.push(item);
+    groups.set(key, existing);
+  }
+  return Array.from(groups.entries()).map(([analystName, items]) => ({
+    analystName,
+    items,
+  }));
+});
 
 async function loadArticles() {
   try {
@@ -70,7 +86,7 @@ predictors.fetch(props.instrumentId);
     </p>
 
     <!-- Article Selection -->
-    <ion-card style="margin-bottom:16px">
+    <ion-card v-if="canRescoreArticles" style="margin-bottom:16px">
       <ion-card-header>
         <ion-card-title style="font-size:0.85rem">Available Articles ({{ articles.length }})</ion-card-title>
       </ion-card-header>
@@ -80,7 +96,7 @@ predictors.fetch(props.instrumentId);
             <ion-checkbox
               slot="start"
               :checked="selectedArticles.includes(String(a['id']))"
-              @ion-change="(e: any) => toggleArticle(String(a['id']), e.detail.checked)"
+              @ionChange="(e: CustomEvent) => toggleArticle(String(a['id']), Boolean((e as CustomEvent<{ checked: boolean }>).detail.checked))"
             />
             <ion-label>{{ a['title'] || '(untitled)' }} -- {{ String(a['source_origin'] || 'unknown') }}</ion-label>
           </ion-item>
@@ -106,37 +122,46 @@ predictors.fetch(props.instrumentId);
 
     <!-- Scored articles -->
     <h3 style="margin-bottom:8px">Scored articles ({{ predictors.items.length }})</h3>
-    <ion-list v-if="predictors.items.length > 0" data-test="article-relevance-list">
-      <ion-item v-for="p in predictors.items" :key="String(p['id'])" data-test="article-relevance-row">
-        <ion-label>
-          <h3 style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <ion-chip :color="Number(p['relevance_score']) > 0.7 ? 'success' : Number(p['relevance_score']) > 0.4 ? 'warning' : 'danger'" style="font-size:0.7rem;height:20px">
-              {{ Number(p['relevance_score']).toFixed(2) }}
-            </ion-chip>
-            <ion-chip style="font-size:0.7rem;height:20px">{{ p['status'] }}</ion-chip>
-            <a
-              v-if="p['article_url']"
-              :href="String(p['article_url'])"
-              target="_blank"
-              rel="noopener noreferrer"
-              style="font-weight:500;text-decoration:underline;display:inline-flex;align-items:center;gap:4px"
-            >
-              {{ p['article_title'] || '(untitled article)' }}
-              <ion-icon :icon="openOutline" style="font-size:0.85rem" />
-            </a>
-            <span v-else style="font-weight:500">
-              {{ p['article_title'] || '(untitled article)' }}
-            </span>
-          </h3>
-          <p style="font-size:0.72rem;opacity:0.7;margin:2px 0">
-            <span v-if="p['analyst_display_name']">Scored by {{ p['analyst_display_name'] }}</span>
-            <span v-if="p['analyst_display_name'] && p['article_published_at']"> · </span>
-            <span v-if="p['article_published_at']">Published {{ fmtDate(p['article_published_at']) }}</span>
-          </p>
-          <p style="font-size:0.75rem;margin:4px 0 0">{{ String(p['rationale'] || '').slice(0, 200) }}</p>
-        </ion-label>
-      </ion-item>
-    </ion-list>
+    <div v-if="groupedPredictors.length > 0" data-test="article-relevance-list">
+      <ion-card
+        v-for="group in groupedPredictors"
+        :key="group.analystName"
+        style="margin-bottom:12px"
+      >
+        <ion-card-header>
+          <ion-card-title style="font-size:0.95rem">{{ group.analystName }}</ion-card-title>
+        </ion-card-header>
+        <ion-list>
+          <ion-item v-for="p in group.items" :key="String(p['id'])" data-test="article-relevance-row">
+            <ion-label>
+              <h3 style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <ion-chip :color="Number(p['relevance_score']) > 0.7 ? 'success' : Number(p['relevance_score']) > 0.4 ? 'warning' : 'danger'" style="font-size:0.7rem;height:20px">
+                  {{ Number(p['relevance_score']).toFixed(2) }}
+                </ion-chip>
+                <ion-chip style="font-size:0.7rem;height:20px">{{ p['status'] }}</ion-chip>
+                <a
+                  v-if="p['article_url']"
+                  :href="String(p['article_url'])"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style="font-weight:500;text-decoration:underline;display:inline-flex;align-items:center;gap:4px"
+                >
+                  {{ p['article_title'] || '(untitled article)' }}
+                  <ion-icon :icon="openOutline" style="font-size:0.85rem" />
+                </a>
+                <span v-else style="font-weight:500">
+                  {{ p['article_title'] || '(untitled article)' }}
+                </span>
+              </h3>
+              <p style="font-size:0.72rem;opacity:0.7;margin:2px 0">
+                <span v-if="p['article_published_at']">Published {{ fmtDate(p['article_published_at']) }}</span>
+              </p>
+              <p style="font-size:0.75rem;margin:4px 0 0">{{ String(p['rationale'] || '').slice(0, 200) }}</p>
+            </ion-label>
+          </ion-item>
+        </ion-list>
+      </ion-card>
+    </div>
     <ion-note v-else color="primary" style="display:block;padding:8px">No articles scored yet for this ticker.</ion-note>
   </div>
 </template>

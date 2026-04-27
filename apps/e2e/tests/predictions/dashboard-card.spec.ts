@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { loginAs } from '../../fixtures/login.js';
 import { dismissWelcomeModal } from '../../fixtures/onboarding.js';
 
 /**
@@ -11,7 +12,7 @@ import { dismissWelcomeModal } from '../../fixtures/onboarding.js';
  */
 
 test.describe('predictions facet — dashboard card shape', () => {
-  test('slim card shape: chip row, single View CTA, Read-more opens modal', async ({ page }) => {
+  test('slim card shape: chip row, View opens instrument detail, Read-more opens modal', async ({ page }) => {
     const serverErrors: string[] = [];
     page.on('response', (resp) => {
       const u = resp.url();
@@ -19,6 +20,12 @@ test.describe('predictions facet — dashboard card shape', () => {
         serverErrors.push(`${resp.status()} ${u}`);
       }
     });
+
+    await loginAs(
+      page,
+      process.env.TEST_USER_EMAIL ?? 'testing-team@divinr.ai',
+      process.env.TEST_USER_PASSWORD ?? 'change-me',
+    );
 
     await page.goto('/');
     await dismissWelcomeModal(page);
@@ -42,6 +49,19 @@ test.describe('predictions facet — dashboard card shape', () => {
 
     const viewBtn = firstCard.locator('[data-test="dashboard-card-view"]');
     await expect(viewBtn).toBeVisible();
+    await viewBtn.click();
+    await expect(page).toHaveURL(/\/instruments\/[\w-]+/, { timeout: 10_000 });
+    await expect(page.getByRole('button', { name: /^back$/i })).toBeVisible({ timeout: 10_000 });
+
+    await page.goBack();
+    await page.waitForLoadState('networkidle');
+
+    const readMore = firstCard.locator('[data-test="dashboard-card-read-more"]');
+    const hasReadMore = await readMore.count();
+    if (hasReadMore > 0) {
+      await readMore.click();
+      await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
+    }
 
     expect(serverErrors, `unexpected 5xx: ${serverErrors.join('\n')}`).toEqual([]);
   });

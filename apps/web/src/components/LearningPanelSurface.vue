@@ -41,6 +41,7 @@ interface ThreadSummary {
 
 const props = withDefaults(defineProps<{
   surfaceKey?: string;
+  instrumentId?: string;
   showFirstTouch?: boolean;
   embedded?: boolean;
   showClose?: boolean;
@@ -48,6 +49,7 @@ const props = withDefaults(defineProps<{
   requiredLevel?: string;
 }>(), {
   surfaceKey: 'chat',
+  instrumentId: '',
   showFirstTouch: true,
   embedded: false,
   showClose: false,
@@ -323,6 +325,7 @@ async function sendMessage(prompt?: string) {
       const result = await api.createThread({
         originSurfaceKey: props.surfaceKey,
         initialMessage: text,
+        instrumentId: props.instrumentId || undefined,
       });
       hydrateThread(result.thread);
       usage.value = result.usage;
@@ -330,6 +333,7 @@ async function sendMessage(prompt?: string) {
       const result = await api.appendMessage(threadId.value, {
         message: text,
         surfaceKey: props.surfaceKey,
+        instrumentId: props.instrumentId || undefined,
       });
       hydrateThread(result.thread);
       usage.value = result.usage;

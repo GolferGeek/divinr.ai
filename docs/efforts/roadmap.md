@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-27 (archived mastery-levels-learning-profile; no current effort selected)
+**Last updated:** 2026-04-27 (archived mastery-levels-learning-profile; started ethan-feedback follow-up)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -36,13 +36,13 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 **Infrastructure:** DGX Spark running gemma4 (local inference, zero cost). Hardening in place (backups, service recovery).
 **Users:** 3 active (demo-user, golfergeek, ethan); St. Thomas intern joining shortly; broader beta pending architecture work.
 **Business model direction:** See [master-intention.md](master-intention.md). Single $50/mo Basic tier. Per-item authorship ($20/instrument, $60/analyst). Clubs are purely social. No multi-tier ladder. Cost-pass-through for students.
-**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) and `stripe-integration` is archived. `schema-bootstrap-hardening` is complete: explicit bootstrap/readiness is in place, cold-start shell loads are stable, and request-time schema mutation has been removed from normal API flows. `platform-learning-panel` is complete through Phase 5 (metering, limits, feedback). `mastery-levels-learning-profile` is now archived after shell, Learning Panel, admin/operator, and browser coverage closeout. `ethan-feedback-2026-04-22` remains the next queued polish batch.
+**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) and `stripe-integration` is archived. `schema-bootstrap-hardening` is complete: explicit bootstrap/readiness is in place, cold-start shell loads are stable, and request-time schema mutation has been removed from normal API flows. `platform-learning-panel` is complete through Phase 5 (metering, limits, feedback). `mastery-levels-learning-profile` is archived after shell, Learning Panel, admin/operator, and browser coverage closeout. The active polish pass is now the Ethan follow-up batch covering Research clarity, trade confirmation, instrument-detail affordances, and persistent Learning Panel access.
 
 ---
 
 ## Current Effort
 
-- No current effort selected.
+- **[ethan-feedback-followup-2026-04-27](current/ethan-feedback-followup-2026-04-27/intention.md)** — second beta polish pass from Ethan: clearer Research by analyst, visible trade confirmation and recent activity, instrument-detail affordance fixes, and persistent Learning Panel access with page context.
 
 ---
 
@@ -75,7 +75,6 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Next — Queued Efforts
 
-- `ethan-feedback-2026-04-22` — five-item beta-polish batch from Ethan, still valid but no longer the active effort in this checkout.
 - `student-accounts` — .edu-gated student accounts with cost-pass-through pricing, once the current beta shell is considered stable enough for broader rollout.
 
 ---
