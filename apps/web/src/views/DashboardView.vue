@@ -122,6 +122,10 @@ function openTradeModal(pred: DashboardPrediction) {
   modalOpen.value = true;
 }
 
+function openInstrumentDetail(instrumentId: string) {
+  router.push(`/instruments/${instrumentId}`);
+}
+
 const tournamentStore = useTournamentStore();
 const clubStore = useClubStore();
 const showCommunitySurfaces = computed(() => mastery.canViewLevel('competitive_participation'));
@@ -452,7 +456,7 @@ function formatStartShort(iso: string): string {
                   size="small"
                   color="primary"
                   data-test="dashboard-card-view"
-                  @click.stop="openAnalystModal(pred, 0)"
+                  @click.stop="openInstrumentDetail(pred.instrument_id)"
                 >View</ion-button>
               </div>
               </div>
