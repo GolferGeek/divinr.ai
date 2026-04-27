@@ -18,7 +18,9 @@ Two units in `systemd/` boot the production stack on the spark machine:
 ```bash
 cd ~/projects/divinr.ai
 git pull
-pnpm install && pnpm --filter @divinr/api run build  # if dist/ is stale
+pnpm install
+pnpm --filter @divinr/api run build
+pnpm --filter @divinr/web run build
 bash scripts/ops/install-services.sh
 ```
 
@@ -32,7 +34,7 @@ automatically, or honors `NODE_BIN=...` / `STRIPE_BIN=...` overrides.
 
 ```bash
 pnpm spark:restart   # ssh into spark and bounce both units
-pnpm spark:deploy    # ssh into spark, git pull, install, build, restart
+pnpm spark:deploy    # ssh into spark, git pull, install, rebuild api + web, restart
 ```
 
 Both wrap `ssh -t golfergeek@spark-51e5.local …`; the TTY lets sudo
@@ -50,7 +52,7 @@ journalctl -u divinr-api -f
 For a code-change deploy from on-spark, pull and rebuild first:
 
 ```bash
-git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm restart
+git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build && pnpm restart
 ```
 
 **Do not run `pnpm --filter @divinr/api run dev:up` on spark after
