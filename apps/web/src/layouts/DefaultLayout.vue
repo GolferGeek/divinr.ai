@@ -78,6 +78,7 @@ const visibleGroups = computed(() =>
     }))
     .filter(g => g.items.length > 0),
 );
+const showActivityFooter = computed(() => mastery.canViewLevel('competitive_participation'));
 
 // Load contrarian alerts and notification count on mount
 affinityStore.fetchContrarianAlerts(true);
@@ -217,7 +218,7 @@ onBeforeUnmount(() => {
             </template>
           </template>
         </ul>
-        <div class="sidebar-footer">
+        <div v-if="showActivityFooter" class="sidebar-footer">
           <button
             class="activity-btn"
             :class="{ active: activity.panelOpen }"

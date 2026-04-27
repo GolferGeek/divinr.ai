@@ -53,6 +53,7 @@ test.describe('mastery facet — smoke', () => {
     await expect(sidebar.getByText('Billing Summary')).toHaveCount(0);
     await expect(sidebar.getByText('Visibility & Social')).toHaveCount(0);
     await expect(sidebar.getByText('Clubs')).toHaveCount(0);
+    await expect(sidebar.getByText('Activity')).toHaveCount(0);
     await expect(sidebar.getByText('Your Content')).toHaveCount(0);
 
     await page.goto('/clubs');
