@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-27 (completed schema-bootstrap-hardening; resumed platform-learning-panel for Phase 5)
+**Last updated:** 2026-04-27 (completed platform-learning-panel; promoted mastery-levels-learning-profile to current)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -36,17 +36,20 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 **Infrastructure:** DGX Spark running gemma4 (local inference, zero cost). Hardening in place (backups, service recovery).
 **Users:** 3 active (demo-user, golfergeek, ethan); St. Thomas intern joining shortly; broader beta pending architecture work.
 **Business model direction:** See [master-intention.md](master-intention.md). Single $50/mo Basic tier. Per-item authorship ($20/instrument, $60/analyst). Clubs are purely social. No multi-tier ladder. Cost-pass-through for students.
-**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) — single $50/mo Basic tier + trial → read-only → purge lifecycle + itemized bill + admin read-only view all shipped; **no Stripe code or env vars required yet** (`stripe-integration` picks that up next). `schema-bootstrap-hardening` is complete: explicit bootstrap/readiness is in place, cold-start shell loads are stable, and request-time schema mutation has been removed from normal API flows. `platform-learning-panel` is resumed for Phase 5 (metering, limits, feedback). `ethan-feedback-2026-04-22` remains queued as a follow-on polish batch.
+**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) — single $50/mo Basic tier + trial → read-only → purge lifecycle + itemized bill + admin read-only view all shipped; **no Stripe code or env vars required yet** (`stripe-integration` picks that up next). `schema-bootstrap-hardening` is complete: explicit bootstrap/readiness is in place, cold-start shell loads are stable, and request-time schema mutation has been removed from normal API flows. `platform-learning-panel` is complete through Phase 5 (metering, limits, feedback). `mastery-levels-learning-profile` is now current. `ethan-feedback-2026-04-22` remains queued as a follow-on polish batch.
 
 ---
 
 ## Current Effort
 
-- **[platform-learning-panel](current/platform-learning-panel/intention.md)** — finish Phase 5: usage metering, per-user limits, and helpful/unhelpful feedback on top of the shell-integrated, grounded Learning Panel.
+- **[mastery-levels-learning-profile](current/mastery-levels-learning-profile/intention.md)** — familiarity-based progressive disclosure, left-nav simplification, and a persisted user learning profile that the Learning Panel can explain.
 
 ---
 
 ## Recently Shipped
+
+- **[platform-learning-panel](archive/platform-learning-panel/intention.md)** (2026-04-27) — delivered a shell-integrated, Divinr-grounded Learning Panel with persistent threads, bounded compaction, visible citations, usage metering, per-user monthly limits, and inline helpful/unhelpful feedback. `/chat` now reuses the shared panel surface, the shell opens it as a drawer/sheet, and admin/browser coverage now proves Learning Panel usage appears in the existing LLM usage surfaces.
+- **[schema-bootstrap-hardening](archive/schema-bootstrap-hardening/intention.md)** (2026-04-27) — removed request-time schema mutation from normal API flows, introduced explicit bootstrap/readiness, stabilized shell cold starts, and decomposed the worst runtime DDL hotspots so the Learning Panel and shell can run without bootstrap deadlocks.
 
 - **[user-billing-model](archive/user-billing-model/intention.md)** (2026-04-23, PR #69) — single $50/mo Basic tier landed end-to-end. `billing.subscription_events` append-only audit log + `expired_at` / `purge_scheduled_at` columns; `BillingService.{isReadOnly, markExpired, computeLifecycleTransitions, computePurgeCandidates, migrateBackfillSubscriptions}`; `ReadOnlyGuard` + `@SkipReadOnly()` decorator gating every mutating route on `canceled|dormant`; trial seeding threaded into invite + club-code signup. `billing.trial_ended_no_card`, `billing.purge_warning_30d`, `billing.subscription_lifecycle_transition` events emitted on state transitions. Per-user social opt-outs (5 booleans on `authz.users`) threaded through 8 discovery surfaces via `applyVisibilityFilter`. Itemized `$50 + authored items + BYO platform fee = total` bill view; public `/pricing` page; `TrialCountdown` chip + `ReadOnlyBanner` in `DefaultLayout`. Read-only admin view at `/admin/users/:id/billing`. Idempotent migration backfilled trial rows for every existing user. 9 Playwright specs across new `billing` + `admin` projects. Deep testing skill `divinr-billing-browser-skill`. **No Stripe code or env vars required yet** — `stripe-integration` (queued in `future/`) picks up the payment wiring.
 - **[user-billing-model Phase 1](archive/user-billing-model/plan.md)** (2026-04-19, PR #68) — doc reconciliation only: annotated three archived `learning-clubs` documents with forward-pointers to `master-intention.md` §8 (billing-through-clubs retired concept) and landed an 8-phase plan on disk. Deliberately small, tight merge to pause before code changes per user preference.
@@ -71,7 +74,6 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Next — Queued Efforts
 
-- `mastery-levels-learning-profile` — familiarity-based progressive disclosure and left-nav simplification, intentionally sequenced after the Learning Panel Phase 5 work.
 - `ethan-feedback-2026-04-22` — five-item beta-polish batch from Ethan, still valid but no longer the active effort in this checkout.
 - `ethan-feedback-2026-04-22` — five-item beta-polish batch from Ethan, still valid but no longer the active effort in this checkout.
 

@@ -36,6 +36,7 @@ import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 import ReadOnlyBanner from '../components/ReadOnlyBanner.vue';
 import TrialCountdown from '../components/TrialCountdown.vue';
 import LearningPanelSurface from '../components/LearningPanelSurface.vue';
+import { masteryNavGroups } from '../mastery/mastery-config';
 
 const auth = useAuthStore();
 const domain = useDomainStore();
@@ -53,95 +54,6 @@ const sidebarOpen = ref(false);
 const learningPanelOpen = ref(false);
 const mobileViewport = ref(typeof window !== 'undefined' ? window.innerWidth < 960 : false);
 
-interface NavItem {
-  title: string;
-  icon: string;
-  to: string;
-  adminOnly?: boolean;
-}
-
-interface NavGroup {
-  label: string;
-  adminOnly?: boolean;
-  items: NavItem[];
-}
-
-const navGroups: NavGroup[] = [
-  {
-    label: '',
-    items: [
-      { title: 'Dashboard', icon: gridOutline, to: '/' },
-      { title: 'Learning Panel', icon: bulbOutline, to: '/chat' },
-      { title: 'Trade', icon: cashOutline, to: '/tournaments' },
-    ],
-  },
-  {
-    label: 'Markets',
-    items: [
-      { title: 'Research', icon: statsChartOutline, to: '/instruments' },
-      { title: 'Portfolios', icon: briefcaseOutline, to: '/portfolios' },
-      { title: 'Risk', icon: shieldOutline, to: '/risk' },
-    ],
-  },
-  {
-    label: 'AI Analysts',
-    items: [
-      { title: 'Analysts', icon: peopleOutline, to: '/analysts' },
-      { title: 'Performance', icon: trendingUpOutline, to: '/performance' },
-      { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination' },
-      { title: 'Affinity', icon: heartOutline, to: '/affinity' },
-    ],
-  },
-  {
-    label: 'Community',
-    items: [
-      { title: 'Clubs', icon: peopleCircleOutline, to: '/clubs' },
-      { title: 'Tournaments', icon: trophyOutline, to: '/tournaments' },
-      { title: 'Messages', icon: chatbubblesOutline, to: '/messages' },
-    ],
-  },
-  {
-    label: 'Settings',
-    items: [
-      { title: 'Your Content', icon: createOutline, to: '/settings/authored-content' },
-      { title: 'Onboarding', icon: schoolOutline, to: '/settings/onboarding' },
-      { title: 'Visibility & Social', icon: shieldOutline, to: '/settings/social-opt-outs' },
-      { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine', adminOnly: true },
-      { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary', adminOnly: true },
-    ],
-  },
-  {
-    label: 'System',
-    adminOnly: true,
-    items: [
-      { title: 'Runs', icon: playOutline, to: '/runs' },
-      { title: 'Sources', icon: newspaperOutline, to: '/sources' },
-      { title: 'Evaluations', icon: ribbonOutline, to: '/evaluations' },
-      { title: 'Learning', icon: bulbOutline, to: '/learning' },
-      { title: 'Proposals', icon: constructOutline, to: '/proposals' },
-      { title: 'LLM Usage', icon: analyticsOutline, to: '/usage' },
-    ],
-  },
-  {
-    label: 'Cost Modeling',
-    adminOnly: true,
-    items: [
-      { title: 'Calibration', icon: analyticsOutline, to: '/admin/cost/calibration' },
-      { title: 'Defensibility', icon: analyticsOutline, to: '/admin/cost/defensibility' },
-      { title: 'Experiments', icon: analyticsOutline, to: '/admin/cost/experiments' },
-    ],
-  },
-  {
-    label: 'Attribution',
-    adminOnly: true,
-    items: [
-      { title: 'Overview', icon: trendingUpOutline, to: '/admin/attribution' },
-      { title: 'Sources', icon: newspaperOutline, to: '/admin/attribution/sources' },
-      { title: 'Graduation Candidates', icon: ribbonOutline, to: '/admin/attribution/graduation-candidates' },
-    ],
-  },
-];
-
 const collapsedGroups = ref<Record<string, boolean>>({});
 
 function toggleGroup(label: string) {
@@ -153,7 +65,7 @@ function isGroupCollapsed(label: string): boolean {
 }
 
 const visibleGroups = computed(() =>
-  navGroups
+  masteryNavGroups
     .filter(g => !g.adminOnly || auth.isAdmin)
     .map(g => ({
       ...g,
