@@ -126,6 +126,12 @@ const tournamentStore = useTournamentStore();
 const clubStore = useClubStore();
 const showCommunitySurfaces = computed(() => mastery.canViewLevel('competitive_participation'));
 const showBuilderSurfaces = computed(() => mastery.canViewLevel('builder'));
+const primaryTradingLabel = computed(() => (
+  showCommunitySurfaces.value ? 'Tournaments' : 'Trade'
+));
+const primaryTradingDescription = computed(() => (
+  showCommunitySurfaces.value ? 'Compete with other traders' : 'Place and manage trades'
+));
 
 onMounted(async () => {
   await instruments.fetch().catch(() => {});
@@ -231,8 +237,8 @@ function formatStartShort(iso: string): string {
     <div class="pathway-grid">
       <div class="pathway-card" @click="router.push('/tournaments')">
         <ion-icon :icon="trophyOutline" class="pathway-icon" />
-        <div class="pathway-label">Tournaments</div>
-        <div class="pathway-desc">Compete with other traders</div>
+        <div class="pathway-label">{{ primaryTradingLabel }}</div>
+        <div class="pathway-desc">{{ primaryTradingDescription }}</div>
       </div>
       <div
         v-if="showCommunitySurfaces"
