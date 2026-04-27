@@ -2,7 +2,7 @@
 
 **PRD**: `docs/efforts/current/mastery-levels-learning-profile/prd.md`
 **Created**: 2026-04-27
-**Status**: In Progress
+**Status**: Complete
 
 ## Progress Tracker
 - [x] Phase 1: Inventory and Policy Lock
@@ -111,18 +111,18 @@ Before moving to Phase 5, ALL of the following must pass:
   `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/learning-panel/smoke.spec.ts --project=learning-panel`
 - [ ] **Curl Tests**:
   `curl -s -H "Authorization: Bearer $DIVINR_TOKEN" http://localhost:7100/api/learning-panel/bootstrap | jq`
-- [ ] **Phase Review**:
-  - [ ] Did we accomplish what we said we would?
-  - [ ] Are hidden-surface behaviors coherent and explainable?
+- [x] **Phase Review**:
+  - [x] Did we accomplish what we said we would?
+  - [x] Are hidden-surface behaviors coherent and explainable?
 
 ---
 
 ## Phase 5: Progression UX and Coverage
-**Status**: Not Started
+**Status**: In Progress
 **Objective**: Finish the user-facing progression story and cover the new visibility model with first-touch and browser tests.
 
 ### Steps
-- [ ] 5.1 Add any required settings/home affordance for manual complexity opt-up if the locked policy permits it.
+- [x] 5.1 Add any required settings/home affordance for manual complexity opt-up if the locked policy permits it.
 - [ ] 5.2 Update first-touch inventory/content for any newly introduced or materially changed mastery/profile surfaces.
 - [ ] 5.3 Extend or create browser-skill coverage for Level 1 core-loop visibility, Level 2/3 reveal paths, and route fallback behavior.
 - [ ] 5.4 Validate existing-user seeding and upgrade behavior so current users do not lose access unexpectedly.

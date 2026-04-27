@@ -88,8 +88,8 @@ export const masteryNavGroups: MasteryNavGroup[] = [
       { title: 'Research', icon: compassOutline, to: '/instruments', minLevel: 'builder' },
       { title: 'Analysts', icon: peopleOutline, to: '/analysts', minLevel: 'builder' },
       { title: 'Performance', icon: trendingUpOutline, to: '/performance', minLevel: 'core_trading' },
-      { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination', minLevel: 'operator' },
-      { title: 'Affinity', icon: heartOutline, to: '/affinity', minLevel: 'operator' },
+      { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination', minLevel: 'operator', adminOnly: true },
+      { title: 'Affinity', icon: heartOutline, to: '/affinity', minLevel: 'operator', adminOnly: true },
     ],
   },
   {
