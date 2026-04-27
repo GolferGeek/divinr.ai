@@ -31,6 +31,7 @@ function makeHarness(options?: {
   firstClubJoined?: boolean;
   firstAuthoredItem?: boolean;
   masteryLevel?: 'core_trading' | 'competitive_participation' | 'community_creation' | 'builder' | 'operator';
+  globalRole?: 'super-admin' | 'owner' | 'admin' | 'member' | 'beta_reader';
 }) {
   const profileRow = {
     mastery_level: options?.masteryLevel ?? 'core_trading',
@@ -70,6 +71,13 @@ function makeHarness(options?: {
 
       if (normalized.includes('from billing.authored_items')) {
         return { data: [{ present: options?.firstAuthoredItem ?? false }], error: null };
+      }
+
+      if (normalized.includes('from authz.rbac_user_roles r join authz.rbac_roles rr on rr.id = r.role_id')) {
+        return {
+          data: options?.globalRole ? [{ name: options.globalRole }] : [],
+          error: null,
+        };
       }
 
       throw new Error(`Unhandled SQL: ${normalized}`);
@@ -146,6 +154,14 @@ async function main() {
     assert.equal(profile.preferredLevel, 'community_creation');
     assert.equal(profile.currentLevel, 'community_creation');
     assert.equal(profileRow.preferred_level, 'community_creation');
+  });
+
+  await test('learning panel context promotes owner users to operator effective level', async () => {
+    const { service } = makeHarness({ globalRole: 'owner' });
+    const context = await service.getLearningPanelContext('user-1', 'authenticated');
+    assert.equal(context.currentLevel, 'competitive_participation');
+    assert.equal(context.effectiveLevel, 'operator');
+    assert.ok(context.visibleSurfaces.includes('operator dashboards'));
   });
 
   console.log(`\n=== ${passed} passed, ${failed} failed ===\n`);

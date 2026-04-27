@@ -113,7 +113,8 @@ export class MasteryService {
     userRole?: string,
   ): Promise<LearningPanelMasteryContext> {
     const profile = await this.getProfile(userId);
-    const effectiveLevel = ADMIN_ROLES.has(userRole ?? '')
+    const effectiveRole = await this.resolveGlobalRole(userId, userRole);
+    const effectiveLevel = ADMIN_ROLES.has(effectiveRole ?? '')
       ? 'operator'
       : profile.currentLevel;
     return {
@@ -251,6 +252,36 @@ export class MasteryService {
       return 'competitive_participation';
     }
     return 'core_trading';
+  }
+
+  private async resolveGlobalRole(userId: string, requestRole?: string): Promise<string | null> {
+    if (requestRole && ADMIN_ROLES.has(requestRole)) {
+      return requestRole;
+    }
+
+    const result = await this.db.rawQuery(
+      `SELECT rr.name
+         FROM authz.rbac_user_roles r
+         JOIN authz.rbac_roles rr ON rr.id = r.role_id
+        WHERE r.user_id = $1
+        ORDER BY CASE rr.name
+          WHEN 'super-admin' THEN 1
+          WHEN 'owner' THEN 2
+          WHEN 'admin' THEN 3
+          WHEN 'member' THEN 4
+          WHEN 'beta_reader' THEN 5
+          ELSE 6
+        END
+        LIMIT 1`,
+      [userId],
+    );
+
+    if (result.error) {
+      throw new Error(`Failed to resolve global role: ${result.error.message}`);
+    }
+
+    const rows = (result.data as Array<{ name: string }> | null) ?? [];
+    return rows[0]?.name ?? requestRole ?? null;
   }
 
   private readExists(
