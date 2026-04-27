@@ -93,6 +93,19 @@ export interface TournamentPosition {
   opened_at?: string | null;
 }
 
+export interface TournamentTradeQueueEntry {
+  id: string;
+  tournament_id: string;
+  portfolio_id: string;
+  user_id: string;
+  prediction_id: string | null;
+  symbol: string;
+  direction: 'long' | 'short';
+  quantity: number;
+  status: string;
+  queued_at: string;
+}
+
 export const useTournamentStore = defineStore('tournament', () => {
   const tournaments = ref<Tournament[]>([]);
   const activeTournament = ref<Tournament | null>(null);
@@ -131,7 +144,7 @@ export const useTournamentStore = defineStore('tournament', () => {
   }
 
   async function queueTrade(id: string, input: { symbol: string; direction: string; quantity: number; predictionId?: string }) {
-    return request(`/${id}/queue-trade`, { method: 'POST', body: JSON.stringify(input) });
+    return request<TournamentTradeQueueEntry>(`/${id}/queue-trade`, { method: 'POST', body: JSON.stringify(input) });
   }
 
   async function closePosition(id: string, positionId: string) {
