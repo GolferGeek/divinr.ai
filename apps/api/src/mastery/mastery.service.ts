@@ -17,7 +17,7 @@ interface LearningProfileRow {
   updated_at: string;
 }
 
-const ADMIN_ROLES = new Set(['super-admin', 'owner']);
+const ADMIN_ROLES = new Set(['super-admin', 'owner', 'admin']);
 const VISIBLE_SURFACE_SUMMARY: Record<MasteryLevel, string[]> = {
   core_trading: [
     'dashboard',

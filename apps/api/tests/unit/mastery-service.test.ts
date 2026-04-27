@@ -164,6 +164,14 @@ async function main() {
     assert.ok(context.visibleSurfaces.includes('operator dashboards'));
   });
 
+  await test('learning panel context promotes admin users to operator effective level', async () => {
+    const { service } = makeHarness({ globalRole: 'admin' });
+    const context = await service.getLearningPanelContext('user-1', 'authenticated');
+    assert.equal(context.currentLevel, 'competitive_participation');
+    assert.equal(context.effectiveLevel, 'operator');
+    assert.ok(context.visibleSurfaces.includes('operator dashboards'));
+  });
+
   console.log(`\n=== ${passed} passed, ${failed} failed ===\n`);
   if (failed > 0) process.exit(1);
 }

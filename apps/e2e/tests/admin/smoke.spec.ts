@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { loginAs } from '../../fixtures/login.js';
 import { dismissWelcomeModal } from '../../fixtures/onboarding.js';
 
 // Read-only smoke for the admin facet.
@@ -9,7 +10,15 @@ import { dismissWelcomeModal } from '../../fixtures/onboarding.js';
 // this spec deliberately omits the vocabulary check that other facet smokes
 // include.
 test.describe('admin facet — smoke', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test('loads /admin/cost/calibration with heading + content (no 5xx)', async ({ page }) => {
+    await loginAs(
+      page,
+      process.env.TEST_USER_EMAIL ?? 'testing-team@divinr.ai',
+      process.env.TEST_USER_PASSWORD ?? 'change-me',
+    );
+
     const serverErrors: string[] = [];
     page.on('response', (resp) => {
       const u = resp.url();
@@ -41,6 +50,11 @@ test.describe('admin facet — smoke', () => {
   });
 
   test('shows learning-panel usage in the LLM usage dashboard', async ({ page }) => {
+    await loginAs(
+      page,
+      process.env.TEST_USER_EMAIL ?? 'testing-team@divinr.ai',
+      process.env.TEST_USER_PASSWORD ?? 'change-me',
+    );
     await page.goto('/');
     await dismissWelcomeModal(page);
     await expect(page).not.toHaveURL(/\/login/);

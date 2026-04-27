@@ -13,7 +13,7 @@ export const useAuthStore = defineStore('auth', () => {
   let refreshPromise: Promise<boolean> | null = null;
 
   const isBetaReader = computed(() => role.value === 'beta_reader');
-  const isAdmin = computed(() => ['super-admin', 'owner'].includes(role.value));
+  const isAdmin = computed(() => ['super-admin', 'owner', 'admin'].includes(role.value));
   const isSuperAdmin = computed(() => role.value === 'super-admin');
   const displayName = computed(() => {
     if (name.value) return name.value;
