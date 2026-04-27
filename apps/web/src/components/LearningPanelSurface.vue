@@ -471,7 +471,7 @@ onMounted(() => {
               @click="startNewThread"
             >
               <IonIcon slot="start" :icon="refreshOutline" />
-              Clear Panel
+              New Thread
             </IonButton>
             <IonButton
               v-if="showClose"
