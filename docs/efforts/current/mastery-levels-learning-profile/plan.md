@@ -124,7 +124,7 @@ Before moving to Phase 5, ALL of the following must pass:
 ### Steps
 - [x] 5.1 Add any required settings/home affordance for manual complexity opt-up if the locked policy permits it.
 - [ ] 5.2 Update first-touch inventory/content for any newly introduced or materially changed mastery/profile surfaces.
-- [ ] 5.3 Extend or create browser-skill coverage for Level 1 core-loop visibility, Level 2/3 reveal paths, and route fallback behavior.
+- [x] 5.3 Extend or create browser-skill coverage for Level 1 core-loop visibility, Level 2/3 reveal paths, and route fallback behavior.
 - [ ] 5.4 Validate existing-user seeding and upgrade behavior so current users do not lose access unexpectedly.
 - [ ] 5.5 Update roadmap/current-effort docs and archive state on completion.
 
@@ -138,6 +138,8 @@ Before marking the effort complete, ALL of the following must pass:
   `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/learning-panel/smoke.spec.ts --project=learning-panel`
   `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/predictions --project=predictions`
   `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/clubs --project=clubs`
+- [x] **Mastery E2E Slice**:
+  `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/mastery/smoke.spec.ts --project=mastery`
 - [ ] **Chrome Tests**:
   - verify Level 1 hides most of the left nav
   - verify a higher-level user sees the intended additional surfaces
