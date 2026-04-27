@@ -1,13 +1,13 @@
 # Ethan Feedback Follow-Up — Implementation Plan
 
 **PRD**: `docs/efforts/current/ethan-feedback-followup-2026-04-27/prd.md`  
-**Status**: In Progress
+**Status**: Complete
 
 ## Progress Tracker
 
 - [x] Phase 1: Research Detail and Learning Panel Access
 - [x] Phase 2: Trade Submission Feedback
-- [ ] Phase 3: Validation and Remaining Polish
+- [x] Phase 3: Validation and Remaining Polish
 
 ---
 
@@ -73,7 +73,7 @@
 ---
 
 ## Phase 3: Validation and Remaining Polish
-**Status**: In Progress
+**Status**: Complete
 
 ### Objectives
 
@@ -88,23 +88,27 @@
   - `Edit Contract` hidden for the normal fixture
   - simple stance framing present
 - [x] keep the spec skip-safe when local seed data does not expose a reachable instrument
-- [ ] complete a cleaner live browser walkthrough for:
+- [x] complete a cleaner live browser walkthrough for:
   - dashboard → instrument detail
   - article relevance tab
   - queued trade feedback visibility
-- [ ] record any new issues found in that pass and either fix them here or split them into a new effort
+- [x] record any new issues found in that pass and either fix them here or split them into a new effort
 
 ### Current Validation
 
 - [x] `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/instruments/article-relevance.spec.ts --project=instruments`
   - skip-safe under current local seed conditions
+- [x] live in-app browser sanity pass on `http://localhost:7101`
+  - confirmed Level 1 dashboard cards still expose `Trade`, `Portfolios`, and `Learning Panel`
+  - confirmed shell chrome still exposes the Learning Panel launcher
+  - confirmed the `/chat` route renders the current threaded Learning Panel surface
 
 ### Exit Gate
 
 Before marking this effort complete:
 
-- [ ] `pnpm --filter @divinr/web run build`
-- [ ] `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/learning-panel/smoke.spec.ts --project=learning-panel`
-- [ ] `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/tournaments/smoke.spec.ts --project=tournaments`
-- [ ] `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/instruments/article-relevance.spec.ts --project=instruments`
-- [ ] one final in-app browser sanity pass across the touched surfaces
+- [x] `pnpm --filter @divinr/web run build`
+- [x] `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/learning-panel/smoke.spec.ts --project=learning-panel`
+- [x] `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/tournaments/smoke.spec.ts --project=tournaments`
+- [x] `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/instruments/article-relevance.spec.ts --project=instruments`
+- [x] one final in-app browser sanity pass across the touched surfaces
