@@ -41,7 +41,6 @@ export class FirstTouchService {
     if (!isValidSurfaceKey(surfaceKey)) {
       throw new BadRequestException(`Invalid surface_key: ${String(surfaceKey)}`);
     }
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `INSERT INTO prediction.user_surface_touches (user_id, surface_key)
@@ -63,7 +62,6 @@ export class FirstTouchService {
   }
 
   async resetAll(userId: string): Promise<FirstTouchState> {
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `DELETE FROM prediction.user_surface_touches WHERE user_id = $1`,
@@ -79,7 +77,6 @@ export class FirstTouchService {
     if (!isValidPrefix(prefix)) {
       throw new BadRequestException(`Invalid prefix: ${String(prefix)}`);
     }
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `DELETE FROM prediction.user_surface_touches

@@ -43,6 +43,7 @@ PY
 
 # 1. Kill prior API + stripe listen
 pkill -f "node dist/src/main.js" 2>/dev/null || true
+pkill -f "node dist/src/bootstrap-schema.js" 2>/dev/null || true
 pkill -f "stripe listen.*billing/webhooks/stripe" 2>/dev/null || true
 sleep 1
 

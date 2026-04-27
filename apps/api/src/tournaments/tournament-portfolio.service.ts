@@ -22,7 +22,6 @@ export class TournamentPortfolioService {
   ) {}
 
   async enterTournament(tournamentId: string, userId: string): Promise<TournamentEntry> {
-    await this.schema.ensureSchema();
 
     // Fetch tournament to validate
     const tResult = await this.db.rawQuery(
@@ -71,7 +70,6 @@ export class TournamentPortfolioService {
   }
 
   async getPortfolio(tournamentId: string, userId: string): Promise<TournamentPortfolio | null> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT * FROM prediction.tournament_portfolios WHERE tournament_id = $1 AND user_id = $2`,
       [tournamentId, userId],
@@ -82,7 +80,6 @@ export class TournamentPortfolioService {
   }
 
   async getMyEntries(userId: string): Promise<Array<TournamentEntry & { tournament_name: string; tournament_status: string; tournament_type: string; tournament_starts_at: string }>> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT te.*, t.name as tournament_name, t.status as tournament_status, t.tournament_type, t.starts_at as tournament_starts_at
        FROM prediction.tournament_entries te
@@ -100,7 +97,6 @@ export class TournamentPortfolioService {
     userId: string,
     input: { symbol: string; direction: 'long' | 'short'; quantity: number; predictionId?: string },
   ): Promise<TournamentTradeQueueEntry> {
-    await this.schema.ensureSchema();
 
     // Validate tournament is active
     const tResult = await this.db.rawQuery(
@@ -141,7 +137,6 @@ export class TournamentPortfolioService {
   }
 
   async listPositions(tournamentId: string, userId: string, status?: 'open' | 'closed'): Promise<TournamentPosition[]> {
-    await this.schema.ensureSchema();
 
     let sql = `SELECT * FROM prediction.tournament_positions WHERE tournament_id = $1 AND user_id = $2`;
     const params: unknown[] = [tournamentId, userId];
@@ -158,7 +153,6 @@ export class TournamentPortfolioService {
   }
 
   async closePosition(tournamentId: string, positionId: string, userId: string): Promise<TournamentPosition> {
-    await this.schema.ensureSchema();
 
     // Fetch position
     const pResult = await this.db.rawQuery(
@@ -203,7 +197,6 @@ export class TournamentPortfolioService {
     tournamentId: string,
     viewerId: string,
   ): Promise<Array<TournamentEntry & { display_name?: string }>> {
-    await this.schema.ensureSchema();
     const filter = this.optOuts.applyVisibilityFilter(
       `SELECT te.*, u.display_name
        FROM prediction.tournament_entries te
@@ -225,7 +218,6 @@ export class TournamentPortfolioService {
   // ─── EOD Settlement integration ─────────────────────────────
 
   async executeQueuedTournamentTrades(closingPrices: Map<string, number>): Promise<{ executed: number; errors: string[] }> {
-    await this.schema.ensureSchema();
 
     // Fetch all queued trades for active tournaments
     const result = await this.db.rawQuery(
@@ -283,7 +275,6 @@ export class TournamentPortfolioService {
   }
 
   async updateTournamentUnrealizedPnl(closingPrices: Map<string, number>): Promise<number> {
-    await this.schema.ensureSchema();
 
     // Fetch all open tournament positions
     const result = await this.db.rawQuery(

@@ -28,6 +28,37 @@ every Stripe code path returns `null` / no-op and the app behaves exactly as
 it did before billing was wired. To run the API without Stripe, just comment
 out `STRIPE_SECRET_KEY` in `.env` and re-run `dev:up`.
 
+## Schema bootstrap contract
+
+The API no longer allows normal request handlers to perform schema mutation.
+
+- Run schema/bootstrap work through:
+
+```bash
+pnpm --filter @divinr/api run bootstrap:schema
+```
+
+- Normal local startup should go through:
+
+```bash
+pnpm --filter @divinr/api run dev:up
+```
+
+That script runs `bootstrap:schema` first, then starts the API, and startup
+readiness fails fast if required schema state is missing.
+
+Rules:
+
+- Do **not** add `await this.schema.ensureSchema()` to business methods,
+  controllers, guards, or request-time service flows.
+- `ensureSchema()` belongs only to explicit bootstrap orchestration and
+  tightly scoped bootstrap tests.
+- If a feature needs new tables/columns/indexes/triggers, put the DDL in
+  migrations and wire any idempotent seed/default data into the explicit
+  bootstrap path.
+- If a route fails because schema is missing, fix the bootstrap/readiness path.
+  Do not patch around it by reintroducing request-time DDL.
+
 ## NestJS DI: always use explicit `@Inject(ClassName)` on every constructor param
 
 The API runs tests via `tsx` (esbuild), which does **not** emit TypeScript's

@@ -41,7 +41,6 @@ export class OnboardingService {
   }
 
   async applyPatch(userId: string, patch: OnboardingPatch): Promise<OnboardingState> {
-    await this.schema.ensureSchema();
 
     this.validatePatch(patch);
 
@@ -73,7 +72,6 @@ export class OnboardingService {
    * (so they see the welcome modal again on next login). Caller gates role.
    */
   async resetUser(targetUserId: string): Promise<OnboardingState> {
-    await this.schema.ensureSchema();
 
     const pristine = defaultOnboardingState();
     const result = await this.db.rawQuery(

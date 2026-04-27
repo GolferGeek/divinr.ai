@@ -8,11 +8,8 @@ import {
 /**
  * Idempotent DDL for prediction.user_surface_touches.
  *
- * Mirrors the migration file at apps/api/db/migrations/2026-04-19-user-surface-touches.sql,
- * but is the source of truth for what actually runs at app boot / first request.
- *
- * Pattern copied from OnboardingSchemaService: memoize with schemaReady, call
- * ensureSchema() at the top of every service method that touches this table.
+ * Mirrors the migration file at apps/api/db/migrations/2026-04-19-user-surface-touches.sql
+ * and is invoked only by explicit bootstrap orchestration.
  */
 @Injectable()
 export class FirstTouchSchemaService {

@@ -8,11 +8,8 @@ import {
 /**
  * Idempotent DDL for authz.user_preferences.
  *
- * Mirrors the migration file at apps/api/db/migrations/2026-04-14-user-preferences.sql,
- * but is the source of truth for what actually runs at app boot / first request.
- *
- * Pattern copied from ClubSchemaService: memoize with schemaReady, call ensureSchema()
- * at the top of every service method that touches this table.
+ * Mirrors the migration file at apps/api/db/migrations/2026-04-14-user-preferences.sql
+ * and is invoked only by explicit bootstrap orchestration.
  */
 @Injectable()
 export class OnboardingSchemaService {

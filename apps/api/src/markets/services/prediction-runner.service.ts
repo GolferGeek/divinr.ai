@@ -68,7 +68,6 @@ export class PredictionRunnerService {
     instrument: MarketInstrument,
     userId: string,
   ): Promise<MultiAnalystRunResult> {
-    await this.schema.ensureSchema();
 
     const context = this.llmService.buildExecutionContext(
       userId,

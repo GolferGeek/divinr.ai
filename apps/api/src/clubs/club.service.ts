@@ -37,7 +37,6 @@ export class ClubService {
   // ─── CRUD ──────────────────────────────────────────────────────
 
   async createClub(input: CreateClubInput, userId: string): Promise<Club> {
-    await this.schema.ensureSchema();
 
     const id = randomUUID();
     const inviteCode = generateInviteCode();
@@ -67,7 +66,6 @@ export class ClubService {
   }
 
   async listMyClubs(userId: string): Promise<Array<Club & { member_count: number; my_role: string; unread_count: number }>> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT c.*, cm.role as my_role,
               (SELECT COUNT(*)::int FROM prediction.club_members m WHERE m.club_id = c.id) as member_count,
@@ -92,7 +90,6 @@ export class ClubService {
   }
 
   async discoverClubs(userId: string, sortBy?: string): Promise<Array<Club & { member_count: number; tournament_count: number }>> {
-    await this.schema.ensureSchema();
     const validSorts: Record<string, string> = {
       ranking_score: 'c.ranking_score DESC NULLS LAST',
       member_count: 'member_count DESC',
@@ -119,7 +116,6 @@ export class ClubService {
   }
 
   async getClub(id: string, userId: string): Promise<(Club & { member_count: number; my_role: string; unread_count: number }) | null> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT c.*, cm.role as my_role,
               (SELECT COUNT(*)::int FROM prediction.club_members m WHERE m.club_id = c.id) as member_count,
@@ -145,7 +141,6 @@ export class ClubService {
   }
 
   async markActivitiesViewed(clubId: string, userId: string): Promise<{ ok: true; last_viewed_at: string }> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `UPDATE prediction.club_members
           SET last_viewed_at = now()
@@ -165,7 +160,6 @@ export class ClubService {
   async getClubPreview(
     id: string,
   ): Promise<{ id: string; name: string; description: string | null; is_public: boolean; member_count: number; tournament_count: number; my_role: null } | null> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT c.id, c.name, c.description, c.is_public,
               (SELECT COUNT(*)::int FROM prediction.club_members m WHERE m.club_id = c.id) as member_count,
@@ -182,7 +176,6 @@ export class ClubService {
   }
 
   async updateClub(id: string, input: UpdateClubInput, userId: string): Promise<Club> {
-    await this.schema.ensureSchema();
     await this.requireRole(id, userId, ['owner', 'admin']);
 
     const sets: string[] = [];
@@ -207,7 +200,6 @@ export class ClubService {
   }
 
   async deleteClub(id: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.requireRole(id, userId, ['owner']);
 
     // Get channel for archival
@@ -234,7 +226,6 @@ export class ClubService {
   // ─── Membership ────────────────────────────────────────────────
 
   async joinClub(id: string, code: string, userId: string): Promise<ClubMember> {
-    await this.schema.ensureSchema();
 
     // Validate invite code
     const clubResult = await this.db.rawQuery(
@@ -269,7 +260,6 @@ export class ClubService {
   }
 
   async leaveClub(id: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
 
     // Owner cannot leave
     const member = await this.getMember(id, userId);
@@ -293,7 +283,6 @@ export class ClubService {
   }
 
   async listMembers(clubId: string, userId: string): Promise<ClubMember[]> {
-    await this.schema.ensureSchema();
     await this.requireMembership(clubId, userId);
 
     const filter = this.optOuts.applyVisibilityFilter(
@@ -322,7 +311,6 @@ export class ClubService {
     accuracy_pct: number | null;
     last_active_at: string | null;
   }> {
-    await this.schema.ensureSchema();
     await this.requireMembership(clubId, requestingUserId);
 
     const memberResult = await this.db.rawQuery(
@@ -384,7 +372,6 @@ export class ClubService {
   }
 
   async promoteMember(clubId: string, targetUserId: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.requireRole(clubId, userId, ['owner']);
     await this.db.rawQuery(
       `UPDATE prediction.club_members SET role = 'admin' WHERE club_id = $1 AND user_id = $2 AND role = 'member'`,
@@ -393,7 +380,6 @@ export class ClubService {
   }
 
   async demoteMember(clubId: string, targetUserId: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.requireRole(clubId, userId, ['owner']);
 
     const target = await this.getMember(clubId, targetUserId);
@@ -407,7 +393,6 @@ export class ClubService {
   }
 
   async removeMember(clubId: string, targetUserId: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.requireRole(clubId, userId, ['owner', 'admin']);
 
     const target = await this.getMember(clubId, targetUserId);
@@ -433,7 +418,6 @@ export class ClubService {
   // ─── Invites ───────────────────────────────────────────────────
 
   async createInvite(clubId: string, userId: string, input?: { email?: string; username?: string }): Promise<ClubInvite | { token: string }> {
-    await this.schema.ensureSchema();
     await this.requireRole(clubId, userId, ['owner', 'admin']);
 
     const token = randomUUID();
@@ -508,7 +492,6 @@ export class ClubService {
   }
 
   async getInviteDetails(token: string): Promise<{ club: Club; invite: ClubInvite; member_count: number }> {
-    await this.schema.ensureSchema();
 
     const inviteResult = await this.db.rawQuery(
       `SELECT * FROM prediction.club_invites WHERE invite_token = $1`,
@@ -532,7 +515,6 @@ export class ClubService {
   }
 
   async acceptInvite(token: string, userId: string): Promise<ClubMember> {
-    await this.schema.ensureSchema();
 
     const inviteResult = await this.db.rawQuery(
       `SELECT * FROM prediction.club_invites WHERE invite_token = $1 AND status = 'pending'`,
@@ -578,7 +560,6 @@ export class ClubService {
   // ─── Club Tournaments ──────────────────────────────────────────
 
   async getClubTournaments(clubId: string, userId: string): Promise<unknown[]> {
-    await this.schema.ensureSchema();
     await this.requireMembership(clubId, userId);
 
     const result = await this.db.rawQuery(

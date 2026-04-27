@@ -20,7 +20,6 @@ export class ClubAnalystService {
     input: { slug: string; display_name: string; persona_prompt: string; analyst_type?: string; workflow_scope?: string },
     userId: string,
   ): Promise<{ analyst_id: string; club_analyst_id: string }> {
-    await this.schema.ensureSchema();
     await this.clubs.requireRole(clubId, userId, ['owner', 'admin']);
 
     // Rate limit: max 10 analysts per club
@@ -84,7 +83,6 @@ export class ClubAnalystService {
   }
 
   async listClubAnalysts(clubId: string, userId: string): Promise<Array<{ analyst_id: string; slug: string; display_name: string; persona_prompt: string; created_at: string }>> {
-    await this.schema.ensureSchema();
     await this.clubs.requireMembership(clubId, userId);
 
     const result = await this.db.rawQuery(
@@ -100,7 +98,6 @@ export class ClubAnalystService {
   }
 
   async getClubAnalystContract(clubId: string, analystId: string, userId: string): Promise<unknown> {
-    await this.schema.ensureSchema();
     await this.clubs.requireMembership(clubId, userId);
 
     // Verify analyst belongs to club
@@ -131,7 +128,6 @@ export class ClubAnalystService {
     input: { persona_prompt?: string; context_markdown?: string; change_reason?: string },
     userId: string,
   ): Promise<void> {
-    await this.schema.ensureSchema();
     await this.clubs.requireRole(clubId, userId, ['owner', 'admin']);
 
     // Verify analyst belongs to club

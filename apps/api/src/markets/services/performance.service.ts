@@ -55,7 +55,6 @@ export class PerformanceService {
   ) {}
 
   async getDashboardData(userId: string, days: number): Promise<PerformanceDashboardResponse> {
-    await this.schema.ensureSchema();
 
     // Run all queries in parallel
     const [portfolioResult, equityResult, benchmarkResult, positionsResult, todayResult, analystResult] =

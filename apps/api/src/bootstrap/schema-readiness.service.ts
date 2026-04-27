@@ -10,14 +10,22 @@ export interface SchemaReadinessCheck {
 @Injectable()
 export class SchemaReadinessService {
   private readonly requiredRelations = [
+    'authz.invites',
+    'authz.user_preferences',
     'billing.subscriptions',
     'credentials.user_llm_credentials',
+    'messaging.channels',
+    'prediction.clubs',
+    'prediction.curricula',
+    'prediction.instruments',
     'prediction.learning_panel_messages',
     'prediction.learning_panel_thread_state',
     'prediction.learning_panel_threads',
+    'prediction.market_analysts',
+    'prediction.market_predictions',
     'prediction.service_api_keys',
+    'prediction.tournaments',
     'prediction.user_surface_touches',
-    'authz.user_preferences',
   ] as const;
 
   constructor(

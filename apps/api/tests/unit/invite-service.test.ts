@@ -130,7 +130,7 @@ async function main() {
 
     const svc = Object.create(InviteService.prototype);
     (svc as any).db = db;
-    (svc as any).schemaReady = true;
+    (svc as any).schema = { ensureSchema: async () => {} };
 
     const result = await (svc as InviteService).createInvite('admin-1', 'reader@example.com');
     const insert = queries.find((q) => q.sql.includes('INSERT INTO authz.invites'));

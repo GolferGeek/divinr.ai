@@ -10,7 +10,6 @@ export class WiringService {
   ) {}
 
   async listMyWirings(userId: string) {
-    await this.schema.ensureSchema();
     // Analysts: authored (user_id = userId) + base (user_id IS NULL, is_active)
     const analysts = await this.db.rawQuery(
       `SELECT id, slug, display_name, user_id FROM prediction.market_analysts
@@ -40,7 +39,6 @@ export class WiringService {
   }
 
   async addWiring(userId: string, analystId: string, instrumentId: string) {
-    await this.schema.ensureSchema();
     // Validate analyst ownership
     const analystResult = await this.db.rawQuery(
       `SELECT user_id FROM prediction.market_analysts WHERE id = $1`,
@@ -66,7 +64,6 @@ export class WiringService {
   }
 
   async removeWiring(userId: string, analystId: string, instrumentId: string) {
-    await this.schema.ensureSchema();
     await this.db.rawQuery(
       `DELETE FROM prediction.viewer_instrument_analyst_assignments
        WHERE viewer_user_id = $1 AND instrument_id = $2 AND analyst_id = $3`,

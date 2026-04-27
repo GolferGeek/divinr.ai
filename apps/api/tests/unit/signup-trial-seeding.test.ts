@@ -80,6 +80,7 @@ async function main(): Promise<void> {
     const billing = createMockBilling();
     const svc = Object.create(InviteService.prototype);
     (svc as any).db = db;
+    (svc as any).schema = { ensureSchema: async () => {} };
     (svc as any).authService = authService;
     (svc as any).billing = billing;
     (svc as any).logger = { log: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
@@ -114,6 +115,7 @@ async function main(): Promise<void> {
     const errors: string[] = [];
     const svc = Object.create(InviteService.prototype);
     (svc as any).db = db;
+    (svc as any).schema = { ensureSchema: async () => {} };
     (svc as any).authService = authService;
     (svc as any).billing = billing;
     (svc as any).logger = { log: () => {}, error: (m: string) => errors.push(m), warn: () => {}, debug: () => {} };

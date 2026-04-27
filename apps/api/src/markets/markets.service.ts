@@ -380,7 +380,6 @@ export class MarketsService {
   async listInstruments(
     userId: string,
   ): Promise<MarketInstrument[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Show user-specific instruments + system instruments
@@ -397,7 +396,6 @@ export class MarketsService {
   }
 
   async createInstrument(input: CreateInstrumentInput): Promise<MarketInstrument> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const instrument: MarketInstrument = {
@@ -467,7 +465,6 @@ export class MarketsService {
   }
 
   async createAnalyst(input: CreateAnalystInput): Promise<MarketAnalyst> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const now = new Date().toISOString();
@@ -572,7 +569,6 @@ export class MarketsService {
     isEnabled?: boolean;
     changeReason?: string;
   }): Promise<MarketAnalyst> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     // Load current analyst
@@ -642,7 +638,6 @@ export class MarketsService {
     userId: string;
     analystId: string;
   }): Promise<MarketAnalyst> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     // Find current version's parent
@@ -695,7 +690,6 @@ export class MarketsService {
   async listAnalysts(
     userId: string,
   ): Promise<MarketAnalyst[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Club-shared analysts must respect the owner's social_visible_in_member_lists
@@ -732,7 +726,6 @@ export class MarketsService {
     userId: string,
     instrumentId: string,
   ): Promise<MarketAnalyst[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Per design: all base analysts cover every instrument. The assignments
@@ -762,7 +755,6 @@ export class MarketsService {
   async assignAnalystToInstrument(
     input: AssignAnalystInput,
   ): Promise<{ assigned: boolean }> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const upsert = await this.db.rawQuery(
@@ -784,7 +776,6 @@ export class MarketsService {
   async listEntitledSources(
     userId: string,
   ): Promise<Array<MarketSource & { entitlement: SourceEntitlement | null }>> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const sources = await this.db.rawQuery(
@@ -824,7 +815,6 @@ export class MarketsService {
     sourceId: string,
     limit: number,
   ) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
@@ -840,7 +830,6 @@ export class MarketsService {
   }
 
   async listDataAdapters(userId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const result = await this.db.rawQuery(`
@@ -865,7 +854,6 @@ export class MarketsService {
   // ─── Prediction Provenance ─────────────────────────────────────
 
   async getPredictionProvenance(userId: string, predictionId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Load prediction
@@ -1002,7 +990,6 @@ export class MarketsService {
     userId: string,
     predictionId: string,
   ): Promise<{ predictionId: string; calls: LlmCallRow[] }> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // IDOR defense: the user_id filter ensures only system predictions
@@ -1081,7 +1068,6 @@ export class MarketsService {
     userId: string,
     analystId: string,
   ): Promise<AnalystCalibrationPayload> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // (a) analyst row — 404 if missing or not accessible (system + user's own).
@@ -1297,7 +1283,6 @@ export class MarketsService {
     analystId: string,
     userId: string,
   ): Promise<AnalystContract | null> {
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `SELECT acv.context_markdown
@@ -1325,7 +1310,6 @@ export class MarketsService {
     userId: string,
     configVersionId: string,
   ): Promise<AnalystContract | null> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // IDOR defense: filter on user_id so a caller can't
@@ -1347,7 +1331,6 @@ export class MarketsService {
   // ─── Contract Editor ───────────────────────────────────────────
 
   async getAnalystContract(analystId: string, userId: string) {
-    await this.schema.ensureSchema();
 
     // Fetch analyst metadata (including analyst_type so the editor can filter
     // required stage panels per PRD §4.3).
@@ -1428,7 +1411,6 @@ export class MarketsService {
     userId: string,
     markdown: string,
   ): Promise<ContractValidationResult & { analystType: ContractAnalystType | null }> {
-    await this.schema.ensureSchema();
     const analystResult = await this.db.rawQuery(
       `SELECT analyst_type FROM prediction.market_analysts
        WHERE id = $1 AND (user_id IS NULL OR user_id = $2)`,
@@ -1454,7 +1436,6 @@ export class MarketsService {
     markdown: string;
     changeReason?: string;
   }) {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     // Load current analyst + active version
@@ -1534,7 +1515,6 @@ export class MarketsService {
   }
 
   async getInstrumentContract(instrumentId: string, _userId: string) {
-    await this.schema.ensureSchema();
 
     const instrumentResult = await this.db.rawQuery(
       `SELECT id, symbol, name, asset_type, current_config_version_id
@@ -1596,7 +1576,6 @@ export class MarketsService {
     _userId: string,
     markdown: string,
   ): Promise<ContractValidationResult> {
-    await this.schema.ensureSchema();
     const instrumentResult = await this.db.rawQuery(
       `SELECT id FROM prediction.instruments WHERE id = $1`,
       [instrumentId],
@@ -1614,7 +1593,6 @@ export class MarketsService {
     markdown: string;
     changeReason?: string;
   }) {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const instrumentResult = await this.db.rawQuery(
@@ -1755,7 +1733,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   }
 
   async challengePrediction(userId: string, predictionId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Check for existing challenges
@@ -1813,7 +1790,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   }
 
   async *challengePredictionStream(userId: string, predictionId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Check for existing challenges
@@ -1870,7 +1846,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   }
 
   async getChallenges(userId: string, predictionId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
@@ -1894,7 +1869,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   // ─── Trade Decisions ──────────────────────────────────────────
 
   async acknowledgeDisclaimer(userId: string) {
-    await this.schema.ensureSchema();
     // Ensure portfolio exists, then set disclaimer timestamp
     const result = await this.db.rawQuery(
       `update prediction.user_portfolios set disclaimer_acknowledged_at = now(), updated_at = now()
@@ -1918,7 +1892,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
     userId: string,
     input: { predictionId: string; analystId: string; direction: string },
   ) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Check disclaimer — ensure portfolio exists first
@@ -2013,7 +1986,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   }
 
   async skipTrade(userId: string, predictionId: string) {
-    await this.schema.ensureSchema();
 
     // Load prediction for instrument info
     const predResult = await this.db.rawQuery(
@@ -2045,7 +2017,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   }
 
   async getTradeDecisions(userId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
@@ -2074,7 +2045,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   async upsertSourceEntitlement(
     input: UpsertSourceEntitlementInput,
   ): Promise<SourceEntitlement> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const payload = {
@@ -2115,7 +2085,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   async syncExternalCrawlerData(
     input: ExternalCrawlerSyncInput,
   ): Promise<ExternalCrawlerSyncResult> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const enabled = this.isExternalCrawlerSyncEnabled(Boolean(input.force));
@@ -2342,7 +2311,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   }
 
   async listMarketArticles(input: ListMarketArticlesInput): Promise<MarketArticle[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(input.userId);
 
     const limit =
@@ -2373,7 +2341,6 @@ Using your expertise, provide a counter-argument. Respond with valid JSON only:
   }
 
   async scoreArticleForInstrument(input: ScorePredictorInput): Promise<ScorePredictorResult> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     // 1. Validate article exists and tenant has source entitlement
@@ -2454,7 +2421,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async scoreArticleBatch(input: ScorePredictorBatchInput): Promise<ScorePredictorBatchResult> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const results: Array<ScorePredictorResult | { articleId: string; error: string }> = [];
@@ -2481,7 +2447,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async upsertPredictor(input: UpsertPredictorInput): Promise<MarketPredictor> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const relevance = Math.min(
@@ -2561,7 +2526,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async listPredictors(input: ListPredictorsInput): Promise<MarketPredictor[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(input.userId);
 
     const statusFilter = input.status ?? 'active';
@@ -2599,7 +2563,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async enqueueRun(input: CreateRunInput): Promise<{ runId: string; status: string }> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const context = this.buildExecutionContext(
@@ -2686,7 +2649,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async listRuns(input: ListRunsInput): Promise<MarketRun[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(input.userId);
 
     let query = this.db
@@ -2708,7 +2670,6 @@ Respond ONLY with valid JSON.`,
     userId: string,
     runId: string,
   ): Promise<MarketRun> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const run = await this.db
@@ -2725,7 +2686,6 @@ Respond ONLY with valid JSON.`,
   async updateRunStatus(
     input: UpdateRunStatusInput,
   ): Promise<{ runId: string; previousStatus: string; status: string }> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
     if (
       input.status === 'failed' &&
@@ -3091,7 +3051,6 @@ Respond ONLY with valid JSON.`,
   async processNextQueuedRun(
     input: ProcessNextRunInput,
   ): Promise<ProcessNextRunResult> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const claimed = await this.db.rawQuery(
@@ -3230,7 +3189,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async evaluateRun(input: EvaluateRunInput): Promise<RunEvaluation> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const run = await this.getRun(input.userId, input.runId);
@@ -3288,7 +3246,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async listRunArtifacts(input: ListRunArtifactsInput): Promise<RunArtifact[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(input.userId);
 
     const result = await this.db.rawQuery(
@@ -3309,7 +3266,6 @@ Respond ONLY with valid JSON.`,
   async listPredictionOutcomes(
     input: ListPredictionOutcomesInput,
   ): Promise<PredictionOutcome[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(input.userId);
     if (!input.runId && !input.instrumentId) {
       throw new BadRequestException('runId or instrumentId is required');
@@ -3365,7 +3321,6 @@ Respond ONLY with valid JSON.`,
     }>;
     trade_recommendation: TradeRecommendation | null;
   }>> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Get latest unsettled prediction run per instrument. Predictions are
@@ -3470,7 +3425,6 @@ Respond ONLY with valid JSON.`,
     runId: string,
     userId: string,
   ): Promise<TradeRecommendation | null> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
     const baseRec = await this.tradeRecommendation.generateForRun({
       runId,
@@ -3486,7 +3440,6 @@ Respond ONLY with valid JSON.`,
   async getDashboardRiskSummary(
     userId: string,
   ): Promise<Array<Record<string, unknown>>> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
@@ -3513,7 +3466,6 @@ Respond ONLY with valid JSON.`,
   async listRiskAssessments(
     input: ListRiskAssessmentsInput,
   ): Promise<RiskAssessment[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(input.userId);
     if (!input.runId && !input.instrumentId) {
       throw new BadRequestException('runId or instrumentId is required');
@@ -3560,7 +3512,6 @@ Respond ONLY with valid JSON.`,
     userId: string,
     runId: string,
   ): Promise<RunEvaluation[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
     const result = await this.db.rawQuery(
       `
@@ -3581,7 +3532,6 @@ Respond ONLY with valid JSON.`,
     userId: string,
     runId: string,
   ): Promise<RunReplay[]> {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
     const result = await this.db.rawQuery(
       `
@@ -3599,7 +3549,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async replayRun(input: ReplayRunInput): Promise<RunReplay> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
     const run = await this.getRun(input.userId, input.runId);
     const context = this.buildExecutionContext(
@@ -3650,7 +3599,6 @@ Respond ONLY with valid JSON.`,
   // ─── Enhanced API Methods (Sprint 4) ─────────────────────────
 
   async getRunDetail(userId: string, runId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const run = await this.getRun(userId, runId);
@@ -3678,7 +3626,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async getRunRiskDetails(userId: string, runId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const composite = await this.db.rawQuery(
@@ -3734,7 +3681,6 @@ Respond ONLY with valid JSON.`,
   // ─── Debate Reasoning Drilldown ─────────────────────────────────
 
   async getDebateReasoning(debateId: string) {
-    await this.schema.ensureSchema();
 
     // Load the debate row to get transcript
     const debateResult = await this.db.rawQuery(
@@ -3814,7 +3760,6 @@ Respond ONLY with valid JSON.`,
     userId: string,
     runId: string,
   ): Promise<Record<string, unknown>> {
-    await this.schema.ensureSchema();
     await this.requireWrite(userId);
 
     // Load existing composite score
@@ -3861,7 +3806,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async listRiskDimensions(userId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
@@ -3887,7 +3831,6 @@ Respond ONLY with valid JSON.`,
     systemPrompt?: string;
     isActive?: boolean;
   }): Promise<Record<string, unknown>> {
-    await this.schema.ensureSchema();
     await this.requireWrite(input.userId);
 
     const id = `${input.userId}_dim_${input.slug}`;
@@ -3916,7 +3859,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async getInstrumentCompositeScore(userId: string, instrumentId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Latest active composite
@@ -3995,7 +3937,6 @@ Respond ONLY with valid JSON.`,
   // ─── Learning Proposal Management ─────────────────────────────
 
   async listLearningProposals(userId: string, status?: string, tier?: number) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     let query = `select lp.*, ma.display_name as analyst_name
@@ -4023,7 +3964,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async getProposalDetail(userId: string, proposalId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
@@ -4040,7 +3980,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async approveProposal(userId: string, proposalId: string) {
-    await this.schema.ensureSchema();
     await this.requireWrite(userId);
 
     // Update proposal status
@@ -4116,7 +4055,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async rejectProposal(userId: string, proposalId: string, reason?: string) {
-    await this.schema.ensureSchema();
     await this.requireWrite(userId);
 
     const result = await this.db.rawQuery(
@@ -4134,7 +4072,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async listLearningReports(userId: string, limit = 10) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     const result = await this.db.rawQuery(
@@ -4151,7 +4088,6 @@ Respond ONLY with valid JSON.`,
    * Daily report — aggregates predictions, risk scores, and outcomes for the last 24h.
    */
   async getDailyReport(userId: string) {
-    await this.schema.ensureSchema();
     await this.requireRead(userId);
 
     // Prediction runs completed today
@@ -4361,7 +4297,6 @@ Respond ONLY with valid JSON.`,
   // ─── User-Authored CRUD (effort: user-authored-custom-content) ──
 
   async listMyAnalysts(userId: string): Promise<MarketAnalyst[]> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT * FROM prediction.market_analysts WHERE user_id = $1 AND is_active = true ORDER BY display_name`,
       [userId],
@@ -4371,7 +4306,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async softDeleteAnalyst(analystId: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.assertOwnsAnalyst(analystId, userId);
     const result = await this.db.rawQuery(
       `UPDATE prediction.market_analysts SET is_active = false WHERE id = $1`,
@@ -4397,7 +4331,6 @@ Respond ONLY with valid JSON.`,
       byoCredentialId?: string | null;
     },
   ): Promise<void> {
-    await this.schema.ensureSchema();
     await this.assertOwnsAnalyst(analystId, userId);
 
     // Validation: BYO provider requires credential; divinr/null must not have credential
@@ -4445,7 +4378,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async listMyInstruments(userId: string): Promise<MarketInstrument[]> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT * FROM prediction.instruments WHERE user_id = $1 AND is_active = true ORDER BY symbol`,
       [userId],
@@ -4455,7 +4387,6 @@ Respond ONLY with valid JSON.`,
   }
 
   async softDeleteInstrument(instrumentId: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.assertOwnsInstrument(instrumentId, userId);
     const result = await this.db.rawQuery(
       `UPDATE prediction.instruments SET is_active = false WHERE id = $1`,
@@ -4477,7 +4408,6 @@ Respond ONLY with valid JSON.`,
     analystId: string,
     userId: string,
   ): Promise<{ contextMarkdown: string; versionId: string }> {
-    await this.schema.ensureSchema();
     await this.assertOwnsAnalyst(analystId, userId);
 
     // Fetch analyst metadata
@@ -4553,7 +4483,6 @@ Respond ONLY with valid JSON.`,
     instrumentId: string,
     userId: string,
   ): Promise<{ contextMarkdown: string; versionId: string }> {
-    await this.schema.ensureSchema();
     await this.assertOwnsInstrument(instrumentId, userId);
 
     // Fetch instrument metadata
@@ -4632,7 +4561,6 @@ Respond ONLY with valid JSON.`,
     userId: string,
     authorFilter?: string,
   ): Promise<Array<Record<string, unknown>>> {
-    await this.schema.ensureSchema();
 
     const analystCheck = await this.db.rawQuery(
       `SELECT id FROM prediction.market_analysts WHERE id = $1 AND (user_id IS NULL OR user_id = $2)`,

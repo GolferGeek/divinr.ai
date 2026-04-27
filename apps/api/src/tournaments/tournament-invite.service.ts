@@ -18,7 +18,6 @@ export class TournamentInviteService {
   ) {}
 
   async createInviteLink(tournamentId: string, userId: string): Promise<{ token: string }> {
-    await this.schema.ensureSchema();
 
     const tournament = await this.getTournament(tournamentId);
     if (tournament.scope !== 'invitation') {
@@ -50,7 +49,6 @@ export class TournamentInviteService {
   }
 
   async inviteByUsername(tournamentId: string, inviterId: string, username: string): Promise<TournamentInvite> {
-    await this.schema.ensureSchema();
 
     const tournament = await this.getTournament(tournamentId);
     if (tournament.scope !== 'invitation') {
@@ -93,7 +91,6 @@ export class TournamentInviteService {
   }
 
   async inviteByEmail(tournamentId: string, inviterId: string, email: string): Promise<TournamentInvite> {
-    await this.schema.ensureSchema();
 
     const tournament = await this.getTournament(tournamentId);
     if (tournament.scope !== 'invitation') {
@@ -134,7 +131,6 @@ export class TournamentInviteService {
   }
 
   async getInviteDetails(token: string): Promise<{ tournament: Tournament; invite: TournamentInvite; entrant_count: number }> {
-    await this.schema.ensureSchema();
 
     const inviteResult = await this.db.rawQuery(
       `SELECT * FROM prediction.tournament_invites WHERE invite_token = $1`,
@@ -157,7 +153,6 @@ export class TournamentInviteService {
   }
 
   async acceptInvite(token: string, userId: string): Promise<TournamentEntry> {
-    await this.schema.ensureSchema();
 
     // Validate invite
     const inviteResult = await this.db.rawQuery(

@@ -44,7 +44,6 @@ interface ValidateResult {
 @Injectable()
 export class InviteService {
   private readonly logger = new Logger(InviteService.name);
-  private schemaReady = false;
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
@@ -53,41 +52,10 @@ export class InviteService {
     @Inject(BillingConfigService) private readonly billingConfig: BillingConfigService,
   ) {}
 
-  async ensureSchema(): Promise<void> {
-    if (this.schemaReady) return;
-    await this.db.rawQuery(`
-      CREATE TABLE IF NOT EXISTS authz.invites (
-        id text PRIMARY KEY,
-        email text,
-        token text UNIQUE NOT NULL,
-        role_name text NOT NULL DEFAULT 'beta_reader',
-        created_by text NOT NULL,
-        expires_at timestamptz NOT NULL,
-        accepted_at timestamptz,
-        revoked_at timestamptz,
-        created_at timestamptz NOT NULL DEFAULT now()
-      )
-    `);
-    // Seed beta_reader role if missing
-    await this.db.rawQuery(`
-      INSERT INTO authz.rbac_roles (id, name, display_name, description, is_system)
-      VALUES ('role-beta-reader', 'beta_reader', 'Beta Reader', 'Read-only access to an organization', true)
-      ON CONFLICT (id) DO NOTHING
-    `);
-    // Ensure beta_reader has read permission
-    await this.db.rawQuery(`
-      INSERT INTO authz.rbac_role_permissions (role_id, permission_id)
-      VALUES ('role-beta-reader', 'markets-instruments-read')
-      ON CONFLICT DO NOTHING
-    `);
-    this.schemaReady = true;
-  }
-
   async createInvite(
     createdBy: string,
     email?: string,
   ): Promise<CreateInviteResult> {
-    await this.ensureSchema();
     const id = randomUUID();
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -108,7 +76,6 @@ export class InviteService {
   }
 
   async listInvites(createdBy?: string): Promise<InviteRow[]> {
-    await this.ensureSchema();
     const result = createdBy
       ? await this.db.rawQuery(
           `SELECT * FROM authz.invites
@@ -123,7 +90,6 @@ export class InviteService {
   }
 
   async revokeInvite(id: string): Promise<{ revoked: boolean }> {
-    await this.ensureSchema();
     await this.db.rawQuery(
       `UPDATE authz.invites SET revoked_at = now()
        WHERE id = $1 AND revoked_at IS NULL`,
@@ -133,7 +99,6 @@ export class InviteService {
   }
 
   async validateInviteToken(token: string): Promise<ValidateResult> {
-    await this.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT * FROM authz.invites WHERE token = $1`,
       [token],

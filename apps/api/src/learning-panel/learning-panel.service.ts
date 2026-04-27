@@ -95,7 +95,6 @@ export class LearningPanelService {
   ) {}
 
   async getBootstrap(userId: string, surfaceKey?: string) {
-    await this.schema.ensureSchema();
     return {
       enabled: this.isEnabled(),
       modelProvider: this.getConfig().provider,
@@ -107,7 +106,6 @@ export class LearningPanelService {
   }
 
   async listThreads(userId: string) {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT t.id::text AS id,
               t.title,
@@ -144,7 +142,6 @@ export class LearningPanelService {
   }
 
   async getThread(userId: string, threadId: string): Promise<LearningPanelThreadPayload> {
-    await this.schema.ensureSchema();
     const thread = await this.getOwnedThread(userId, threadId);
     const messages = await this.fetchVisibleMessages(threadId);
     const state = await this.getThreadState(threadId);
@@ -161,7 +158,6 @@ export class LearningPanelService {
       credentialId?: string;
     },
   ): Promise<{ thread: LearningPanelThreadPayload }> {
-    await this.schema.ensureSchema();
     const message = this.normalizeMessage(input.initialMessage);
     await this.resolveGenerationMode(userId, input);
 
@@ -222,7 +218,6 @@ export class LearningPanelService {
       credentialId?: string;
     },
   ): Promise<{ thread: LearningPanelThreadPayload }> {
-    await this.schema.ensureSchema();
     const thread = await this.getOwnedThread(userId, threadId);
     const message = this.normalizeMessage(input.message);
     await this.resolveGenerationMode(userId, input);

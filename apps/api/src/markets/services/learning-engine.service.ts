@@ -48,7 +48,6 @@ export class LearningEngineService {
   ) {}
 
   async runLearningCycle(): Promise<LearningCycleResult> {
-    await this.schema.ensureSchema();
     this.logger.log('Starting Tier 1 learning cycle');
 
     let analystsEvaluated = 0;

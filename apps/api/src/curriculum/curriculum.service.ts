@@ -30,7 +30,6 @@ export class CurriculumService {
   // ─── CRUD ──────────────────────────────────────────────────────
 
   async createCurriculum(input: CreateCurriculumInput, userId: string): Promise<Curriculum & { modules: CurriculumModule[] }> {
-    await this.schema.ensureSchema();
     await this.clubService.requireRole(input.club_id, userId, ['owner', 'admin']);
 
     const id = randomUUID();
@@ -63,7 +62,6 @@ export class CurriculumService {
   }
 
   async listCurricula(clubId: string, userId: string): Promise<Array<Curriculum & { enrolled_count: number }>> {
-    await this.schema.ensureSchema();
     await this.clubService.requireMembership(clubId, userId);
 
     const result = await this.db.rawQuery(
@@ -79,7 +77,6 @@ export class CurriculumService {
   }
 
   async getCurriculum(id: string, userId?: string): Promise<(Curriculum & { modules: CurriculumModule[]; enrolled_count: number }) | null> {
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `SELECT c.*,
@@ -112,7 +109,6 @@ export class CurriculumService {
   }
 
   async updateCurriculum(id: string, input: UpdateCurriculumInput, userId: string): Promise<Curriculum> {
-    await this.schema.ensureSchema();
 
     // Get curriculum to verify ownership
     const existing = await this.getCurriculum(id);
@@ -138,7 +134,6 @@ export class CurriculumService {
   }
 
   async deleteCurriculum(id: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
 
     const existing = await this.getCurriculum(id);
     if (!existing) throw new Error('Curriculum not found');
@@ -159,7 +154,6 @@ export class CurriculumService {
   // ─── Module management ─────────────────────────────────────────
 
   async updateModule(curriculumId: string, weekNumber: number, input: UpdateModuleInput, userId: string): Promise<CurriculumModule> {
-    await this.schema.ensureSchema();
 
     const existing = await this.getCurriculum(curriculumId);
     if (!existing) throw new Error('Curriculum not found');
@@ -250,7 +244,6 @@ export class CurriculumService {
   }
 
   async createFromTemplate(clubId: string, templateSlug: string, userId: string): Promise<Curriculum & { modules: CurriculumModule[] }> {
-    await this.schema.ensureSchema();
     await this.clubService.requireRole(clubId, userId, ['owner', 'admin']);
 
     const dir = this.getTemplatesDir();
@@ -303,7 +296,6 @@ export class CurriculumService {
   // ─── Enrollment & Progress ─────────────────────────────────────
 
   async enroll(curriculumId: string, userId: string): Promise<CurriculumEnrollment> {
-    await this.schema.ensureSchema();
 
     const curriculum = await this.getCurriculum(curriculumId);
     if (!curriculum) throw new Error('Curriculum not found');
@@ -345,7 +337,6 @@ export class CurriculumService {
     enrollment: CurriculumEnrollment;
     module_progress: Array<CurriculumModuleProgress & { week_number: number; theme: string }>;
   }> {
-    await this.schema.ensureSchema();
 
     const enrollResult = await this.db.rawQuery(
       `SELECT * FROM prediction.curriculum_enrollments
@@ -378,7 +369,6 @@ export class CurriculumService {
     activityType: 'challenge' | 'poll' | 'journal' | 'tournament',
     userId: string,
   ): Promise<CurriculumModuleProgress> {
-    await this.schema.ensureSchema();
 
     // Get enrollment
     const enrollResult = await this.db.rawQuery(
@@ -528,7 +518,6 @@ export class CurriculumService {
       module_progress: CurriculumModuleProgress[];
     }>;
   }> {
-    await this.schema.ensureSchema();
 
     const curriculum = await this.getCurriculum(curriculumId);
     if (!curriculum) throw new Error('Curriculum not found');
@@ -593,7 +582,6 @@ export class CurriculumService {
       };
     }>;
   }> {
-    await this.schema.ensureSchema();
 
     const curriculum = await this.getCurriculum(curriculumId);
     if (!curriculum) throw new Error('Curriculum not found');

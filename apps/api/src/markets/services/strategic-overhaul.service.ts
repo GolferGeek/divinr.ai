@@ -69,7 +69,6 @@ export class StrategicOverhaulService {
   // ─── Evidence Aggregation ──────────────────────────────────────
 
   async aggregateEvidence(analystId: string): Promise<EvidenceDossier> {
-    await this.schema.ensureSchema();
 
     // 1. Accepted audit findings grouped by discrepancy pattern
     const findingsResult = await this.db.rawQuery(
@@ -297,7 +296,6 @@ ${findingsSummary}`;
       return { analystsEvaluated: 0, proposalsCreated: 0, proposalsPassed: 0, proposalsFailed: 0, skippedBelowThreshold: 0, skippedDuplicate: 0 };
     }
 
-    await this.schema.ensureSchema();
     this.logger.log('Starting Tier 3 strategic overhaul cycle');
 
     const result: OverhaulCycleResult = {

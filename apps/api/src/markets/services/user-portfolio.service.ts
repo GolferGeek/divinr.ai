@@ -27,7 +27,6 @@ export class UserPortfolioService {
   ) {}
 
   async ensurePortfolio(userId: string, initialBalance = 1000000): Promise<UserPortfolio> {
-    await this.schema.ensureSchema();
 
     const existing = await this.db.rawQuery(
       `select * from prediction.user_portfolios where user_id = $1`,

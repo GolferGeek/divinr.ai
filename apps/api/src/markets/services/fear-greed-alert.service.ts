@@ -23,7 +23,6 @@ export class FearGreedAlertService {
    * Called by the analyst pipeline after the predictor-scoring step.
    */
   async evaluateRecentPredictors(): Promise<number> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `select id from prediction.market_predictors
        where crowd_reaction in ('fear_trigger', 'greed_trigger')
@@ -43,7 +42,6 @@ export class FearGreedAlertService {
   async evaluatePredictors(predictorIds: string[]): Promise<number> {
     if (predictorIds.length === 0) return 0;
 
-    await this.schema.ensureSchema();
 
     // Find sentiment-analyst predictors with crowd_reaction triggers above threshold
     const placeholders = predictorIds.map((_, i) => `$${i + 1}`).join(', ');
@@ -265,7 +263,6 @@ export class FearGreedAlertService {
   }
 
   async markRead(id: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.db.rawQuery(
       `update prediction.fear_greed_alerts
        set is_read = true
@@ -275,7 +272,6 @@ export class FearGreedAlertService {
   }
 
   async markAllRead(userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.db.rawQuery(
       `update prediction.fear_greed_alerts
        set is_read = true

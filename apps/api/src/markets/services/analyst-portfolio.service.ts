@@ -21,7 +21,6 @@ export class AnalystPortfolioService {
   ) {}
 
   async ensurePortfolio(analystId: string, initialBalance = 1000000): Promise<AnalystPortfolio> {
-    await this.schema.ensureSchema();
 
     // Check if portfolio exists
     const existing = await this.db.rawQuery(

@@ -83,7 +83,6 @@ export class NightlyEvaluationService {
    * Called by cron or manually via the admin endpoint.
    */
   async runNightlyEvaluation(): Promise<EvaluationSummary> {
-    await this.schema.ensureSchema();
     const runStartedAt = new Date();
     this.logger.log('Starting nightly evaluation cycle');
 

@@ -25,7 +25,6 @@ export class NotificationService {
   ) {}
 
   async notify(userId: string, input: NotifyInput): Promise<string> {
-    await this.schema.ensureSchema();
 
     // Honor per-user social_notifications_enabled opt-out.
     const optOutCheck = await this.db.rawQuery(
@@ -101,7 +100,6 @@ export class NotificationService {
   }
 
   async markRead(id: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.db.rawQuery(
       `update prediction.notifications
        set is_read = true
@@ -116,7 +114,6 @@ export class NotificationService {
    * don't have a specific userId in context.
    */
   async notifyAllUsers(input: NotifyInput): Promise<void> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `select distinct up.user_id
        from prediction.user_portfolios up
@@ -130,7 +127,6 @@ export class NotificationService {
   }
 
   async markAllRead(userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.db.rawQuery(
       `update prediction.notifications
        set is_read = true

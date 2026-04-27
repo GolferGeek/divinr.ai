@@ -126,6 +126,6 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     MessagingSchemaService,
     MessagingService,
   ],
-  exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService, LlmUsageQueryService, MarketsLlmService, NightlyEvaluationService, MarketsSchemaService],
+  exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService, LlmUsageQueryService, MarketsLlmService, NightlyEvaluationService, MarketsSchemaService, MessagingSchemaService],
 })
 export class MarketsModule {}

@@ -32,26 +32,43 @@ async function main(): Promise<void> {
 
   await test('bootstrap runs the smallest schema tasks in deterministic order', async () => {
     const calls: string[] = [];
-    const makeTask = (key: string) => ({
+    const makeTask = (key: string, method: 'ensureSchema' | 'bootstrap' = 'ensureSchema') => ({
       ensureSchema: async () => {
+        if (method !== 'ensureSchema') return;
+        calls.push(key);
+      },
+      bootstrap: async () => {
+        if (method !== 'bootstrap') return;
         calls.push(key);
       },
     });
 
     const service = new SchemaBootstrapService(
       makeTask('billing') as never,
+      makeTask('clubs') as never,
       makeTask('credentials') as never,
+      makeTask('curriculum') as never,
       makeTask('first-touch') as never,
+      makeTask('invites') as never,
       makeTask('learning-panel') as never,
+      makeTask('markets', 'bootstrap') as never,
+      makeTask('messaging') as never,
       makeTask('onboarding') as never,
       makeTask('service-api-keys') as never,
+      makeTask('tournaments') as never,
     );
 
     const results = await service.runAll();
     assert.deepEqual(calls, [
       'billing',
+      'markets',
+      'messaging',
+      'clubs',
+      'tournaments',
+      'curriculum',
       'credentials',
       'onboarding',
+      'invites',
       'first-touch',
       'learning-panel',
       'service-api-keys',

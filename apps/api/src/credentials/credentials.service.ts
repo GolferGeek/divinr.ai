@@ -26,7 +26,6 @@ export class CredentialsService {
     userId: string,
     input: { provider: string; label: string; secret: string },
   ): Promise<CredentialSummary> {
-    await this.schema.ensureSchema();
 
     const { ciphertext, iv, tag } = this.encryption.encrypt(input.secret);
 
@@ -66,7 +65,6 @@ export class CredentialsService {
   }
 
   async listCredentials(userId: string): Promise<CredentialSummary[]> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT id, provider, label, last_used_at
        FROM credentials.user_llm_credentials
@@ -84,7 +82,6 @@ export class CredentialsService {
   }
 
   async revokeCredential(userId: string, credentialId: string): Promise<void> {
-    await this.schema.ensureSchema();
 
     // Check if any analyst still references this credential
     const refResult = await this.db.rawQuery(
@@ -126,7 +123,6 @@ export class CredentialsService {
   }
 
   async resolveSecret(credentialId: string, userId?: string): Promise<{ provider: string; secret: string }> {
-    await this.schema.ensureSchema();
     const sql = userId
       ? `SELECT provider, encrypted_secret, encryption_iv, encryption_tag
          FROM credentials.user_llm_credentials
