@@ -19,7 +19,6 @@ export class TournamentService {
   ) {}
 
   async createTournament(input: CreateTournamentInput, userId: string, userRole?: string): Promise<Tournament> {
-    await this.schema.ensureSchema();
 
     if (input.scope === 'system' && userRole !== 'admin') {
       throw new Error('Only admins can create system tournaments');
@@ -60,7 +59,6 @@ export class TournamentService {
   }
 
   async listTournaments(userId: string, filters: ListTournamentsFilters = {}): Promise<Tournament[]> {
-    await this.schema.ensureSchema();
 
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -142,7 +140,6 @@ export class TournamentService {
   }
 
   async getTournament(id: string, userId: string): Promise<Tournament | null> {
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `SELECT t.* FROM prediction.tournaments t
@@ -162,7 +159,6 @@ export class TournamentService {
   }
 
   async updateTournament(id: string, input: UpdateTournamentInput, userId: string, userRole?: string): Promise<Tournament> {
-    await this.schema.ensureSchema();
 
     // Fetch tournament to check ownership and status
     const existing = await this.db.rawQuery(
@@ -204,7 +200,6 @@ export class TournamentService {
   }
 
   async archiveTournament(id: string, userId: string, userRole?: string): Promise<Tournament> {
-    await this.schema.ensureSchema();
 
     const existing = await this.db.rawQuery(
       `SELECT * FROM prediction.tournaments WHERE id = $1`,

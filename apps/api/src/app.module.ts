@@ -30,6 +30,9 @@ import { PublicConfigModule } from './public-config/public-config.module';
 import { CostModelingModule } from './cost-modeling/cost-modeling.module';
 import { AttributionModule } from './attribution/attribution.module';
 import { CredentialsModule } from './credentials/credentials.module';
+import { LearningPanelModule } from './learning-panel/learning-panel.module';
+import { MasteryModule } from './mastery/mastery.module';
+import { BootstrapModule } from './bootstrap/bootstrap.module';
 import { UsersModule } from './users/users.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuthController } from './auth/auth.controller';
@@ -60,6 +63,9 @@ import { InviteService } from './auth/invite.service';
     CostModelingModule,
     AttributionModule,
     CredentialsModule,
+    LearningPanelModule,
+    MasteryModule,
+    BootstrapModule,
     UsersModule,
   ],
   controllers: [HealthController, AuthController],

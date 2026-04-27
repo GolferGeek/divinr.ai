@@ -33,7 +33,6 @@ export class ActiveAuthorshipService {
    * where user_id IS NOT NULL (authored, not base).
    */
   async listActiveAuthoredAnalysts(instrumentId: string): Promise<any[]> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT DISTINCT ma.id, ma.slug, ma.display_name, ma.user_id, ma.current_config_version_id,
               viaa.viewer_user_id
@@ -51,7 +50,6 @@ export class ActiveAuthorshipService {
    * List all active authored instruments (user_id IS NOT NULL).
    */
   async listActiveAuthoredInstruments(): Promise<any[]> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT id, symbol, name, asset_type, user_id
        FROM prediction.instruments

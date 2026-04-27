@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import {
   IonCard, IonCardContent, IonCardHeader, IonCardTitle,
   IonItem, IonLabel, IonToggle, IonButton, IonList, IonNote,
 } from '@ionic/vue';
 import { useFirstTouchStore } from '../stores/firstTouch.store';
 import { useAuthStore } from '../stores/auth.store';
+import { useMasteryStore } from '../stores/mastery.store';
+import type { MasteryLevel } from '../mastery/mastery-config';
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 
 const firstTouch = useFirstTouchStore();
 const auth = useAuthStore();
+const mastery = useMasteryStore();
+const savingLevel = ref<MasteryLevel | null>(null);
 
 const showFirstTouch = computed<boolean>({
   get: () => !firstTouch.muted,
@@ -43,6 +47,66 @@ const sections: SectionReset[] = [
 
 const visibleSections = computed(() => sections.filter(s => !s.adminOnly || auth.isAdmin));
 
+function formatLevelLabel(level: string): string {
+  return level
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+const levelOptions = computed(() => {
+  const options: Array<{ level: MasteryLevel; label: string; body: string }> = [
+    {
+      level: 'core_trading',
+      label: 'Core Trading',
+      body: 'Keep the shell focused on analyses, risk, trading, portfolios, and the Learning Panel.',
+    },
+    {
+      level: 'competitive_participation',
+      label: 'Competitive Participation',
+      body: 'Add clubs and tournament participation surfaces.',
+    },
+    {
+      level: 'community_creation',
+      label: 'Community Creation',
+      body: 'Reveal club and tournament creation plus messaging workflows.',
+    },
+    {
+      level: 'builder',
+      label: 'Builder',
+      body: 'Reveal research, analysts, and authored-content surfaces.',
+    },
+  ];
+  if (auth.isAdmin) {
+    options.push({
+      level: 'operator',
+      label: 'Operator',
+      body: 'Keep the full operator shell visible, including coordination and system surfaces.',
+    });
+  }
+  return options;
+});
+
+function isCurrentLevel(level: MasteryLevel): boolean {
+  return mastery.currentLevel === level;
+}
+
+async function chooseLevel(level: MasteryLevel): Promise<void> {
+  if (isCurrentLevel(level)) return;
+  savingLevel.value = level;
+  try {
+    await mastery.updatePreferredLevel(level);
+  } finally {
+    savingLevel.value = null;
+  }
+}
+
+onMounted(() => {
+  if (!mastery.loaded && !mastery.loading) {
+    void mastery.fetch().catch(() => {});
+  }
+});
+
 async function resetSection(prefix: string): Promise<void> {
   await firstTouch.resetByPrefix(prefix);
 }
@@ -75,6 +139,42 @@ async function resetAll(): Promise<void> {
           </ion-label>
           <ion-toggle v-model="showFirstTouch" slot="end" />
         </ion-item>
+      </ion-card-content>
+    </ion-card>
+
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>App complexity</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <p>
+          Choose how much of Divinr you want visible in the shell. This changes
+          what is shown in the left navigation; it does not change real permissions.
+        </p>
+        <ion-note v-if="mastery.nextLevel">
+          Suggested next level: {{ formatLevelLabel(mastery.nextLevel) }}
+        </ion-note>
+        <ion-list class="section-list">
+          <ion-item
+            v-for="option in levelOptions"
+            :key="option.level"
+            lines="full"
+          >
+            <ion-label>
+              <h3>{{ option.label }}</h3>
+              <p>{{ option.body }}</p>
+            </ion-label>
+            <ion-button
+              slot="end"
+              :fill="isCurrentLevel(option.level) ? 'solid' : 'outline'"
+              size="small"
+              :disabled="savingLevel !== null"
+              @click="chooseLevel(option.level)"
+            >
+              {{ isCurrentLevel(option.level) ? 'Current' : (savingLevel === option.level ? 'Saving…' : 'Show this') }}
+            </ion-button>
+          </ion-item>
+        </ion-list>
       </ion-card-content>
     </ion-card>
 

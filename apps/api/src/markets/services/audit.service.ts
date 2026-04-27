@@ -119,7 +119,6 @@ export class AuditService {
   // ─── Audit Policy (meta-loop) ───────────────────────────────────
 
   async updateAuditPolicy(): Promise<{ generated: boolean; reason?: string }> {
-    await this.schema.ensureSchema();
     const minReviews = Number(process.env.AUDIT_POLICY_MIN_REVIEWS) || 5;
 
     // Read all reviewed findings
@@ -229,7 +228,6 @@ Output ONLY the policy text. No preamble.`;
     confidenceLevel: string;
     generatedAt: string;
   } | null> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT summary FROM prediction.learning_reports
        WHERE report_type = 'audit_policy'
@@ -257,7 +255,6 @@ Output ONLY the policy text. No preamble.`;
   // ─── Read + Review ──────────────────────────────────────────────
 
   async getFindings(userId: string): Promise<AuditFindingRow[]> {
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `SELECT af.id, af.analyst_id, af.prediction_id, af.config_version_id,
@@ -286,7 +283,6 @@ Output ONLY the policy text. No preamble.`;
     action: string,
     reviewText?: string,
   ): Promise<{ updated: boolean }> {
-    await this.schema.ensureSchema();
 
     const validActions = ['accepted', 'rejected', 'noted'];
     if (!validActions.includes(action)) {
@@ -329,7 +325,6 @@ Output ONLY the policy text. No preamble.`;
   }
 
   async runAuditCycle(options?: { count?: number }): Promise<AuditCycleResult> {
-    await this.schema.ensureSchema();
 
     const envCount = Number(process.env.AUDIT_PREDICTIONS_PER_CYCLE);
     const count = options?.count ?? (envCount > 0 ? envCount : 5);

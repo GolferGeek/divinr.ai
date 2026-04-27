@@ -12,7 +12,7 @@ test.describe('login smoke', () => {
 
     await page.goto('/');
     await expect(page).not.toHaveURL(/\/login/);
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: /financial markets/i })).toBeVisible();
     expect(serverErrors, `unexpected 5xx on home: ${serverErrors.join('\n')}`).toEqual([]);
   });
 });

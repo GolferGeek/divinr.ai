@@ -45,7 +45,6 @@ export class AffinityService {
     predictionId?: string,
     instrumentId?: string,
   ): Promise<void> {
-    await this.schema.ensureSchema();
 
     const weight = SIGNAL_WEIGHTS[signalType];
     const id = randomUUID();
@@ -65,7 +64,6 @@ export class AffinityService {
    * Uses exponential decay with a 30-day half-life so recent signals matter more.
    */
   async recomputeAffinity(userId: string, analystId: string): Promise<number> {
-    await this.schema.ensureSchema();
 
     // Fetch all signals for this pair
     const result = await this.db.rawQuery(
@@ -157,8 +155,6 @@ export class AffinityService {
    * Get the full affinity profile for a user — all analyst affinities sorted by score.
    */
   async getUserAffinityProfile(userId: string): Promise<Array<UserAnalystAffinity & { display_name: string; slug: string }>> {
-    await this.schema.ensureSchema();
-
     const result = await this.db.rawQuery(
       `select a.*, ma.display_name, ma.slug
        from prediction.user_analyst_affinity a
@@ -184,7 +180,6 @@ export class AffinityService {
     score: number;
     analysts: Array<{ analyst_id: string; direction: string; confidence: number; affinity: number }>;
   }> {
-    await this.schema.ensureSchema();
 
     // Load all analyst predictions for this run
     const predResult = await this.db.rawQuery(
@@ -232,7 +227,6 @@ export class AffinityService {
    * disagrees with the weighted consensus at high confidence.
    */
   async generateContrarianAlerts(userId: string, runId: string): Promise<number> {
-    await this.schema.ensureSchema();
 
     // Check unread alert cap (max 3)
     const unreadResult = await this.db.rawQuery(
@@ -306,8 +300,6 @@ export class AffinityService {
    * Get contrarian alerts for a user.
    */
   async getContrarianAlerts(userId: string, unreadOnly = false): Promise<ContrarianAlert[]> {
-    await this.schema.ensureSchema();
-
     const whereClause = unreadOnly
       ? `where a.user_id = $1 and a.is_read = false`
       : `where a.user_id = $1`;
@@ -328,7 +320,6 @@ export class AffinityService {
    * Mark a contrarian alert as read.
    */
   async markAlertRead(alertId: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.db.rawQuery(
       `update prediction.user_contrarian_alerts
        set is_read = true
@@ -346,7 +337,6 @@ export class AffinityService {
    * - Normalizes scores if they cluster within 0.1 range
    */
   async decayAndNormalize(userId?: string): Promise<void> {
-    await this.schema.ensureSchema();
 
     // Prune old signals (> 90 days)
     const pruneCondition = userId
@@ -403,7 +393,6 @@ export class AffinityService {
    * Called by the nightly evaluation pipeline.
    */
   async decayAllAffinities(): Promise<number> {
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `select distinct user_id from prediction.user_affinity_signals`,

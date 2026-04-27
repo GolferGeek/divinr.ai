@@ -1,7 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { loginAs } from '../../fixtures/login.js';
 import { dismissWelcomeModal } from '../../fixtures/onboarding.js';
 
 test.describe('clubs facet — smoke', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test('list loads without 5xx and enforces vocabulary', async ({ page }) => {
     const serverErrors: string[] = [];
     page.on('response', (resp) => {
@@ -10,6 +13,12 @@ test.describe('clubs facet — smoke', () => {
         serverErrors.push(`${resp.status()} ${u}`);
       }
     });
+
+    await loginAs(
+      page,
+      process.env.TEST_USER_EMAIL ?? 'testing-team@divinr.ai',
+      process.env.TEST_USER_PASSWORD ?? 'change-me',
+    );
 
     await page.goto('/clubs');
     await dismissWelcomeModal(page);

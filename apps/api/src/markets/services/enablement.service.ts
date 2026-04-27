@@ -37,7 +37,6 @@ export class EnablementService {
   ) {}
 
   async listEnabledTriples(userId: string): Promise<EnabledTriple[]> {
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `SELECT
@@ -79,7 +78,6 @@ export class EnablementService {
     instrumentId: string,
     authorUserId?: string | null,
   ): Promise<EnabledTriple> {
-    await this.schema.ensureSchema();
 
     await this.db.rawQuery(
       `INSERT INTO prediction.user_enabled_triples
@@ -122,7 +120,6 @@ export class EnablementService {
     instrumentId: string,
     authorUserId?: string | null,
   ): Promise<void> {
-    await this.schema.ensureSchema();
 
     await this.db.rawQuery(
       `UPDATE prediction.user_enabled_triples
@@ -140,7 +137,6 @@ export class EnablementService {
     userId: string,
     instrumentId?: string,
   ): Promise<AvailableTriple[]> {
-    await this.schema.ensureSchema();
 
     const instrumentFilter = instrumentId
       ? `AND i.id = $2`
@@ -213,7 +209,6 @@ export class EnablementService {
   }
 
   async seedStarterTriples(userId: string): Promise<void> {
-    await this.schema.ensureSchema();
 
     const hasRows = await this.db.rawQuery(
       `SELECT 1 FROM prediction.user_enabled_triples

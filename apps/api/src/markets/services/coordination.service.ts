@@ -38,7 +38,6 @@ export class CoordinationService {
   // ─── Correlation Analysis ─────────────────────────────────────
 
   async computeCorrelations(period: string): Promise<number> {
-    await this.schema.ensureSchema();
     const cutoff = this.periodToCutoff(period);
 
     // Find all analyst pairs that share prediction runs and compute agreement rate.
@@ -119,7 +118,6 @@ export class CoordinationService {
     instrumentId?: string,
     flagOnly?: boolean,
   ): Promise<unknown[]> {
-    await this.schema.ensureSchema();
 
     const conditions = ['c.period = $1'];
     const params: unknown[] = [period];
@@ -156,7 +154,6 @@ export class CoordinationService {
   // ─── Coverage Analysis ─────────────────────────────────────────
 
   async computeCoverage(period: string): Promise<number> {
-    await this.schema.ensureSchema();
     const cutoff = this.periodToCutoff(period);
 
     const sql = `
@@ -221,7 +218,6 @@ export class CoordinationService {
   }
 
   async getCoverage(period: string, gapsOnly?: boolean): Promise<unknown[]> {
-    await this.schema.ensureSchema();
 
     const conditions = ['g.period = $1'];
     const params: unknown[] = [period];
@@ -249,7 +245,6 @@ export class CoordinationService {
   // ─── Contribution Scoring ─────────────────────────────────────
 
   async computeContributions(period: string): Promise<number> {
-    await this.schema.ensureSchema();
     const cutoff = this.periodToCutoff(period);
 
     // Step 1: Get all evaluated runs with their analyst predictions and arbitrator outcome.
@@ -379,7 +374,6 @@ export class CoordinationService {
   }
 
   async getContributions(period: string, instrumentId?: string): Promise<unknown[]> {
-    await this.schema.ensureSchema();
 
     const conditions = ['s.period = $1'];
     const params: unknown[] = [period];

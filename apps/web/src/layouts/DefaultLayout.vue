@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle,
   IonContent, IonIcon, IonLabel, IonChip, IonButton,
-  IonButtons, IonRouterOutlet, IonPopover, IonList, IonItem,
+  IonButtons, IonPopover, IonList, IonItem, IonModal,
 } from '@ionic/vue';
 import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
@@ -16,7 +16,7 @@ import {
   createOutline, analyticsOutline, ellipsisHorizontalOutline,
   schoolOutline, cashOutline,
 } from 'ionicons/icons';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 import { useDomainStore } from '../stores/domain.store';
 import { useActivityStore } from '../stores/activity.store';
@@ -27,6 +27,7 @@ import { useMessagingStore } from '../stores/messaging.store';
 import { useOnboardingStore } from '../stores/onboarding.store';
 import { useFirstTouchStore } from '../stores/firstTouch.store';
 import { useBillingStatusStore } from '../stores/billing-status.store';
+import { useMasteryStore } from '../stores/mastery.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
 import WelcomeModal from '../components/WelcomeModal.vue';
 import DocentPanel from '../components/DocentPanel.vue';
@@ -35,6 +36,8 @@ import ElementHighlighter from '../components/ElementHighlighter.vue';
 import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 import ReadOnlyBanner from '../components/ReadOnlyBanner.vue';
 import TrialCountdown from '../components/TrialCountdown.vue';
+import LearningPanelSurface from '../components/LearningPanelSurface.vue';
+import { masteryNavGroups } from '../mastery/mastery-config';
 
 const auth = useAuthStore();
 const domain = useDomainStore();
@@ -46,97 +49,12 @@ const messagingStore = useMessagingStore();
 const onboarding = useOnboardingStore();
 const firstTouchStore = useFirstTouchStore();
 const billing = useBillingStatusStore();
+const mastery = useMasteryStore();
+const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(false);
-
-interface NavItem {
-  title: string;
-  icon: string;
-  to: string;
-  adminOnly?: boolean;
-}
-
-interface NavGroup {
-  label: string;
-  adminOnly?: boolean;
-  items: NavItem[];
-}
-
-const navGroups: NavGroup[] = [
-  {
-    label: '',
-    items: [
-      { title: 'Dashboard', icon: gridOutline, to: '/' },
-      { title: 'Market Assistant', icon: bulbOutline, to: '/chat' },
-      { title: 'Trade', icon: cashOutline, to: '/tournaments' },
-    ],
-  },
-  {
-    label: 'Markets',
-    items: [
-      { title: 'Research', icon: statsChartOutline, to: '/instruments' },
-      { title: 'Portfolios', icon: briefcaseOutline, to: '/portfolios' },
-      { title: 'Risk', icon: shieldOutline, to: '/risk' },
-    ],
-  },
-  {
-    label: 'AI Analysts',
-    items: [
-      { title: 'Analysts', icon: peopleOutline, to: '/analysts' },
-      { title: 'Performance', icon: trendingUpOutline, to: '/performance' },
-      { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination' },
-      { title: 'Affinity', icon: heartOutline, to: '/affinity' },
-    ],
-  },
-  {
-    label: 'Community',
-    items: [
-      { title: 'Clubs', icon: peopleCircleOutline, to: '/clubs' },
-      { title: 'Tournaments', icon: trophyOutline, to: '/tournaments' },
-      { title: 'Messages', icon: chatbubblesOutline, to: '/messages' },
-    ],
-  },
-  {
-    label: 'Settings',
-    items: [
-      { title: 'Your Content', icon: createOutline, to: '/settings/authored-content' },
-      { title: 'Onboarding', icon: schoolOutline, to: '/settings/onboarding' },
-      { title: 'Visibility & Social', icon: shieldOutline, to: '/settings/social-opt-outs' },
-      { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine', adminOnly: true },
-      { title: 'Billing Summary', icon: analyticsOutline, to: '/billing/summary', adminOnly: true },
-    ],
-  },
-  {
-    label: 'System',
-    adminOnly: true,
-    items: [
-      { title: 'Runs', icon: playOutline, to: '/runs' },
-      { title: 'Sources', icon: newspaperOutline, to: '/sources' },
-      { title: 'Evaluations', icon: ribbonOutline, to: '/evaluations' },
-      { title: 'Learning', icon: bulbOutline, to: '/learning' },
-      { title: 'Proposals', icon: constructOutline, to: '/proposals' },
-      { title: 'LLM Usage', icon: analyticsOutline, to: '/usage' },
-    ],
-  },
-  {
-    label: 'Cost Modeling',
-    adminOnly: true,
-    items: [
-      { title: 'Calibration', icon: analyticsOutline, to: '/admin/cost/calibration' },
-      { title: 'Defensibility', icon: analyticsOutline, to: '/admin/cost/defensibility' },
-      { title: 'Experiments', icon: analyticsOutline, to: '/admin/cost/experiments' },
-    ],
-  },
-  {
-    label: 'Attribution',
-    adminOnly: true,
-    items: [
-      { title: 'Overview', icon: trendingUpOutline, to: '/admin/attribution' },
-      { title: 'Sources', icon: newspaperOutline, to: '/admin/attribution/sources' },
-      { title: 'Graduation Candidates', icon: ribbonOutline, to: '/admin/attribution/graduation-candidates' },
-    ],
-  },
-];
+const learningPanelOpen = ref(false);
+const mobileViewport = ref(typeof window !== 'undefined' ? window.innerWidth < 960 : false);
 
 const collapsedGroups = ref<Record<string, boolean>>({});
 
@@ -149,14 +67,18 @@ function isGroupCollapsed(label: string): boolean {
 }
 
 const visibleGroups = computed(() =>
-  navGroups
+  masteryNavGroups
     .filter(g => !g.adminOnly || auth.isAdmin)
     .map(g => ({
       ...g,
-      items: g.items.filter(i => !i.adminOnly || auth.isAdmin),
+      items: g.items.filter((i) => {
+        if (i.adminOnly && !auth.isAdmin) return false;
+        return mastery.canViewLevel(i.minLevel, i.alwaysVisible);
+      }),
     }))
     .filter(g => g.items.length > 0),
 );
+const showActivityFooter = computed(() => mastery.canViewLevel('competitive_participation'));
 
 // Load contrarian alerts and notification count on mount
 affinityStore.fetchContrarianAlerts(true);
@@ -166,6 +88,7 @@ messagingStore.fetchUnreadCounts();
 onboarding.fetch().catch(() => { /* non-fatal if API down; welcome modal simply stays hidden */ });
 firstTouchStore.fetch().catch(() => { /* non-fatal; panels stay hidden */ });
 billing.fetch().catch(() => { /* non-fatal; banners stay hidden */ });
+mastery.fetch().catch(() => { /* non-fatal; shell falls back to Level 1 visibility */ });
 billing.startAutoRefresh();
 
 function logout() {
@@ -173,12 +96,72 @@ function logout() {
   onboarding.clear();
   firstTouchStore.clear();
   billing.clear();
+  mastery.clear();
   router.push('/login');
 }
 
 function handleNavClick(path: string) {
   sidebarOpen.value = false;
+  if (path === '/chat' && route.path !== '/chat') {
+    openLearningPanel();
+    return;
+  }
   router.push(path);
+}
+
+function syncViewport() {
+  mobileViewport.value = typeof window !== 'undefined' ? window.innerWidth < 960 : false;
+}
+
+const learningPanelSurfaceKey = computed(() => {
+  const path = route.path;
+  if (path === '/' || path.startsWith('/domain/')) return 'dashboard';
+  if (path.startsWith('/predictions')) return 'predictions';
+  if (path.startsWith('/risk')) return 'risk-dashboard';
+  if (path.startsWith('/portfolios') || path === '/portfolio') return 'portfolios';
+  if (path.startsWith('/clubs/')) return 'club.detail';
+  if (path.startsWith('/clubs')) return 'clubs';
+  if (path.startsWith('/tournaments')) return 'tournaments';
+  if (path.startsWith('/messages')) return 'messages';
+  if (path.startsWith('/analysts')) return 'analysts';
+  if (path.startsWith('/performance')) return 'performance';
+  if (path.startsWith('/instruments')) return 'instruments';
+  if (path.startsWith('/settings/authored-content')) return 'authored.overview';
+  return 'chat';
+});
+
+const learningPanelInstrumentId = computed(() => {
+  const queryInstrumentId = route.query.instrumentId;
+  if (typeof queryInstrumentId === 'string' && queryInstrumentId.length > 0) {
+    return queryInstrumentId;
+  }
+  if (route.path.startsWith('/instruments/')) {
+    const routeId = route.params.id;
+    if (typeof routeId === 'string' && routeId.length > 0) return routeId;
+  }
+  return '';
+});
+
+function openLearningPanel() {
+  sidebarOpen.value = false;
+  if (route.path === '/chat') return;
+  if (activity.panelOpen) activity.panelOpen = false;
+  learningPanelOpen.value = true;
+}
+
+function toggleLearningPanel() {
+  if (learningPanelOpen.value) {
+    learningPanelOpen.value = false;
+    return;
+  }
+  openLearningPanel();
+}
+
+function handleActivityToggle() {
+  if (!activity.panelOpen && learningPanelOpen.value) {
+    learningPanelOpen.value = false;
+  }
+  activity.toggle();
 }
 
 async function retakeOnboarding() {
@@ -200,6 +183,15 @@ async function resetUserOnboarding() {
     window.alert(`Failed to reset: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
+
+onMounted(() => {
+  syncViewport();
+  window.addEventListener('resize', syncViewport);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncViewport);
+});
 </script>
 
 <template>
@@ -225,7 +217,7 @@ async function resetUserOnboarding() {
                 v-for="item in group.items"
                 :key="item.to"
                 class="sidebar-item"
-                :class="{ active: $route.path === item.to }"
+                :class="{ active: $route.path === item.to || (item.to === '/chat' && learningPanelOpen) }"
                 role="link"
                 tabindex="0"
                 :aria-label="item.title"
@@ -238,11 +230,11 @@ async function resetUserOnboarding() {
             </template>
           </template>
         </ul>
-        <div class="sidebar-footer">
+        <div v-if="showActivityFooter" class="sidebar-footer">
           <button
             class="activity-btn"
             :class="{ active: activity.panelOpen }"
-            @click="activity.toggle()"
+            @click="handleActivityToggle()"
           >
             <ion-icon :icon="pulseOutline" />
             <span>Activity</span>
@@ -278,6 +270,15 @@ async function resetUserOnboarding() {
               </ion-button>
               <ion-button
                 fill="clear"
+                class="notification-bell chrome-desktop-only"
+                aria-label="Open Learning Panel"
+                title="Open Learning Panel"
+                @click="toggleLearningPanel"
+              >
+                <ion-icon :icon="bulbOutline" />
+              </ion-button>
+              <ion-button
+                fill="clear"
                 id="mobile-chrome-trigger"
                 class="notification-bell chrome-mobile-only chrome-mobile-overflow-btn"
                 aria-label="Open notifications menu"
@@ -309,6 +310,10 @@ async function resetUserOnboarding() {
                       <ion-icon slot="start" :icon="notificationsOutline" />
                       <ion-label>Notifications</ion-label>
                       <span v-if="notificationStore.unreadCount > 0" class="chrome-mobile-popover-badge">{{ notificationStore.unreadCount > 9 ? '9+' : notificationStore.unreadCount }}</span>
+                    </ion-item>
+                    <ion-item button :detail="false" @click="toggleLearningPanel">
+                      <ion-icon slot="start" :icon="bulbOutline" />
+                      <ion-label>Learning Panel</ion-label>
                     </ion-item>
                   </ion-list>
                 </ion-content>
@@ -377,6 +382,32 @@ async function resetUserOnboarding() {
     </div>
     <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false" />
     <ActivityPanel />
+    <button
+      v-if="route.path !== '/chat'"
+      class="learning-panel-fab"
+      :class="{ active: learningPanelOpen }"
+      type="button"
+      aria-label="Open Learning Panel quick access"
+      title="Open Learning Panel"
+      @click="toggleLearningPanel"
+    >
+      <ion-icon :icon="bulbOutline" />
+    </button>
+    <IonModal
+      :is-open="learningPanelOpen"
+      @did-dismiss="learningPanelOpen = false"
+      :breakpoints="mobileViewport ? [0, 0.72, 1] : undefined"
+      :initial-breakpoint="mobileViewport ? 0.72 : undefined"
+      class="learning-panel-modal"
+    >
+      <LearningPanelSurface
+        embedded
+        show-close
+        :surface-key="learningPanelSurfaceKey"
+        :instrument-id="learningPanelInstrumentId"
+        @close="learningPanelOpen = false"
+      />
+    </IonModal>
     <WelcomeModal />
     <DocentPanel />
     <CompletionModal />
@@ -472,6 +503,43 @@ async function resetUserOnboarding() {
 
 .header-user-chip {
   cursor: pointer;
+}
+
+.learning-panel-modal {
+  --width: min(100vw, 460px);
+  --max-width: 460px;
+  --height: 100%;
+  --border-radius: 18px 0 0 18px;
+}
+
+.learning-panel-modal::part(content) {
+  overflow: hidden;
+}
+
+.learning-panel-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 54px;
+  height: 54px;
+  border: none;
+  border-radius: 50%;
+  background: var(--ion-color-primary, #3880ff);
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  cursor: pointer;
+}
+
+.learning-panel-fab ion-icon {
+  font-size: 1.3rem;
+}
+
+.learning-panel-fab.active {
+  background: var(--ion-color-primary-shade, #3171e0);
 }
 
 .tour-progress-badge {
@@ -582,6 +650,13 @@ async function resetUserOnboarding() {
     background: rgba(0, 0, 0, 0.3);
     z-index: 999;
   }
+
+  .learning-panel-fab {
+    right: 14px;
+    bottom: 14px;
+    width: 50px;
+    height: 50px;
+  }
 }
 
 .notification-bell {
@@ -662,6 +737,15 @@ ion-toolbar {
 
 @media (min-width: 601px) {
   .chrome-mobile-only { display: none !important; }
+}
+
+@media (max-width: 959px) {
+  .learning-panel-modal {
+    --width: 100vw;
+    --max-width: 100vw;
+    --height: min(92vh, 900px);
+    --border-radius: 18px 18px 0 0;
+  }
 }
 
 .chrome-mobile-overflow-btn {

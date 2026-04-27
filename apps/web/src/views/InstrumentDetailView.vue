@@ -4,12 +4,13 @@ import { useRoute } from 'vue-router';
 import { useApi } from '../composables/useApi';
 import { useCanWrite } from '../composables/useCanWrite';
 import { useOnboardingStore } from '../stores/onboarding.store';
+import { useMasteryStore } from '../stores/mastery.store';
 import PredictorScoringPanel from '../components/PredictorScoringPanel.vue';
 import InstrumentAnalystPanel from '../components/InstrumentAnalystPanel.vue';
 import TripleVariantSwitcher from '../components/TripleVariantSwitcher.vue';
 import {
   IonButton, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
-  IonSegment, IonSegmentButton, IonLabel, IonNote,
+  IonSegment, IonSegmentButton, IonLabel, IonNote, useIonRouter,
 } from '@ionic/vue';
 import { arrowBackOutline } from 'ionicons/icons';
 
@@ -17,7 +18,9 @@ import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const route = useRoute();
 const api = useApi();
 const { canWrite } = useCanWrite();
+const mastery = useMasteryStore();
 const onboarding = useOnboardingStore();
+const ionRouter = useIonRouter();
 const instrument = ref<Record<string, unknown> | null>(null);
 const analysts = ref<Record<string, unknown>[]>([]);
 const compositeScore = ref<Record<string, unknown> | null>(null);
@@ -31,6 +34,15 @@ const tripleAuthorUserId = computed(() => {
   return v === '' || v === undefined || v === null ? undefined : (v as string);
 });
 const isTripleFiltered = computed(() => !!tripleAnalystId.value);
+const canEditContract = computed(() => canWrite && mastery.canViewLevel('builder'));
+
+function goBack() {
+  if (window.history.length > 1) {
+    ionRouter.back();
+    return;
+  }
+  ionRouter.navigate('/instruments', 'back', 'replace');
+}
 
 const arbitratorPrediction = computed(
   () => predictions.value.find(p => p['role'] === 'arbitrator') ?? null,
@@ -84,7 +96,7 @@ watch(() => route.query, () => {
 
 <template>
   <div>
-    <ion-button fill="clear" router-link="/portfolios" style="margin-bottom:8px">
+    <ion-button fill="clear" style="margin-bottom:8px" @click="goBack">
       <ion-icon slot="start" :icon="arrowBackOutline" />
       Back
     </ion-button>
@@ -93,7 +105,7 @@ watch(() => route.query, () => {
       <h1 style="margin:0">{{ instrument?.['symbol'] ?? 'Loading...' }}</h1>
       <span style="flex:1" />
       <ion-button
-        v-if="canWrite && instrument"
+        v-if="canEditContract && instrument"
         size="small" fill="outline" color="primary"
         :router-link="`/instruments/${String(instrument['id'])}/contract`"
       >

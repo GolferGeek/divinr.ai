@@ -114,7 +114,6 @@ export class BillingService {
   // ─── Subscription management ──────────────────────────────────
 
   async ensureSubscription(userId: string): Promise<BillingSubscription> {
-    await this.schema.ensureSchema();
     const now = new Date().toISOString();
     const trialEnds = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const result = await this.db.rawQuery(
@@ -132,7 +131,6 @@ export class BillingService {
   }
 
   async getSubscription(userId: string): Promise<BillingSubscription | null> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT * FROM billing.subscriptions WHERE user_id = $1`,
       [userId],
@@ -177,7 +175,6 @@ export class BillingService {
     reason: string;
     triggeredBy: SubscriptionEventTrigger;
   }): Promise<SubscriptionEvent> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `INSERT INTO billing.subscription_events (user_id, from_status, to_status, reason, triggered_by)
        VALUES ($1, $2, $3, $4, $5)
@@ -197,7 +194,6 @@ export class BillingService {
    * event-bus wiring (real transport lands with notification-system).
    */
   async markExpired(userId: string, reason: string, triggeredBy: 'system' | 'admin'): Promise<void> {
-    await this.schema.ensureSchema();
     const prior = await this.getSubscription(userId);
     if (!prior) throw new Error(`markExpired: no subscription row for user ${userId}`);
     const now = new Date().toISOString();
@@ -252,7 +248,6 @@ export class BillingService {
     skipped_count: number;
     errors: Array<{ userId: string; error: string }>;
   }> {
-    await this.schema.ensureSchema();
     const missing = await this.db.rawQuery(
       `SELECT u.id FROM authz.users u
        LEFT JOIN billing.subscriptions s ON s.user_id = u.id
@@ -313,7 +308,6 @@ export class BillingService {
     transitionedCount: number;
     errors: Array<{ userId: string; error: string }>;
   }> {
-    await this.schema.ensureSchema();
     const started = Date.now();
     const result = await this.db.rawQuery(
       `SELECT user_id FROM billing.subscriptions
@@ -351,7 +345,6 @@ export class BillingService {
     purgesEmitted: number;
     errors: Array<{ userId: string; error: string }>;
   }> {
-    await this.schema.ensureSchema();
     const started = Date.now();
     const errors: Array<{ userId: string; error: string }> = [];
 
@@ -462,7 +455,6 @@ export class BillingService {
     trial_ends_at?: string | null;
     current_period_end?: string | null;
   }): Promise<void> {
-    await this.schema.ensureSchema();
     const sets: string[] = [];
     const values: unknown[] = [userId];
     let i = 2;
@@ -482,7 +474,6 @@ export class BillingService {
   }
 
   async getSubscriptionByStripeCustomerId(stripeCustomerId: string): Promise<BillingSubscription | null> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT * FROM billing.subscriptions WHERE stripe_customer_id = $1 LIMIT 1`,
       [stripeCustomerId],
@@ -493,7 +484,6 @@ export class BillingService {
   }
 
   async getSubscriptionByStripeSubscriptionId(stripeSubscriptionId: string): Promise<BillingSubscription | null> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT * FROM billing.subscriptions WHERE stripe_subscription_id = $1 LIMIT 1`,
       [stripeSubscriptionId],
@@ -506,7 +496,6 @@ export class BillingService {
   // ─── Authored items ──────────────────────────────────────────
 
   async addAuthoredItem(userId: string, kind: ItemKind, itemId: string | null): Promise<BillingAuthoredItem> {
-    await this.schema.ensureSchema();
     await this.ensureSubscription(userId);
     const cents = this.centsForKind(kind);
     const result = await this.db.rawQuery(
@@ -529,7 +518,6 @@ export class BillingService {
   }
 
   async cancelAuthoredItem(userId: string, kind: ItemKind, itemId: string | null): Promise<void> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `UPDATE billing.authored_items
        SET status = 'canceled', canceled_at = now()
@@ -700,7 +688,6 @@ export class BillingService {
   // ─── Billing preview ─────────────────────────────────────────
 
   async getBillingPreview(userId: string): Promise<BillingPreview> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT item_kind, item_id, monthly_usd_cents, status
        FROM billing.authored_items

@@ -65,7 +65,7 @@ async function main(): Promise<void> {
         id: 'inv-1',
         email: null,
         token: 'tok-1',
-        role_name: 'member',
+        role_name: 'beta_reader',
         created_by: 'admin-1',
         expires_at: future(),
         accepted_at: null,
@@ -80,6 +80,7 @@ async function main(): Promise<void> {
     const billing = createMockBilling();
     const svc = Object.create(InviteService.prototype);
     (svc as any).db = db;
+    (svc as any).schema = { ensureSchema: async () => {} };
     (svc as any).authService = authService;
     (svc as any).billing = billing;
     (svc as any).logger = { log: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
@@ -96,7 +97,7 @@ async function main(): Promise<void> {
         id: 'inv-2',
         email: null,
         token: 'tok-2',
-        role_name: 'member',
+        role_name: 'beta_reader',
         created_by: 'admin-1',
         expires_at: future(),
         accepted_at: null,
@@ -114,6 +115,7 @@ async function main(): Promise<void> {
     const errors: string[] = [];
     const svc = Object.create(InviteService.prototype);
     (svc as any).db = db;
+    (svc as any).schema = { ensureSchema: async () => {} };
     (svc as any).authService = authService;
     (svc as any).billing = billing;
     (svc as any).logger = { log: () => {}, error: (m: string) => errors.push(m), warn: () => {}, debug: () => {} };

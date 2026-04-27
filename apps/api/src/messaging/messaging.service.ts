@@ -29,7 +29,6 @@ export class MessagingService {
   // ─── Channel Operations ─────────────────────────────────────
 
   async createChannel(scope: ChannelScope, scopeId?: string, name?: string): Promise<Channel> {
-    await this.schema.ensureSchema();
     const id = randomUUID();
     const result = await this.db.rawQuery(
       `INSERT INTO messaging.channels (id, scope, scope_id, name)
@@ -43,7 +42,6 @@ export class MessagingService {
   }
 
   async addChannelMember(channelId: string, userId: string, role: 'member' | 'admin' = 'member'): Promise<void> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `INSERT INTO messaging.channel_members (channel_id, user_id, role)
        VALUES ($1, $2, $3)
@@ -54,7 +52,6 @@ export class MessagingService {
   }
 
   async getChannel(channelId: string, userId: string): Promise<Channel> {
-    await this.schema.ensureSchema();
     await this.verifyMembership(channelId, userId);
     const result = await this.db.rawQuery(
       `SELECT * FROM messaging.channels WHERE id = $1`,
@@ -67,7 +64,6 @@ export class MessagingService {
   }
 
   async listChannels(userId: string): Promise<ChannelWithUnread[]> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT
          c.*,
@@ -100,7 +96,6 @@ export class MessagingService {
   // ─── Message Operations ─────────────────────────────────────
 
   async sendMessage(channelId: string, senderId: string, body: string, opts?: SendMessageOptions): Promise<Message> {
-    await this.schema.ensureSchema();
     await this.verifyMembership(channelId, senderId);
 
     // Check if sender is blocked in DM channels
@@ -204,7 +199,6 @@ export class MessagingService {
     userId: string,
     options?: { before?: string; limit?: number },
   ): Promise<{ data: Message[]; has_more: boolean }> {
-    await this.schema.ensureSchema();
     await this.verifyMembership(channelId, userId);
 
     const limit = Math.min(options?.limit ?? 50, 100);
@@ -252,7 +246,6 @@ export class MessagingService {
   // ─── Threading ──────────────────────────────────────────────
 
   async getThreadReplies(channelId: string, parentMessageId: string, userId: string): Promise<Message[]> {
-    await this.schema.ensureSchema();
     await this.verifyMembership(channelId, userId);
 
     const result = await this.db.rawQuery(
@@ -272,7 +265,6 @@ export class MessagingService {
   // ─── Reactions ─────────────────────────────────────────────
 
   async addReaction(messageId: string, userId: string, emoji: string): Promise<void> {
-    await this.schema.ensureSchema();
     // Verify user is a member of the message's channel
     const msgCheck = await this.db.rawQuery(
       `SELECT channel_id FROM messaging.messages WHERE id = $1`, [messageId],
@@ -306,7 +298,6 @@ export class MessagingService {
   }
 
   async removeReaction(messageId: string, userId: string, emoji: string): Promise<void> {
-    await this.schema.ensureSchema();
     // Verify user is a member of the message's channel
     const msgCheck = await this.db.rawQuery(
       `SELECT channel_id FROM messaging.messages WHERE id = $1`, [messageId],
@@ -325,7 +316,6 @@ export class MessagingService {
   }
 
   async getReactions(messageIds: string[], userId: string): Promise<Record<string, Array<{ emoji: string; count: number; user_reacted: boolean }>>> {
-    await this.schema.ensureSchema();
     if (messageIds.length === 0) return {};
 
     const placeholders = messageIds.map((_, i) => `$${i + 1}`).join(', ');
@@ -351,7 +341,6 @@ export class MessagingService {
   // ─── Pinning ───────────────────────────────────────────────
 
   async togglePin(messageId: string, userId: string): Promise<{ is_pinned: boolean }> {
-    await this.schema.ensureSchema();
 
     // Get message and verify admin
     const msgResult = await this.db.rawQuery(
@@ -397,7 +386,6 @@ export class MessagingService {
   }
 
   async getPinnedMessages(channelId: string, userId: string): Promise<Message[]> {
-    await this.schema.ensureSchema();
     await this.verifyMembership(channelId, userId);
 
     const result = await this.db.rawQuery(
@@ -415,7 +403,6 @@ export class MessagingService {
   // ─── Entity Attachments ─────────────────────────────────────
 
   async resolveAttachment(entityType: string, entityId: string, _userId: string): Promise<Record<string, unknown> | null> {
-    await this.schema.ensureSchema();
 
     const tableMap: Record<string, string> = {
       instrument: 'prediction.instruments',
@@ -503,7 +490,6 @@ export class MessagingService {
   // ─── DM Operations ──────────────────────────────────────────
 
   async getOrCreateDmChannel(userId: string, targetUserId: string): Promise<Channel> {
-    await this.schema.ensureSchema();
 
     if (userId === targetUserId) {
       throw new BadRequestException('Cannot create DM with yourself');
@@ -545,7 +531,6 @@ export class MessagingService {
   // ─── Read Tracking ─────────────────────────────────────────
 
   async updateLastRead(channelId: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.verifyMembership(channelId, userId);
     const result = await this.db.rawQuery(
       `UPDATE messaging.channel_members
@@ -557,7 +542,6 @@ export class MessagingService {
   }
 
   async getUnreadCounts(userId: string): Promise<Record<string, number>> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT cm.channel_id,
          COUNT(m.id)::int AS unread_count
@@ -582,7 +566,6 @@ export class MessagingService {
   // ─── Blocking ──────────────────────────────────────────────
 
   async blockUser(blockerId: string, blockedId: string): Promise<void> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `INSERT INTO messaging.user_blocks (blocker_id, blocked_id)
        VALUES ($1, $2)
@@ -593,7 +576,6 @@ export class MessagingService {
   }
 
   async unblockUser(blockerId: string, blockedId: string): Promise<void> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `DELETE FROM messaging.user_blocks
        WHERE blocker_id = $1 AND blocked_id = $2`,
@@ -637,7 +619,6 @@ export class MessagingService {
 
   async resolveUsernames(usernames: string[]): Promise<Array<{ username: string; user_id: string }>> {
     if (usernames.length === 0) return [];
-    await this.schema.ensureSchema();
     const placeholders = usernames.map((_, i) => `$${i + 1}`).join(', ');
     const result = await this.db.rawQuery(
       `SELECT id, email FROM auth.users
@@ -655,7 +636,6 @@ export class MessagingService {
   // ─── Moderation ───────────────────────────────────────────
 
   async deleteMessage(messageId: string, channelId: string, userId: string, userRole?: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.verifyMembership(channelId, userId);
 
     const msgResult = await this.db.rawQuery(
@@ -709,7 +689,6 @@ export class MessagingService {
   // ─── User Search ──────────────────────────────────────────
 
   async searchUsers(query: string, viewerId: string): Promise<Array<{ id: string; display_name: string }>> {
-    await this.schema.ensureSchema();
     const filter = this.optOuts.applyVisibilityFilter(
       `SELECT au.id, au.email
        FROM auth.users au

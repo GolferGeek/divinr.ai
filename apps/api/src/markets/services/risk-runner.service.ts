@@ -89,7 +89,6 @@ export class RiskRunnerService {
     instrument: MarketInstrument,
     userId: string,
   ): Promise<RiskRunResult> {
-    await this.schema.ensureSchema();
 
     const context = this.llmService.buildExecutionContext(
       userId,
@@ -334,7 +333,6 @@ export class RiskRunnerService {
   async executePerAnalystRiskPass(
     instrumentIds: string[],
   ): Promise<{ assessmentsWritten: number; debatesRun: number; errors: string[] }> {
-    await this.schema.ensureSchema();
 
     const errors: string[] = [];
     let assessmentsWritten = 0;

@@ -6,6 +6,6 @@ import { OnboardingService } from './onboarding.service';
 @Module({
   controllers: [OnboardingController],
   providers: [OnboardingSchemaService, OnboardingService],
-  exports: [OnboardingService],
+  exports: [OnboardingService, OnboardingSchemaService],
 })
 export class OnboardingModule {}

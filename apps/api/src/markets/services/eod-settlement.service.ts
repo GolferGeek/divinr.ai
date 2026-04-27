@@ -55,7 +55,6 @@ export class EodSettlementService {
   }
 
   async runSettlement(): Promise<EodSettlementLog> {
-    await this.schema.ensureSchema();
     const startedAt = new Date();
     this.logger.log('Starting EOD settlement');
 

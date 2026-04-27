@@ -1,5 +1,9 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import {
+  REQUEST_SCHEMA_BOOTSTRAP_LOCK,
+  RuntimeSchemaBootstrapCoordinator,
+} from '../../bootstrap/runtime-schema-bootstrap-coordinator';
 
 /**
  * Manages all DDL for the prediction schema and default data seeding.
@@ -10,7 +14,11 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
  */
 @Injectable()
 export class MarketsSchemaService {
-  private schemaReady = false;
+  private static readonly ddlBootstrapKey = 'markets-ddl-v2026-04-27';
+  private static schemaReady = false;
+  private static schemaReadyPromise: Promise<void> | null = null;
+  private static bootstrapReady = false;
+  private static bootstrapReadyPromise: Promise<void> | null = null;
   private readonly logger = new Logger(MarketsSchemaService.name);
 
   constructor(
@@ -18,9 +26,29 @@ export class MarketsSchemaService {
   ) {}
 
   async ensureSchema(): Promise<void> {
-    if (this.schemaReady) return;
+    if (MarketsSchemaService.schemaReady) return;
+    await RuntimeSchemaBootstrapCoordinator.runExclusive(REQUEST_SCHEMA_BOOTSTRAP_LOCK, async () => {
+      if (MarketsSchemaService.schemaReady) return;
+      if (MarketsSchemaService.schemaReadyPromise) {
+        await MarketsSchemaService.schemaReadyPromise;
+        return;
+      }
 
-    const ddl = `
+      MarketsSchemaService.schemaReadyPromise = (async () => {
+        await this.ensureBootstrapStateTable();
+        if (await this.isBootstrapStepComplete(MarketsSchemaService.ddlBootstrapKey)) {
+          MarketsSchemaService.schemaReady = true;
+          this.logger.log('Prediction schema ready (bootstrap state)');
+          return;
+        }
+        if (await this.hasExistingSchemaSignature()) {
+          await this.markBootstrapStepComplete(MarketsSchemaService.ddlBootstrapKey);
+          MarketsSchemaService.schemaReady = true;
+          this.logger.log('Prediction schema ready (adopted existing schema)');
+          return;
+        }
+
+        const ddl = `
       create schema if not exists prediction;
 
       -- Dead table cleanup: drop legacy tables superseded by market_analysts / analyst_config_versions
@@ -69,24 +97,71 @@ export class MarketsSchemaService {
       ${this.dayTraderRunsDdl()}
     `;
 
-    const result = await this.db.rawQuery(ddl);
-    if (result.error) {
-      throw new Error(`Schema creation failed: ${result.error.message}`);
-    }
+        const result = await this.db.rawQuery(ddl);
+        if (result.error) {
+          throw new Error(`Schema creation failed: ${result.error.message}`);
+        }
 
-    await this.preflightUserScopedUniqueness();
-    await this.seedDefaultDomains();
-    await this.seedDefaultSources();
-    await this.seedDefaultRiskDimensions();
-    await this.seedDefaultPositionSizing();
-    await this.migrateAnalystNames();
-    await this.seedDataSources();
-    await this.seedPortfolioManagerAnalyst();
-    await this.seedPortfolioFoundation();
-    await this.dropOrganizationSlugColumns();
-    await this.verifyBaseInstrumentsHaveContracts();
-    this.schemaReady = true;
-    this.logger.log('Prediction schema ready');
+        await this.markBootstrapStepComplete(MarketsSchemaService.ddlBootstrapKey);
+        MarketsSchemaService.schemaReady = true;
+        this.logger.log('Prediction schema ready');
+      })();
+
+      try {
+        await MarketsSchemaService.schemaReadyPromise;
+      } finally {
+        if (!MarketsSchemaService.schemaReady) {
+          MarketsSchemaService.schemaReadyPromise = null;
+        }
+      }
+    });
+  }
+
+  async bootstrap(): Promise<void> {
+    await this.ensureSchema();
+    if (MarketsSchemaService.bootstrapReady) return;
+    await RuntimeSchemaBootstrapCoordinator.runExclusive(REQUEST_SCHEMA_BOOTSTRAP_LOCK, async () => {
+      if (MarketsSchemaService.bootstrapReady) return;
+      if (MarketsSchemaService.bootstrapReadyPromise) {
+        await MarketsSchemaService.bootstrapReadyPromise;
+        return;
+      }
+
+      MarketsSchemaService.bootstrapReadyPromise = (async () => {
+        this.logger.log('Prediction bootstrap step: preflight user-scoped uniqueness');
+        await this.preflightUserScopedUniqueness();
+        this.logger.log('Prediction bootstrap step: seed default domains');
+        await this.seedDefaultDomains();
+        this.logger.log('Prediction bootstrap step: seed default sources');
+        await this.seedDefaultSources();
+        this.logger.log('Prediction bootstrap step: seed default risk dimensions');
+        await this.seedDefaultRiskDimensions();
+        this.logger.log('Prediction bootstrap step: seed default position sizing');
+        await this.seedDefaultPositionSizing();
+        this.logger.log('Prediction bootstrap step: migrate analyst names');
+        await this.migrateAnalystNames();
+        this.logger.log('Prediction bootstrap step: seed data sources');
+        await this.seedDataSources();
+        this.logger.log('Prediction bootstrap step: seed portfolio manager analyst');
+        await this.seedPortfolioManagerAnalyst();
+        this.logger.log('Prediction bootstrap step: seed portfolio foundation');
+        await this.seedPortfolioFoundation();
+        this.logger.log('Prediction bootstrap step: drop organization slug columns');
+        await this.dropOrganizationSlugColumns();
+        this.logger.log('Prediction bootstrap step: verify base instruments have contracts');
+        await this.verifyBaseInstrumentsHaveContracts();
+        MarketsSchemaService.bootstrapReady = true;
+        this.logger.log('Prediction bootstrap tasks ready');
+      })();
+
+      try {
+        await MarketsSchemaService.bootstrapReadyPromise;
+      } finally {
+        if (!MarketsSchemaService.bootstrapReady) {
+          MarketsSchemaService.bootstrapReadyPromise = null;
+        }
+      }
+    });
   }
 
   /**
@@ -110,6 +185,104 @@ export class MarketsSchemaService {
         `Base instrument ${row.symbol} (${row.id}) has no contract — Stage 1 will use the hardcoded fallback prompt`,
       );
     }
+  }
+
+  private async ensureBootstrapStateTable(): Promise<void> {
+    const result = await this.db.rawQuery(`
+      create table if not exists public.schema_bootstrap_state (
+        key text primary key,
+        completed_at timestamptz not null default now()
+      );
+    `);
+    if (result.error) {
+      throw new Error(`Bootstrap state table creation failed: ${result.error.message}`);
+    }
+  }
+
+  private async isBootstrapStepComplete(key: string): Promise<boolean> {
+    const result = await this.db.rawQuery(
+      `select 1 from public.schema_bootstrap_state where key = $1 limit 1`,
+      [key],
+    );
+    if (result.error) {
+      throw new Error(`Bootstrap state query failed: ${result.error.message}`);
+    }
+    return (((result.data as Array<{ '?column?': number }> | null) ?? []).length > 0);
+  }
+
+  private async markBootstrapStepComplete(key: string): Promise<void> {
+    const result = await this.db.rawQuery(
+      `
+      insert into public.schema_bootstrap_state (key, completed_at)
+      values ($1, now())
+      on conflict (key) do update set completed_at = excluded.completed_at
+      `,
+      [key],
+    );
+    if (result.error) {
+      throw new Error(`Bootstrap state update failed: ${result.error.message}`);
+    }
+  }
+
+  private async hasExistingSchemaSignature(): Promise<boolean> {
+    const relations = [
+      'prediction.instruments',
+      'prediction.market_analysts',
+      'prediction.market_articles',
+      'prediction.market_predictors',
+      'prediction.orchestration_runs',
+      'prediction.market_run_artifacts',
+      'prediction.market_predictions',
+      'prediction.risk_assessments',
+    ];
+    const relationResult = await this.db.rawQuery(
+      `
+      select count(*)::int as present
+      from unnest($1::text[]) as rel_name
+      where to_regclass(rel_name) is not null
+      `,
+      [relations],
+    );
+    if (relationResult.error) {
+      throw new Error(`Prediction schema signature query failed: ${relationResult.error.message}`);
+    }
+    const present =
+      Number(((relationResult.data as Array<{ present: number | string }> | null) ?? [])[0]?.present ?? 0);
+    if (present !== relations.length) return false;
+
+    const columnChecks = [
+      ['prediction', 'market_analysts', 'user_id'],
+      ['prediction', 'market_analysts', 'shared_with_clubs'],
+      ['prediction', 'instruments', 'shared_with_clubs'],
+      ['prediction', 'orchestration_runs', 'author_user_id'],
+      ['prediction', 'instrument_config_versions', 'author_user_id'],
+      ['prediction', 'analyst_config_versions', 'author_user_id'],
+    ];
+    const columnResult = await this.db.rawQuery(
+      `
+      select count(*)::int as present
+      from (
+        values
+          ($1, $2, $3),
+          ($4, $5, $6),
+          ($7, $8, $9),
+          ($10, $11, $12),
+          ($13, $14, $15),
+          ($16, $17, $18)
+      ) as required(table_schema, table_name, column_name)
+      join information_schema.columns c
+        on c.table_schema = required.table_schema
+       and c.table_name = required.table_name
+       and c.column_name = required.column_name
+      `,
+      columnChecks.flat(),
+    );
+    if (columnResult.error) {
+      throw new Error(`Prediction schema signature column query failed: ${columnResult.error.message}`);
+    }
+    const columnsPresent =
+      Number(((columnResult.data as Array<{ present: number | string }> | null) ?? [])[0]?.present ?? 0);
+    return columnsPresent === columnChecks.length;
   }
 
   // ─── Authorship Schema (effort: user-authored-custom-content) ──

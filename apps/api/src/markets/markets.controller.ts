@@ -49,6 +49,8 @@ import { WiringService } from './services/wiring.service';
 import { EnablementService } from './services/enablement.service';
 import { LlmUsageQueryService } from './services/llm-usage-query.service';
 import { MessagingService } from '../messaging/messaging.service';
+import { SkipReadOnly } from '../billing/skip-read-only.decorator';
+import { LearningPanelService } from '../learning-panel/learning-panel.service';
 import type { ChannelScope } from '../messaging/messaging.types';
 import type {
   CreateAnalystInput,
@@ -141,6 +143,7 @@ export class MarketsController {
     @Inject(MessagingService) private readonly messaging: MessagingService,
     @Inject(LlmUsageQueryService) private readonly usageQuery: LlmUsageQueryService,
     @Inject(MarketsBarsService) private readonly marketsBars: MarketsBarsService,
+    @Inject(LearningPanelService) private readonly learningPanel: LearningPanelService,
   ) {
     this.markets = markets;
   }
@@ -2051,14 +2054,14 @@ export class MarketsController {
     return this.markets.getDailyAnalystSummary(user.id);
   }
 
+  @SkipReadOnly()
   @Post('chat/ask')
   async chatAsk(
     @Req() req: { user?: AuthenticatedUser },
     @Body() body: { message: string; instrumentId?: string },
   ) {
     const user = this.getUser(req);
-    await this.requireWriteAccess(user);
-    return this.markets.chatAsk(user.id, body.message, body.instrumentId);
+    return this.learningPanel.createLegacyReply(user.id, body.message, body.instrumentId);
   }
 
   // ─── LLM Usage Endpoints ────────────────────────────────────

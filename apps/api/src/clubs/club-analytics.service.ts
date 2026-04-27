@@ -40,7 +40,6 @@ export class ClubAnalyticsService {
   ) {}
 
   async getClubAnalytics(clubId: string, userId: string): Promise<ClubAnalytics> {
-    await this.schema.ensureSchema();
     await this.clubs.requireMembership(clubId, userId);
 
     // Member count
@@ -140,7 +139,6 @@ export class ClubAnalyticsService {
   }
 
   async getPostMortem(clubId: string, tournamentId: string, userId: string): Promise<PostMortem> {
-    await this.schema.ensureSchema();
     await this.clubs.requireMembership(clubId, userId);
 
     // Tournament info

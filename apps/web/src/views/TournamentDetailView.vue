@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote, IonSegment, IonSegmentButton, IonLabel } from '@ionic/vue';
-import { useTournamentStore } from '../stores/tournament.store';
+import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote, IonSegment, IonSegmentButton, IonLabel, toastController } from '@ionic/vue';
+import { useTournamentStore, type TournamentTradeQueueEntry } from '../stores/tournament.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useCanWrite } from '../composables/useCanWrite';
 import MemberProfileDrawer from '../components/MemberProfileDrawer.vue';
@@ -56,9 +56,11 @@ const tradeSymbol = ref('');
 const tradeDirection = ref<'long' | 'short'>('long');
 const tradeQuantity = ref(1);
 const tradeError = ref('');
+const tradeSuccess = ref('');
 const predictionIdForTrade = ref<string | null>(null);
 const inviteToken = ref('');
 const showInvite = ref(false);
+const recentQueuedTrades = ref<TournamentTradeQueueEntry[]>([]);
 
 const SYMBOL_REGEX = /^[A-Z.]{1,10}$/;
 
@@ -87,13 +89,14 @@ onMounted(async () => {
 
 async function queueTrade() {
   tradeError.value = '';
+  tradeSuccess.value = '';
   if (!tradeSymbol.value || tradeQuantity.value <= 0) return;
   const submittedSymbol = tradeSymbol.value.toUpperCase();
   const submittedDirection = tradeDirection.value;
   const submittedQuantity = tradeQuantity.value;
   const submittedPredictionId = predictionIdForTrade.value;
   try {
-    await store.queueTrade(id.value, {
+    const queuedTrade = await store.queueTrade(id.value, {
       symbol: submittedSymbol,
       direction: submittedDirection,
       quantity: submittedQuantity,
@@ -112,7 +115,17 @@ async function queueTrade() {
     tradeSymbol.value = '';
     tradeQuantity.value = 1;
     predictionIdForTrade.value = null;
+    tradeSuccess.value = `${submittedDirection === 'long' ? 'Long' : 'Short'} ${submittedQuantity} ${submittedSymbol} queued successfully.`;
+    recentQueuedTrades.value = [queuedTrade, ...recentQueuedTrades.value].slice(0, 5);
     await store.fetchPositions(id.value, 'open');
+    await store.fetchLeaderboard(id.value);
+    const toast = await toastController.create({
+      message: tradeSuccess.value,
+      duration: 2500,
+      color: 'success',
+      position: 'top',
+    });
+    await toast.present();
   } catch (e: unknown) {
     tradeError.value = e instanceof Error ? e.message : String(e);
   }
@@ -136,6 +149,11 @@ function copyInvite() {
 
 function typeLabel(t: string): string {
   return t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function formatQueuedTs(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 function formatStart(iso?: string | null): string {
@@ -313,6 +331,12 @@ function formatWithZone(iso?: string | null): string {
         <IonCardHeader><IonCardTitle>Queue Trade</IonCardTitle></IonCardHeader>
         <IonCardContent>
           <div v-if="tradeError" style="color:var(--ion-color-danger);font-size:0.85rem;margin-bottom:8px;padding:8px;background:var(--ion-color-danger-tint);border-radius:4px">{{ tradeError }}</div>
+          <div
+            v-if="tradeSuccess"
+            style="color:var(--ion-color-success-shade);font-size:0.85rem;margin-bottom:8px;padding:8px;background:var(--ion-color-success-tint);border-radius:4px"
+          >
+            {{ tradeSuccess }}
+          </div>
           <div class="trade-form">
             <input v-model="tradeSymbol" placeholder="Symbol (e.g. AAPL)" class="trade-input" />
             <select v-model="tradeDirection" class="trade-input">
@@ -327,7 +351,29 @@ function formatWithZone(iso?: string | null): string {
           </div>
         </IonCardContent>
       </IonCard>
-      <p v-else-if="!canWrite" class="empty">Read-only access — trading is not available.</p>
+      <IonCard v-if="recentQueuedTrades.length > 0" data-test="recent-trade-activity">
+        <IonCardHeader><IonCardTitle>Recent Activity</IonCardTitle></IonCardHeader>
+        <IonCardContent>
+          <div
+            v-for="trade in recentQueuedTrades"
+            :key="trade.id"
+            class="queued-trade-row"
+          >
+            <div>
+              <strong>{{ trade.symbol }}</strong>
+              <span style="margin-left:6px;text-transform:capitalize">{{ trade.direction }}</span>
+              <span style="margin-left:6px">Qty {{ trade.quantity }}</span>
+            </div>
+            <div style="font-size:0.78rem;opacity:0.7">
+              Queued {{ formatQueuedTs(trade.queued_at) }} · {{ trade.status }}
+            </div>
+          </div>
+          <IonNote color="medium">
+            Queued trades appear here immediately. Open positions update after the tournament engine executes them.
+          </IonNote>
+        </IonCardContent>
+      </IonCard>
+      <p v-if="!canWrite" class="empty">Read-only access — trading is not available.</p>
       <div v-else-if="store.activeTournament.status === 'upcoming'" class="empty upcoming-block">
         <p>
           Trading opens when the sprint starts on {{ formatStart(store.activeTournament.starts_at) }}.
@@ -343,7 +389,7 @@ function formatWithZone(iso?: string | null): string {
       <p v-else-if="store.activeTournament.status === 'completed'" class="empty">
         This sprint is closed. See final standings in Leaderboard.
       </p>
-      <p v-else class="empty">Trades can only be queued during active games.</p>
+      <p v-else-if="store.activeTournament.status !== 'active'" class="empty">Trades can only be queued during active games.</p>
     </div>
 
     <!-- Info Tab -->
@@ -409,6 +455,14 @@ function formatWithZone(iso?: string | null): string {
 .invite-box { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
 .invite-input { flex: 1; padding: 0.5rem; border: 1px solid var(--ion-color-light-shade); border-radius: 4px; font-size: 0.85rem; }
 .position-card { margin-bottom: 0.5rem; }
+.queued-trade-row {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--ion-color-light-shade);
+}
+.queued-trade-row:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0.5rem;
+}
 .pos-symbol { font-size: 1rem; }
 .pos-ts { font-size: 0.75rem; color: var(--ion-color-medium); margin-left: auto; }
 .pos-size-bar {

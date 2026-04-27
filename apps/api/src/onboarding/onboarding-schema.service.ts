@@ -1,18 +1,20 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import {
+  REQUEST_SCHEMA_BOOTSTRAP_LOCK,
+  RuntimeSchemaBootstrapCoordinator,
+} from '../bootstrap/runtime-schema-bootstrap-coordinator';
 
 /**
  * Idempotent DDL for authz.user_preferences.
  *
- * Mirrors the migration file at apps/api/db/migrations/2026-04-14-user-preferences.sql,
- * but is the source of truth for what actually runs at app boot / first request.
- *
- * Pattern copied from ClubSchemaService: memoize with schemaReady, call ensureSchema()
- * at the top of every service method that touches this table.
+ * Mirrors the migration file at apps/api/db/migrations/2026-04-14-user-preferences.sql
+ * and is invoked only by explicit bootstrap orchestration.
  */
 @Injectable()
 export class OnboardingSchemaService {
-  private schemaReady = false;
+  private static schemaReady = false;
+  private static schemaReadyPromise: Promise<void> | null = null;
   private readonly logger = new Logger(OnboardingSchemaService.name);
 
   constructor(
@@ -20,9 +22,29 @@ export class OnboardingSchemaService {
   ) {}
 
   async ensureSchema(): Promise<void> {
-    if (this.schemaReady) return;
+    if (OnboardingSchemaService.schemaReady) return;
+    await RuntimeSchemaBootstrapCoordinator.runExclusive(REQUEST_SCHEMA_BOOTSTRAP_LOCK, async () => {
+      if (OnboardingSchemaService.schemaReady) return;
+      if (OnboardingSchemaService.schemaReadyPromise) {
+        await OnboardingSchemaService.schemaReadyPromise;
+        return;
+      }
 
-    const ddl = `
+      OnboardingSchemaService.schemaReadyPromise = (async () => {
+        const ddl = `
+      CREATE SCHEMA IF NOT EXISTS authz;
+
+      CREATE TABLE IF NOT EXISTS authz.users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        display_name TEXT,
+        organization_slug TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        is_testing BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
       CREATE TABLE IF NOT EXISTS authz.user_preferences (
         user_id TEXT PRIMARY KEY REFERENCES authz.users(id) ON DELETE CASCADE,
         onboarding_state JSONB NOT NULL DEFAULT jsonb_build_object(
@@ -41,11 +63,21 @@ export class OnboardingSchemaService {
         ON authz.user_preferences(updated_at);
     `;
 
-    const result = await this.db.rawQuery(ddl);
-    if (result.error) {
-      this.logger.error(`ensureSchema failed: ${result.error.message}`);
-      throw new Error(result.error.message);
-    }
-    this.schemaReady = true;
+        const result = await this.db.rawQuery(ddl);
+        if (result.error) {
+          this.logger.error(`ensureSchema failed: ${result.error.message}`);
+          throw new Error(result.error.message);
+        }
+        OnboardingSchemaService.schemaReady = true;
+      })();
+
+      try {
+        await OnboardingSchemaService.schemaReadyPromise;
+      } finally {
+        if (!OnboardingSchemaService.schemaReady) {
+          OnboardingSchemaService.schemaReadyPromise = null;
+        }
+      }
+    });
   }
 }

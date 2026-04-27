@@ -74,7 +74,6 @@ export class ClubRankingService {
   }
 
   async snapshotDaily(): Promise<{ snapshots: number }> {
-    await this.schema.ensureSchema();
 
     const now = new Date();
     const periodLabel = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
@@ -147,7 +146,6 @@ export class ClubRankingService {
   }
 
   async recomputeRankings(): Promise<{ ranked: number }> {
-    await this.schema.ensureSchema();
     this.logger.log('Recomputing club rankings');
 
     // Get all public clubs with their stats
@@ -261,7 +259,6 @@ export class ClubRankingService {
   }
 
   async getLeaderboard(sortBy = 'ranking_score', limit = 50, offset = 0): Promise<RankedClub[]> {
-    await this.schema.ensureSchema();
 
     const validSorts: Record<string, string> = {
       ranking_score: 'c.ranking_score DESC',
@@ -351,7 +348,6 @@ export class ClubRankingService {
     ranking_score: number; avg_return_pct: number; club_win_rate: number;
     member_count: number; tournament_count: number;
   }>> {
-    await this.schema.ensureSchema();
     const result = await this.db.rawQuery(
       `SELECT period_type, period_label, ranking_position, ranking_score,
               avg_return_pct, club_win_rate, member_count, tournament_count
@@ -369,7 +365,6 @@ export class ClubRankingService {
   }
 
   async createSnapshot(periodType: 'monthly' | 'quarterly', periodLabel: string): Promise<number> {
-    await this.schema.ensureSchema();
     this.logger.log(`Creating ${periodType} snapshot: ${periodLabel}`);
 
     const result = await this.db.rawQuery(`

@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
@@ -17,19 +17,17 @@ export interface ServiceApiKey {
 }
 
 @Injectable()
-export class ServiceApiKeyService implements OnModuleInit {
+export class ServiceApiKeyService {
   private readonly logger = new Logger(ServiceApiKeyService.name);
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
   ) {}
 
-  async onModuleInit() {
-    await this.ensureSchema();
-  }
-
-  private async ensureSchema(): Promise<void> {
+  async ensureSchema(): Promise<void> {
     const ddl = `
+      CREATE SCHEMA IF NOT EXISTS prediction;
+
       CREATE TABLE IF NOT EXISTS prediction.service_api_keys (
         id              text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         key_prefix      text NOT NULL,

@@ -28,6 +28,9 @@ export class CredentialsSchemaService {
         revoked_at timestamptz
       );
 
+      ALTER TABLE credentials.user_llm_credentials
+        ADD COLUMN IF NOT EXISTS revoked_at timestamptz;
+
       CREATE INDEX IF NOT EXISTS user_llm_credentials_user_active_idx
         ON credentials.user_llm_credentials (user_id)
         WHERE revoked_at IS NULL;

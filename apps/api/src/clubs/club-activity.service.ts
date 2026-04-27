@@ -28,7 +28,6 @@ export class ClubActivityService {
     input: { instrument_id: string; symbol: string; prompt?: string },
     userId: string,
   ): Promise<ClubPredictionChallenge> {
-    await this.schema.ensureSchema();
     await this.clubs.requireRole(clubId, userId, ['owner', 'admin']);
 
     const id = randomUUID();
@@ -43,7 +42,6 @@ export class ClubActivityService {
   }
 
   async listChallenges(clubId: string, userId: string): Promise<Array<ClubPredictionChallenge & { response_count: number; my_response?: ClubChallengeResponse }>> {
-    await this.schema.ensureSchema();
     await this.clubs.requireMembership(clubId, userId);
 
     const result = await this.db.rawQuery(
@@ -74,7 +72,6 @@ export class ClubActivityService {
     input: { direction: 'bull' | 'bear' | 'neutral'; thesis: string },
     userId: string,
   ): Promise<ClubChallengeResponse> {
-    await this.schema.ensureSchema();
 
     // Get challenge to verify club membership
     const cResult = await this.db.rawQuery(
@@ -106,7 +103,6 @@ export class ClubActivityService {
   }
 
   async revealChallenge(challengeId: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
 
     const cResult = await this.db.rawQuery(
       `SELECT * FROM prediction.club_prediction_challenges WHERE id = $1`,
@@ -130,7 +126,6 @@ export class ClubActivityService {
     input: { instrument_id: string; symbol: string },
     userId: string,
   ): Promise<ClubConsensusPoll> {
-    await this.schema.ensureSchema();
     await this.clubs.requireRole(clubId, userId, ['owner', 'admin']);
 
     const id = randomUUID();
@@ -145,7 +140,6 @@ export class ClubActivityService {
   }
 
   async listPolls(clubId: string, userId: string): Promise<Array<ClubConsensusPoll & { bull_count: number; bear_count: number; neutral_count: number; my_vote?: ClubConsensusVote }>> {
-    await this.schema.ensureSchema();
     await this.clubs.requireMembership(clubId, userId);
 
     const result = await this.db.rawQuery(
@@ -173,7 +167,6 @@ export class ClubActivityService {
   }
 
   async vote(pollId: string, direction: 'bull' | 'bear' | 'neutral', userId: string): Promise<ClubConsensusVote> {
-    await this.schema.ensureSchema();
 
     const pResult = await this.db.rawQuery(
       `SELECT * FROM prediction.club_consensus_polls WHERE id = $1`,
@@ -203,7 +196,6 @@ export class ClubActivityService {
   }
 
   async revealPoll(pollId: string, userId: string): Promise<void> {
-    await this.schema.ensureSchema();
 
     const pResult = await this.db.rawQuery(
       `SELECT * FROM prediction.club_consensus_polls WHERE id = $1`,
@@ -227,7 +219,6 @@ export class ClubActivityService {
     input: { entry: string; symbol?: string; tournament_id?: string },
     userId: string,
   ): Promise<ClubStrategyJournal> {
-    await this.schema.ensureSchema();
     await this.clubs.requireMembership(clubId, userId);
 
     const id = randomUUID();
@@ -242,7 +233,6 @@ export class ClubActivityService {
   }
 
   async listJournals(clubId: string, userId: string): Promise<Array<ClubStrategyJournal & { display_name?: string }>> {
-    await this.schema.ensureSchema();
     await this.clubs.requireMembership(clubId, userId);
 
     const result = await this.db.rawQuery(

@@ -48,7 +48,6 @@ export class TradeRecommendationService {
   async generateForRun(input: {
     runId: string;
   }): Promise<TradeRecommendation | null> {
-    await this.schema.ensureSchema();
 
     const existing = await this.fetchExisting(input.runId);
     if (existing) return existing;

@@ -88,6 +88,12 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       'Your preferences live here: what you author, how you get notified, ' +
       'walkthrough controls, billing. Poke around — nothing is saved until you act.',
   },
+  chat: {
+    title: 'Your Learning Panel',
+    body:
+      'Ask what the system does, what to learn next, how analysts think, how risk is framed, or how clubs and tournaments fit together. ' +
+      'This panel is grounded in Divinr itself, so treat it as an in-product guide rather than open-ended web research.',
+  },
 
   // ───────────────────── Analyses & trade path ──────────────────────
   'prediction.card': {
@@ -756,9 +762,9 @@ export const surfaceContent: Record<string, SurfaceContent> = {
   'settings.onboarding': {
     title: 'Onboarding controls',
     body:
-      "Turn walkthroughs off, replay a section, or show every intro again. " +
-      "Handy when Divinr adds new surfaces — or when you're bringing a friend " +
-      "aboard.",
+      "Turn walkthroughs off, replay a section, show every intro again, or " +
+      "choose how much of Divinr stays visible in the shell. Handy when Divinr " +
+      "adds new surfaces — or when you're bringing a friend aboard.",
   },
   'settings.opt-outs': {
     title: 'Opt-outs',

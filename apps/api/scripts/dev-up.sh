@@ -19,8 +19,31 @@ echo "API_DIR    = $API_DIR"
 echo "REPO_ROOT  = $REPO_ROOT"
 echo "API_PORT   = $API_PORT"
 
+spawn_detached() {
+  local logfile="$1"
+  shift
+  python3 - "$logfile" "$@" <<'PY'
+import subprocess
+import sys
+
+log_path = sys.argv[1]
+cmd = sys.argv[2:]
+with open(log_path, "ab", buffering=0) as log:
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        close_fds=True,
+    )
+print(proc.pid)
+PY
+}
+
 # 1. Kill prior API + stripe listen
 pkill -f "node dist/src/main.js" 2>/dev/null || true
+pkill -f "node dist/src/bootstrap-schema.js" 2>/dev/null || true
 pkill -f "stripe listen.*billing/webhooks/stripe" 2>/dev/null || true
 sleep 1
 
@@ -30,8 +53,9 @@ if [ ! -f "$API_DIR/dist/src/main.js" ]; then
   exit 1
 fi
 cd "$API_DIR"
-nohup node dist/src/main.js > "$LOG_API" 2>&1 &
-API_PID=$!
+echo "→ running schema bootstrap"
+node dist/src/bootstrap-schema.js
+API_PID="$(spawn_detached "$LOG_API" node dist/src/main.js)"
 echo "✓ API started   pid=$API_PID  logs=$LOG_API"
 
 # 3. Wait for API health (up to 30s)
@@ -69,8 +93,7 @@ if [ "$HAS_STRIPE_KEY" = true ]; then
     echo "  To boot without Stripe instead, comment out STRIPE_SECRET_KEY in $ENV_FILE." >&2
     exit 1
   fi
-  nohup "$STRIPE_BIN" listen --forward-to "localhost:$API_PORT/billing/webhooks/stripe" > "$LOG_STRIPE" 2>&1 &
-  STRIPE_PID=$!
+  STRIPE_PID="$(spawn_detached "$LOG_STRIPE" "$STRIPE_BIN" listen --forward-to "localhost:$API_PORT/billing/webhooks/stripe")"
   echo "✓ stripe listen pid=$STRIPE_PID  logs=$LOG_STRIPE"
   # Wait for the "Ready!" line so the script doesn't exit before the secret is logged
   STRIPE_READY=false

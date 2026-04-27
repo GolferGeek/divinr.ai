@@ -44,7 +44,6 @@ export class TournamentLeaderboardService {
    * is honored.
    */
   async getLeaderboard(tournamentId: string, viewerId?: string): Promise<LeaderboardEntry[]> {
-    await this.schema.ensureSchema();
 
     const baseSql = `SELECT
          te.user_id,
@@ -125,7 +124,6 @@ export class TournamentLeaderboardService {
   }
 
   async getResults(tournamentId: string, viewerId?: string): Promise<TournamentResults | null> {
-    await this.schema.ensureSchema();
 
     // Verify tournament is completed
     const tResult = await this.db.rawQuery(
@@ -173,7 +171,6 @@ export class TournamentLeaderboardService {
   }
 
   async finalizeResults(tournamentId: string): Promise<void> {
-    await this.schema.ensureSchema();
     this.logger.log(`Finalizing results for tournament ${tournamentId}`);
 
     // Close all open positions at current prices
@@ -244,7 +241,6 @@ export class TournamentLeaderboardService {
     starts_at: string;
     ends_at: string;
   }>> {
-    await this.schema.ensureSchema();
 
     const result = await this.db.rawQuery(
       `SELECT t.id as tournament_id, t.name as tournament_name, t.tournament_type,
@@ -295,7 +291,6 @@ export class TournamentLeaderboardService {
   }
 
   async snapshotDaily(): Promise<{ snapshots: number }> {
-    await this.schema.ensureSchema();
 
     const tResult = await this.db.rawQuery(
       `SELECT id FROM prediction.tournaments

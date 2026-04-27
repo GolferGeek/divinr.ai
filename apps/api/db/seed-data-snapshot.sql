@@ -63,7 +63,7 @@ seed-user-apex	admin@apex-quant.demo	Apex Quant Admin	active	2026-04-07 20:40:01
 
 COPY authz.rbac_user_roles (user_id, organization_slug, role_id, assigned_by, assigned_at, expires_at) FROM stdin;
 1a5a53fe-a8ed-4f66-9e47-fdc37f0fc926	personal-golfergeek	role-owner	bootstrap	2026-04-08 22:09:05.789343+00	\N
-13069c48-e606-4915-8c21-9c7c82e46977	personal-demo-user	role-owner	bootstrap	2026-04-08 22:09:05.791652+00	\N
+13069c48-e606-4915-8c21-9c7c82e46977	personal-demo-user	role-member	bootstrap	2026-04-08 22:09:05.791652+00	\N
 1a5a53fe-a8ed-4f66-9e47-fdc37f0fc926	__base__	role-super-admin	see-your-reasoning-effort	2026-04-09 00:56:16.07768+00	\N
 13069c48-e606-4915-8c21-9c7c82e46977	__base__	role-member	see-your-reasoning-effort	2026-04-09 01:03:12.209953+00	\N
 \.
@@ -123,4 +123,3 @@ eu-elections	elections	European Elections	UK, France, Germany, EU Parliament	[7,
 --
 
 \unrestrict Qu9AM8zNS5FzE0K1bSVkUhWZwT3XMyHwKUUAA2JywIUHSXlwB9eclC7BDwtFaxj
-

@@ -10,7 +10,7 @@
 --   * authz.users rows linking the 2 real Supabase auth uuids to email
 --   * Role grants:
 --       golfergeek: owner of personal-golfergeek + super-admin globally ('*')
---       demo-user: owner of personal-demo-user
+--       demo-user: member-level demo account used for Level 1 shell testing
 --
 -- Apply with:
 --   PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres \
@@ -93,5 +93,25 @@ with du as (
   select id::text as user_id from auth.users where email = 'demo-user@orchestratorai.io'
 )
 insert into authz.rbac_user_roles (user_id, role_id, assigned_by)
-select du.user_id, 'role-owner', 'bootstrap' from du
+select du.user_id, 'role-member', 'bootstrap' from du
 on conflict (user_id, role_id) do nothing;
+
+-- 8. Pin demo-user to the Level 1 mastery shell for browser testing.
+DO $$
+DECLARE
+  du_user_id text;
+BEGIN
+  SELECT id::text INTO du_user_id
+  FROM auth.users
+  WHERE email = 'demo-user@orchestratorai.io'
+  LIMIT 1;
+
+  IF du_user_id IS NOT NULL AND to_regclass('prediction.user_learning_profiles') IS NOT NULL THEN
+    INSERT INTO prediction.user_learning_profiles (user_id, mastery_level, preferred_level)
+    VALUES (du_user_id, 'core_trading', 'core_trading')
+    ON CONFLICT (user_id) DO UPDATE
+      SET mastery_level = EXCLUDED.mastery_level,
+          preferred_level = EXCLUDED.preferred_level,
+          updated_at = now();
+  END IF;
+END $$;

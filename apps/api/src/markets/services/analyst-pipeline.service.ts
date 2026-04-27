@@ -85,7 +85,6 @@ export class AnalystPipelineService {
    * 5. Log pipeline metrics
    */
   async runPipeline(): Promise<PipelineResult> {
-    await this.schema.ensureSchema();
     const startTime = Date.now();
     const result: PipelineResult = {
       instrumentsProcessed: 0,

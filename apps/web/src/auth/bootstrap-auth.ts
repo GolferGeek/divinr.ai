@@ -25,7 +25,32 @@ interface MeResponse {
   displayName?: string;
 }
 
+export const DEMO_USER_EMAIL = 'demo-user@orchestratorai.io';
+export const DEMO_USER_MASTERY_SEEDED_KEY = 'divinr_demo_user_mastery_seeded';
+
 const API_BASE = '/api';
+
+export async function pinDemoUserToCoreTrading(
+  me: MeResponse,
+  accessToken: string,
+): Promise<void> {
+  if (me.email !== DEMO_USER_EMAIL) {
+    localStorage.removeItem(DEMO_USER_MASTERY_SEEDED_KEY);
+    return;
+  }
+  await fetch(`${API_BASE}/api/mastery/profile`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ preferredLevel: 'core_trading' }),
+  }).catch(() => {
+    // Non-fatal in dev bootstrap. The shell can still load with the last
+    // persisted profile if the mastery endpoint is temporarily unavailable.
+  });
+  localStorage.setItem(DEMO_USER_MASTERY_SEEDED_KEY, '1');
+}
 
 export async function bootstrapAuth(): Promise<void> {
   const auth = useAuthStore();
@@ -68,6 +93,8 @@ export async function bootstrapAuth(): Promise<void> {
       return;
     }
     const me = (await meRes.json()) as MeResponse;
+
+    await pinDemoUserToCoreTrading(me, login.accessToken);
 
     const effectiveRole = me.globalRole ?? me.role ?? undefined;
     auth.setAuth(me.id, login.accessToken, effectiveRole, me.email, undefined, login.refreshToken);

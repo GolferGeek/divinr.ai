@@ -34,7 +34,6 @@ export class TournamentLifecycleService {
   }
 
   async processLifecycleTransitions(): Promise<void> {
-    await this.schema.ensureSchema();
 
     // Transition upcoming → active
     await this.activateTournaments();

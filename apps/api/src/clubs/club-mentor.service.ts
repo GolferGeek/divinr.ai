@@ -70,7 +70,6 @@ export class ClubMentorService {
     avg_return_pct: number | null;
     reasons: string[];
   }> {
-    await this.schema.ensureSchema();
     await this.clubService.requireMembership(clubId, userId);
 
     // Count completed club-scoped tournaments this user participated in
@@ -123,7 +122,6 @@ export class ClubMentorService {
   }
 
   async applyToMentor(clubId: string, userId: string): Promise<ClubMentor> {
-    await this.schema.ensureSchema();
     await this.clubService.requireMembership(clubId, userId);
 
     const eligibility = await this.checkEligibility(clubId, userId);
@@ -148,7 +146,6 @@ export class ClubMentorService {
   }
 
   async listApplications(clubId: string, userId: string): Promise<ClubMentor[]> {
-    await this.schema.ensureSchema();
     await this.clubService.requireRole(clubId, userId, ['owner', 'admin']);
 
     const result = await this.db.rawQuery(
@@ -164,7 +161,6 @@ export class ClubMentorService {
   }
 
   async approveApplication(clubId: string, mentorId: string, adminUserId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.clubService.requireRole(clubId, adminUserId, ['owner', 'admin']);
 
     const result = await this.db.rawQuery(
@@ -181,7 +177,6 @@ export class ClubMentorService {
   }
 
   async rejectApplication(clubId: string, mentorId: string, adminUserId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.clubService.requireRole(clubId, adminUserId, ['owner', 'admin']);
 
     const result = await this.db.rawQuery(
@@ -200,7 +195,6 @@ export class ClubMentorService {
   // ─── Mentee Requests & Pairing ─────────────────────────────────
 
   async requestMentor(clubId: string, userId: string): Promise<MenteeRequest> {
-    await this.schema.ensureSchema();
     await this.clubService.requireMembership(clubId, userId);
 
     // Check not already in an active pairing
@@ -230,7 +224,6 @@ export class ClubMentorService {
   }
 
   async listRequests(clubId: string, userId: string): Promise<MenteeRequest[]> {
-    await this.schema.ensureSchema();
     await this.clubService.requireRole(clubId, userId, ['owner', 'admin']);
 
     const result = await this.db.rawQuery(
@@ -246,7 +239,6 @@ export class ClubMentorService {
   }
 
   async pairMentorToMentee(clubId: string, mentorId: string, menteeUserId: string, adminUserId: string): Promise<MentorPairing> {
-    await this.schema.ensureSchema();
     await this.clubService.requireRole(clubId, adminUserId, ['owner', 'admin']);
 
     // Verify mentor is approved
@@ -300,7 +292,6 @@ export class ClubMentorService {
   }
 
   async endPairing(clubId: string, pairingId: string, adminUserId: string): Promise<void> {
-    await this.schema.ensureSchema();
     await this.clubService.requireRole(clubId, adminUserId, ['owner', 'admin']);
 
     const result = await this.db.rawQuery(
@@ -327,7 +318,6 @@ export class ClubMentorService {
     pending_application: ClubMentor | null;
     pending_request: MenteeRequest | null;
   }> {
-    await this.schema.ensureSchema();
     await this.clubService.requireMembership(clubId, userId);
 
     // Check if user is a mentor
@@ -393,7 +383,6 @@ export class ClubMentorService {
       tournaments: unknown[];
     }>;
   }> {
-    await this.schema.ensureSchema();
 
     await this.clubService.requireMembership(clubId, userId);
 
@@ -472,7 +461,6 @@ export class ClubMentorService {
       tournaments: unknown[];
     };
   }> {
-    await this.schema.ensureSchema();
 
     await this.clubService.requireMembership(clubId, userId);
 
@@ -527,7 +515,6 @@ export class ClubMentorService {
     tournament_count: number | null;
     win_rate: number | null;
   }>> {
-    await this.schema.ensureSchema();
     await this.clubService.requireMembership(clubId, userId);
 
     const result = await this.db.rawQuery(
@@ -554,7 +541,6 @@ export class ClubMentorService {
   // ─── Feedback ──────────────────────────────────────────────────
 
   async checkPendingFeedback(clubId: string, userId: string): Promise<Array<{ pairing_id: string; mentor_display_name: string | null; current_quarter: string }>> {
-    await this.schema.ensureSchema();
     await this.clubService.requireMembership(clubId, userId);
 
     const now = new Date();
@@ -580,7 +566,6 @@ export class ClubMentorService {
   }
 
   async submitFeedback(clubId: string, pairingId: string, userId: string, rating: number, comment?: string): Promise<MentorFeedback> {
-    await this.schema.ensureSchema();
 
     // Verify user is the mentee in this pairing
     const pairingResult = await this.db.rawQuery(

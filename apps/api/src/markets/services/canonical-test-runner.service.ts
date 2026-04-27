@@ -62,7 +62,6 @@ export class CanonicalTestRunnerService {
   ) {}
 
   async runCanonicalTests(input: CanonicalTestInput): Promise<CanonicalTestResult> {
-    await this.schema.ensureSchema();
 
     // 1. Load active canonical days for the analyst's instruments
     const canonicalDays = await this.loadCanonicalDays(input);

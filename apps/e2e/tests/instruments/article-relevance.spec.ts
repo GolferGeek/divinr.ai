@@ -28,6 +28,9 @@ test.describe('instruments facet — Article Relevance tab', () => {
     await page.goto(`/instruments/${instrumentId}`);
     await page.waitForLoadState('networkidle');
 
+    await expect(page.getByRole('button', { name: /^back$/i })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: /edit contract/i })).toHaveCount(0);
+
     // 1. The tab renamed label
     const segment = page.locator('ion-segment[data-tour="instrument-tabs"] ion-segment-button[value="predictors"]');
     await expect(segment).toBeVisible({ timeout: 10_000 });
@@ -41,6 +44,10 @@ test.describe('instruments facet — Article Relevance tab', () => {
     const emptyState = page
       .getByText(/No articles scored yet for this ticker/i);
     await expect(list.or(emptyState)).toBeVisible({ timeout: 10_000 });
+
+    const analystView = page.getByText(/Analyst view/i).first();
+    const simplifiedStance = page.getByText(/Buy|Sell|Hold/i).first();
+    await expect(analystView.or(simplifiedStance)).toBeVisible({ timeout: 10_000 });
 
     // 3. Vocabulary inside the panel body (not the first-touch which gets stripped).
     const panelText = await page.evaluate(() => {

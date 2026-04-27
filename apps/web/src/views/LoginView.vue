@@ -6,6 +6,7 @@ import {
   IonCardContent, IonItem, IonInput, IonButton, IonIcon, IonText, IonSpinner,
 } from '@ionic/vue';
 import { analyticsOutline } from 'ionicons/icons';
+import { pinDemoUserToCoreTrading } from '../auth/bootstrap-auth';
 import { useAuthStore } from '../stores/auth.store';
 
 const auth = useAuthStore();
@@ -64,6 +65,7 @@ async function login() {
       return;
     }
     const me = (await meRes.json()) as MeResponse;
+    await pinDemoUserToCoreTrading(me, loginData.accessToken);
 
     auth.setAuth(me.id, loginData.accessToken, me.globalRole ?? me.role, me.email, me.displayName, loginData.refreshToken);
     await router.push('/');
