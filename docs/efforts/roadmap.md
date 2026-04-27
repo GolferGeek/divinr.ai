@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-26 (promoted platform-learning-panel to current; added mastery-level follow-on in future)
+**Last updated:** 2026-04-26 (promoted schema-bootstrap-hardening to current; paused platform-learning-panel after Phase 4)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -36,13 +36,13 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 **Infrastructure:** DGX Spark running gemma4 (local inference, zero cost). Hardening in place (backups, service recovery).
 **Users:** 3 active (demo-user, golfergeek, ethan); St. Thomas intern joining shortly; broader beta pending architecture work.
 **Business model direction:** See [master-intention.md](master-intention.md). Single $50/mo Basic tier. Per-item authorship ($20/instrument, $60/analyst). Clubs are purely social. No multi-tier ladder. Cost-pass-through for students.
-**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) — single $50/mo Basic tier + trial → read-only → purge lifecycle + itemized bill + admin read-only view all shipped; **no Stripe code or env vars required yet** (`stripe-integration` picks that up next). The current build pass is `platform-learning-panel`: promote the existing `Market Assistant` into a shell-integrated, platform-managed Learning Panel that teaches users through Divinr-grounded answers before the later mastery-level/nav-simplification effort lands. `ethan-feedback-2026-04-22` remains queued as a follow-on polish batch.
+**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) — single $50/mo Basic tier + trial → read-only → purge lifecycle + itemized bill + admin read-only view all shipped; **no Stripe code or env vars required yet** (`stripe-integration` picks that up next). `platform-learning-panel` is functionally through shell integration (Phases 1–4) and is now paused before Phase 5 so the platform can fix request-time schema bootstrap deadlocks and shell-load instability. `ethan-feedback-2026-04-22` remains queued as a follow-on polish batch.
 
 ---
 
 ## Current Effort
 
-- **[platform-learning-panel](current/platform-learning-panel/intention.md)** — promote the existing `Market Assistant` into a shell-integrated, Divinr-grounded Learning Panel. Platform-managed Claude usage, no default web research, persistent threads with compaction, app-shell launcher/drawer, and usage metering through existing LLM usage logging. Chosen ahead of the broader mastery-level effort so the panel can become the educational spine first; the later mastery effort will simplify the left nav and progression model around this panel.
+- **[schema-bootstrap-hardening](current/schema-bootstrap-hardening/intention.md)** — remove request-time schema mutation from hot API paths and replace it with deterministic startup/bootstrap. The immediate target is to eliminate shell-load deadlocks and intermittent bootstrap `500`s across markets, billing, first-touch, learning-panel, notifications, fear/greed, affinity, and related services before continuing feature work.
 
 ---
 
@@ -71,7 +71,8 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Next — Queued Efforts
 
-- `mastery-levels-learning-profile` — familiarity-based progressive disclosure and left-nav simplification, now intentionally sequenced after `platform-learning-panel` so the panel can teach users through the surfaces that remain.
+- **[platform-learning-panel](next/platform-learning-panel/intention.md)** — resume with Phase 5 once schema/bootstrap hardening is complete. Remaining work is metering, usage limits, and helpful/unhelpful feedback on top of the now shell-integrated panel.
+- `mastery-levels-learning-profile` — familiarity-based progressive disclosure and left-nav simplification, intentionally sequenced after the Learning Panel and the shell/bootstrap hardening work.
 - `ethan-feedback-2026-04-22` — five-item beta-polish batch from Ethan, still valid but no longer the active effort in this checkout.
 
 ---

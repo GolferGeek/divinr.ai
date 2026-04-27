@@ -7,8 +7,8 @@
 ## Progress Tracker
 - [x] Phase 1: Dedicated Learning Panel Backend
 - [x] Phase 2: Persistent Threads and Compaction
-- [ ] Phase 3: Divinr Grounding and Citations
-- [ ] Phase 4: Shell Integration and User Surface
+- [x] Phase 3: Divinr Grounding and Citations
+- [x] Phase 4: Shell Integration and User Surface
 - [ ] Phase 5: Metering, Limits, and Feedback
 
 ---
@@ -92,7 +92,7 @@ Phase 2 notes:
 ---
 
 ## Phase 3: Divinr Grounding and Citations
-**Status**: In Progress
+**Status**: Completed
 **Objective**: Ground answers in approved Divinr docs and visible app context, with no web-research path.
 
 ### Steps
@@ -107,19 +107,20 @@ Phase 2 notes:
 ### Quality Gate
 Before moving to Phase 4, ALL of the following must pass:
 
-- [ ] **Lint**: `pnpm lint`
-- [ ] **Build**: `pnpm build`
+- [x] **Lint**: `pnpm lint`
+- [x] **Build**: `pnpm build`
 - [ ] **Unit Tests**: `pnpm --filter @divinr/api run test:unit`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api run test:unit`
 - [x] **E2E Tests**:
   `pnpm --filter @divinr/e2e run prepare-auth`
   `pnpm --filter @divinr/e2e run e2e --project=learning-panel`
-- [ ] **Curl Tests**:
+- [x] **Curl Tests**:
   `curl -s -H "Authorization: Bearer $DIVINR_TOKEN" http://localhost:7100/api/learning-panel/bootstrap | jq`
   `curl -s -X POST -H "Authorization: Bearer $DIVINR_TOKEN" -H "Content-Type: application/json" http://localhost:7100/api/learning-panel/threads/$THREAD_ID/messages -d '{"message":"How do your risk analysts determine their red and blue strategy?","surfaceKey":"risk-dashboard"}'`
-- [ ] **Chrome Tests**:
+- [x] **Chrome Tests**:
   Ask a corpus-grounded question and verify the answer cites Divinr docs/surfaces.
   Confirm there is no UI affordance or backend behavior for external web search.
-- [ ] **Phase Review**: Compare implementation against Phase 3 objectives in the PRD
+- [x] **Phase Review**: Compare implementation against Phase 3 objectives in the PRD
   - [x] Did we accomplish what we said we would?
   - [x] Does the code align with the PRD requirements?
   - [x] Are there any deviations? If so, document why.
@@ -133,35 +134,43 @@ Phase 3 notes:
 ---
 
 ## Phase 4: Shell Integration and User Surface
-**Status**: Not Started
+**Status**: Completed
 **Objective**: Turn the route-based assistant into a real shell-integrated Learning Panel across desktop and mobile.
 
 ### Steps
-- [ ] 4.1 Refactor `apps/web/src/views/ChatView.vue` into the Learning Panel experience with thread list, message list, composer, citations, and empty-state prompts tied to visible surfaces.
-- [ ] 4.2 Add a shell-integrated drawer/sheet/launcher in `apps/web/src/layouts/DefaultLayout.vue`; rename the nav item from `Market Assistant` to `Learning Panel`.
-- [ ] 4.3 Ensure the panel does not conflict with `ActivityPanel`, onboarding docent/modals, `TrialCountdown`, or `ReadOnlyBanner` across desktop and mobile layouts.
-- [ ] 4.4 Add `useFirstTouch('<key>')` or `<FirstTouchPanel surface-key="...">` to the new panel surfaces and confirm corresponding `surface-content.ts` entries exist.
-- [ ] 4.5 Extend the new learning-panel browser skill `tests.md` and Playwright coverage to include shell launcher behavior, route fallback, and mobile rendering.
+- [x] 4.1 Refactor `apps/web/src/views/ChatView.vue` into the Learning Panel experience with thread list, message list, composer, citations, and empty-state prompts tied to visible surfaces.
+- [x] 4.2 Add a shell-integrated drawer/sheet/launcher in `apps/web/src/layouts/DefaultLayout.vue`; rename the nav item from `Market Assistant` to `Learning Panel`.
+- [x] 4.3 Ensure the panel does not conflict with `ActivityPanel`, onboarding docent/modals, `TrialCountdown`, or `ReadOnlyBanner` across desktop and mobile layouts.
+- [x] 4.4 Add `useFirstTouch('<key>')` or `<FirstTouchPanel surface-key="...">` to the new panel surfaces and confirm corresponding `surface-content.ts` entries exist.
+- [x] 4.5 Extend the new learning-panel browser skill `tests.md` and Playwright coverage to include shell launcher behavior, route fallback, and mobile rendering.
 
 ### Quality Gate
 Before moving to Phase 5, ALL of the following must pass:
 
-- [ ] **Lint**: `pnpm lint`
-- [ ] **Build**: `pnpm build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api run test:unit`
+- [x] **Lint**: `pnpm lint`
+- [x] **Build**: `pnpm build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api run test:unit`
 - [ ] **E2E Tests**:
   `pnpm --filter @divinr/e2e run prepare-auth`
   `pnpm --filter @divinr/e2e run e2e --project=learning-panel`
-- [ ] **Curl Tests**:
+- [x] **E2E Tests**:
+  `BASE_URL=http://localhost:7101 pnpm --filter @divinr/e2e exec playwright test tests/learning-panel/smoke.spec.ts --project=learning-panel`
+- [x] **Curl Tests**:
   `curl -s -H "Authorization: Bearer $DIVINR_TOKEN" http://localhost:7100/api/learning-panel/threads`
-- [ ] **Chrome Tests**:
+- [x] **Chrome Tests**:
   Desktop: open panel from shell without route navigation, send a message, inspect citations.
   Mobile: open panel from shell or route fallback, confirm layout is usable and text does not overlap.
   Verify first-touch panel appears once for the new Learning Panel surface.
-- [ ] **Phase Review**: Compare implementation against Phase 4 objectives in the PRD
-  - [ ] Did we accomplish what we said we would?
-  - [ ] Does the code align with the PRD requirements?
-  - [ ] Are there any deviations? If so, document why.
+- [x] **Phase Review**: Compare implementation against Phase 4 objectives in the PRD
+  - [x] Did we accomplish what we said we would?
+  - [x] Does the code align with the PRD requirements?
+  - [x] Are there any deviations? If so, document why.
+
+Phase 4 notes:
+- The `/chat` route now reuses a shared `LearningPanelSurface` component with a visible thread list, starter prompts, citations, and first-touch coverage.
+- The main shell opens the Learning Panel from both desktop chrome and mobile overflow via an `IonModal` that behaves like a right-side drawer on desktop and a sheet on smaller viewports.
+- Opening the Learning Panel now closes the fixed `ActivityPanel`, avoiding the overlapping-right-rail conflict in the shell.
+- Playwright coverage now includes route fallback, desktop shell launch, and mobile shell launch.
 
 ---
 

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle,
   IonContent, IonIcon, IonLabel, IonChip, IonButton,
-  IonButtons, IonRouterOutlet, IonPopover, IonList, IonItem,
+  IonButtons, IonPopover, IonList, IonItem, IonModal,
 } from '@ionic/vue';
 import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
@@ -16,7 +16,7 @@ import {
   createOutline, analyticsOutline, ellipsisHorizontalOutline,
   schoolOutline, cashOutline,
 } from 'ionicons/icons';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
 import { useDomainStore } from '../stores/domain.store';
 import { useActivityStore } from '../stores/activity.store';
@@ -35,6 +35,7 @@ import ElementHighlighter from '../components/ElementHighlighter.vue';
 import LegalDisclaimer from '../components/LegalDisclaimer.vue';
 import ReadOnlyBanner from '../components/ReadOnlyBanner.vue';
 import TrialCountdown from '../components/TrialCountdown.vue';
+import LearningPanelSurface from '../components/LearningPanelSurface.vue';
 
 const auth = useAuthStore();
 const domain = useDomainStore();
@@ -46,8 +47,11 @@ const messagingStore = useMessagingStore();
 const onboarding = useOnboardingStore();
 const firstTouchStore = useFirstTouchStore();
 const billing = useBillingStatusStore();
+const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(false);
+const learningPanelOpen = ref(false);
+const mobileViewport = ref(typeof window !== 'undefined' ? window.innerWidth < 960 : false);
 
 interface NavItem {
   title: string;
@@ -178,7 +182,54 @@ function logout() {
 
 function handleNavClick(path: string) {
   sidebarOpen.value = false;
+  if (path === '/chat' && route.path !== '/chat') {
+    openLearningPanel();
+    return;
+  }
   router.push(path);
+}
+
+function syncViewport() {
+  mobileViewport.value = typeof window !== 'undefined' ? window.innerWidth < 960 : false;
+}
+
+const learningPanelSurfaceKey = computed(() => {
+  const path = route.path;
+  if (path === '/' || path.startsWith('/domain/')) return 'dashboard';
+  if (path.startsWith('/predictions')) return 'predictions';
+  if (path.startsWith('/risk')) return 'risk-dashboard';
+  if (path.startsWith('/portfolios') || path === '/portfolio') return 'portfolios';
+  if (path.startsWith('/clubs/')) return 'club.detail';
+  if (path.startsWith('/clubs')) return 'clubs';
+  if (path.startsWith('/tournaments')) return 'tournaments';
+  if (path.startsWith('/messages')) return 'messages';
+  if (path.startsWith('/analysts')) return 'analysts';
+  if (path.startsWith('/performance')) return 'performance';
+  if (path.startsWith('/instruments')) return 'instruments';
+  if (path.startsWith('/settings/authored-content')) return 'authored.overview';
+  return 'chat';
+});
+
+function openLearningPanel() {
+  sidebarOpen.value = false;
+  if (route.path === '/chat') return;
+  if (activity.panelOpen) activity.panelOpen = false;
+  learningPanelOpen.value = true;
+}
+
+function toggleLearningPanel() {
+  if (learningPanelOpen.value) {
+    learningPanelOpen.value = false;
+    return;
+  }
+  openLearningPanel();
+}
+
+function handleActivityToggle() {
+  if (!activity.panelOpen && learningPanelOpen.value) {
+    learningPanelOpen.value = false;
+  }
+  activity.toggle();
 }
 
 async function retakeOnboarding() {
@@ -200,6 +251,15 @@ async function resetUserOnboarding() {
     window.alert(`Failed to reset: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
+
+onMounted(() => {
+  syncViewport();
+  window.addEventListener('resize', syncViewport);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncViewport);
+});
 </script>
 
 <template>
@@ -225,7 +285,7 @@ async function resetUserOnboarding() {
                 v-for="item in group.items"
                 :key="item.to"
                 class="sidebar-item"
-                :class="{ active: $route.path === item.to }"
+                :class="{ active: $route.path === item.to || (item.to === '/chat' && learningPanelOpen) }"
                 role="link"
                 tabindex="0"
                 :aria-label="item.title"
@@ -242,7 +302,7 @@ async function resetUserOnboarding() {
           <button
             class="activity-btn"
             :class="{ active: activity.panelOpen }"
-            @click="activity.toggle()"
+            @click="handleActivityToggle()"
           >
             <ion-icon :icon="pulseOutline" />
             <span>Activity</span>
@@ -278,6 +338,15 @@ async function resetUserOnboarding() {
               </ion-button>
               <ion-button
                 fill="clear"
+                class="notification-bell chrome-desktop-only"
+                aria-label="Open Learning Panel"
+                title="Open Learning Panel"
+                @click="toggleLearningPanel"
+              >
+                <ion-icon :icon="bulbOutline" />
+              </ion-button>
+              <ion-button
+                fill="clear"
                 id="mobile-chrome-trigger"
                 class="notification-bell chrome-mobile-only chrome-mobile-overflow-btn"
                 aria-label="Open notifications menu"
@@ -309,6 +378,10 @@ async function resetUserOnboarding() {
                       <ion-icon slot="start" :icon="notificationsOutline" />
                       <ion-label>Notifications</ion-label>
                       <span v-if="notificationStore.unreadCount > 0" class="chrome-mobile-popover-badge">{{ notificationStore.unreadCount > 9 ? '9+' : notificationStore.unreadCount }}</span>
+                    </ion-item>
+                    <ion-item button :detail="false" @click="toggleLearningPanel">
+                      <ion-icon slot="start" :icon="bulbOutline" />
+                      <ion-label>Learning Panel</ion-label>
                     </ion-item>
                   </ion-list>
                 </ion-content>
@@ -377,6 +450,20 @@ async function resetUserOnboarding() {
     </div>
     <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false" />
     <ActivityPanel />
+    <IonModal
+      :is-open="learningPanelOpen"
+      @did-dismiss="learningPanelOpen = false"
+      :breakpoints="mobileViewport ? [0, 0.72, 1] : undefined"
+      :initial-breakpoint="mobileViewport ? 0.72 : undefined"
+      class="learning-panel-modal"
+    >
+      <LearningPanelSurface
+        embedded
+        show-close
+        :surface-key="learningPanelSurfaceKey"
+        @close="learningPanelOpen = false"
+      />
+    </IonModal>
     <WelcomeModal />
     <DocentPanel />
     <CompletionModal />
@@ -472,6 +559,17 @@ async function resetUserOnboarding() {
 
 .header-user-chip {
   cursor: pointer;
+}
+
+.learning-panel-modal {
+  --width: min(100vw, 460px);
+  --max-width: 460px;
+  --height: 100%;
+  --border-radius: 18px 0 0 18px;
+}
+
+.learning-panel-modal::part(content) {
+  overflow: hidden;
 }
 
 .tour-progress-badge {
@@ -662,6 +760,15 @@ ion-toolbar {
 
 @media (min-width: 601px) {
   .chrome-mobile-only { display: none !important; }
+}
+
+@media (max-width: 959px) {
+  .learning-panel-modal {
+    --width: 100vw;
+    --max-width: 100vw;
+    --height: min(92vh, 900px);
+    --border-radius: 18px 18px 0 0;
+  }
 }
 
 .chrome-mobile-overflow-btn {

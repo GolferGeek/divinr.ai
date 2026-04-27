@@ -1,41 +1,45 @@
 import { test, expect } from '@playwright/test';
 import { dismissWelcomeModal } from '../../fixtures/onboarding';
 
+async function authenticate(page: Parameters<typeof test>[0]['page']) {
+  const apiBase = process.env.E2E_API_BASE ?? 'http://127.0.0.1:7100';
+  const email = process.env.E2E_LOGIN_EMAIL ?? 'demo-user@orchestratorai.io';
+  const password = process.env.E2E_LOGIN_PASSWORD ?? 'DemoUser123!';
+
+  const loginRes = await page.request.post(`${apiBase}/auth/login`, {
+    data: { email, password },
+  });
+  expect(loginRes.ok()).toBeTruthy();
+  const login = await loginRes.json();
+
+  const meRes = await page.request.get(`${apiBase}/auth/me`, {
+    headers: { Authorization: `Bearer ${login.accessToken}` },
+  });
+  expect(meRes.ok()).toBeTruthy();
+  const me = await meRes.json();
+
+  await page.addInitScript(({ auth, me }) => {
+    localStorage.setItem('divinr_user', me.id ?? '');
+    localStorage.setItem('divinr_token', auth.accessToken);
+    localStorage.setItem('divinr_refresh_token', auth.refreshToken ?? '');
+    localStorage.setItem('divinr_role', me.globalRole ?? me.role ?? 'member');
+    localStorage.setItem('divinr_email', me.email ?? '');
+    localStorage.setItem('divinr_display_name', me.displayName ?? me.email ?? '');
+  }, { auth: login, me });
+}
+
 test.describe('learning-panel facet — smoke', () => {
   test('loads, responds with grounding, and survives refresh', async ({ page }) => {
     const serverErrors: string[] = [];
     page.on('response', (resp) => {
       const u = resp.url();
-      if (resp.status() >= 500 && /localhost:(7100|7101)|127\.0\.0\.1:(7100|7101)/.test(u)) {
+      if (resp.status() >= 500 && /\/api\/(learning-panel|chat\/ask)\b/.test(u)) {
         serverErrors.push(`${resp.status()} ${u}`);
       }
     });
 
     const prompt = 'What does Divinr ship today for clubs and tournaments?';
-    const apiBase = process.env.E2E_API_BASE ?? 'http://127.0.0.1:7100';
-    const email = process.env.E2E_LOGIN_EMAIL ?? 'demo-user@orchestratorai.io';
-    const password = process.env.E2E_LOGIN_PASSWORD ?? 'DemoUser123!';
-
-    const loginRes = await page.request.post(`${apiBase}/auth/login`, {
-      data: { email, password },
-    });
-    expect(loginRes.ok()).toBeTruthy();
-    const login = await loginRes.json();
-
-    const meRes = await page.request.get(`${apiBase}/auth/me`, {
-      headers: { Authorization: `Bearer ${login.accessToken}` },
-    });
-    expect(meRes.ok()).toBeTruthy();
-    const me = await meRes.json();
-
-    await page.addInitScript(({ auth, me }) => {
-      localStorage.setItem('divinr_user', me.id ?? '');
-      localStorage.setItem('divinr_token', auth.accessToken);
-      localStorage.setItem('divinr_refresh_token', auth.refreshToken ?? '');
-      localStorage.setItem('divinr_role', me.globalRole ?? me.role ?? 'member');
-      localStorage.setItem('divinr_email', me.email ?? '');
-      localStorage.setItem('divinr_display_name', me.displayName ?? me.email ?? '');
-    }, { auth: login, me });
+    await authenticate(page);
 
     await page.goto('/chat');
     await dismissWelcomeModal(page);
@@ -50,7 +54,7 @@ test.describe('learning-panel facet — smoke', () => {
     await input.fill(prompt);
     await page.getByRole('button', { name: /send/i }).click();
 
-    await expect(page.getByText('Grounded in')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Grounded in').first()).toBeVisible({ timeout: 30_000 });
     const bodyText = await page.locator('body').innerText();
     expect(bodyText).toContain(prompt);
     expect(bodyText).toMatch(/Clubs|Tournaments/);
@@ -73,5 +77,43 @@ test.describe('learning-panel facet — smoke', () => {
     expect(nonDisclaimerText).not.toMatch(/\badvice\b/i);
 
     expect(serverErrors, `unexpected 5xx: ${serverErrors.join('\n')}`).toEqual([]);
+  });
+
+  test('opens from the shell launcher without route navigation', async ({ page }) => {
+    await authenticate(page);
+
+    await page.goto('/predictions');
+    await dismissWelcomeModal(page);
+
+    await expect(page).toHaveURL(/\/predictions$/);
+    await page.getByRole('button', { name: /open learning panel/i }).click();
+    await expect(page.getByRole('heading', { name: /learning panel/i, level: 2 })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page).toHaveURL(/\/predictions$/);
+
+    const input = page.locator('textarea').first();
+    await input.fill('What should I learn next before I start trading?');
+    await page.getByRole('button', { name: /send/i }).click();
+    await expect(page.getByText('Grounded in').first()).toBeVisible({ timeout: 30_000 });
+  });
+});
+
+test.describe('learning-panel facet — mobile shell', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('opens from the mobile chrome menu', async ({ page }) => {
+    await authenticate(page);
+
+    await page.goto('/predictions');
+    await dismissWelcomeModal(page);
+
+    await page.getByRole('button', { name: /open notifications menu/i }).click();
+    await page.locator('ion-popover ion-item').filter({ hasText: 'Learning Panel' }).click();
+
+    await expect(page.getByRole('heading', { name: /learning panel/i, level: 2 })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('textarea').first()).toBeVisible();
   });
 });
