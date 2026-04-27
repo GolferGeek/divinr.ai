@@ -72,7 +72,7 @@ export const masteryNavGroups: MasteryNavGroup[] = [
   {
     label: 'Markets',
     items: [
-      { title: 'Research', icon: statsChartOutline, to: '/instruments', minLevel: 'core_trading' },
+      { title: 'Analyses', icon: statsChartOutline, to: '/predictions', minLevel: 'core_trading' },
       { title: 'Portfolios', icon: briefcaseOutline, to: '/portfolios', minLevel: 'core_trading' },
       { title: 'Risk', icon: shieldOutline, to: '/risk', minLevel: 'core_trading' },
     ],
@@ -80,6 +80,7 @@ export const masteryNavGroups: MasteryNavGroup[] = [
   {
     label: 'AI Analysts',
     items: [
+      { title: 'Research', icon: compassOutline, to: '/instruments', minLevel: 'builder' },
       { title: 'Analysts', icon: peopleOutline, to: '/analysts', minLevel: 'builder' },
       { title: 'Performance', icon: trendingUpOutline, to: '/performance', minLevel: 'core_trading' },
       { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination', minLevel: 'operator' },
@@ -149,7 +150,7 @@ export const masteryRoutePolicies: MasteryRoutePolicy[] = [
   { path: '/messages', minLevel: 'community_creation' },
   { path: '/settings/authored-content', minLevel: 'builder' },
   { path: '/analysts', minLevel: 'builder' },
-  { path: '/instruments', minLevel: 'core_trading' },
+  { path: '/instruments', minLevel: 'builder' },
   { path: '/performance', minLevel: 'core_trading' },
   { path: '/settings/onboarding', minLevel: 'core_trading', alwaysVisible: true },
   { path: '/billing/summary', minLevel: 'core_trading', alwaysVisible: true },

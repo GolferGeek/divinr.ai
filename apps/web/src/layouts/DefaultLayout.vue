@@ -27,6 +27,7 @@ import { useMessagingStore } from '../stores/messaging.store';
 import { useOnboardingStore } from '../stores/onboarding.store';
 import { useFirstTouchStore } from '../stores/firstTouch.store';
 import { useBillingStatusStore } from '../stores/billing-status.store';
+import { useMasteryStore } from '../stores/mastery.store';
 import ActivityPanel from '../components/ActivityPanel.vue';
 import WelcomeModal from '../components/WelcomeModal.vue';
 import DocentPanel from '../components/DocentPanel.vue';
@@ -48,6 +49,7 @@ const messagingStore = useMessagingStore();
 const onboarding = useOnboardingStore();
 const firstTouchStore = useFirstTouchStore();
 const billing = useBillingStatusStore();
+const mastery = useMasteryStore();
 const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(false);
@@ -69,7 +71,10 @@ const visibleGroups = computed(() =>
     .filter(g => !g.adminOnly || auth.isAdmin)
     .map(g => ({
       ...g,
-      items: g.items.filter(i => !i.adminOnly || auth.isAdmin),
+      items: g.items.filter((i) => {
+        if (i.adminOnly && !auth.isAdmin) return false;
+        return mastery.canViewLevel(i.minLevel, i.alwaysVisible);
+      }),
     }))
     .filter(g => g.items.length > 0),
 );
@@ -82,6 +87,7 @@ messagingStore.fetchUnreadCounts();
 onboarding.fetch().catch(() => { /* non-fatal if API down; welcome modal simply stays hidden */ });
 firstTouchStore.fetch().catch(() => { /* non-fatal; panels stay hidden */ });
 billing.fetch().catch(() => { /* non-fatal; banners stay hidden */ });
+mastery.fetch().catch(() => { /* non-fatal; shell falls back to Level 1 visibility */ });
 billing.startAutoRefresh();
 
 function logout() {
@@ -89,6 +95,7 @@ function logout() {
   onboarding.clear();
   firstTouchStore.clear();
   billing.clear();
+  mastery.clear();
   router.push('/login');
 }
 
