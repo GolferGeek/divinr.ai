@@ -44,11 +44,15 @@ const props = withDefaults(defineProps<{
   showFirstTouch?: boolean;
   embedded?: boolean;
   showClose?: boolean;
+  hiddenPath?: string;
+  requiredLevel?: string;
 }>(), {
   surfaceKey: 'chat',
   showFirstTouch: true,
   embedded: false,
   showClose: false,
+  hiddenPath: '',
+  requiredLevel: '',
 });
 
 const emit = defineEmits<{ close: [] }>();
@@ -87,6 +91,10 @@ const contextLabels: Record<string, string> = {
 
 const contextLabel = computed(() => contextLabels[props.surfaceKey] ?? 'this part of Divinr');
 const hasMessages = computed(() => messages.value.length > 0);
+const hiddenRouteNotice = computed(() => {
+  if (!props.hiddenPath || !props.requiredLevel) return null;
+  return `That surface is hidden at your current level. Ask what changes at ${formatLevelLabel(props.requiredLevel)} to unlock ${props.hiddenPath}.`;
+});
 
 function formatLevelLabel(level: string | null | undefined): string {
   if (!level) return '';
@@ -324,6 +332,7 @@ onMounted(() => {
               <h2>Learning Panel</h2>
             </div>
             <IonNote>Ask about {{ contextLabel }}, risk, portfolios, clubs, tournaments, or what to learn next</IonNote>
+            <IonNote v-if="hiddenRouteNotice" color="warning">{{ hiddenRouteNotice }}</IonNote>
             <IonNote v-if="mastery">
               Level: {{ formatLevelLabel(mastery.currentLevel) }}
               <template v-if="mastery.nextLevel">. Next: {{ formatLevelLabel(mastery.nextLevel) }}</template>

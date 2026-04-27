@@ -1,5 +1,10 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router';
+import {
+  buildMasteryFallback,
+  findMasteryRoutePolicy,
+} from '../mastery/mastery-config';
 import { useAuthStore } from '../stores/auth.store';
+import { useMasteryStore } from '../stores/mastery.store';
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -119,9 +124,29 @@ export const router = createRouter({
 
 // Auth guard: redirect to login if no user configured.
 // Uses the auth Pinia store so the localStorage key name is encapsulated in one place.
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (to.meta.public) return true;
   const auth = useAuthStore();
   if (!auth.isConfigured()) return '/welcome';
-  return true;
+
+  const policy = findMasteryRoutePolicy(to.path);
+  if (!policy) return true;
+
+  if (policy.adminOnly && !auth.isAdmin) {
+    return buildMasteryFallback(to.fullPath, policy.minLevel);
+  }
+
+  const mastery = useMasteryStore();
+  if (!mastery.loaded && !mastery.loading) {
+    try {
+      await mastery.fetch();
+    } catch {
+      return true;
+    }
+  }
+
+  if (!mastery.loaded) return true;
+  if (mastery.canViewLevel(policy.minLevel, policy.alwaysVisible)) return true;
+
+  return buildMasteryFallback(to.fullPath, policy.minLevel);
 });

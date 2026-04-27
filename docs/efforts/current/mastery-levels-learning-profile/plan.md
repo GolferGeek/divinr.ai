@@ -93,13 +93,13 @@ Before moving to Phase 4, ALL of the following must pass:
 **Objective**: Make hidden surfaces and the Learning Panel level-aware, coherent, and explainable.
 
 ### Steps
-- [ ] 4.1 Implement route fallback behavior for hidden surfaces so deep links do not strand users or expose incoherent shell states.
+- [x] 4.1 Implement route fallback behavior for hidden surfaces so deep links do not strand users or expose incoherent shell states.
 - [x] 4.2 Extend Learning Panel bootstrap/context payloads to include mastery level, visible-surface summary, and next-step guidance inputs.
-- [ ] 4.3 Add panel responses or starter-prompt affordances for:
+- [x] 4.3 Add panel responses or starter-prompt affordances for:
   - what to learn next
   - why a feature is hidden
   - what changes at the next level
-- [ ] 4.4 Ensure mastery does not override actual authorization and does not leak admin/operator capability to non-admin users.
+- [x] 4.4 Ensure mastery does not override actual authorization and does not leak admin/operator capability to non-admin users.
 
 ### Quality Gate
 Before moving to Phase 5, ALL of the following must pass:
