@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-27 (archived mastery-levels-learning-profile; started ethan-feedback follow-up)
+**Last updated:** 2026-04-27 (merged and archived ethan-feedback follow-up)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -36,17 +36,19 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 **Infrastructure:** DGX Spark running gemma4 (local inference, zero cost). Hardening in place (backups, service recovery).
 **Users:** 3 active (demo-user, golfergeek, ethan); St. Thomas intern joining shortly; broader beta pending architecture work.
 **Business model direction:** See [master-intention.md](master-intention.md). Single $50/mo Basic tier. Per-item authorship ($20/instrument, $60/analyst). Clubs are purely social. No multi-tier ladder. Cost-pass-through for students.
-**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) and `stripe-integration` is archived. `schema-bootstrap-hardening` is complete: explicit bootstrap/readiness is in place, cold-start shell loads are stable, and request-time schema mutation has been removed from normal API flows. `platform-learning-panel` is complete through Phase 5 (metering, limits, feedback). `mastery-levels-learning-profile` is archived after shell, Learning Panel, admin/operator, and browser coverage closeout. The active polish pass is now the Ethan follow-up batch covering Research clarity, trade confirmation, instrument-detail affordances, and persistent Learning Panel access.
+**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) and `stripe-integration` is archived. `schema-bootstrap-hardening` is complete: explicit bootstrap/readiness is in place, cold-start shell loads are stable, and request-time schema mutation has been removed from normal API flows. `platform-learning-panel` is complete through Phase 5 (metering, limits, feedback). `mastery-levels-learning-profile` is archived after shell, Learning Panel, admin/operator, and browser coverage closeout. `ethan-feedback-followup-2026-04-27` is now merged on top of mastery and archived after fixing research clarity, dashboard-to-detail affordances, trade confirmation, and persistent Learning Panel access.
 
 ---
 
 ## Current Effort
 
-- **[ethan-feedback-followup-2026-04-27](current/ethan-feedback-followup-2026-04-27/intention.md)** — second beta polish pass from Ethan: clearer Research by analyst, visible trade confirmation and recent activity, instrument-detail affordance fixes, and persistent Learning Panel access with page context.
+- No current effort selected.
 
 ---
 
 ## Recently Shipped
+
+- **[ethan-feedback-followup-2026-04-27](archive/ethan-feedback-followup-2026-04-27/intention.md)** (2026-04-27) — shipped Ethan’s second beta polish pass: Research now reads by analyst with simpler buy/sell/hold framing, Article Relevance grouping/selection is clearer, tournament trade submission shows explicit success plus recent queued activity, dashboard `View` now routes into instrument detail correctly, and the Learning Panel has a persistent shell launcher with page/instrument context.
 
 - **[mastery-levels-learning-profile](archive/mastery-levels-learning-profile/intention.md)** (2026-04-27) — shipped the familiarity-based shell: Level 1 now hides most of the left nav, the Learning Panel is level-aware from the start, hidden routes fall back coherently, existing users seed conservatively, manual complexity opt-up is available, and browser coverage now proves both mastery progression and Learning Panel integration.
 - **[platform-learning-panel](archive/platform-learning-panel/intention.md)** (2026-04-27) — delivered a shell-integrated, Divinr-grounded Learning Panel with persistent threads, bounded compaction, visible citations, usage metering, per-user monthly limits, and inline helpful/unhelpful feedback. `/chat` now reuses the shared panel surface, the shell opens it as a drawer/sheet, and admin/browser coverage now proves Learning Panel usage appears in the existing LLM usage surfaces.
