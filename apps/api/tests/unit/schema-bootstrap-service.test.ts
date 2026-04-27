@@ -52,6 +52,7 @@ async function main(): Promise<void> {
       makeTask('invites') as never,
       makeTask('learning-panel') as never,
       makeTask('markets', 'bootstrap') as never,
+      makeTask('mastery') as never,
       makeTask('messaging') as never,
       makeTask('onboarding') as never,
       makeTask('service-api-keys') as never,
@@ -71,6 +72,7 @@ async function main(): Promise<void> {
       'invites',
       'first-touch',
       'learning-panel',
+      'mastery',
       'service-api-keys',
     ]);
     assert.deepEqual(results.map((result) => result.key), calls);

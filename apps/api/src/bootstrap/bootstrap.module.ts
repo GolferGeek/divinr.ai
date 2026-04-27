@@ -8,6 +8,7 @@ import { CurriculumModule } from '../curriculum/curriculum.module';
 import { FirstTouchModule } from '../first-touch/first-touch.module';
 import { LearningPanelModule } from '../learning-panel/learning-panel.module';
 import { MarketsModule } from '../markets/markets.module';
+import { MasteryModule } from '../mastery/mastery.module';
 import { OnboardingModule } from '../onboarding/onboarding.module';
 import { TournamentModule } from '../tournaments/tournament.module';
 import { SchemaBootstrapService } from './schema-bootstrap.service';
@@ -22,6 +23,7 @@ import { SchemaReadinessService } from './schema-readiness.service';
     CurriculumModule,
     FirstTouchModule,
     LearningPanelModule,
+    MasteryModule,
     MarketsModule,
     OnboardingModule,
     TournamentModule,

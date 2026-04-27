@@ -7,6 +7,7 @@ import { CurriculumSchemaService } from '../curriculum/curriculum-schema.service
 import { FirstTouchSchemaService } from '../first-touch/first-touch-schema.service';
 import { LearningPanelSchemaService } from '../learning-panel/learning-panel-schema.service';
 import { MarketsSchemaService } from '../markets/schema/markets-schema.service';
+import { MasterySchemaService } from '../mastery/mastery-schema.service';
 import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { OnboardingSchemaService } from '../onboarding/onboarding-schema.service';
 import { ServiceApiKeyService } from '../auth/service-api-key.service';
@@ -31,6 +32,7 @@ export class SchemaBootstrapService {
     @Inject(InviteSchemaService) private readonly inviteSchema: InviteSchemaService,
     @Inject(LearningPanelSchemaService) private readonly learningPanelSchema: LearningPanelSchemaService,
     @Inject(MarketsSchemaService) private readonly marketsSchema: MarketsSchemaService,
+    @Inject(MasterySchemaService) private readonly masterySchema: MasterySchemaService,
     @Inject(MessagingSchemaService) private readonly messagingSchema: MessagingSchemaService,
     @Inject(OnboardingSchemaService) private readonly onboardingSchema: OnboardingSchemaService,
     @Inject(ServiceApiKeyService) private readonly serviceApiKeyService: ServiceApiKeyService,
@@ -63,6 +65,7 @@ export class SchemaBootstrapService {
       { key: 'invites', run: () => this.inviteSchema.ensureSchema() },
       { key: 'first-touch', run: () => this.firstTouchSchema.ensureSchema() },
       { key: 'learning-panel', run: () => this.learningPanelSchema.ensureSchema() },
+      { key: 'mastery', run: () => this.masterySchema.ensureSchema() },
       { key: 'service-api-keys', run: () => this.serviceApiKeyService.ensureSchema() },
     ];
   }

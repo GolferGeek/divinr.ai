@@ -2,11 +2,11 @@
 
 **PRD**: `docs/efforts/current/mastery-levels-learning-profile/prd.md`
 **Created**: 2026-04-27
-**Status**: Not Started
+**Status**: In Progress
 
 ## Progress Tracker
-- [ ] Phase 1: Inventory and Policy Lock
-- [ ] Phase 2: Learning Profile Persistence
+- [x] Phase 1: Inventory and Policy Lock
+- [x] Phase 2: Learning Profile Persistence
 - [ ] Phase 3: Level-Aware Shell Navigation
 - [ ] Phase 4: Route Behavior and Learning Panel Integration
 - [ ] Phase 5: Progression UX and Coverage
@@ -14,52 +14,53 @@
 ---
 
 ## Phase 1: Inventory and Policy Lock
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Turn the product idea into a concrete source-of-truth inventory for routes, shell nav items, and mastery policy.
 
 ### Steps
-- [ ] 1.1 Inventory all app-shell nav groups/items from `apps/web/src/layouts/DefaultLayout.vue` and map each one to a mastery level or an explicit role-only exception.
-- [ ] 1.2 Inventory key routes in `apps/web/src/router/index.ts` and assign route-level mastery policy, including fallback behavior for hidden surfaces.
-- [ ] 1.3 Lock progression policy decisions in code-facing terms:
+- [x] 1.1 Inventory all app-shell nav groups/items from `apps/web/src/layouts/DefaultLayout.vue` and map each one to a mastery level or an explicit role-only exception.
+- [x] 1.2 Inventory key routes in `apps/web/src/router/index.ts` and assign route-level mastery policy, including fallback behavior for hidden surfaces.
+- [x] 1.3 Lock progression policy decisions in code-facing terms:
   - whether manual opt-up is allowed
   - whether Level 2 is join-only or includes creation
   - which billing/account/settings surfaces remain visible at every level
-- [ ] 1.4 Define the canonical level enum/string constants and a typed frontend inventory module that later phases will consume.
+- [x] 1.4 Define the canonical level enum/string constants and a typed frontend inventory module that later phases will consume.
 
 ### Quality Gate
 Before moving to Phase 2, ALL of the following must pass:
 
-- [ ] **Plan Review**: inventory and policy decisions are fully traceable to the PRD and intention
-- [ ] **Code Review**: no implementation yet beyond typed inventory/policy scaffolding
-- [ ] **Phase Review**:
-  - [ ] Did we accomplish what we said we would?
-  - [ ] Are progression ambiguities resolved enough to implement safely?
+- [x] **Plan Review**: inventory and policy decisions are fully traceable to the PRD and intention
+- [x] **Code Review**: no implementation yet beyond typed inventory/policy scaffolding
+- [x] **Phase Review**:
+  - [x] Did we accomplish what we said we would?
+  - [x] Are progression ambiguities resolved enough to implement safely?
 
 ---
 
 ## Phase 2: Learning Profile Persistence
-**Status**: Not Started
+**Status**: Complete
 **Objective**: Add persisted user learning-profile state and backend APIs without changing visible shell behavior yet.
 
 ### Steps
-- [ ] 2.1 Add migrations and explicit bootstrap wiring for the learning-profile schema under the existing no-request-DDL contract.
-- [ ] 2.2 Implement an API module/service for learning profiles with explicit `@Inject(...)` usage on all constructor params.
-- [ ] 2.3 Add `GET /api/mastery/profile` and any required update endpoint for level/preference changes.
-- [ ] 2.4 Seed default profiles for existing users and derive initial milestone state from existing trade, portfolio, club, tournament, authored-content, and onboarding/first-touch data.
-- [ ] 2.5 Add targeted unit tests for default profile behavior, milestone derivation, and update semantics.
+- [x] 2.1 Add migrations and explicit bootstrap wiring for the learning-profile schema under the existing no-request-DDL contract.
+- [x] 2.2 Implement an API module/service for learning profiles with explicit `@Inject(...)` usage on all constructor params.
+- [x] 2.3 Add `GET /api/mastery/profile` and any required update endpoint for level/preference changes.
+- [x] 2.4 Seed default profiles for existing users and derive initial milestone state from existing trade, portfolio, club, tournament, authored-content, and onboarding/first-touch data.
+- [x] 2.5 Add targeted unit tests for default profile behavior, milestone derivation, and update semantics.
 
 ### Quality Gate
 Before moving to Phase 3, ALL of the following must pass:
 
-- [ ] **Lint**: `pnpm --filter @divinr/api run lint`
-- [ ] **Build**: `pnpm --filter @divinr/api run build`
-- [ ] **Unit Tests**: targeted mastery-profile tests plus full API unit suite
+- [x] **Lint**: `pnpm --filter @divinr/api run lint`
+- [x] **Build**: `pnpm --filter @divinr/api run build`
+- [x] **Unit Tests**: targeted mastery-profile tests plus full API unit suite
   `pnpm --filter @divinr/api run test:unit`
 - [ ] **Curl Tests**:
   `curl -s -H "Authorization: Bearer $DIVINR_TOKEN" http://localhost:7100/api/mastery/profile | jq`
-- [ ] **Phase Review**:
-  - [ ] Did we accomplish what we said we would?
-  - [ ] Does schema/bootstrap follow the post-hardening contract?
+  - local validation environment did not provide `DIVINR_TOKEN`; endpoint contract was covered by unit tests instead
+- [x] **Phase Review**:
+  - [x] Did we accomplish what we said we would?
+  - [x] Does schema/bootstrap follow the post-hardening contract?
 
 ---
 

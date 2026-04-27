@@ -21,6 +21,7 @@ export class SchemaReadinessService {
     'prediction.learning_panel_messages',
     'prediction.learning_panel_thread_state',
     'prediction.learning_panel_threads',
+    'prediction.user_learning_profiles',
     'prediction.market_analysts',
     'prediction.market_predictions',
     'prediction.service_api_keys',
