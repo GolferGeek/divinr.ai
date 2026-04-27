@@ -96,6 +96,127 @@ const hiddenRouteNotice = computed(() => {
   return `That surface is hidden at your current level. Ask what changes at ${formatLevelLabel(props.requiredLevel)} to unlock ${props.hiddenPath}.`;
 });
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function renderInlineMarkdown(value: string): string {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+}
+
+function renderMarkdownPreview(value: string): string {
+  const lines = value.split('\n');
+  const blocks: string[] = [];
+  let paragraph: string[] = [];
+  let listItems: string[] = [];
+  let tableRows: string[][] = [];
+
+  function flushParagraph() {
+    if (!paragraph.length) return;
+    blocks.push(`<p>${paragraph.map((line) => renderInlineMarkdown(line)).join('<br/>')}</p>`);
+    paragraph = [];
+  }
+
+  function flushList() {
+    if (!listItems.length) return;
+    blocks.push(`<ul>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ul>`);
+    listItems = [];
+  }
+
+  function isTableDivider(cells: string[]): boolean {
+    return cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+  }
+
+  function flushTable() {
+    if (!tableRows.length) return;
+    if (tableRows.length < 2) {
+      blocks.push(`<p>${tableRows.flat().map((cell) => renderInlineMarkdown(cell)).join(' | ')}</p>`);
+      tableRows = [];
+      return;
+    }
+    const [header, divider, ...body] = tableRows;
+    if (!isTableDivider(divider)) {
+      blocks.push(`<p>${tableRows.map((row) => row.map((cell) => renderInlineMarkdown(cell)).join(' | ')).join('<br/>')}</p>`);
+      tableRows = [];
+      return;
+    }
+    blocks.push([
+      '<table><thead><tr>',
+      header.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join(''),
+      '</tr></thead><tbody>',
+      body.map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdown(cell)}</td>`).join('')}</tr>`).join(''),
+      '</tbody></table>',
+    ].join(''));
+    tableRows = [];
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      flushTable();
+      continue;
+    }
+
+    if (/^(\*\s*){3,}$/.test(trimmed) || /^-{3,}$/.test(trimmed)) {
+      flushParagraph();
+      flushList();
+      flushTable();
+      blocks.push('<hr/>');
+      continue;
+    }
+
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      flushParagraph();
+      flushList();
+      tableRows.push(trimmed.slice(1, -1).split('|').map((cell) => cell.trim()));
+      continue;
+    }
+
+    flushTable();
+
+    const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      const level = Math.min(headingMatch[1].length + 2, 6);
+      blocks.push(`<h${level}>${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
+      continue;
+    }
+
+    const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      flushParagraph();
+      listItems.push(bulletMatch[1]);
+      continue;
+    }
+
+    const orderedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+    if (orderedMatch) {
+      flushParagraph();
+      listItems.push(orderedMatch[1]);
+      continue;
+    }
+
+    flushList();
+    paragraph.push(trimmed);
+  }
+
+  flushParagraph();
+  flushList();
+  flushTable();
+  return blocks.join('');
+}
+
 function formatLevelLabel(level: string | null | undefined): string {
   if (!level) return '';
   return level
@@ -313,7 +434,7 @@ onMounted(() => {
               <span class="thread-item-title">{{ thread.title || 'Conversation' }}</span>
               <span class="thread-item-date">{{ formatUpdatedAt(thread.lastMessageAt) }}</span>
             </div>
-            <div class="thread-item-preview">{{ thread.preview || 'No messages yet' }}</div>
+            <div class="thread-item-preview">{{ thread.preview.replace(/\s+/g, ' ').trim() || 'No messages yet' }}</div>
           </button>
 
           <div v-if="!threadSummaries.length && !bootstrapping" class="thread-list-empty">
@@ -374,7 +495,18 @@ onMounted(() => {
 
           <div v-for="message in messages" :key="message.id" :class="['chat-message', message.role]">
             <div class="message-bubble">
-              <div class="message-content">{{ message.content }}</div>
+              <div
+                class="message-content"
+                :class="{ 'markdown-content': message.role === 'assistant' }"
+              >
+                <template v-if="message.role === 'assistant'">
+                  <!-- eslint-disable-next-line vue/no-v-html -->
+                  <div v-html="renderMarkdownPreview(message.content)" />
+                </template>
+                <template v-else>
+                  {{ message.content }}
+                </template>
+              </div>
               <div v-if="message.role === 'assistant' && message.citations.length > 0" class="message-citations">
                 <div class="message-citations-label">Grounded in</div>
                 <ul>
@@ -697,6 +829,55 @@ onMounted(() => {
 .message-content {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message-content.markdown-content {
+  white-space: normal;
+}
+
+.message-content.markdown-content :deep(p),
+.message-content.markdown-content :deep(ul),
+.message-content.markdown-content :deep(h3),
+.message-content.markdown-content :deep(h4),
+.message-content.markdown-content :deep(h5) {
+  margin: 0 0 10px;
+}
+
+.message-content.markdown-content :deep(ul) {
+  padding-left: 18px;
+}
+
+.message-content.markdown-content :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.message-content.markdown-content :deep(hr) {
+  border: none;
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+  margin: 12px 0;
+}
+
+.message-content.markdown-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.message-content.markdown-content :deep(th),
+.message-content.markdown-content :deep(td) {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-content.markdown-content :deep(th) {
+  background: rgba(15, 23, 42, 0.05);
 }
 
 .message-content.typing {
