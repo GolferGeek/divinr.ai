@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { IonButton, IonIcon, IonNote, IonSpinner } from '@ionic/vue';
-import { addOutline, closeOutline, listOutline, thumbsDownOutline, thumbsUpOutline } from 'ionicons/icons';
+import { addOutline, closeOutline, listOutline, refreshOutline, thumbsDownOutline, thumbsUpOutline } from 'ionicons/icons';
 import FirstTouchPanel from './FirstTouchPanel.vue';
 import {
   useLearningPanelApi,
@@ -268,6 +268,9 @@ function startNewThread() {
   threadId.value = null;
   messages.value = [];
   input.value = '';
+  sendError.value = null;
+  feedbackError.value = null;
+  threadListOpen.value = false;
 }
 
 async function loadBootstrap() {
@@ -460,16 +463,27 @@ onMounted(() => {
             </IonNote>
             <IonNote v-if="usageLabel(usage)" :color="usage?.blocked ? 'danger' : 'warning'">{{ usageLabel(usage) }}</IonNote>
           </div>
-          <IonButton
-            v-if="showClose"
-            fill="clear"
-            size="small"
-            class="close-btn"
-            aria-label="Close Learning Panel"
-            @click="emit('close')"
-          >
-            <IonIcon slot="icon-only" :icon="closeOutline" />
-          </IonButton>
+          <div class="chat-header-actions">
+            <IonButton
+              fill="outline"
+              size="small"
+              class="clear-panel-btn"
+              @click="startNewThread"
+            >
+              <IonIcon slot="start" :icon="refreshOutline" />
+              Clear Panel
+            </IonButton>
+            <IonButton
+              v-if="showClose"
+              fill="clear"
+              size="small"
+              class="close-btn"
+              aria-label="Close Learning Panel"
+              @click="emit('close')"
+            >
+              <IonIcon slot="icon-only" :icon="closeOutline" />
+            </IonButton>
+          </div>
         </div>
 
         <div ref="chatContainer" class="chat-messages">
@@ -708,6 +722,13 @@ onMounted(() => {
 
 .chat-header-copy {
   min-width: 0;
+}
+
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .chat-header-topline {
