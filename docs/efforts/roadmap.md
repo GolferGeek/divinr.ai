@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-27 (completed platform-learning-panel; promoted mastery-levels-learning-profile to current)
+**Last updated:** 2026-04-27 (archived mastery-levels-learning-profile; no current effort selected)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -36,18 +36,19 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 **Infrastructure:** DGX Spark running gemma4 (local inference, zero cost). Hardening in place (backups, service recovery).
 **Users:** 3 active (demo-user, golfergeek, ethan); St. Thomas intern joining shortly; broader beta pending architecture work.
 **Business model direction:** See [master-intention.md](master-intention.md). Single $50/mo Basic tier. Per-item authorship ($20/instrument, $60/analyst). Clubs are purely social. No multi-tier ladder. Cost-pass-through for students.
-**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) — single $50/mo Basic tier + trial → read-only → purge lifecycle + itemized bill + admin read-only view all shipped; **no Stripe code or env vars required yet** (`stripe-integration` picks that up next). `schema-bootstrap-hardening` is complete: explicit bootstrap/readiness is in place, cold-start shell loads are stable, and request-time schema mutation has been removed from normal API flows. `platform-learning-panel` is complete through Phase 5 (metering, limits, feedback). `mastery-levels-learning-profile` is now current. `ethan-feedback-2026-04-22` remains queued as a follow-on polish batch.
+**Status:** Onboarding v2 (extended 5-beat tour + first-touch walkthroughs) shipped. UI vocabulary swept to "analysis/signal" with centralized `<LegalDisclaimer>` variants. Nine-facet testing harness live. `user-billing-model` merged (PR #69) and `stripe-integration` is archived. `schema-bootstrap-hardening` is complete: explicit bootstrap/readiness is in place, cold-start shell loads are stable, and request-time schema mutation has been removed from normal API flows. `platform-learning-panel` is complete through Phase 5 (metering, limits, feedback). `mastery-levels-learning-profile` is now archived after shell, Learning Panel, admin/operator, and browser coverage closeout. `ethan-feedback-2026-04-22` remains the next queued polish batch.
 
 ---
 
 ## Current Effort
 
-- **[mastery-levels-learning-profile](current/mastery-levels-learning-profile/intention.md)** — familiarity-based progressive disclosure, left-nav simplification, and a persisted user learning profile that the Learning Panel can explain.
+- No current effort selected.
 
 ---
 
 ## Recently Shipped
 
+- **[mastery-levels-learning-profile](archive/mastery-levels-learning-profile/intention.md)** (2026-04-27) — shipped the familiarity-based shell: Level 1 now hides most of the left nav, the Learning Panel is level-aware from the start, hidden routes fall back coherently, existing users seed conservatively, manual complexity opt-up is available, and browser coverage now proves both mastery progression and Learning Panel integration.
 - **[platform-learning-panel](archive/platform-learning-panel/intention.md)** (2026-04-27) — delivered a shell-integrated, Divinr-grounded Learning Panel with persistent threads, bounded compaction, visible citations, usage metering, per-user monthly limits, and inline helpful/unhelpful feedback. `/chat` now reuses the shared panel surface, the shell opens it as a drawer/sheet, and admin/browser coverage now proves Learning Panel usage appears in the existing LLM usage surfaces.
 - **[schema-bootstrap-hardening](archive/schema-bootstrap-hardening/intention.md)** (2026-04-27) — removed request-time schema mutation from normal API flows, introduced explicit bootstrap/readiness, stabilized shell cold starts, and decomposed the worst runtime DDL hotspots so the Learning Panel and shell can run without bootstrap deadlocks.
 
@@ -75,7 +76,7 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 ## Next — Queued Efforts
 
 - `ethan-feedback-2026-04-22` — five-item beta-polish batch from Ethan, still valid but no longer the active effort in this checkout.
-- `ethan-feedback-2026-04-22` — five-item beta-polish batch from Ethan, still valid but no longer the active effort in this checkout.
+- `student-accounts` — .edu-gated student accounts with cost-pass-through pricing, once the current beta shell is considered stable enough for broader rollout.
 
 ---
 
@@ -86,12 +87,12 @@ Preserved from prior planning because the concepts remain pertinent, but deferre
 ### Billing Surface (deferred)
 
 - _`user-billing-model` — shipped 2026-04-23 via PR #69 (see Recently Shipped)_
-- [stripe-integration](future/stripe-integration/intention.md) — Stripe wiring for Basic subscription, per-item line items, BYO platform fee, student cost-pass-through
+- _`stripe-integration` — archived (see archive/stripe-integration/)_
 - [student-accounts](future/student-accounts/intention.md) — .edu-gated student accounts with cost-pass-through pricing
 
 ### Learning & Mastery Experience (deferred)
 
-- [mastery-levels-learning-profile](future/mastery-levels-learning-profile/intention.md) — familiarity-based progressive disclosure: Level 1 keeps the left nav focused on analyses/signals, risk, trades, portfolio comparison, and the Learning Panel; later levels reveal clubs/tournaments, community creation, builder surfaces, and operator tools.
+- _`mastery-levels-learning-profile` — archived 2026-04-27 (see Recently Shipped)_
 
 ### Graduation & Contribution Layer (deferred)
 
@@ -112,7 +113,7 @@ Preserved from prior planning because the concepts remain pertinent, but deferre
 
 ---
 
-## Completed Efforts (36)
+## Completed Efforts (37)
 
 ### Core Engine
 | Effort | What it did |
