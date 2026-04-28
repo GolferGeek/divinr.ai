@@ -30,6 +30,9 @@ sudo mkdir -p /var/www/divinr.ai
 sudo rsync -a --delete apps/web/dist/ /var/www/divinr.ai/
 sudo chown -R www-data:www-data /var/www/divinr.ai
 sudo chmod -R a+rX /var/www/divinr.ai
+sudo cp scripts/ops/nginx/divinr.ai.conf /etc/nginx/sites-enabled/divinr.ai
+sudo nginx -t
+sudo systemctl reload nginx
 bash scripts/ops/restart.sh
 '
 

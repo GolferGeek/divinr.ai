@@ -1,21 +1,39 @@
 # Divinr.ai Ops Scripts
 
-## Web assets served by nginx
+## Nginx (web + API proxy)
 
-Nginx serves the built web app from `/var/www/divinr.ai` (owned by
-`www-data`). Nginx cannot read under `/home/golfergeek/...`, so the deploy
-flow rsyncs `apps/web/dist/` to `/var/www/divinr.ai/` after each web build:
+The nginx site config is tracked at `scripts/ops/nginx/divinr.ai.conf` and
+installed to `/etc/nginx/sites-enabled/divinr.ai` on each deploy. It defines
+two servers:
+
+- `divinr.ai` / `www.divinr.ai` — serves the built web app from
+  `/var/www/divinr.ai` and proxies `/api/*` to the local API on `:7100`.
+  Eight prefix-stripping locations (`^~ /api/auth/`, `/api/markets/`,
+  `/api/billing/`, `/api/admin/`, `/api/attribution/`, `/api/users/`,
+  `/api/onboarding/`, `/api/first-touch/`) rewrite `/api/<x>/...` →
+  `/<x>/...` on the upstream. A generic `location /api/` catch-all keeps
+  the `/api/` prefix for routes that genuinely include it (`/api/mastery`,
+  `/api/learning-panel`, `/api/credentials`, `/api/config/public`).
+  **Order matters** — the catch-all must stay last. When adding a new
+  top-level API namespace whose route does *not* include `/api/`, add a
+  matching `^~` prefix-strip location above the catch-all.
+- `api.divinr.ai` — direct passthrough to `:7100` with SSE-friendly proxy
+  settings.
+
+Nginx serves web assets from `/var/www/divinr.ai` (owned by `www-data`)
+because nginx cannot read under `/home/golfergeek/...`. The deploy flow
+rsyncs `apps/web/dist/` there after each web build:
 
 ```bash
 sudo mkdir -p /var/www/divinr.ai
 sudo rsync -a --delete apps/web/dist/ /var/www/divinr.ai/
 sudo chown -R www-data:www-data /var/www/divinr.ai
 sudo chmod -R a+rX /var/www/divinr.ai
+sudo cp scripts/ops/nginx/divinr.ai.conf /etc/nginx/sites-enabled/divinr.ai
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-`spark-deploy.sh` runs these automatically after `pnpm --filter @divinr/web
-run build`. The nginx site config (`/etc/nginx/sites-enabled/divinr.ai`)
-must point at `root /var/www/divinr.ai;`.
+`spark-deploy.sh` runs all of this automatically after the web build.
 
 ## API + Stripe-listener systemd units (spark)
 
@@ -73,7 +91,7 @@ journalctl -u divinr-api -f
 For a code-change deploy from on-spark, pull and rebuild first:
 
 ```bash
-git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build && sudo mkdir -p /var/www/divinr.ai && sudo rsync -a --delete apps/web/dist/ /var/www/divinr.ai/ && sudo chown -R www-data:www-data /var/www/divinr.ai && sudo chmod -R a+rX /var/www/divinr.ai && bash scripts/ops/restart.sh
+git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build && sudo mkdir -p /var/www/divinr.ai && sudo rsync -a --delete apps/web/dist/ /var/www/divinr.ai/ && sudo chown -R www-data:www-data /var/www/divinr.ai && sudo chmod -R a+rX /var/www/divinr.ai && sudo cp scripts/ops/nginx/divinr.ai.conf /etc/nginx/sites-enabled/divinr.ai && sudo nginx -t && sudo systemctl reload nginx && bash scripts/ops/restart.sh
 ```
 
 **Do not run `pnpm --filter @divinr/api run dev:up` on spark after
