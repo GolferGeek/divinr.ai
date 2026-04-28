@@ -441,9 +441,10 @@ export class LeaderboardService {
     benchmark_series: Array<Record<string, unknown>>;
     calibration_buckets: CalibrationBucket[] | null;
   }> {
-    const { kind, id } = input;
-    if (kind !== 'user' && kind !== 'analyst') {
-      throw new BadRequestException(`invalid kind: ${kind} (must be 'user' or 'analyst')`);
+    const { id } = input;
+    const kind = input.kind === 'user' ? 'user' : 'analyst';
+    if (!['user', 'analyst', 'arbitrator', 'day_trader'].includes(input.kind)) {
+      throw new BadRequestException(`invalid kind: ${input.kind} (must be 'user', 'analyst', 'arbitrator', or 'day_trader')`);
     }
     const days = Math.min(Math.max(Number(input.days ?? 90) || 90, 1), 365);
 

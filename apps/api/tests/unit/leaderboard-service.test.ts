@@ -171,7 +171,28 @@ async function main(): Promise<void> {
     assert(snapCall.params[0] === 'analyst' && snapCall.params[1] === 'pf-1', 'snapshot query keyed correctly');
   }
 
-  // 4. user kind hits user_portfolios + user_positions
+  // 4. arbitrator/day_trader detail rows normalize to analyst portfolios
+  console.log('\nDetail normalizes analyst portfolio kinds:');
+  {
+    const db = new MockDb((sql) => {
+      if (sql.includes('from prediction.analyst_portfolios')) {
+        return { data: [{ id: 'pf-arb', kind: 'arbitrator', current_balance: 1000000 }], error: null };
+      }
+      if (sql.includes('from prediction.analyst_positions')) {
+        return { data: [], error: null };
+      }
+      if (sql.includes('from prediction.daily_pnl_snapshot')) {
+        return { data: [], error: null };
+      }
+      return { data: [], error: null };
+    });
+    const svc = new LeaderboardService(db as any);
+    await svc.getPortfolioDetail({ kind: 'arbitrator', id: 'pf-arb' });
+    const snapCall = db.calls.find(c => c.sql.includes('from prediction.daily_pnl_snapshot'))!;
+    assert(snapCall.params[0] === 'analyst', 'arbitrator snapshots query as analyst kind');
+  }
+
+  // 5. user kind hits user_portfolios + user_positions
   console.log('\nDetail for user kind:');
   {
     const db = new MockDb((sql) => {
@@ -196,7 +217,7 @@ async function main(): Promise<void> {
     assert(snapCall.params[0] === 'user', 'snapshot kind = user');
   }
 
-  // 5. detail throws when portfolio not found
+  // 6. detail throws when portfolio not found
   console.log('\nDetail not found:');
   {
     const db = new MockDb(() => ({ data: [], error: null }));
