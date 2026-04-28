@@ -221,6 +221,20 @@ const groupedPortfolios = computed(() => {
   return groups;
 });
 
+const mySummaryPortfolio = computed(() => {
+  const myId = String(portfolio.myPortfolio?.['id'] ?? '');
+  if (!myId) return null;
+  return portfolio.allPortfolios.find(p => p.kind === 'user' && p.id === myId) ?? null;
+});
+
+const mySummaryHistory = computed(() =>
+  mySummaryPortfolio.value ? detailHistory(mySummaryPortfolio.value) : [],
+);
+
+const mySummaryBenchmark = computed(() =>
+  mySummaryPortfolio.value ? detailBenchmark(mySummaryPortfolio.value) : [],
+);
+
 function fmtSharpe(v: number | null): string {
   return v == null ? '—' : v.toFixed(2);
 }
@@ -382,6 +396,52 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
       <IonSegmentButton value="analysts"><IonLabel>Analyst Portfolios</IonLabel></IonSegmentButton>
       <IonSegmentButton value="triples"><IonLabel>My Triples</IonLabel></IonSegmentButton>
     </IonSegment>
+
+    <section v-if="portfolioTab === 'mine' && mySummaryPortfolio" class="brokerage-summary">
+      <div class="brokerage-summary__header">
+        <div>
+          <p>My Portfolio</p>
+          <h2>{{ formatCurrency(totalPortfolioValueFor(mySummaryPortfolio)) }}</h2>
+        </div>
+        <div class="brokerage-summary__actions">
+          <IonButton size="small" fill="outline" @click="router.push('/performance')">Performance</IonButton>
+          <IonButton size="small" @click="router.push('/instruments')">Find Instruments</IonButton>
+        </div>
+      </div>
+
+      <div class="brokerage-summary__metrics">
+        <div>
+          <span>Cash</span>
+          <strong>{{ formatCurrency(cashFor(mySummaryPortfolio)) }}</strong>
+        </div>
+        <div>
+          <span>Holdings</span>
+          <strong :style="pnlColor(holdingsValueFor(mySummaryPortfolio))">{{ formatCurrency(holdingsValueFor(mySummaryPortfolio)) }}</strong>
+        </div>
+        <div>
+          <span>Total P&amp;L</span>
+          <strong :style="pnlColor(mySummaryPortfolio.realized_pnl + mySummaryPortfolio.unrealized_pnl)">
+            {{ formatCurrency(mySummaryPortfolio.realized_pnl + mySummaryPortfolio.unrealized_pnl) }}
+          </strong>
+        </div>
+        <div>
+          <span>Return</span>
+          <strong :style="pnlColor(mySummaryPortfolio.total_return_pct)">{{ fmtPct(mySummaryPortfolio.total_return_pct) }}</strong>
+        </div>
+        <div>
+          <span>Open Holdings</span>
+          <strong>{{ holdingsFor(mySummaryPortfolio).length }}</strong>
+        </div>
+      </div>
+
+      <div class="brokerage-summary__chart">
+        <EquityCurveChart
+          :history="mySummaryHistory"
+          :benchmark="mySummaryBenchmark"
+          :height="180"
+        />
+      </div>
+    </section>
 
     <!-- My Triples Panel -->
     <div v-if="portfolioTab === 'triples'">
@@ -735,6 +795,63 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
 }
 .triple-row:hover {
   background: var(--ion-color-step-50);
+}
+.brokerage-summary {
+  margin: 12px 0 18px;
+  padding: 16px;
+  border: 1px solid var(--ion-color-step-100);
+  border-radius: 8px;
+  background: var(--ion-background-color);
+}
+.brokerage-summary__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.brokerage-summary__header p {
+  margin: 0 0 4px;
+  color: var(--ion-color-medium);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.brokerage-summary__header h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+}
+.brokerage-summary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.brokerage-summary__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.brokerage-summary__metrics div {
+  padding: 10px 12px;
+  border: 1px solid var(--ion-color-step-100);
+  border-radius: 8px;
+  background: var(--ion-color-step-50);
+}
+.brokerage-summary__metrics span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ion-color-medium);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.brokerage-summary__metrics strong {
+  font-size: 1rem;
+}
+.brokerage-summary__chart {
+  max-width: 960px;
 }
 .portfolio-value-strip {
   display: grid;

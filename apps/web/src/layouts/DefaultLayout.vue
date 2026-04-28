@@ -320,7 +320,16 @@ onBeforeUnmount(() => {
             </ion-buttons>
             <ion-title>Divinr AI</ion-title>
             <ion-buttons slot="end">
-              <ion-chip color="medium" outline class="chrome-desktop-only">
+              <ion-chip
+                color="medium"
+                outline
+                class="chrome-desktop-only universe-chip"
+                role="button"
+                tabindex="0"
+                title="Open instruments"
+                @click="router.push('/instruments')"
+                @keyup.enter="router.push('/instruments')"
+              >
                 <ion-icon :icon="earthOutline" />
                 <ion-label class="header-universe-label">{{ domain.activeUniverse }}</ion-label>
               </ion-chip>
@@ -360,7 +369,7 @@ onBeforeUnmount(() => {
               <ion-popover trigger="mobile-chrome-trigger" trigger-action="click" dismiss-on-select>
                 <ion-content>
                   <ion-list>
-                    <ion-item :detail="false">
+                    <ion-item button :detail="false" @click="router.push('/instruments')">
                       <ion-icon slot="start" :icon="earthOutline" />
                       <ion-label>Universe: {{ domain.activeUniverse }}</ion-label>
                     </ion-item>
@@ -875,6 +884,10 @@ onBeforeUnmount(() => {
   position: relative;
   min-width: 44px;
   min-height: 44px;
+}
+
+.universe-chip {
+  cursor: pointer;
 }
 
 .notification-badge {

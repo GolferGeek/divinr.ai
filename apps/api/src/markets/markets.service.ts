@@ -3329,9 +3329,11 @@ Respond ONLY with valid JSON.`,
   }>> {
     await this.requireRead(userId);
 
-    // Get latest unsettled prediction run per instrument. Predictions are
-    // marked settled_at by the EOD settlement job — once settled they drop
-    // off this dashboard, so the user wakes up to a clean slate each morning.
+    const minDashboardConfidence = Number(process.env.DASHBOARD_SIGNAL_MIN_CONFIDENCE ?? 70);
+
+    // Get latest unsettled high-conviction signal run per instrument.
+    // Neutral or low-conviction analyses remain available on instrument pages,
+    // but they should not look like active dashboard trade signals.
     const runsResult = await this.db.rawQuery(
       `
       select distinct on (r.instrument_id)
@@ -3345,11 +3347,25 @@ Respond ONLY with valid JSON.`,
           select 1 from prediction.market_predictions mp
           where mp.run_id = r.id and mp.settled_at is null
         )
+        and exists (
+          select 1 from prediction.market_predictions mp
+          where mp.run_id = r.id
+            and mp.role = 'arbitrator'
+            and mp.settled_at is null
+            and mp.predicted_direction in ('up', 'down')
+            and (
+              case
+                when mp.confidence <= 1 then mp.confidence * 100
+                else mp.confidence
+              end
+            ) >= $1
+        )
       order by r.instrument_id,
         (select count(*) from prediction.market_predictions mp2
          where mp2.run_id = r.id and mp2.role = 'analyst' and mp2.settled_at is null) desc,
         r.completed_at desc
       `,
+      [Number.isFinite(minDashboardConfidence) ? minDashboardConfidence : 70],
     );
     if (runsResult.error) throw new Error(runsResult.error.message);
     const runs = (runsResult.data as Array<{ run_id: string; instrument_id: string; created_at: string; symbol: string; name: string }>) ?? [];

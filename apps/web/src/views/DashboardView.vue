@@ -370,12 +370,12 @@ function formatStartShort(iso: string): string {
       </ion-row>
     </ion-grid>
 
-    <!-- Prediction Cards -->
-    <h2 style="margin-top:24px">Latest Analyses</h2>
+    <!-- Signal Cards -->
+    <h2 style="margin-top:24px">Active Signals</h2>
 
     <div v-if="loading" style="text-align:center;padding:40px;color:#999">Loading analyses...</div>
     <div v-else-if="predictions.length === 0" style="text-align:center;padding:40px;color:#999">
-      No analyses yet. The pipeline will generate them as articles are scored.
+      No high-conviction signals are active right now. Instrument pages still show neutral and lower-conviction analysis.
     </div>
 
     <ion-grid v-else>

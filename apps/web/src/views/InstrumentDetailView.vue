@@ -73,6 +73,24 @@ function goBack() {
 const arbitratorPrediction = computed(
   () => predictions.value.find(p => p['role'] === 'arbitrator') ?? null,
 );
+const analystSignalRows = computed(() =>
+  predictions.value.filter(p => p['role'] === 'analyst' || p['role'] === 'paper'),
+);
+const compositeSignal = computed(() => {
+  const arb = arbitratorPrediction.value;
+  const direction = String(arb?.['predicted_direction'] ?? 'flat').toLowerCase();
+  const confidence = Number(arb?.['confidence'] ?? 0);
+  const analysts = analystSignalRows.value;
+  return {
+    direction,
+    confidence,
+    bullish: analysts.filter(p => String(p['predicted_direction']).toLowerCase() === 'up').length,
+    bearish: analysts.filter(p => String(p['predicted_direction']).toLowerCase() === 'down').length,
+    neutral: analysts.filter(p => String(p['predicted_direction']).toLowerCase() === 'flat').length,
+    total: analysts.length,
+    rationale: String(arb?.['rationale'] ?? ''),
+  };
+});
 const analystModalRows = computed(() => predictions.value.map(row => ({
   prediction_id: String(row['id'] ?? row['prediction_id'] ?? ''),
   analyst_id: String(row['analyst_id'] ?? row['role'] ?? ''),
@@ -202,6 +220,18 @@ function preferredTradeDirection(): 'long' | 'short' | undefined {
   if (['down', 'short', 'bearish'].includes(direction)) return 'short';
   if (['up', 'long', 'bullish'].includes(direction)) return 'long';
   return undefined;
+}
+
+function signalColor(direction: string): string {
+  if (direction === 'up' || direction === 'bullish' || direction === 'long') return 'success';
+  if (direction === 'down' || direction === 'bearish' || direction === 'short') return 'danger';
+  return 'medium';
+}
+
+function signalLabel(direction: string): string {
+  if (direction === 'up' || direction === 'bullish' || direction === 'long') return 'Bullish';
+  if (direction === 'down' || direction === 'bearish' || direction === 'short') return 'Bearish';
+  return 'Neutral';
 }
 
 function verdictColor(v: unknown): string {
@@ -397,6 +427,49 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <ion-note v-if="riskGenerateError" color="danger">{{ riskGenerateError }}</ion-note>
+      </ion-card-content>
+    </ion-card>
+
+    <ion-card v-if="instrument && (arbitratorPrediction || analystSignalRows.length > 0)" class="composite-signal-card">
+      <ion-card-header>
+        <ion-card-title>Composite Signal</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <div class="composite-signal">
+          <div>
+            <ion-chip :color="signalColor(compositeSignal.direction)">
+              {{ signalLabel(compositeSignal.direction) }}
+            </ion-chip>
+            <strong>{{ fmtConfidence(compositeSignal.confidence) }}</strong>
+          </div>
+          <div>
+            <span>Current Price</span>
+            <strong>{{ fmtPrice() }}</strong>
+          </div>
+          <div>
+            <span>My Holding</span>
+            <strong>{{ tradeDestinationsLoading ? '...' : fmtQty(myPortfolioDestination?.netQty ?? 0) }}</strong>
+          </div>
+          <div>
+            <span>Analyst Mix</span>
+            <strong>{{ compositeSignal.bullish }} up / {{ compositeSignal.bearish }} down / {{ compositeSignal.neutral }} flat</strong>
+          </div>
+        </div>
+        <p v-if="compositeSignal.rationale" class="composite-rationale">
+          {{ compositeSignal.rationale }}
+        </p>
+        <div class="composite-actions">
+          <ion-button
+            size="small"
+            :disabled="!canOpenTradeTicket"
+            @click="openTradeModal(preferredTradeDirection())"
+          >
+            Trade
+          </ion-button>
+          <ion-button size="small" fill="outline" @click="tab = 'risk'">
+            Risk
+          </ion-button>
+        </div>
       </ion-card-content>
     </ion-card>
 
@@ -672,6 +745,51 @@ onBeforeUnmount(() => {
 
 .tournament-holdings__row span {
   font-size: 0.8rem;
+}
+
+.composite-signal-card {
+  margin-bottom: 16px;
+}
+
+.composite-signal {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.composite-signal div {
+  padding: 10px 12px;
+  border: 1px solid var(--ion-color-step-100);
+  border-radius: 8px;
+  background: var(--ion-color-step-50);
+}
+
+.composite-signal span {
+  display: block;
+  color: var(--ion-color-medium);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.composite-signal strong {
+  display: block;
+  font-size: 1rem;
+  margin-top: 4px;
+}
+
+.composite-rationale {
+  margin: 12px 0 0;
+  color: var(--ion-color-medium);
+  line-height: 1.45;
+}
+
+.composite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .risk-row {
