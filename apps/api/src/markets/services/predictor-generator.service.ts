@@ -114,6 +114,11 @@ export class PredictorGeneratorService {
    * Run a full predictor generation cycle.
    */
   async runGeneration(): Promise<PredictorGenResult> {
+    if (this.isDisabled()) {
+      this.logger.debug('Predictor generation disabled by MARKETS_DISABLE_PREDICTOR_GENERATION');
+      return { articlesProcessed: 0, predictorsCreated: 0, predictorsDismissed: 0, instrumentsAffected: 0, instrumentIdsAffected: [], articlesSkippedByRelevanceGate: 0, errors: [] };
+    }
+
     if (this.isRunning) {
       this.logger.warn('Skipping predictor generation — previous run still in progress');
       return { articlesProcessed: 0, predictorsCreated: 0, predictorsDismissed: 0, instrumentsAffected: 0, instrumentIdsAffected: [], articlesSkippedByRelevanceGate: 0, errors: [] };

@@ -283,11 +283,6 @@ async function loadBootstrap() {
     threadSummaries.value = bootstrap.threads;
     usage.value = bootstrap.usage;
     mastery.value = bootstrap.mastery;
-    if (!threadId.value && !hasMessages.value && bootstrap.threads[0]) {
-      const result = await api.getThread(bootstrap.threads[0].id);
-      hydrateThread(result.thread);
-      await scrollToBottom();
-    }
   } catch {
     starterPrompts.value = [];
     threadSummaries.value = [];

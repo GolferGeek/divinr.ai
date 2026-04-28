@@ -87,6 +87,104 @@ async function main() {
     assert(secondInsertHappened === false, 'no second INSERT issued');
   }
 
+  // 2b. Immediate trades no longer auto-mirror into tournaments.
+  console.log('\nNo automatic tournament mirror:');
+  {
+    const portfolio = basePortfolio();
+    let tournamentLookupHappened = false;
+    let tournamentInsertHappened = false;
+    const db = new MockDb((sql) => {
+      if (sql.includes('select * from prediction.user_portfolios')) return { data: [portfolio], error: null };
+      if (sql.includes('insert into prediction.user_portfolios')) return { data: [portfolio], error: null };
+      if (sql.includes('from prediction.instruments')) return { data: [{ symbol: 'NVDA', current_state: { price: 100 } }], error: null };
+      if (sql.includes('select * from prediction.user_positions')) return { data: [], error: null };
+      if (sql.includes('insert into prediction.user_positions')) {
+        return { data: [{ id: 'pos-1', portfolio_id: portfolio.id, user_id: 'user-1', direction: 'long', quantity: 10, entry_price: 100, status: 'open', trigger_reason: 'manual' }], error: null };
+      }
+      if (sql.includes('update prediction.user_portfolios')) return { data: [], error: null };
+      if (sql.includes('from prediction.tournament_entries')) {
+        tournamentLookupHappened = true;
+        return { data: [], error: null };
+      }
+      if (sql.includes('insert into prediction.tournament_positions')) {
+        tournamentInsertHappened = true;
+        return { data: [], error: null };
+      }
+      return { data: [], error: null };
+    });
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
+    await svc.executeImmediate({
+      userId: 'user-1', predictionId: 'pred-1',
+      instrumentId: 'inst-1', direction: 'long', quantity: 10,
+    });
+    assert(tournamentLookupHappened === false, 'does not look up tournament entries');
+    assert(tournamentInsertHappened === false, 'does not insert tournament position');
+  }
+
+  // 2c. Explicit destination execution can fill a tournament row.
+  console.log('\nExplicit destination execution:');
+  {
+    const portfolio = basePortfolio();
+    const tournamentInserts: unknown[][] = [];
+    const db = new MockDb((sql, params) => {
+      if (sql.includes('select * from prediction.user_portfolios')) return { data: [portfolio], error: null };
+      if (sql.includes('from prediction.instruments')) return { data: [{ symbol: 'NVDA', current_state: { price: 100 } }], error: null };
+      if (sql.includes('from prediction.tournament_portfolios')) {
+        return { data: [{ current_balance: 100000, allowed_instruments: ['NVDA'] }], error: null };
+      }
+      if (sql.includes('insert into prediction.tournament_positions')) {
+        tournamentInserts.push(params);
+        return { data: [{ id: 'tpos-1', symbol: 'NVDA', quantity: 10, entry_price: 100 }], error: null };
+      }
+      if (sql.includes('update prediction.tournament_portfolios')) return { data: [], error: null };
+      return { data: [], error: null };
+    });
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
+    const result = await svc.executeTradeDestinations({
+      userId: 'user-1',
+      predictionId: 'pred-1',
+      instrumentId: 'inst-1',
+      direction: 'long',
+      destinations: [{ destinationType: 'tournament', portfolioId: 'tpf-1', tournamentId: 'tour-1', quantity: 10 }],
+    });
+    assert(tournamentInserts.length === 1, 'explicit tournament destination inserts one position');
+    assert(tournamentInserts[0][1] === 'tour-1', 'uses selected tournament id');
+    assert(tournamentInserts[0][2] === 'tpf-1', 'uses selected tournament portfolio id');
+    assert(((result.results[0] as any).status) === 'filled', 'returns row-level filled status');
+  }
+
+  // 2d. Trade ticket price falls back across duplicate instrument rows by symbol.
+  console.log('\nTrade destination quote fallback:');
+  {
+    const portfolio = basePortfolio();
+    const db = new MockDb((sql, params) => {
+      if (sql.includes('select id, symbol, current_state') && params[0] === 'empty-ibm-id') {
+        return { data: [{ id: 'empty-ibm-id', symbol: 'IBM', current_state: {} }], error: null };
+      }
+      if (sql.includes('select id, symbol, current_state') && params[0] === 'IBM') {
+        return {
+          data: [
+            { id: 'empty-ibm-id', symbol: 'IBM', current_state: {} },
+            { id: 'priced-ibm-id', symbol: 'IBM', current_state: { price: 244.8 } },
+          ],
+          error: null,
+        };
+      }
+      if (sql.includes('select * from prediction.user_portfolios')) return { data: [portfolio], error: null };
+      if (sql.includes('from prediction.user_positions')) return { data: [{ long_qty: 0, short_qty: 0 }], error: null };
+      if (sql.includes('from prediction.tournament_entries')) return { data: [], error: null };
+      return { data: [], error: null };
+    });
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
+    const result = await svc.getTradeDestinations({
+      userId: 'user-1',
+      instrumentId: 'empty-ibm-id',
+      symbol: 'IBM',
+    });
+    assert(result.currentPrice === 244.8, 'returns cached IBM price from duplicate symbol row');
+    assert(result.destinations[0].allowed === true, 'keeps My Portfolio selectable');
+  }
+
   // 3. closePosition long P&L
   console.log('\nclosePosition long:');
   {

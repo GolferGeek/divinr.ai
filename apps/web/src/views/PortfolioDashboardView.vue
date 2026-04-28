@@ -244,6 +244,109 @@ function detailCalibration(p: PortfolioSummary): CalibrationBucket[] | null {
   return (d?.calibration_buckets ?? null) as CalibrationBucket[] | null;
 }
 
+interface HoldingRow {
+  symbol: string;
+  longQty: number;
+  shortQty: number;
+  netQty: number;
+  avgEntry: number | null;
+  currentPrice: number | null;
+  marketValue: number;
+  unrealizedPnl: number;
+  lots: number;
+}
+
+function positionsFor(p: PortfolioSummary): Array<Record<string, unknown>> {
+  return portfolio.portfolioDetails[rowKey(p)]?.positions ?? [];
+}
+
+function holdingsFor(p: PortfolioSummary): HoldingRow[] {
+  const bySymbol = new Map<string, {
+    symbol: string;
+    longQty: number;
+    shortQty: number;
+    longCost: number;
+    shortCost: number;
+    currentPrice: number | null;
+    unrealizedPnl: number;
+    lots: number;
+  }>();
+
+  for (const pos of positionsFor(p)) {
+    if (String(pos.status) !== 'open') continue;
+    const symbol = String(pos.symbol ?? '').trim();
+    if (!symbol) continue;
+    const quantity = Number(pos.quantity ?? 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    const entry = Number(pos.entry_price ?? 0);
+    const current = Number(pos.current_price ?? 0);
+    const direction = String(pos.direction ?? 'long');
+    const row = bySymbol.get(symbol) ?? {
+      symbol,
+      longQty: 0,
+      shortQty: 0,
+      longCost: 0,
+      shortCost: 0,
+      currentPrice: null,
+      unrealizedPnl: 0,
+      lots: 0,
+    };
+
+    if (direction === 'short') {
+      row.shortQty += quantity;
+      row.shortCost += Number.isFinite(entry) ? quantity * entry : 0;
+    } else {
+      row.longQty += quantity;
+      row.longCost += Number.isFinite(entry) ? quantity * entry : 0;
+    }
+    if (Number.isFinite(current) && current > 0) row.currentPrice = current;
+    row.unrealizedPnl += Number(pos.unrealized_pnl ?? 0);
+    row.lots += 1;
+    bySymbol.set(symbol, row);
+  }
+
+  return [...bySymbol.values()]
+    .map((row) => {
+      const grossQty = row.longQty + row.shortQty;
+      const grossCost = row.longCost + row.shortCost;
+      const netQty = row.longQty - row.shortQty;
+      const currentPrice = row.currentPrice;
+      return {
+        symbol: row.symbol,
+        longQty: row.longQty,
+        shortQty: row.shortQty,
+        netQty,
+        avgEntry: grossQty > 0 ? grossCost / grossQty : null,
+        currentPrice,
+        marketValue: currentPrice == null ? 0 : netQty * currentPrice,
+        unrealizedPnl: row.unrealizedPnl,
+        lots: row.lots,
+      };
+    })
+    .sort((a, b) => Math.abs(b.marketValue) - Math.abs(a.marketValue) || a.symbol.localeCompare(b.symbol));
+}
+
+function formatQty(val: number): string {
+  return Number.isInteger(val) ? val.toLocaleString() : val.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function formatMaybeCurrency(val: number | null): string {
+  return val == null ? '—' : formatCurrency(val);
+}
+
+function holdingsValueFor(p: PortfolioSummary): number {
+  return holdingsFor(p).reduce((sum, holding) => sum + holding.marketValue, 0);
+}
+
+function cashFor(p: PortfolioSummary): number {
+  const detail = portfolio.portfolioDetails[rowKey(p)]?.portfolio;
+  return Number(detail?.current_balance ?? p.current_balance ?? 0);
+}
+
+function totalPortfolioValueFor(p: PortfolioSummary): number {
+  return cashFor(p) + holdingsValueFor(p);
+}
+
 async function onSellPosition(p: PortfolioSummary, positionId: string) {
   try {
     await portfolio.closePositionAction(positionId);
@@ -359,7 +462,7 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
       >
         <option value="">Default</option>
         <option value="name">Name</option>
-        <option value="current_balance">Balance</option>
+        <option value="current_balance">Value</option>
         <option value="total_return_pct">Return</option>
         <option value="win_rate">Win Rate</option>
         <option value="realized_pnl">Realized P&amp;L</option>
@@ -384,7 +487,7 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
         <!-- Group header -->
         <div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 0.5fr;gap:4px;padding:10px 16px 4px 16px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;opacity:0.45;border-bottom:1px solid var(--ion-color-step-100);margin-top:8px">
           <span>{{ group.label }}</span>
-          <span style="text-align:right">Balance</span>
+          <span style="text-align:right">Value</span>
           <span style="text-align:right">Return</span>
           <span style="text-align:right">Win Rate</span>
           <span style="text-align:right">Open</span>
@@ -443,46 +546,93 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
                 </div>
                 <div v-if="!portfolio.portfolioDetails[rowKey(p)]" style="opacity:0.6">Loading…</div>
                 <div v-else>
-                  <h3 style="margin:0 0 8px 0">Positions</h3>
-                  <ion-list v-if="(portfolio.portfolioDetails[rowKey(p)]?.positions || []).length > 0">
-                    <ion-item v-for="pos in portfolio.portfolioDetails[rowKey(p)].positions" :key="String(pos.id)">
-                      <ion-button
-                        v-if="canWrite && p.kind === 'user' && pos.status === 'open'"
-                        slot="end"
-                        size="small"
-                        color="danger"
-                        fill="outline"
-                        @click.stop="onSellPosition(p, String(pos.id))"
-                      >Sell</ion-button>
-                      <ion-label>
-                        <h3>
-                          {{ pos.symbol }}
-                          <ion-chip :color="pos.direction === 'long' ? 'success' : 'danger'" style="font-size:0.7rem;height:20px">{{ pos.direction }}</ion-chip>
-                          <ion-chip :color="pos.status === 'open' ? 'primary' : 'medium'" style="font-size:0.7rem;height:20px">{{ pos.status }}</ion-chip>
-                          <ProvenanceTooltip :position="pos as Record<string, unknown>" />
-                        </h3>
-                        <p>
-                          Qty: {{ pos.quantity }} | Entry: ${{ Number(pos.entry_price).toFixed(2) }}
-                          <span v-if="pos.exit_price"> | Exit: ${{ Number(pos.exit_price).toFixed(2) }}</span>
-                          <span v-if="pos.unrealized_pnl != null" :style="pnlColor(pos.unrealized_pnl)"> | Unrealized: {{ formatCurrency(pos.unrealized_pnl) }}</span>
-                          <span v-if="pos.realized_pnl != null && pos.status === 'closed'" :style="pnlColor(pos.realized_pnl)"> | Realized: {{ formatCurrency(pos.realized_pnl) }}</span>
-                          <span v-if="p.kind === 'user' && pos.status === 'open'">
-                            | Today:
-                            <span v-if="pos.intraday_pct != null" :class="colorClass(pos.intraday_pct as number)">{{ (Number(pos.intraday_pct) * 100).toFixed(2) }}%</span>
-                            <span v-else>—</span>
-                          </span>
-                        </p>
-                        <!-- 5.6a reference levels for user open positions only -->
-                        <p v-if="p.kind === 'user' && pos.status === 'open'" style="font-size:0.75rem;opacity:0.75">
-                          reference levels (manual exit):
-                          <span v-for="lvl in refLevels(pos as Record<string, unknown>)" :key="lvl.label" style="margin-right:8px">
-                            {{ lvl.label }} {{ lvl.value }}
-                          </span>
-                        </p>
-                      </ion-label>
-                    </ion-item>
-                  </ion-list>
-                  <ion-note v-else color="primary" style="display:block">No positions in last 30 days.</ion-note>
+                  <div class="portfolio-value-strip">
+                    <div>
+                      <span>Cash</span>
+                      <strong>{{ formatCurrency(cashFor(p)) }}</strong>
+                    </div>
+                    <div>
+                      <span>Holdings Value</span>
+                      <strong :style="pnlColor(holdingsValueFor(p))">{{ formatCurrency(holdingsValueFor(p)) }}</strong>
+                    </div>
+                    <div>
+                      <span>Total Value</span>
+                      <strong>{{ formatCurrency(totalPortfolioValueFor(p)) }}</strong>
+                    </div>
+                  </div>
+
+                  <h3 style="margin:0 0 8px 0">Holdings</h3>
+                  <div v-if="holdingsFor(p).length > 0" class="holdings-table">
+                    <div class="holdings-row holdings-row--header">
+                      <span>Symbol</span>
+                      <span>Long</span>
+                      <span>Short</span>
+                      <span>Net</span>
+                      <span>Avg Entry</span>
+                      <span>Price</span>
+                      <span>Market Value</span>
+                      <span>Unrealized</span>
+                    </div>
+                    <div v-for="holding in holdingsFor(p)" :key="holding.symbol" class="holdings-row">
+                      <strong>{{ holding.symbol }}</strong>
+                      <span>{{ formatQty(holding.longQty) }}</span>
+                      <span>{{ formatQty(holding.shortQty) }}</span>
+                      <span :class="holding.netQty > 0 ? 'positive' : holding.netQty < 0 ? 'negative' : 'neutral'">
+                        {{ formatQty(holding.netQty) }}
+                      </span>
+                      <span>{{ formatMaybeCurrency(holding.avgEntry) }}</span>
+                      <span>{{ formatMaybeCurrency(holding.currentPrice) }}</span>
+                      <span :style="pnlColor(holding.marketValue)">{{ formatCurrency(holding.marketValue) }}</span>
+                      <span :style="pnlColor(holding.unrealizedPnl)">{{ formatCurrency(holding.unrealizedPnl) }}</span>
+                    </div>
+                  </div>
+                  <ion-note v-else color="primary" style="display:block">No open holdings.</ion-note>
+
+                  <details class="position-activity-details" @click.stop>
+                    <summary>
+                      <span>Trade Activity</span>
+                      <small>{{ positionsFor(p).length }} lot{{ positionsFor(p).length === 1 ? '' : 's' }}</small>
+                    </summary>
+                    <ion-list v-if="positionsFor(p).length > 0">
+                      <ion-item v-for="pos in positionsFor(p)" :key="String(pos.id)">
+                        <ion-button
+                          v-if="canWrite && p.kind === 'user' && pos.status === 'open'"
+                          slot="end"
+                          size="small"
+                          color="danger"
+                          fill="outline"
+                          @click.stop="onSellPosition(p, String(pos.id))"
+                        >Sell</ion-button>
+                        <ion-label>
+                          <h3>
+                            {{ pos.symbol }}
+                            <ion-chip :color="pos.direction === 'long' ? 'success' : 'danger'" style="font-size:0.7rem;height:20px">{{ pos.direction }}</ion-chip>
+                            <ion-chip :color="pos.status === 'open' ? 'primary' : 'medium'" style="font-size:0.7rem;height:20px">{{ pos.status }}</ion-chip>
+                            <ProvenanceTooltip :position="pos as Record<string, unknown>" />
+                          </h3>
+                          <p>
+                            Qty: {{ pos.quantity }} | Entry: ${{ Number(pos.entry_price).toFixed(2) }}
+                            <span v-if="pos.exit_price"> | Exit: ${{ Number(pos.exit_price).toFixed(2) }}</span>
+                            <span v-if="pos.unrealized_pnl != null" :style="pnlColor(pos.unrealized_pnl)"> | Unrealized: {{ formatCurrency(pos.unrealized_pnl) }}</span>
+                            <span v-if="pos.realized_pnl != null && pos.status === 'closed'" :style="pnlColor(pos.realized_pnl)"> | Realized: {{ formatCurrency(pos.realized_pnl) }}</span>
+                            <span v-if="p.kind === 'user' && pos.status === 'open'">
+                              | Today:
+                              <span v-if="pos.intraday_pct != null" :class="colorClass(pos.intraday_pct as number)">{{ (Number(pos.intraday_pct) * 100).toFixed(2) }}%</span>
+                              <span v-else>—</span>
+                            </span>
+                          </p>
+                          <!-- 5.6a reference levels for user open positions only -->
+                          <p v-if="p.kind === 'user' && pos.status === 'open'" style="font-size:0.75rem;opacity:0.75">
+                            reference levels (manual exit):
+                            <span v-for="lvl in refLevels(pos as Record<string, unknown>)" :key="lvl.label" style="margin-right:8px">
+                              {{ lvl.label }} {{ lvl.value }}
+                            </span>
+                          </p>
+                        </ion-label>
+                      </ion-item>
+                    </ion-list>
+                    <ion-note v-else color="primary" style="display:block;padding:12px">No trade activity in last 30 days.</ion-note>
+                  </details>
 
                   <!-- 5.6 — user expanded panel preserves the existing widgets -->
                   <template v-if="p.kind === 'user'">
@@ -585,6 +735,83 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
 }
 .triple-row:hover {
   background: var(--ion-color-step-50);
+}
+.portfolio-value-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.portfolio-value-strip div {
+  padding: 12px;
+  border: 1px solid var(--ion-color-step-100);
+  border-radius: 8px;
+  background: var(--ion-color-step-50);
+}
+.portfolio-value-strip span {
+  display: block;
+  color: var(--ion-color-medium);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.portfolio-value-strip strong {
+  font-size: 1rem;
+}
+.holdings-table {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--ion-color-step-100);
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+.holdings-row {
+  display: grid;
+  grid-template-columns: minmax(88px, 1.2fr) repeat(7, minmax(86px, 1fr));
+  gap: 8px;
+  align-items: center;
+  min-width: 760px;
+  padding: 10px 12px;
+  font-size: 0.84rem;
+  border-top: 1px solid var(--ion-color-step-100);
+}
+.holdings-row:first-child {
+  border-top: none;
+}
+.holdings-row span:not(:first-child) {
+  text-align: right;
+}
+.holdings-row--header {
+  color: var(--ion-color-medium);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--ion-color-step-50);
+}
+.position-activity-details {
+  margin-top: 16px;
+  border: 1px solid var(--ion-color-step-100);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.position-activity-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: var(--ion-color-medium);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--ion-color-step-50);
+}
+.position-activity-details summary small {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: none;
 }
 .positive { color: var(--ion-color-success); }
 .negative { color: var(--ion-color-danger); }

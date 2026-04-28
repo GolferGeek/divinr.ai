@@ -1,51 +1,89 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { useApi } from '../composables/useApi';
+import { computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import {
-  IonItem, IonSelect, IonSelectOption, IonList, IonLabel, IonChip,
+  IonCard, IonCardContent, IonCardHeader, IonCardSubtitle, IonCardTitle,
+  IonCol, IonGrid, IonRow,
 } from '@ionic/vue';
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import { useInstrumentsStore } from '../stores/instruments.store';
 
-const api = useApi();
-const predictions = ref<Record<string, unknown>[]>([]);
-const roleFilter = ref('all');
+const instruments = useInstrumentsStore();
+const router = useRouter();
 
-onMounted(() => loadPredictions());
+onMounted(() => instruments.fetch());
 
-async function loadPredictions() {
-  try {
-    predictions.value = await api.get<Record<string, unknown>[]>(`/predictions?role=${roleFilter.value}`);
-  } catch (err) {
-    console.error('Failed to load predictions', err);
-  }
+const sortedInstruments = computed(() => [...instruments.items].sort((a, b) => {
+  const aSymbol = String(a['symbol'] ?? '');
+  const bSymbol = String(b['symbol'] ?? '');
+  return aSymbol.localeCompare(bSymbol);
+}));
+
+function instrumentId(inst: Record<string, unknown>): string {
+  return String(inst['id'] ?? inst['instrument_id'] ?? '');
+}
+
+function openInstrument(inst: Record<string, unknown>) {
+  const id = instrumentId(inst);
+  if (!id) return;
+  router.push({ name: 'instrument-detail', params: { id } });
+}
+
+function currentState(inst: Record<string, unknown>): Record<string, unknown> {
+  return (inst['current_state'] as Record<string, unknown> | null) ?? {};
+}
+
+function formatPrice(inst: Record<string, unknown>): string {
+  const price = Number(currentState(inst)['price'] ?? currentState(inst)['last_price']);
+  if (!Number.isFinite(price) || price <= 0) return '-';
+  return `$${price.toFixed(2)}`;
+}
+
+function formatChange(inst: Record<string, unknown>): string {
+  const change = Number(currentState(inst)['changePercent']);
+  if (!Number.isFinite(change)) return '-';
+  return `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
 }
 </script>
 
 <template>
   <div>
     <h1 style="margin-bottom:16px">Analyses</h1>
-    <ion-item lines="none" style="max-width:200px;margin-bottom:16px">
-      <ion-select v-model="roleFilter" label="Role" label-placement="stacked" interface="popover" @ion-change="loadPredictions">
-        <ion-select-option value="all">All</ion-select-option>
-        <ion-select-option value="analyst">Analysts Only</ion-select-option>
-        <ion-select-option value="arbitrator">Arbitrator Only</ion-select-option>
-      </ion-select>
-    </ion-item>
 
-    <ion-list>
-      <ion-item v-for="p in predictions" :key="String(p['id'])">
-        <ion-label>
-          <h3>
-            <ion-chip :color="p['predicted_direction'] === 'up' ? 'success' : p['predicted_direction'] === 'down' ? 'danger' : 'medium'" style="font-size:0.7rem;height:20px">
-              {{ p['predicted_direction'] }}
-            </ion-chip>
-            <ion-chip style="font-size:0.7rem;height:20px">{{ p['role'] || 'analyst' }}</ion-chip>
-          </h3>
-          <p>Confidence: {{ p['confidence'] }}% | {{ p['analyst_name'] || '-' }}</p>
-          <p style="font-size:0.75rem">{{ new Date(String(p['created_at'])).toLocaleString() }}</p>
-        </ion-label>
-      </ion-item>
-    </ion-list>
-  <FirstTouchPanel surface-key="predictions" />
+    <ion-grid>
+      <ion-row>
+        <ion-col
+          v-for="inst in sortedInstruments"
+          :key="String(inst['id'])"
+          size="12"
+          size-sm="6"
+          size-md="4"
+          size-lg="3"
+        >
+          <ion-card button :disabled="!instrumentId(inst)" @click="openInstrument(inst)">
+            <ion-card-header>
+              <ion-card-title>{{ inst['symbol'] }}</ion-card-title>
+              <ion-card-subtitle>{{ inst['name'] }}</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+              <div style="display:flex;justify-content:space-between">
+                <span style="font-size:0.75rem;opacity:0.6">Price</span>
+                <span>{{ formatPrice(inst) }}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <span style="font-size:0.75rem;opacity:0.6">Change</span>
+                <span>{{ formatChange(inst) }}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <span style="font-size:0.75rem;opacity:0.6">Type</span>
+                <span>{{ inst['asset_type'] || 'stock' }}</span>
+              </div>
+            </ion-card-content>
+          </ion-card>
+        </ion-col>
+      </ion-row>
+    </ion-grid>
+
+    <FirstTouchPanel surface-key="predictions" />
   </div>
 </template>

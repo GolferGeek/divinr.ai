@@ -163,6 +163,8 @@ export interface ListRunsInput {
 
 export interface ProcessNextRunInput {
   userId: string;
+  runId?: string;
+  runType?: RunType;
 }
 
 export interface ProcessNextRunResult {

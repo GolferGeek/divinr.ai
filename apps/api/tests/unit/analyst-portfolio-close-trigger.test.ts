@@ -56,6 +56,9 @@ async function main(): Promise<void> {
     assert(upd!.sql.includes('trigger_strategy'), 'UPDATE references trigger_strategy column');
     assert(upd!.params.includes('momentum_breakout'), 'trigger_strategy param passed through');
     assert(upd!.params.includes('strategy'), 'trigger_reason param passed through');
+    const cashUpdate = db.calls.find(c => c.sql.includes('update prediction.analyst_portfolios'));
+    assert(cashUpdate !== undefined, 'portfolio cash update issued');
+    assert(Number(cashUpdate!.params[0]) === 1100, 'long close credits sale proceeds');
   }
 
   // 2. triggerStrategy alone (no triggerReason)

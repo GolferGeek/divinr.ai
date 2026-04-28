@@ -86,6 +86,16 @@ export class AnalystPortfolioService {
       ],
     );
     if (result.error) throw new Error(result.error.message);
+    if (!input.isPaperOnly) {
+      const cashDelta = quantity * input.entryPrice * (posDirection === 'short' ? 1 : -1);
+      await this.db.rawQuery(
+        `update prediction.analyst_portfolios
+         set current_balance = current_balance + $1,
+             updated_at = now()
+         where id = $2`,
+        [cashDelta, portfolio.id],
+      );
+    }
     return ((result.data as AnalystPosition[] | null) ?? [])[0] ?? null;
   }
 
@@ -138,6 +148,9 @@ export class AnalystPortfolioService {
     if (!pos.is_paper_only) {
       const winInc = isWin ? 1 : 0;
       const lossInc = isWin ? 0 : 1;
+      const cashDelta = pos.direction === 'short'
+        ? -(exitPrice * pos.quantity)
+        : exitPrice * pos.quantity;
       await this.db.rawQuery(
         `update prediction.analyst_portfolios
          set current_balance = current_balance + $1,
@@ -146,7 +159,7 @@ export class AnalystPortfolioService {
              loss_count = loss_count + $4,
              updated_at = now()
          where id = $5`,
-        [realizedPnl, realizedPnl, winInc, lossInc, pos.portfolio_id],
+        [cashDelta, realizedPnl, winInc, lossInc, pos.portfolio_id],
       );
 
       // Check and update status
@@ -241,4 +254,5 @@ export class AnalystPortfolioService {
       this.logger.log(`Analyst portfolio ${portfolioId} status: ${portfolio.status} → ${newStatus}`);
     }
   }
+
 }

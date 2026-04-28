@@ -5,7 +5,7 @@ import {
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonGrid, IonRow, IonCol,
   IonChip, IonNote, IonButton, IonIcon,
 } from '@ionic/vue';
-import { arrowUpOutline, arrowDownOutline, removeOutline, trendingDownOutline, trophyOutline, peopleOutline, searchOutline, walletOutline, chatbubblesOutline } from 'ionicons/icons';
+import { arrowUpOutline, arrowDownOutline, removeOutline, trendingDownOutline, trophyOutline, peopleOutline, searchOutline, walletOutline, chatbubblesOutline, statsChartOutline } from 'ionicons/icons';
 import { useApi } from '../composables/useApi';
 import { useCanWrite } from '../composables/useCanWrite';
 import { useInstrumentsStore } from '../stores/instruments.store';
@@ -130,12 +130,6 @@ const tournamentStore = useTournamentStore();
 const clubStore = useClubStore();
 const showCommunitySurfaces = computed(() => mastery.canViewLevel('competitive_participation'));
 const showBuilderSurfaces = computed(() => mastery.canViewLevel('builder'));
-const primaryTradingLabel = computed(() => (
-  showCommunitySurfaces.value ? 'Tournaments' : 'Trade'
-));
-const primaryTradingDescription = computed(() => (
-  showCommunitySurfaces.value ? 'Compete with other traders' : 'Place and manage trades'
-));
 
 onMounted(async () => {
   await instruments.fetch().catch(() => {});
@@ -239,10 +233,19 @@ function formatStartShort(iso: string): string {
 
     <!-- Pathway Cards -->
     <div class="pathway-grid">
-      <div class="pathway-card" @click="router.push('/tournaments')">
+      <div class="pathway-card" @click="router.push('/predictions')">
+        <ion-icon :icon="statsChartOutline" class="pathway-icon" />
+        <div class="pathway-label">Analyses</div>
+        <div class="pathway-desc">Instruments, signal &amp; risk</div>
+      </div>
+      <div
+        v-if="showCommunitySurfaces"
+        class="pathway-card"
+        @click="router.push('/tournaments')"
+      >
         <ion-icon :icon="trophyOutline" class="pathway-icon" />
-        <div class="pathway-label">{{ primaryTradingLabel }}</div>
-        <div class="pathway-desc">{{ primaryTradingDescription }}</div>
+        <div class="pathway-label">Tournaments</div>
+        <div class="pathway-desc">Compete with other traders</div>
       </div>
       <div
         v-if="showCommunitySurfaces"

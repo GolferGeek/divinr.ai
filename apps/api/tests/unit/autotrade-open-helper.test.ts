@@ -67,6 +67,9 @@ async function main(): Promise<void> {
     assert(insert.params[1] === 'pf-1', 'portfolio_id from input');
     assert(insert.params[10] === 'signal_cross', 'trigger_reason passed through verbatim');
     assert(insert.params[6] === 'long', 'direction long');
+    const cashUpdate = db.calls.find(c => c.sql.includes('update prediction.analyst_portfolios'));
+    assert(cashUpdate !== undefined, 'cash update issued');
+    assert(Number(cashUpdate!.params[0]) === -5000, 'long open debits cash by qty * entry');
   }
 
   // 2. Idempotency hit
@@ -117,6 +120,9 @@ async function main(): Promise<void> {
     await helper.openPosition(baseInput({ direction: 'short' }));
     const insert = db.calls.find(c => c.sql.startsWith('insert into prediction.analyst_positions'))!;
     assert(insert.params[6] === 'short', 'direction short propagated');
+    const cashUpdate = db.calls.find(c => c.sql.includes('update prediction.analyst_portfolios'));
+    assert(cashUpdate !== undefined, 'cash update issued for short');
+    assert(Number(cashUpdate!.params[0]) === 5000, 'short open credits cash by qty * entry');
   }
 
   // 6. trigger_reason verbatim (eod_sweep)

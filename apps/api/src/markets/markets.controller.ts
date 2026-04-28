@@ -1099,6 +1099,23 @@ export class MarketsController {
     return this.userPortfolio.getQueuedTrades(user.id);
   }
 
+  @Get('portfolios/me/trade-destinations')
+  async getTradeDestinations(
+    @Req() req: { user?: AuthenticatedUser },
+    @Query('instrumentId') instrumentId?: string,
+    @Query('symbol') symbol?: string,
+  ) {
+    const user = this.getUser(req);
+    if (!instrumentId || !symbol) {
+      throw new BadRequestException('instrumentId and symbol are required');
+    }
+    return this.userPortfolio.getTradeDestinations({
+      userId: user.id,
+      instrumentId,
+      symbol,
+    });
+  }
+
   @Post('portfolios/me/queue-trade')
   async queueTrade(
     @Req() req: { user?: AuthenticatedUser },
@@ -1152,6 +1169,40 @@ export class MarketsController {
       instrumentId: body.instrumentId,
       direction: body.direction,
       quantity: body.quantity,
+    });
+  }
+
+  @Post('portfolios/me/execute-destinations')
+  async executeTradeDestinations(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: {
+      predictionId: string;
+      instrumentId: string;
+      direction: 'long' | 'short';
+      destinations: Array<{
+        destinationType: 'user' | 'tournament';
+        portfolioId?: string;
+        tournamentId?: string;
+        quantity: number;
+      }>;
+    },
+  ) {
+    const user = this.getUser(req);
+    if (!body?.predictionId || !body?.instrumentId || !body?.direction || !Array.isArray(body?.destinations)) {
+      throw new BadRequestException('predictionId, instrumentId, direction, and destinations are required');
+    }
+    await this.requireWriteAccess(user);
+
+    await this.userPortfolio.ensurePortfolio(user.id);
+    const ack = await this.userPortfolio.isDisclaimerAcknowledged(user.id);
+    if (!ack) return { requiresDisclaimer: true };
+
+    return this.userPortfolio.executeTradeDestinations({
+      userId: user.id,
+      predictionId: body.predictionId,
+      instrumentId: body.instrumentId,
+      direction: body.direction,
+      destinations: body.destinations,
     });
   }
 
@@ -1530,6 +1581,8 @@ export class MarketsController {
     });
     const processed = await this.markets.processNextQueuedRun({
       userId: user.id,
+      runId: enqueued.runId,
+      runType: 'risk',
     });
     return { enqueued, processed };
   }

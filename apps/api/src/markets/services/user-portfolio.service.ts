@@ -10,6 +10,11 @@ import type { UserPortfolio, UserTradeQueueEntry } from '../markets.types';
 
 const ET_TZ = 'America/New_York';
 
+interface InstrumentQuote {
+  symbol: string;
+  currentPrice: number;
+}
+
 /**
  * Manages user portfolios and trade queue.
  * Users queue trades during the day; trades execute at 5 PM ET settlement.
@@ -185,20 +190,10 @@ export class UserPortfolioService {
 
     const portfolio = await this.ensurePortfolio(input.userId);
 
-    // Resolve symbol + cached price.
-    const instrumentResult = await this.db.rawQuery(
-      `select symbol, current_state from prediction.instruments where id = $1 limit 1`,
-      [input.instrumentId],
-    );
-    const instrumentRows = (instrumentResult.data as Array<{
-      symbol: string;
-      current_state: Record<string, unknown> | null;
-    }> | null) ?? [];
-    if (instrumentRows.length === 0) throw new Error(`Instrument ${input.instrumentId} not found`);
-    const symbol = instrumentRows[0].symbol;
-    const cs = instrumentRows[0].current_state ?? {};
-    const entryPrice = Number((cs as any).price ?? (cs as any).last_price ?? 0);
-    if (!Number.isFinite(entryPrice) || entryPrice <= 0) {
+    const quote = await this.loadInstrumentQuote(input.instrumentId);
+    const symbol = quote.symbol;
+    const entryPrice = quote.currentPrice;
+    if (entryPrice <= 0) {
       throw new Error(`No cached price for instrument ${input.instrumentId}`);
     }
 
@@ -240,6 +235,348 @@ export class UserPortfolioService {
       `User immediate trade: user=${input.userId} symbol=${symbol} qty=${input.quantity} entry=${entryPrice} dir=${input.direction}`,
     );
     return ((insertResult.data as Record<string, unknown>[] | null) ?? [])[0]!;
+  }
+
+  async getTradeDestinations(input: {
+    userId: string;
+    instrumentId: string;
+    symbol: string;
+  }): Promise<{ currentPrice: number; destinations: Array<Record<string, unknown>> }> {
+    const quote = await this.loadInstrumentQuote(input.instrumentId, input.symbol);
+    const currentPrice = quote.currentPrice;
+
+    const portfolio = await this.ensurePortfolio(input.userId);
+    const userHolding = await this.getUserHolding(input.userId, input.instrumentId);
+    const destinations: Array<Record<string, unknown>> = [{
+      destinationType: 'user',
+      id: portfolio.id,
+      name: 'My Portfolio',
+      currentBalance: Number(portfolio.current_balance ?? 0),
+      longQty: userHolding.longQty,
+      shortQty: userHolding.shortQty,
+      netQty: userHolding.netQty,
+      allowed: true,
+    }];
+
+    const entriesResult = await this.db.rawQuery(
+      `select t.id as tournament_id,
+              t.name,
+              t.allowed_instruments,
+              tp.id as portfolio_id,
+              tp.current_balance
+       from prediction.tournament_entries te
+       join prediction.tournaments t on t.id = te.tournament_id
+       join prediction.tournament_portfolios tp on tp.id = te.portfolio_id
+       where te.user_id = $1 and t.status = 'active'
+       order by t.starts_at desc nulls last, t.name asc`,
+      [input.userId],
+    );
+    if (entriesResult.error) throw new Error(entriesResult.error.message);
+
+    const entries = (entriesResult.data as Array<{
+      tournament_id: string;
+      name: string;
+      portfolio_id: string;
+      current_balance: number | string;
+      allowed_instruments: unknown;
+    }> | null) ?? [];
+
+    for (const entry of entries) {
+      const allowed = this.parseAllowedInstruments(entry.allowed_instruments);
+      const allowedForSymbol = !allowed || allowed.includes(input.symbol);
+      const holding = await this.getTournamentHolding(input.userId, entry.portfolio_id, input.symbol);
+      destinations.push({
+        destinationType: 'tournament',
+        id: entry.portfolio_id,
+        tournamentId: entry.tournament_id,
+        name: entry.name,
+        currentBalance: Number(entry.current_balance ?? 0),
+        longQty: holding.longQty,
+        shortQty: holding.shortQty,
+        netQty: holding.netQty,
+        allowed: allowedForSymbol,
+      });
+    }
+
+    return {
+      currentPrice,
+      destinations,
+    };
+  }
+
+  async executeTradeDestinations(input: {
+    userId: string;
+    predictionId: string;
+    instrumentId: string;
+    direction: 'long' | 'short';
+    destinations: Array<{
+      destinationType: 'user' | 'tournament';
+      portfolioId?: string;
+      tournamentId?: string;
+      quantity: number;
+    }>;
+  }): Promise<{ results: Array<Record<string, unknown>> }> {
+    if (!Array.isArray(input.destinations) || input.destinations.length === 0) {
+      throw new Error('At least one destination is required');
+    }
+
+    const quote = await this.loadInstrumentQuote(input.instrumentId);
+    const symbol = quote.symbol;
+    const entryPrice = quote.currentPrice;
+    if (entryPrice <= 0) {
+      throw new Error(`No cached price for instrument ${input.instrumentId}`);
+    }
+
+    const results: Array<Record<string, unknown>> = [];
+    for (const destination of input.destinations) {
+      try {
+        const quantity = Number(destination.quantity);
+        if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Quantity must be > 0');
+        if (destination.destinationType === 'user') {
+          const row = await this.openUserDestination({
+            userId: input.userId,
+            predictionId: input.predictionId,
+            instrumentId: input.instrumentId,
+            symbol,
+            direction: input.direction,
+            quantity,
+            entryPrice,
+          });
+          results.push({ destinationType: 'user', status: 'filled', position: row });
+        } else {
+          if (!destination.portfolioId || !destination.tournamentId) {
+            throw new Error('Tournament destination is missing portfolio context');
+          }
+          const row = await this.openTournamentDestination({
+            userId: input.userId,
+            predictionId: input.predictionId,
+            symbol,
+            direction: input.direction,
+            quantity,
+            entryPrice,
+            portfolioId: destination.portfolioId,
+            tournamentId: destination.tournamentId,
+          });
+          results.push({
+            destinationType: 'tournament',
+            portfolioId: destination.portfolioId,
+            tournamentId: destination.tournamentId,
+            status: 'filled',
+            position: row,
+          });
+        }
+      } catch (err) {
+        results.push({
+          destinationType: destination.destinationType,
+          portfolioId: destination.portfolioId,
+          tournamentId: destination.tournamentId,
+          status: 'error',
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return { results };
+  }
+
+  private async openUserDestination(input: {
+    userId: string;
+    predictionId: string;
+    instrumentId: string;
+    symbol: string;
+    direction: 'long' | 'short';
+    quantity: number;
+    entryPrice: number;
+  }): Promise<Record<string, unknown>> {
+    const portfolio = await this.ensurePortfolio(input.userId);
+    const cost = input.quantity * input.entryPrice;
+    if (Number(portfolio.current_balance ?? 0) < cost) {
+      throw new Error(`Insufficient cash in My Portfolio`);
+    }
+
+    const id = randomUUID();
+    const insertResult = await this.db.rawQuery(
+      `insert into prediction.user_positions
+         (id, portfolio_id, user_id, prediction_id,
+          instrument_id, symbol, direction, quantity, entry_price, current_price,
+          status, opened_at, trigger_reason, trigger_prediction_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, 'open', now(), 'manual', $4)
+       returning *`,
+      [
+        id, portfolio.id, input.userId, input.predictionId,
+        input.instrumentId, input.symbol, input.direction, input.quantity, input.entryPrice,
+      ],
+    );
+    if (insertResult.error) throw new Error(insertResult.error.message);
+
+    await this.db.rawQuery(
+      `update prediction.user_portfolios
+         set current_balance = current_balance - $1, updated_at = now()
+       where id = $2`,
+      [cost, portfolio.id],
+    );
+    return ((insertResult.data as Record<string, unknown>[] | null) ?? [])[0]!;
+  }
+
+  private async loadInstrumentQuote(instrumentId: string, symbolHint?: string): Promise<InstrumentQuote> {
+    const byIdResult = await this.db.rawQuery(
+      `select id, symbol, current_state
+         from prediction.instruments
+        where id = $1
+        limit 1`,
+      [instrumentId],
+    );
+    if (byIdResult.error) throw new Error(byIdResult.error.message);
+    const byIdRows = (byIdResult.data as Array<{
+      id: string;
+      symbol: string;
+      current_state: Record<string, unknown> | null;
+    }> | null) ?? [];
+    if (byIdRows.length === 0) throw new Error(`Instrument ${instrumentId} not found`);
+
+    const symbol = byIdRows[0].symbol || symbolHint || '';
+    const exactPrice = this.extractCurrentPrice(byIdRows[0].current_state);
+    if (exactPrice > 0) return { symbol, currentPrice: exactPrice };
+
+    const fallbackSymbol = symbolHint || symbol;
+    if (!fallbackSymbol) return { symbol, currentPrice: 0 };
+
+    const fallbackResult = await this.db.rawQuery(
+      `select id, symbol, current_state
+         from prediction.instruments
+        where upper(symbol) = upper($1)
+        order by created_at desc`,
+      [fallbackSymbol],
+    );
+    if (fallbackResult.error) throw new Error(fallbackResult.error.message);
+    const fallbackRows = (fallbackResult.data as Array<{
+      id: string;
+      symbol: string;
+      current_state: Record<string, unknown> | null;
+    }> | null) ?? [];
+    for (const row of fallbackRows) {
+      const price = this.extractCurrentPrice(row.current_state);
+      if (price > 0) return { symbol: row.symbol || symbol, currentPrice: price };
+    }
+
+    return { symbol, currentPrice: 0 };
+  }
+
+  private extractCurrentPrice(currentState: Record<string, unknown> | null): number {
+    const price = Number(currentState?.price ?? currentState?.last_price ?? 0);
+    return Number.isFinite(price) && price > 0 ? price : 0;
+  }
+
+  private async openTournamentDestination(input: {
+    userId: string;
+    predictionId: string;
+    symbol: string;
+    direction: 'long' | 'short';
+    quantity: number;
+    entryPrice: number;
+    portfolioId: string;
+    tournamentId: string;
+  }): Promise<Record<string, unknown>> {
+    const tournamentResult = await this.db.rawQuery(
+      `select t.allowed_instruments, tp.current_balance
+       from prediction.tournament_portfolios tp
+       join prediction.tournaments t on t.id = tp.tournament_id
+       where tp.id = $1 and tp.user_id = $2 and t.id = $3 and t.status = 'active'
+       limit 1`,
+      [input.portfolioId, input.userId, input.tournamentId],
+    );
+    if (tournamentResult.error) throw new Error(tournamentResult.error.message);
+    const rows = (tournamentResult.data as Array<{
+      allowed_instruments: unknown;
+      current_balance: number | string;
+    }> | null) ?? [];
+    if (rows.length === 0) throw new Error('Tournament portfolio is not active');
+    const allowed = this.parseAllowedInstruments(rows[0].allowed_instruments);
+    if (allowed && !allowed.includes(input.symbol)) {
+      throw new Error(`${input.symbol} is not allowed in this tournament`);
+    }
+    const cost = input.quantity * input.entryPrice;
+    if (Number(rows[0].current_balance ?? 0) < cost) {
+      throw new Error('Insufficient cash in tournament');
+    }
+
+    const insertResult = await this.db.rawQuery(
+      `insert into prediction.tournament_positions
+        (id, tournament_id, portfolio_id, user_id, symbol, direction,
+         quantity, entry_price, current_price, status, opened_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $8, 'open', now())
+       returning *`,
+      [
+        randomUUID(),
+        input.tournamentId,
+        input.portfolioId,
+        input.userId,
+        input.symbol,
+        input.direction,
+        input.quantity,
+        input.entryPrice,
+      ],
+    );
+    if (insertResult.error) throw new Error(insertResult.error.message);
+
+    await this.db.rawQuery(
+      `update prediction.tournament_portfolios
+         set current_balance = current_balance - $1
+       where id = $2`,
+      [cost, input.portfolioId],
+    );
+    return ((insertResult.data as Record<string, unknown>[] | null) ?? [])[0]!;
+  }
+
+  private async getUserHolding(
+    userId: string,
+    instrumentId: string,
+  ): Promise<{ longQty: number; shortQty: number; netQty: number }> {
+    const result = await this.db.rawQuery(
+      `select
+         coalesce(sum(case when direction = 'long' then quantity else 0 end), 0) as long_qty,
+         coalesce(sum(case when direction = 'short' then quantity else 0 end), 0) as short_qty
+       from prediction.user_positions
+       where user_id = $1 and instrument_id = $2 and status = 'open'`,
+      [userId, instrumentId],
+    );
+    const row = ((result.data as Array<{ long_qty: string; short_qty: string }> | null) ?? [])[0];
+    const longQty = Number(row?.long_qty ?? 0);
+    const shortQty = Number(row?.short_qty ?? 0);
+    return { longQty, shortQty, netQty: longQty - shortQty };
+  }
+
+  private async getTournamentHolding(
+    userId: string,
+    portfolioId: string,
+    symbol: string,
+  ): Promise<{ longQty: number; shortQty: number; netQty: number }> {
+    const result = await this.db.rawQuery(
+      `select
+         coalesce(sum(case when direction = 'long' then quantity else 0 end), 0) as long_qty,
+         coalesce(sum(case when direction = 'short' then quantity else 0 end), 0) as short_qty
+       from prediction.tournament_positions
+       where user_id = $1 and portfolio_id = $2 and symbol = $3 and status = 'open'`,
+      [userId, portfolioId, symbol],
+    );
+    const row = ((result.data as Array<{ long_qty: string; short_qty: string }> | null) ?? [])[0];
+    const longQty = Number(row?.long_qty ?? 0);
+    const shortQty = Number(row?.short_qty ?? 0);
+    return { longQty, shortQty, netQty: longQty - shortQty };
+  }
+
+  private parseAllowedInstruments(value: unknown): string[] | null {
+    if (value == null) return null;
+    if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   /**

@@ -130,10 +130,51 @@ export class LeaderboardService {
           coalesce(ma.display_name, ap.strategy_name, ap.analyst_id) as name,
           ap.current_balance::float8 as current_balance,
           ap.initial_balance::float8 as initial_balance,
+          coalesce((
+            select sum(
+              case
+                when pos.direction = 'short' then
+                  -pos.quantity * coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price,
+                    pos.entry_price
+                  )
+                else
+                  pos.quantity * coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price,
+                    pos.entry_price
+                  )
+              end
+            )
+            from prediction.analyst_positions pos
+            left join prediction.instruments i on i.id = pos.instrument_id
+            where pos.portfolio_id = ap.id and pos.status = 'open'
+          ), 0)::float8 as holdings_value,
           ap.total_realized_pnl::float8 as realized_pnl,
           coalesce((
-            select sum(pos.unrealized_pnl)
+            select sum(
+              case
+                when pos.direction = 'short' then
+                  (pos.entry_price - coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price,
+                    pos.entry_price
+                  )) * pos.quantity
+                else
+                  (coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price,
+                    pos.entry_price
+                  ) - pos.entry_price) * pos.quantity
+              end
+            )
             from prediction.analyst_positions pos
+            left join prediction.instruments i on i.id = pos.instrument_id
             where pos.portfolio_id = ap.id and pos.status = 'open'
           ), 0)::float8 as unrealized_pnl,
           (
@@ -174,10 +215,51 @@ export class LeaderboardService {
           up.user_id as name,
           up.current_balance::float8 as current_balance,
           up.initial_balance::float8 as initial_balance,
+          coalesce((
+            select sum(
+              case
+                when pos.direction = 'short' then
+                  -pos.quantity * coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price,
+                    pos.entry_price
+                  )
+                else
+                  pos.quantity * coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price,
+                    pos.entry_price
+                  )
+              end
+            )
+            from prediction.user_positions pos
+            left join prediction.instruments i on i.id = pos.instrument_id
+            where pos.portfolio_id = up.id and pos.status = 'open'
+          ), 0)::float8 as holdings_value,
           up.total_realized_pnl::float8 as realized_pnl,
           coalesce((
-            select sum(pos.unrealized_pnl)
+            select sum(
+              case
+                when pos.direction = 'short' then
+                  (pos.entry_price - coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price,
+                    pos.entry_price
+                  )) * pos.quantity
+                else
+                  (coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price,
+                    pos.entry_price
+                  ) - pos.entry_price) * pos.quantity
+              end
+            )
             from prediction.user_positions pos
+            left join prediction.instruments i on i.id = pos.instrument_id
             where pos.portfolio_id = up.id and pos.status = 'open'
           ), 0)::float8 as unrealized_pnl,
           (
@@ -236,17 +318,19 @@ export class LeaderboardService {
       const wins = Number(r.wins ?? 0);
       const initial = Number(r.initial_balance ?? 0);
       const balance = Number(r.current_balance ?? 0);
+      const holdingsValue = Number(r.holdings_value ?? 0);
+      const totalValue = balance + holdingsValue;
       const realized = Number(r.realized_pnl ?? 0);
       const bailouts = Number(r.total_bailouts ?? 0);
       const totalReturnPct =
-        initial > 0 ? ((balance + bailouts - initial) / initial) * 100 : 0;
+        initial > 0 ? ((totalValue + bailouts - initial) / initial) * 100 : 0;
       return {
         kind: r.kind as PortfolioSummaryRow['kind'],
         id: String(r.id),
         name: r.kind === 'user'
           ? (nameMap.get(String(r.name)) || String(r.name).split('@')[0])
           : String(r.name ?? r.id),
-        current_balance: balance,
+        current_balance: totalValue,
         realized_pnl: realized,
         unrealized_pnl: Number(r.unrealized_pnl ?? 0),
         win_rate: closed > 0 ? (wins / closed) * 100 : null,
@@ -375,10 +459,41 @@ export class LeaderboardService {
       portfolio = ((pRes.data as Array<Record<string, unknown>> | null) ?? [])[0] ?? null;
       if (!portfolio) throw new BadRequestException(`portfolio not found: ${id}`);
       const posRes = await this.db.rawQuery(
-        `select * from prediction.user_positions
-         where portfolio_id = $1
-           and (status = 'open' or closed_at >= now() - interval '30 days')
-         order by case when status='open' then 0 else 1 end, opened_at desc`,
+        `select pos.*,
+                case
+                  when pos.status = 'open' then coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price
+                  )
+                  else pos.current_price
+                end as current_price,
+                case
+                  when pos.status = 'open' then (
+                    case
+                      when pos.direction = 'short' then
+                        (pos.entry_price - coalesce(
+                          nullif(i.current_state->>'price', '')::numeric,
+                          nullif(i.current_state->>'last_price', '')::numeric,
+                          pos.current_price,
+                          pos.entry_price
+                        )) * pos.quantity
+                      else
+                        (coalesce(
+                          nullif(i.current_state->>'price', '')::numeric,
+                          nullif(i.current_state->>'last_price', '')::numeric,
+                          pos.current_price,
+                          pos.entry_price
+                        ) - pos.entry_price) * pos.quantity
+                    end
+                  )
+                  else pos.unrealized_pnl
+                end as unrealized_pnl
+         from prediction.user_positions pos
+         left join prediction.instruments i on i.id = pos.instrument_id
+         where pos.portfolio_id = $1
+           and (pos.status = 'open' or pos.closed_at >= now() - interval '30 days')
+         order by case when pos.status='open' then 0 else 1 end, pos.opened_at desc`,
         [id],
       );
       positions = (posRes.data as Array<Record<string, unknown>> | null) ?? [];
@@ -394,10 +509,41 @@ export class LeaderboardService {
       portfolio = ((pRes.data as Array<Record<string, unknown>> | null) ?? [])[0] ?? null;
       if (!portfolio) throw new BadRequestException(`portfolio not found: ${id}`);
       const posRes = await this.db.rawQuery(
-        `select * from prediction.analyst_positions
-         where portfolio_id = $1
-           and (status = 'open' or closed_at >= now() - interval '30 days')
-         order by case when status='open' then 0 else 1 end, opened_at desc`,
+        `select pos.*,
+                case
+                  when pos.status = 'open' then coalesce(
+                    nullif(i.current_state->>'price', '')::numeric,
+                    nullif(i.current_state->>'last_price', '')::numeric,
+                    pos.current_price
+                  )
+                  else pos.current_price
+                end as current_price,
+                case
+                  when pos.status = 'open' then (
+                    case
+                      when pos.direction = 'short' then
+                        (pos.entry_price - coalesce(
+                          nullif(i.current_state->>'price', '')::numeric,
+                          nullif(i.current_state->>'last_price', '')::numeric,
+                          pos.current_price,
+                          pos.entry_price
+                        )) * pos.quantity
+                      else
+                        (coalesce(
+                          nullif(i.current_state->>'price', '')::numeric,
+                          nullif(i.current_state->>'last_price', '')::numeric,
+                          pos.current_price,
+                          pos.entry_price
+                        ) - pos.entry_price) * pos.quantity
+                    end
+                  )
+                  else pos.unrealized_pnl
+                end as unrealized_pnl
+         from prediction.analyst_positions pos
+         left join prediction.instruments i on i.id = pos.instrument_id
+         where pos.portfolio_id = $1
+           and (pos.status = 'open' or pos.closed_at >= now() - interval '30 days')
+         order by case when pos.status='open' then 0 else 1 end, pos.opened_at desc`,
         [id],
       );
       positions = (posRes.data as Array<Record<string, unknown>> | null) ?? [];

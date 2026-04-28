@@ -96,6 +96,11 @@ export class PredictionGeneratorService {
    * Run a full prediction generation cycle.
    */
   async runGeneration(): Promise<PredictionGenResult> {
+    if (this.isDisabled()) {
+      this.logger.debug('Prediction generation disabled by MARKETS_DISABLE_PREDICTION_GENERATION');
+      return { instrumentsEvaluated: 0, runsTriggered: 0, thresholdsNotMet: 0, alreadyQueued: 0, errors: [] };
+    }
+
     if (this.isRunning) {
       this.logger.warn('Skipping prediction generation — previous run still in progress');
       return { instrumentsEvaluated: 0, runsTriggered: 0, thresholdsNotMet: 0, alreadyQueued: 0, errors: [] };

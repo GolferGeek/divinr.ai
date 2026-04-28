@@ -42,7 +42,7 @@ export const tourContent: Record<StepId, StepContent> = {
   'making-a-trade': {
     id: 'making-a-trade',
     title: 'Making a trade',
-    body: "When you're on an analysis and want to act, use the **Trade** button. You'll pick a tournament (your paper portfolio lives inside one) and size the position.\n\nThese are signals, not instructions. You decide what you do with them — Divinr just makes the reasoning legible.",
+    body: "When you're on an analysis and want to act, use the **Trade** button. Choose your portfolio destination, size the position, and submit the paper trade.\n\nThese are signals, not instructions. You decide what you do with them — Divinr just makes the reasoning legible.",
     routePath: '/predictions',
     pulseSelectors: ['[data-tour="prediction-trade-cta"]'],
     completion: { kind: 'got_it' },

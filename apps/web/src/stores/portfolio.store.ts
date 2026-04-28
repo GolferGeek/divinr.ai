@@ -50,6 +50,23 @@ export interface PortfolioDetail {
   calibration_buckets?: CalibrationBucket[] | null;
 }
 
+export interface TradeDestination {
+  destinationType: 'user' | 'tournament';
+  id: string;
+  tournamentId?: string;
+  name: string;
+  currentBalance: number;
+  longQty: number;
+  shortQty: number;
+  netQty: number;
+  allowed: boolean;
+}
+
+export interface TradeDestinationResponse {
+  currentPrice: number;
+  destinations: TradeDestination[];
+}
+
 export const usePortfolioStore = defineStore('portfolio', () => {
   const myPortfolio = ref<Record<string, unknown> | null>(null);
   const myPositions = ref<Record<string, unknown>[]>([]);
@@ -131,6 +148,40 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     return result;
   }
 
+  async function fetchTradeDestinations(input: {
+    instrumentId: string;
+    symbol: string;
+  }) {
+    const api = useApi();
+    const qs = new URLSearchParams(input).toString();
+    return api.get<TradeDestinationResponse>(`/portfolios/me/trade-destinations?${qs}`);
+  }
+
+  async function executeTradeDestinations(input: {
+    predictionId: string;
+    instrumentId: string;
+    direction: 'long' | 'short';
+    destinations: Array<{
+      destinationType: 'user' | 'tournament';
+      portfolioId?: string;
+      tournamentId?: string;
+      quantity: number;
+    }>;
+  }) {
+    const api = useApi();
+    const result = await api.post<Record<string, unknown>>('/portfolios/me/execute-destinations', input);
+    await Promise.all([
+      fetchMyPortfolio().catch(() => {}),
+      fetchMyPositions('open').catch(() => {}),
+    ]);
+    const next = { ...portfolioDetails.value };
+    for (const key of Object.keys(next)) {
+      if (key.startsWith('user:')) delete next[key];
+    }
+    portfolioDetails.value = next;
+    return result;
+  }
+
   async function closePositionAction(positionId: string) {
     const api = useApi();
     const result = await api.post<Record<string, unknown>>(`/portfolios/me/positions/${positionId}/close`);
@@ -165,6 +216,6 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     fetchLeaderboard, fetchAnalystPortfolios,
     fetchAllPortfolios, fetchPortfolioDetail,
     queueTrade, cancelTrade,
-    executeTrade, closePositionAction,
+    executeTrade, fetchTradeDestinations, executeTradeDestinations, closePositionAction,
   };
 });

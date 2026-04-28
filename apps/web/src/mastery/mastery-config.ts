@@ -2,7 +2,6 @@ import {
   analyticsOutline,
   briefcaseOutline,
   bulbOutline,
-  cashOutline,
   chatbubblesOutline,
   compassOutline,
   constructOutline,
@@ -70,16 +69,8 @@ export const masteryNavGroups: MasteryNavGroup[] = [
     label: '',
     items: [
       { title: 'Dashboard', icon: gridOutline, to: '/', minLevel: 'core_trading' },
-      { title: 'Learning Panel', icon: bulbOutline, to: '/chat', minLevel: 'core_trading' },
-      { title: 'Trade', icon: cashOutline, to: '/tournaments', minLevel: 'core_trading' },
-    ],
-  },
-  {
-    label: 'Markets',
-    items: [
-      { title: 'Analyses', icon: statsChartOutline, to: '/predictions', minLevel: 'core_trading' },
       { title: 'Portfolios', icon: briefcaseOutline, to: '/portfolios', minLevel: 'core_trading' },
-      { title: 'Risk', icon: shieldOutline, to: '/risk', minLevel: 'core_trading' },
+      { title: 'Analyses', icon: statsChartOutline, to: '/predictions', minLevel: 'core_trading' },
     ],
   },
   {
@@ -152,7 +143,7 @@ export const masteryRoutePolicies: MasteryRoutePolicy[] = [
   { path: '/notifications', minLevel: 'core_trading' },
   { path: '/fear-greed-alerts', minLevel: 'core_trading' },
   { path: '/terms', minLevel: 'core_trading', alwaysVisible: true },
-  { path: '/tournaments', minLevel: 'core_trading', notes: 'Level 1 enters trading through the tournament shell.' },
+  { path: '/tournaments', minLevel: 'competitive_participation' },
   { path: '/tournaments/history', minLevel: 'competitive_participation' },
   { path: '/tournaments/invite', minLevel: 'competitive_participation' },
   { path: '/tournaments/create', minLevel: 'community_creation' },
@@ -170,7 +161,8 @@ export const masteryRoutePolicies: MasteryRoutePolicy[] = [
   { path: '/analysts', minLevel: 'builder' },
   { path: '/analysts/:detail', minLevel: 'builder' },
   { path: '/instruments', minLevel: 'builder' },
-  { path: '/instruments/:detail', minLevel: 'builder' },
+  { path: '/instruments/:detail/contract', minLevel: 'builder' },
+  { path: '/instruments/:detail', minLevel: 'core_trading' },
   { path: '/performance', minLevel: 'core_trading' },
   { path: '/settings/onboarding', minLevel: 'core_trading', alwaysVisible: true },
   { path: '/billing/summary', minLevel: 'core_trading', alwaysVisible: true },
@@ -207,8 +199,12 @@ function matchesPolicy(path: string, policyPath: string): boolean {
   const normalizedPath = normalizePath(path);
   const normalizedPolicy = normalizePath(policyPath);
   if (normalizedPolicy.includes('/:')) {
-    const prefix = normalizedPolicy.split('/:')[0] ?? normalizedPolicy;
-    return normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`);
+    const pathSegments = normalizedPath.split('/').filter(Boolean);
+    const policySegments = normalizedPolicy.split('/').filter(Boolean);
+    if (pathSegments.length < policySegments.length) return false;
+    return policySegments.every((segment, index) => (
+      segment.startsWith(':') || segment === pathSegments[index]
+    ));
   }
   return normalizedPath === normalizedPolicy || normalizedPath.startsWith(`${normalizedPolicy}/`);
 }

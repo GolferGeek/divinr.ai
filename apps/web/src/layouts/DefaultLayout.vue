@@ -14,7 +14,7 @@ import {
   chatbubblesOutline, trophyOutline, peopleCircleOutline,
   chevronDownOutline, chevronForwardOutline, compassOutline,
   createOutline, analyticsOutline, ellipsisHorizontalOutline,
-  schoolOutline, cashOutline,
+  schoolOutline,
 } from 'ionicons/icons';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -79,6 +79,7 @@ const visibleGroups = computed(() =>
     .filter(g => g.items.length > 0),
 );
 const showActivityFooter = computed(() => mastery.canViewLevel('competitive_participation'));
+const showLearningPanelNav = computed(() => mastery.canViewLevel('core_trading'));
 
 // Load contrarian alerts and notification count on mount
 affinityStore.fetchContrarianAlerts(true);
@@ -239,6 +240,17 @@ onBeforeUnmount(() => {
             <ion-icon :icon="pulseOutline" />
             <span>Activity</span>
             <span v-if="activity.connected" class="live-dot" />
+          </button>
+        </div>
+        <div v-if="showLearningPanelNav" class="sidebar-learning">
+          <button
+            class="learning-nav-btn"
+            :class="{ active: learningPanelOpen || route.path === '/chat' }"
+            type="button"
+            @click="handleNavClick('/chat')"
+          >
+            <ion-icon :icon="bulbOutline" />
+            <span>Learning Panel</span>
           </button>
         </div>
       </nav>
@@ -563,6 +575,42 @@ onBeforeUnmount(() => {
 .sidebar-footer {
   padding: 8px 12px;
   border-top: 1px solid #e0e0e0;
+}
+
+.sidebar-learning {
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #e0e0e0;
+}
+
+.learning-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #333;
+  cursor: pointer;
+  font-size: 0.93rem;
+  text-align: left;
+}
+
+.learning-nav-btn:hover {
+  background: #f0f0f0;
+}
+
+.learning-nav-btn.active {
+  background: #e8f0fe;
+  color: var(--ion-color-primary, #3880ff);
+  font-weight: 600;
+}
+
+.learning-nav-btn ion-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
 }
 
 .activity-btn {

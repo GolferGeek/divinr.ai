@@ -161,6 +161,10 @@ async function main(): Promise<void> {
     assert(result.portfolio !== null, 'portfolio loaded');
     assert(result.positions.length === 2, 'positions returned');
     assert(result.snapshots.length === 2, 'snapshots returned');
+    const posCall = db.calls.find(c => c.sql.includes('from prediction.analyst_positions'))!;
+    assert(posCall.sql.includes('left join prediction.instruments'), 'analyst positions join instruments for current price');
+    assert(posCall.sql.includes("i.current_state->>'price'"), 'analyst positions mark open lots to current price');
+    assert(posCall.sql.includes('as unrealized_pnl'), 'analyst positions recalculate open unrealized P&L');
     // verify the snapshots query used asc order
     const snapCall = db.calls.find(c => c.sql.includes('from prediction.daily_pnl_snapshot'))!;
     assert(snapCall.sql.includes('snapshot_date asc'), 'snapshots ordered ascending by date');
@@ -185,6 +189,9 @@ async function main(): Promise<void> {
     const svc = new LeaderboardService(db as any);
     const result = await svc.getPortfolioDetail({ kind: 'user', id: 'up-1' });
     assert(result.positions.length === 1, 'user positions returned');
+    const posCall = db.calls.find(c => c.sql.includes('from prediction.user_positions'))!;
+    assert(posCall.sql.includes('left join prediction.instruments'), 'user positions join instruments for current price');
+    assert(posCall.sql.includes("i.current_state->>'price'"), 'user positions mark open lots to current price');
     const snapCall = db.calls.find(c => c.sql.includes('from prediction.daily_pnl_snapshot'))!;
     assert(snapCall.params[0] === 'user', 'snapshot kind = user');
   }

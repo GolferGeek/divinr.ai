@@ -3053,12 +3053,16 @@ Respond ONLY with valid JSON.`,
   ): Promise<ProcessNextRunResult> {
     await this.requireWrite(input.userId);
 
+    const allowPredictionRuns = process.env.MARKETS_DISABLE_PREDICTION_GENERATION !== 'true';
     const claimed = await this.db.rawQuery(
       `
       with next_run as (
         select id
         from prediction.orchestration_runs
         where status = 'queued'
+          and ($1::text is null or id = $1)
+          and ($2::text is null or run_type = $2)
+          and (run_type <> 'prediction' or $3::boolean = true)
         order by created_at asc
         for update skip locked
         limit 1
@@ -3072,6 +3076,7 @@ Respond ONLY with valid JSON.`,
       where r.id = next_run.id
       returning r.*
       `,
+      [input.runId ?? null, input.runType ?? null, allowPredictionRuns],
     );
     if (claimed.error) {
       throw new Error(claimed.error.message);
@@ -3174,6 +3179,7 @@ Respond ONLY with valid JSON.`,
     for (let i = 0; i < requested; i += 1) {
       const result = await this.processNextQueuedRun({
         userId: input.userId,
+        runType: input.runType,
       });
       results.push(result);
       if (!result.processed) {
@@ -3895,9 +3901,13 @@ Respond ONLY with valid JSON.`,
   }) {
     await this.requireRead(input.userId);
 
-    let query = `select mp.*, ma.display_name as analyst_name
+    let query = `select mp.*,
+        ma.display_name as analyst_name,
+        i.symbol,
+        i.name as instrument_name
       from prediction.market_predictions mp
       left join prediction.market_analysts ma on ma.id = mp.analyst_id
+      left join prediction.instruments i on i.id = mp.instrument_id
       where true`;
     const params: unknown[] = [];
     let idx = 1;

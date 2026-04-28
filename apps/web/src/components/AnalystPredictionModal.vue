@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
 import {
   IonModal, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonButton,
   IonIcon, IonChip, IonNote,
@@ -11,12 +10,9 @@ import {
 } from 'ionicons/icons';
 import { useApi } from '../composables/useApi';
 import { useProvenanceStore } from '../stores/provenance.store';
-import { usePortfolioStore } from '../stores/portfolio.store';
+import { usePortfolioStore, type TradeDestination } from '../stores/portfolio.store';
 import { useAuthStore } from '../stores/auth.store';
 import { useAffinityStore } from '../stores/affinity.store';
-import { useActiveTournament, impliedQuantity } from '../composables/useActiveTournament';
-import type { Tournament } from '../stores/tournament.store';
-import TournamentPicker from './TournamentPicker.vue';
 import LegalDisclaimer from './LegalDisclaimer.vue';
 
 interface AnalystStance {
@@ -164,6 +160,7 @@ watch(() => [props.isOpen, currentIndex.value], ([open]) => {
   activeTab.value = 'analysis';
   tradeResult.value = null;
   tradeError.value = '';
+  showTradeTicket.value = props.mode === 'trade';
 });
 
 async function loadLlmCalls(predictionId: string) {
@@ -191,17 +188,107 @@ const disclaimerAcknowledged = ref(false);
 const tradeQty = ref(10);
 const tradeDirection = ref<'long' | 'short'>('long');
 const tradeSubmitting = ref(false);
+const tradeDestinations = ref<Array<TradeDestination & { selected: boolean; quantity: number }>>([]);
+const tradeDestinationsLoading = ref(false);
+const tradeTicketPrice = ref<number | null>(null);
+const showTradeTicket = ref(false);
+const shouldShowTradeTicket = computed(() => props.mode === 'trade' || showTradeTicket.value);
 
 watch(() => [props.isOpen, currentIndex.value], () => {
   // Default direction from current analyst stance when opening trade form
   const a = analyst.value;
   if (a) tradeDirection.value = a.direction === 'down' ? 'short' : 'long';
+  if (props.isOpen && props.instrumentId && props.symbol) {
+    void loadTradeDestinations();
+  }
+});
+
+const effectiveTradePrice = computed(() => {
+  const ticketPrice = Number(tradeTicketPrice.value ?? 0);
+  if (Number.isFinite(ticketPrice) && ticketPrice > 0) return ticketPrice;
+  const propPrice = Number(props.currentPrice ?? 0);
+  return Number.isFinite(propPrice) && propPrice > 0 ? propPrice : 0;
 });
 
 const tradeTotalCost = computed(() => {
-  const p = Number(props.currentPrice ?? 0);
+  const p = effectiveTradePrice.value;
   return p * Math.max(0, Number(tradeQty.value || 0));
 });
+
+function suggestedQty(destination: TradeDestination): number {
+  const p = effectiveTradePrice.value;
+  if (!Number.isFinite(p) || p <= 0) return 0;
+  const maxQty = Math.floor(Number(destination.currentBalance ?? 0) / p);
+  if (maxQty <= 0) return 0;
+  return Math.min(10, maxQty);
+}
+
+async function loadTradeDestinations() {
+  if (!props.instrumentId || !props.symbol) return;
+  tradeDestinationsLoading.value = true;
+  try {
+    const response = await portfolioStore.fetchTradeDestinations({
+      instrumentId: props.instrumentId,
+      symbol: props.symbol,
+    });
+    tradeTicketPrice.value = Number(response.currentPrice ?? 0) > 0 ? Number(response.currentPrice) : null;
+    tradeDestinations.value = response.destinations.map(row => ({
+      ...row,
+      selected: row.allowed && suggestedQty(row) > 0,
+      quantity: suggestedQty(row),
+    }));
+  } catch (err) {
+    tradeError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    tradeDestinationsLoading.value = false;
+  }
+}
+
+function formatCurrencyShort(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+}
+
+function formatQty(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '0';
+  return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function maxQtyForDestination(destination: TradeDestination): number {
+  const p = effectiveTradePrice.value;
+  if (!Number.isFinite(p) || p <= 0) return 0;
+  return Math.floor(Number(destination.currentBalance ?? 0) / p);
+}
+
+const selectedTradeDestinations = computed(() => tradeDestinations.value.filter(row => row.selected && row.quantity > 0));
+
+function tradeResultRows(): Array<Record<string, unknown>> {
+  const rows = (tradeResult.value?.results ?? []) as unknown;
+  return Array.isArray(rows) ? rows as Array<Record<string, unknown>> : [];
+}
+
+function hasTradeErrors(): boolean {
+  return tradeResultRows().some(row => row.status === 'error');
+}
+
+function resultDestinationName(row: Record<string, unknown>): string {
+  if (row.destinationType === 'user') return 'My Portfolio';
+  const portfolioId = String(row.portfolioId ?? '');
+  const tournamentId = String(row.tournamentId ?? '');
+  const destination = tradeDestinations.value.find(d => d.id === portfolioId || d.tournamentId === tournamentId);
+  return destination?.name ?? 'Tournament';
+}
+
+async function openTradeTicket() {
+  tradeError.value = '';
+  tradeResult.value = null;
+  showTradeTicket.value = true;
+  if (tradeDestinations.value.length === 0) {
+    await loadTradeDestinations();
+  }
+}
 
 async function submitImmediateTrade() {
   tradeError.value = '';
@@ -212,17 +299,22 @@ async function submitImmediateTrade() {
     tradeError.value = 'Missing instrument context';
     return;
   }
-  if (!tradeQty.value || tradeQty.value <= 0) {
-    tradeError.value = 'Quantity must be > 0';
+  if (selectedTradeDestinations.value.length === 0) {
+    tradeError.value = 'Select at least one destination';
     return;
   }
   tradeSubmitting.value = true;
   try {
-    const result = await portfolioStore.executeTrade({
+    const result = await portfolioStore.executeTradeDestinations({
       predictionId: a.prediction_id,
       instrumentId: props.instrumentId,
       direction: tradeDirection.value,
-      quantity: Number(tradeQty.value),
+      destinations: selectedTradeDestinations.value.map(row => ({
+        destinationType: row.destinationType,
+        portfolioId: row.id,
+        tournamentId: row.tournamentId,
+        quantity: Number(row.quantity),
+      })),
     });
     if ((result as { requiresDisclaimer?: boolean }).requiresDisclaimer) {
       showDisclaimer.value = true;
@@ -233,6 +325,7 @@ async function submitImmediateTrade() {
       return;
     }
     tradeResult.value = result;
+    await loadTradeDestinations();
   } catch (err) {
     tradeError.value = err instanceof Error ? err.message : String(err);
   } finally {
@@ -281,95 +374,6 @@ async function skipTrade() {
   } catch { /* silent */ }
 }
 
-// ─── Trade This Prediction (tournament CTA) ──────────────────
-const router = useRouter();
-const { resolveActiveTournaments } = useActiveTournament();
-const pickerOpen = ref(false);
-const pickerTournaments = ref<Tournament[]>([]);
-const pendingPickerResolve = ref<((id: string | null) => void) | null>(null);
-const ctaBusy = ref(false);
-
-// DB canonical is 'stock'; 'equity' accepted as synonym for forward-compat
-const isEquity = computed(() => {
-  const at = props.assetType ?? 'stock';
-  return at === 'stock' || at === 'equity';
-});
-
-function onPickerSelect(tournamentId: string) {
-  pickerOpen.value = false;
-  pendingPickerResolve.value?.(tournamentId);
-  pendingPickerResolve.value = null;
-}
-
-function onPickerDismiss() {
-  pickerOpen.value = false;
-  pendingPickerResolve.value?.(null);
-  pendingPickerResolve.value = null;
-}
-
-// Avoid stuck ctaBusy if the outer modal closes while the picker is awaiting a choice
-watch(() => props.isOpen, open => {
-  if (!open && pendingPickerResolve.value) {
-    pendingPickerResolve.value(null);
-    pendingPickerResolve.value = null;
-    pickerOpen.value = false;
-    ctaBusy.value = false;
-  }
-});
-
-async function handleTradeThisPrediction() {
-  const a = analyst.value;
-  if (!a) return;
-  if (!isEquity.value) return;
-  if (ctaBusy.value) return;
-  ctaBusy.value = true;
-  try {
-    const { state, tournaments } = await resolveActiveTournaments();
-    if (state === 'none') {
-      router.push({ path: '/tournaments', query: { reason: 'no-active-entry' } });
-      emit('close');
-      return;
-    }
-    let target: Tournament;
-    if (state === 'one') {
-      target = tournaments[0];
-    } else {
-      pickerTournaments.value = tournaments;
-      pickerOpen.value = true;
-      const pickedId = await new Promise<string | null>(resolve => {
-        pendingPickerResolve.value = resolve;
-      });
-      if (!pickedId) return;
-      const found = tournaments.find(t => t.id === pickedId);
-      if (!found) return;
-      target = found;
-    }
-    const qty = impliedQuantity(target.starting_balance, a.confidence, props.currentPrice);
-    const direction = a.direction === 'down' ? 'short' : 'long';
-    router.push({
-      path: `/tournaments/${target.id}`,
-      query: {
-        tab: 'trade',
-        symbol: props.symbol,
-        direction,
-        qty: String(qty),
-        predictionId: a.prediction_id,
-      },
-    });
-    // observability for CTA funnel, see prediction-to-trade-intent effort
-    console.info('[prediction-to-trade-intent] cta_navigated', {
-      state,
-      predictionId: a.prediction_id,
-      symbol: props.symbol,
-      direction,
-      impliedQty: qty,
-    });
-    emit('close');
-  } finally {
-    ctaBusy.value = false;
-  }
-}
-
 async function acknowledgeDisclaimer() {
   try {
     await api.post('/trades/acknowledge-disclaimer', {});
@@ -377,6 +381,8 @@ async function acknowledgeDisclaimer() {
     showDisclaimer.value = false;
     // Retry the appropriate trade flow now that disclaimer is acknowledged
     if (props.mode === 'trade') {
+      await submitImmediateTrade();
+    } else if (showTradeTicket.value) {
       await submitImmediateTrade();
     } else {
       await takeTrade();
@@ -682,14 +688,13 @@ async function loadChallenges() {
           </div>
 
           <!-- Trade Mode Form (Phase 6) -->
-          <div v-if="mode === 'trade'" class="section trade-actions">
+          <div v-if="shouldShowTradeTicket" class="section trade-actions">
             <div v-if="tradeResult" class="trade-confirmation">
-              <ion-chip color="success">Trade Filled</ion-chip>
-              <p style="font-size:0.85rem">
-                {{ symbol }} — {{ tradeDirection }} {{ tradeQty }} shares
-                <span v-if="currentPrice"> @ ${{ Number(currentPrice).toFixed(2) }}</span>
-              </p>
-              <p style="font-size:0.7rem;opacity:0.6">Position opened immediately. View it under your portfolio.</p>
+              <ion-chip :color="hasTradeErrors() ? 'warning' : 'success'">Trade Submitted</ion-chip>
+              <div v-for="(row, i) in tradeResultRows()" :key="i" class="trade-result-row" :class="String(row.status)">
+                <span>{{ resultDestinationName(row) }}</span>
+                <strong>{{ row.status === 'filled' ? 'Filled' : row.error }}</strong>
+              </div>
             </div>
             <div v-else>
               <h3 style="margin-bottom:8px">Trade {{ symbol }}</h3>
@@ -707,25 +712,54 @@ async function loadChallenges() {
                   @click="tradeDirection = 'short'"
                 >Sell (Short)</ion-button>
               </div>
-              <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                <label style="font-size:0.85rem">Shares:</label>
-                <input
-                  v-model.number="tradeQty"
-                  type="number"
-                  min="1"
-                  style="width:80px;padding:4px 8px;border:1px solid #ccc;border-radius:4px"
-                />
-                <span v-if="currentPrice != null" style="font-size:0.8rem;opacity:0.7">
-                  @ ${{ Number(currentPrice).toFixed(2) }}
-                </span>
+              <div v-if="effectiveTradePrice > 0" style="font-size:0.85rem;margin-bottom:12px">
+                Current price: <strong>${{ effectiveTradePrice.toFixed(2) }}</strong>
               </div>
-              <div v-if="currentPrice != null" style="font-size:0.85rem;margin-bottom:12px">
-                Total cost: <strong>${{ tradeTotalCost.toFixed(2) }}</strong>
+              <div v-else style="font-size:0.85rem;margin-bottom:12px;color:var(--ion-color-danger)">
+                No current price available.
+              </div>
+              <div v-if="tradeDestinationsLoading" class="trade-ticket-loading">Loading portfolios...</div>
+              <div v-else class="trade-ticket-table">
+                <div class="trade-ticket-row trade-ticket-header">
+                  <span></span>
+                  <span>Destination</span>
+                  <span>Cash</span>
+                  <span>Holding</span>
+                  <span>Max</span>
+                  <span>Qty</span>
+                </div>
+                <label
+                  v-for="destination in tradeDestinations"
+                  :key="`${destination.destinationType}:${destination.id}`"
+                  class="trade-ticket-row"
+                  :class="{ disabled: !destination.allowed || maxQtyForDestination(destination) <= 0 }"
+                >
+                  <input
+                    v-model="destination.selected"
+                    type="checkbox"
+                    :disabled="!destination.allowed || maxQtyForDestination(destination) <= 0"
+                  />
+                  <span>
+                    <strong>{{ destination.name }}</strong>
+                    <small v-if="!destination.allowed">Not available for {{ symbol }}</small>
+                  </span>
+                  <span>{{ formatCurrencyShort(destination.currentBalance) }}</span>
+                  <span>{{ formatQty(destination.netQty) }}</span>
+                  <span>{{ formatQty(maxQtyForDestination(destination)) }}</span>
+                  <input
+                    v-model.number="destination.quantity"
+                    type="number"
+                    min="1"
+                    :max="maxQtyForDestination(destination)"
+                    :disabled="!destination.selected || !destination.allowed"
+                    @click.stop
+                  />
+                </label>
               </div>
               <div v-if="tradeError" style="color:var(--ion-color-danger);font-size:0.8rem;margin-bottom:8px">{{ tradeError }}</div>
               <ion-button
                 color="primary"
-                :disabled="tradeSubmitting || !tradeQty || tradeQty <= 0"
+                :disabled="tradeSubmitting || selectedTradeDestinations.length === 0"
                 @click="submitImmediateTrade"
               >{{ tradeSubmitting ? 'Submitting…' : 'Submit Trade' }}</ion-button>
             </div>
@@ -734,9 +768,7 @@ async function loadChallenges() {
           <!-- Trade Actions (legacy view-mode queue flow) -->
           <div v-else class="section trade-actions">
             <div v-if="tradeResult && !tradeResult.skipped" class="trade-confirmation">
-              <ion-chip color="success">Trade Queued</ion-chip>
-              <p>{{ tradeResult.symbol }} — {{ tradeResult.direction }} {{ tradeResult.quantity }} shares ({{ ((Number(tradeResult.positionPercent) || 0) * 100).toFixed(0) }}% position)</p>
-              <p style="font-size:0.75rem;opacity:0.6">Effective confidence: {{ Number(tradeResult.effectiveConfidence).toFixed(0) }}% — executes at EOD settlement</p>
+              <ion-chip color="success">Trade Submitted</ion-chip>
             </div>
             <div v-else-if="tradeResult?.skipped" class="trade-confirmation">
               <ion-chip color="medium">Skipped</ion-chip>
@@ -748,15 +780,10 @@ async function loadChallenges() {
               </div>
               <div v-if="tradeError" style="color:var(--ion-color-danger);font-size:0.8rem;margin-bottom:8px">{{ tradeError }}</div>
               <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-                <ion-button color="success" @click="takeTrade">
-                  Take This Trade
-                </ion-button>
                 <ion-button
                   color="primary"
-                  fill="outline"
-                  :disabled="!isEquity || ctaBusy"
-                  :aria-disabled="!isEquity || ctaBusy ? 'true' : 'false'"
-                  @click="handleTradeThisPrediction"
+                  :disabled="tradeSubmitting"
+                  @click="openTradeTicket"
                 >
                   Trade this signal
                 </ion-button>
@@ -764,9 +791,6 @@ async function loadChallenges() {
                   Skip
                 </ion-button>
               </div>
-              <ion-note v-if="!isEquity" color="medium" style="display:block;text-align:center;margin-top:6px;font-size:0.75rem">
-                Tournament trading is equity-only right now.
-              </ion-note>
               <div style="margin-top:10px;text-align:center">
                 <LegalDisclaimer variant="trade-cta" />
               </div>
@@ -787,12 +811,6 @@ async function loadChallenges() {
         </div>
       </div>
     </ion-content>
-    <TournamentPicker
-      :is-open="pickerOpen"
-      :tournaments="pickerTournaments"
-      @select="onPickerSelect"
-      @dismiss="onPickerDismiss"
-    />
   </ion-modal>
 </template>
 
@@ -1052,6 +1070,73 @@ async function loadChallenges() {
 .trade-confirmation {
   text-align: center;
   padding: 12px;
+}
+
+.trade-ticket-loading {
+  padding: 12px;
+  color: #777;
+  font-size: 0.85rem;
+}
+
+.trade-ticket-table {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+
+.trade-ticket-row {
+  display: grid;
+  grid-template-columns: 32px minmax(150px, 1.6fr) repeat(3, minmax(78px, 1fr)) minmax(72px, 0.8fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 650px;
+  padding: 10px 12px;
+  border-top: 1px solid #eee;
+  font-size: 0.82rem;
+}
+
+.trade-ticket-row:first-child {
+  border-top: none;
+}
+
+.trade-ticket-header {
+  background: #f8f8f8;
+  color: #777;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.trade-ticket-row.disabled {
+  opacity: 0.55;
+}
+
+.trade-ticket-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ion-color-danger, #eb445a);
+  font-size: 0.72rem;
+}
+
+.trade-ticket-row input[type="number"] {
+  width: 64px;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.trade-result-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.85rem;
+}
+
+.trade-result-row.error strong {
+  color: var(--ion-color-danger, #eb445a);
 }
 
 .disclaimer-overlay {

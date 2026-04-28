@@ -120,6 +120,21 @@ export class AutotradeOpenHelper {
       return { positionId: null, reason: 'no_portfolio' };
     }
 
+    const cashDelta = input.quantity * input.entryPrice * (input.direction === 'short' ? 1 : -1);
+    const cashResult = await db.rawQuery(
+      `update prediction.analyst_portfolios
+         set current_balance = current_balance + $1,
+             updated_at = now()
+       where id = $2`,
+      [cashDelta, input.portfolio.id],
+    );
+    if ((cashResult as any).error) {
+      this.logger.warn(
+        `openPosition: cash update failed for portfolio=${input.portfolio.id}: ${(cashResult as any).error.message}`,
+      );
+      return { positionId: id, reason: 'inserted' };
+    }
+
     return { positionId: id, reason: 'inserted' };
   }
 }
