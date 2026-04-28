@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { toastController } from '@ionic/vue';
 import { useAnalystsStore } from '../stores/analysts.store';
 import { useCanWrite } from '../composables/useCanWrite';
+import { useAuthStore } from '../stores/auth.store';
 import { useBillingStatusStore } from '../stores/billing-status.store';
 import { useStripeRedirect } from '../composables/useStripeRedirect';
 import {
@@ -14,6 +15,7 @@ import { addOutline } from 'ionicons/icons';
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 
 const store = useAnalystsStore();
+const auth = useAuthStore();
 const { canWrite } = useCanWrite();
 const billing = useBillingStatusStore();
 const { redirectToCheckout } = useStripeRedirect();
@@ -60,7 +62,7 @@ async function handleCreate() {
   <div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <h1 style="margin:0">Analysts</h1>
-      <ion-button v-if="canWrite" color="primary" @click="dialog = true">
+      <ion-button v-if="auth.canAuthorContent" color="primary" @click="dialog = true">
         <ion-icon slot="start" :icon="addOutline" />
         Create Analyst
       </ion-button>

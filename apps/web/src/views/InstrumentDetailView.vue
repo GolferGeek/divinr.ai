@@ -5,6 +5,7 @@ import { useApi } from '../composables/useApi';
 import { useCanWrite } from '../composables/useCanWrite';
 import { useOnboardingStore } from '../stores/onboarding.store';
 import { useMasteryStore } from '../stores/mastery.store';
+import { useAuthStore } from '../stores/auth.store';
 import PredictorScoringPanel from '../components/PredictorScoringPanel.vue';
 import InstrumentAnalystPanel from '../components/InstrumentAnalystPanel.vue';
 import TripleVariantSwitcher from '../components/TripleVariantSwitcher.vue';
@@ -20,6 +21,7 @@ import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const route = useRoute();
 const api = useApi();
 const { canWrite } = useCanWrite();
+const auth = useAuthStore();
 const mastery = useMasteryStore();
 const onboarding = useOnboardingStore();
 const ionRouter = useIonRouter();
@@ -51,7 +53,7 @@ const tripleAuthorUserId = computed(() => {
   return v === '' || v === undefined || v === null ? undefined : (v as string);
 });
 const isTripleFiltered = computed(() => !!tripleAnalystId.value);
-const canEditContract = computed(() => canWrite && mastery.canViewLevel('builder'));
+const canEditContract = computed(() => canWrite && auth.canAuthorContent && mastery.canViewLevel('builder'));
 
 function goBack() {
   if (window.history.length > 1) {

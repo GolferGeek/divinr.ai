@@ -6,33 +6,21 @@ import {
   IonCardContent, IonItem, IonInput, IonButton, IonIcon, IonText, IonSpinner,
 } from '@ionic/vue';
 import { analyticsOutline } from 'ionicons/icons';
-import { pinDemoUserToCoreTrading } from '../auth/bootstrap-auth';
 import { useAuthStore } from '../stores/auth.store';
 
-const auth = useAuthStore();
+import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import LegalDisclaimer from '../components/LegalDisclaimer.vue';
+
 const router = useRouter();
+const auth = useAuthStore();
 
 const email = ref('');
 const password = ref('');
+const displayName = ref('');
 const error = ref('');
 const loading = ref(false);
 
-interface LoginResponse {
-  accessToken: string;
-  refreshToken?: string;
-  tokenType: string;
-  expiresIn?: number;
-}
-
-interface MeResponse {
-  id: string;
-  email?: string;
-  role?: string;
-  globalRole?: string;
-  displayName?: string;
-}
-
-async function login() {
+async function signup() {
   error.value = '';
   if (!email.value.trim() || !password.value) {
     error.value = 'Email and password are required';
@@ -40,34 +28,32 @@ async function login() {
   }
   loading.value = true;
   try {
-    const loginRes = await fetch('/api/auth/login', {
+    const res = await fetch('/api/auth/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.value.trim(), password: password.value }),
+      body: JSON.stringify({
+        email: email.value.trim(),
+        password: password.value,
+        displayName: displayName.value.trim() || undefined,
+      }),
     });
-    if (!loginRes.ok) {
-      const text = await loginRes.text();
-      try {
-        const parsed = JSON.parse(text) as { message?: string };
-        error.value = parsed.message ?? `Login failed (${loginRes.status})`;
-      } catch {
-        error.value = `Login failed (${loginRes.status})`;
-      }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { message?: string };
+      error.value = data.message ?? `Signup failed (${res.status})`;
       return;
     }
-    const loginData = (await loginRes.json()) as LoginResponse;
+    const signupData = await res.json() as { accessToken: string; refreshToken?: string };
+
+    auth.clear();
 
     const meRes = await fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${loginData.accessToken}` },
+      headers: { Authorization: `Bearer ${signupData.accessToken}` },
     });
-    if (!meRes.ok) {
-      error.value = `Could not fetch profile (${meRes.status})`;
-      return;
+    if (meRes.ok) {
+      const me = await meRes.json() as { id: string; role?: string; email?: string; displayName?: string; globalRole?: string };
+      auth.setAuth(me.id, signupData.accessToken, me.globalRole ?? me.role ?? 'member', me.email, me.displayName, signupData.refreshToken);
     }
-    const me = (await meRes.json()) as MeResponse;
-    await pinDemoUserToCoreTrading(me, loginData.accessToken);
 
-    auth.setAuth(me.id, loginData.accessToken, me.globalRole ?? me.role, me.email, me.displayName, loginData.refreshToken);
     await router.push('/');
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
@@ -85,7 +71,7 @@ async function login() {
           <ion-card-header class="ion-text-center">
             <ion-icon :icon="analyticsOutline" size="large" color="primary" />
             <ion-card-title>Divinr AI</ion-card-title>
-            <ion-card-subtitle>Market Intelligence Platform</ion-card-subtitle>
+            <ion-card-subtitle>Create your account</ion-card-subtitle>
           </ion-card-header>
 
           <ion-card-content>
@@ -99,7 +85,18 @@ async function login() {
                 label-placement="floating"
                 autocomplete="email"
                 placeholder="you@example.com"
-                @keyup.enter="login"
+                @keyup.enter="signup"
+              />
+            </ion-item>
+
+            <ion-item class="ion-margin-top">
+              <ion-input
+                v-model="displayName"
+                type="text"
+                label="Display Name"
+                label-placement="floating"
+                placeholder="What should we call you?"
+                @keyup.enter="signup"
               />
             </ion-item>
 
@@ -109,8 +106,8 @@ async function login() {
                 type="password"
                 label="Password"
                 label-placement="floating"
-                autocomplete="current-password"
-                @keyup.enter="login"
+                autocomplete="new-password"
+                @keyup.enter="signup"
               />
             </ion-item>
 
@@ -118,19 +115,25 @@ async function login() {
               expand="block"
               class="ion-margin-top"
               :disabled="loading || !email.trim() || !password"
-              @click="login"
+              @click="signup"
             >
               <ion-spinner v-if="loading" name="crescent" />
-              <span v-else>Sign In</span>
+              <span v-else>Create Account</span>
             </ion-button>
 
             <p class="ion-text-center" style="margin-top:1rem; font-size:0.85em; color:var(--ion-color-medium)">
-              New here?
-              <a href="/signup" style="color:var(--ion-color-primary)">Create an account</a>
+              Already have an account?
+              <a href="/login" style="color:var(--ion-color-primary)">Sign in</a>
             </p>
+
+            <div class="ion-text-center" style="margin-top:0.5rem; font-size:0.75em; color:var(--ion-color-medium)">
+              <LegalDisclaimer variant="short" />
+            </div>
           </ion-card-content>
         </ion-card>
       </div>
     </ion-content>
+
+    <FirstTouchPanel surface-key="auth.signup" />
   </ion-page>
 </template>

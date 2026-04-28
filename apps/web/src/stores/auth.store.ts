@@ -15,6 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isBetaReader = computed(() => role.value === 'beta_reader');
   const isAdmin = computed(() => ['super-admin', 'owner', 'admin'].includes(role.value));
   const isSuperAdmin = computed(() => role.value === 'super-admin');
+  const canAuthorContent = computed(() => isAdmin.value || role.value === 'builder');
   const displayName = computed(() => {
     if (name.value) return name.value;
     if (email.value) return email.value.split('@')[0];
@@ -103,5 +104,5 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isConfigured = () => userId.value.length > 0;
 
-  return { userId, token, refreshToken, role, email, isBetaReader, isAdmin, isSuperAdmin, displayName, setAuth, tryRefresh, clear, isConfigured };
+  return { userId, token, refreshToken, role, email, isBetaReader, isAdmin, isSuperAdmin, canAuthorContent, displayName, setAuth, tryRefresh, clear, isConfigured };
 });

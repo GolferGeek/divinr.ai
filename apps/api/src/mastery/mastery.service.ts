@@ -18,6 +18,7 @@ interface LearningProfileRow {
 }
 
 const ADMIN_ROLES = new Set(['super-admin', 'owner', 'admin']);
+const BUILDER_ROLES = new Set(['builder']);
 const VISIBLE_SURFACE_SUMMARY: Record<MasteryLevel, string[]> = {
   core_trading: [
     'dashboard',
@@ -116,7 +117,9 @@ export class MasteryService {
     const effectiveRole = await this.resolveGlobalRole(userId, userRole);
     const effectiveLevel = ADMIN_ROLES.has(effectiveRole ?? '')
       ? 'operator'
-      : profile.currentLevel;
+      : BUILDER_ROLES.has(effectiveRole ?? '')
+        ? 'builder'
+        : profile.currentLevel;
     return {
       currentLevel: profile.currentLevel,
       effectiveLevel,
@@ -268,9 +271,10 @@ export class MasteryService {
           WHEN 'super-admin' THEN 1
           WHEN 'owner' THEN 2
           WHEN 'admin' THEN 3
-          WHEN 'member' THEN 4
-          WHEN 'beta_reader' THEN 5
-          ELSE 6
+          WHEN 'builder' THEN 4
+          WHEN 'member' THEN 5
+          WHEN 'beta_reader' THEN 6
+          ELSE 7
         END
         LIMIT 1`,
       [userId],

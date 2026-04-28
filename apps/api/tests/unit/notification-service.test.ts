@@ -34,6 +34,10 @@ type Row = {
 
 const rows: Row[] = [];
 
+function isVisibleNotification(row: Row): boolean {
+  return new Date(row.created_at).getTime() >= Date.now() - 24 * 60 * 60 * 1000;
+}
+
 function stubRawQuery(sql: string, params?: unknown[]) {
   const trimmed = sql.replace(/\s+/g, ' ').trim();
 
@@ -59,13 +63,21 @@ function stubRawQuery(sql: string, params?: unknown[]) {
     if (trimmed.includes('is_read = false')) {
       filtered = filtered.filter((r) => !r.is_read);
     }
+    if (trimmed.includes('created_at >=')) {
+      filtered = filtered.filter(isVisibleNotification);
+    }
     filtered.sort((a, b) => b.created_at.localeCompare(a.created_at));
     return { data: filtered.slice(0, 100), error: null };
   }
 
   if (trimmed.startsWith('select count(*)')) {
     const userId = (params as string[])[0];
-    const count = rows.filter((r) => r.user_id === userId && !r.is_read).length;
+    const requiresVisible = trimmed.includes('created_at >=');
+    const count = rows.filter((r) => (
+      r.user_id === userId
+      && !r.is_read
+      && (!requiresVisible || isVisibleNotification(r))
+    )).length;
     return { data: [{ cnt: String(count) }], error: null };
   }
 
@@ -218,6 +230,43 @@ const service = Object.create(NotificationService.prototype) as NotificationServ
     // Verify user-2 unaffected
     const user2Count = await service.getUnreadCount('user-2');
     assert(user2Count === 1, 'user-2 unread count unchanged');
+  }
+
+  console.log('\n24-hour visibility cutoff:');
+  {
+    rows.length = 0;
+    rows.push({
+      id: 'fresh',
+      user_id: 'user-cutoff',
+      event_type: 'fear_greed_alert',
+      urgency: 'immediate',
+      title: 'Fresh notification',
+      summary: null,
+      link_to: '/notifications',
+      is_read: false,
+      created_at: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
+    });
+    rows.push({
+      id: 'old',
+      user_id: 'user-cutoff',
+      event_type: 'fear_greed_alert',
+      urgency: 'immediate',
+      title: 'Old notification',
+      summary: null,
+      link_to: '/notifications',
+      is_read: false,
+      created_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+    });
+
+    const visible = await service.getNotifications('user-cutoff');
+    assert(visible.length === 1, 'only notifications from last 24 hours are visible');
+    assert(visible[0].id === 'fresh', 'old notification hidden from list');
+
+    const visibleUnread = await service.getNotifications('user-cutoff', true);
+    assert(visibleUnread.length === 1, 'old unread notification hidden from unread list');
+
+    const count = await service.getUnreadCount('user-cutoff');
+    assert(count === 1, 'old unread notification excluded from unread count');
   }
 
   // ─── Results ──────────────────────────────────────────────────

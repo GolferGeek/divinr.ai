@@ -119,11 +119,14 @@ async function main() {
     assert.ok(new Date(result.expiresAt) > new Date());
   });
 
-  await test('createInvite persists beta_reader role', async () => {
+  await test('createInvite persists member role', async () => {
     const queries: Array<{ sql: string; params: unknown[] }> = [];
     const db = {
       rawQuery: async (sql: string, params: unknown[] = []) => {
         queries.push({ sql, params });
+        if (sql.includes('FROM authz.users WHERE id = $1')) {
+          return { data: [{ email: 'reader@example.com' }], error: null };
+        }
         return { data: [], error: null };
       },
     };
@@ -136,9 +139,31 @@ async function main() {
     const insert = queries.find((q) => q.sql.includes('INSERT INTO authz.invites'));
 
     assert.ok(insert, 'expected invite insert query');
-    assert.match(insert!.sql, /'beta_reader'/);
     assert.equal(insert!.params[1], 'reader@example.com');
+    assert.equal(insert!.params[3], 'member');
     assert.ok(result.inviteUrl.includes('/signup/'));
+  });
+
+  await test('createInvite persists builder role for founder-created invites', async () => {
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+    const db = {
+      rawQuery: async (sql: string, params: unknown[] = []) => {
+        queries.push({ sql, params });
+        if (sql.includes('FROM authz.users WHERE id = $1')) {
+          return { data: [{ email: 'golfergeek@orchestratorai.io' }], error: null };
+        }
+        return { data: [], error: null };
+      },
+    };
+
+    const svc = Object.create(InviteService.prototype);
+    (svc as any).db = db;
+
+    await (svc as InviteService).createInvite('founder-1', 'builder@example.com');
+    const insert = queries.find((q) => q.sql.includes('INSERT INTO authz.invites'));
+
+    assert.ok(insert, 'expected invite insert query');
+    assert.equal(insert!.params[3], 'builder');
   });
 
   console.log('\nInvite service tests complete.');

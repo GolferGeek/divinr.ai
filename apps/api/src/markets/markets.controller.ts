@@ -180,18 +180,42 @@ export class MarketsController {
          WHEN 'super-admin' THEN 1
          WHEN 'owner' THEN 2
          WHEN 'admin' THEN 3
-         WHEN 'member' THEN 4
-         WHEN 'beta_reader' THEN 5
-         ELSE 6
+         WHEN 'builder' THEN 4
+         WHEN 'member' THEN 5
+         WHEN 'beta_reader' THEN 6
+         ELSE 7
        END
        LIMIT 1`,
       [user.id],
     );
     const rows = (result.data as Array<{ name: string }> | null) ?? [];
     const role = rows.length > 0 ? rows[0].name : null;
-    const writableRoles = ['super-admin', 'owner', 'member', 'admin'];
+    const writableRoles = ['super-admin', 'owner', 'admin', 'builder', 'member'];
     if (role && writableRoles.includes(role)) return;
     throw new ForbiddenException('Read-only access — beta readers cannot perform this action');
+  }
+
+  private async requireAuthoringAccess(user: AuthenticatedUser): Promise<void> {
+    const result = await this.db.rawQuery(
+      `SELECT rr.name FROM authz.rbac_user_roles r
+       JOIN authz.rbac_roles rr ON rr.id = r.role_id
+       WHERE r.user_id = $1
+       ORDER BY CASE rr.name
+         WHEN 'super-admin' THEN 1
+         WHEN 'owner' THEN 2
+         WHEN 'admin' THEN 3
+         WHEN 'builder' THEN 4
+         WHEN 'member' THEN 5
+         WHEN 'beta_reader' THEN 6
+         ELSE 7
+       END
+       LIMIT 1`,
+      [user.id],
+    );
+    const rows = (result.data as Array<{ name: string }> | null) ?? [];
+    const role = rows.length > 0 ? rows[0].name : null;
+    if (role && ['super-admin', 'owner', 'admin', 'builder'].includes(role)) return;
+    throw new ForbiddenException('Builder access required to create custom analysts or instruments');
   }
 
   // ─── Market Bars ───────────────────────────────────────────────
@@ -231,7 +255,7 @@ export class MarketsController {
     if (!body?.symbol) {
       throw new BadRequestException('symbol is required');
     }
-    await this.requireWriteAccess(user);
+    await this.requireAuthoringAccess(user);
     return this.markets.createInstrument({
       ...body,
       userId: user.id,
@@ -300,7 +324,7 @@ export class MarketsController {
     if (!body?.slug || !body?.displayName || !body?.personaPrompt) {
       throw new BadRequestException('slug, displayName, and personaPrompt are required');
     }
-    await this.requireWriteAccess(user);
+    await this.requireAuthoringAccess(user);
     return this.markets.createAnalyst({
       userId: user.id,
       slug: body.slug,

@@ -602,9 +602,25 @@ onMounted(() => {
 }
 
 .embedded .surface-frame {
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
   border: none;
   border-radius: 0;
+}
+
+.embedded .thread-list {
+  display: none;
+  border-right: none;
+  border-bottom: 1px solid var(--ion-color-step-150, #ececec);
+  max-height: 220px;
+}
+
+.embedded .thread-list.thread-list-open {
+  display: flex;
+}
+
+.embedded .thread-toggle {
+  display: inline-flex;
 }
 
 .thread-list {
@@ -721,6 +737,7 @@ onMounted(() => {
 
 .chat-header-copy {
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .chat-header-actions {
@@ -740,6 +757,7 @@ onMounted(() => {
 .chat-header h2 {
   margin: 0;
   font-size: 1.1rem;
+  line-height: 1.15;
 }
 
 .thread-toggle {

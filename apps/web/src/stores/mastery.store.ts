@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from './auth.store';
 
 const DEFAULT_LEVEL: MasteryLevel = 'core_trading';
+const MASTERY_DISABLED_KEY = 'divinr_mastery_levels_disabled';
 
 export const useMasteryStore = defineStore('mastery', () => {
   const api = useMasteryApi();
@@ -18,6 +19,7 @@ export const useMasteryStore = defineStore('mastery', () => {
   const profile = ref<MasteryProfile | null>(null);
   const loading = ref(false);
   const loaded = ref(false);
+  const masteryDisabled = ref(localStorage.getItem(MASTERY_DISABLED_KEY) === '1');
 
   const currentLevel = computed<MasteryLevel>(() => profile.value?.currentLevel ?? DEFAULT_LEVEL);
   const preferredLevel = computed<MasteryLevel | null>(() => profile.value?.preferredLevel ?? null);
@@ -25,7 +27,7 @@ export const useMasteryStore = defineStore('mastery', () => {
   // Preserve operator visibility for real admin roles even if their stored
   // learning profile has not been advanced yet.
   const effectiveLevel = computed<MasteryLevel>(() => (
-    auth.isAdmin ? 'operator' : currentLevel.value
+    masteryDisabled.value ? 'operator' : auth.isAdmin ? 'operator' : auth.canAuthorContent ? 'builder' : currentLevel.value
   ));
 
   const nextLevel = computed<MasteryLevel | null>(() => {
@@ -36,7 +38,21 @@ export const useMasteryStore = defineStore('mastery', () => {
 
   function canViewLevel(minLevel: MasteryLevel, alwaysVisible = false): boolean {
     if (alwaysVisible) return true;
+    if (masteryDisabled.value) return true;
     return masteryLevelRank(effectiveLevel.value) >= masteryLevelRank(minLevel);
+  }
+
+  function setMasteryDisabled(disabled: boolean): void {
+    masteryDisabled.value = disabled;
+    if (disabled) {
+      localStorage.setItem(MASTERY_DISABLED_KEY, '1');
+    } else {
+      localStorage.removeItem(MASTERY_DISABLED_KEY);
+    }
+  }
+
+  function toggleMasteryDisabled(): void {
+    setMasteryDisabled(!masteryDisabled.value);
   }
 
   async function fetch(): Promise<void> {
@@ -72,6 +88,7 @@ export const useMasteryStore = defineStore('mastery', () => {
     profile.value = null;
     loading.value = false;
     loaded.value = false;
+    setMasteryDisabled(false);
   }
 
   return {
@@ -81,8 +98,11 @@ export const useMasteryStore = defineStore('mastery', () => {
     currentLevel,
     preferredLevel,
     effectiveLevel,
+    masteryDisabled,
     nextLevel,
     canViewLevel,
+    setMasteryDisabled,
+    toggleMasteryDisabled,
     fetch,
     updatePreferredLevel,
     clear,

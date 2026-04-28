@@ -3,7 +3,7 @@
  * Effort: beta-user-share-path.
  *
  * Creates invite tokens, validates them, and handles invite-based signup
- * that creates a Supabase user with the beta_reader role (read-only access).
+ * that creates a Supabase user with the member role.
  */
 import { Injectable, Inject, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -14,6 +14,7 @@ import {
 } from '@orchestratorai/planes/auth';
 import { BillingService } from '../billing/billing.service';
 import { BillingConfigService } from '../billing/billing-config.service';
+import { getBuilderInviterEmails } from './builder-inviters';
 
 interface InviteRow {
   id: string;
@@ -60,11 +61,12 @@ export class InviteService {
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const appUrl = process.env.APP_URL || 'http://localhost:7101';
+    const roleName = await this.resolveInviteRole(createdBy);
 
     await this.db.rawQuery(
       `INSERT INTO authz.invites (id, email, token, role_name, created_by, expires_at)
-       VALUES ($1, $2, $3, 'beta_reader', $4, $5)`,
-      [id, email ?? null, token, createdBy, expiresAt],
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, email ?? null, token, roleName, createdBy, expiresAt],
     );
 
     return {
@@ -89,11 +91,13 @@ export class InviteService {
     return (result.data as InviteRow[] | null) ?? [];
   }
 
-  async revokeInvite(id: string): Promise<{ revoked: boolean }> {
+  async revokeInvite(id: string, createdBy?: string): Promise<{ revoked: boolean }> {
+    const params = createdBy ? [id, createdBy] : [id];
+    const ownerClause = createdBy ? 'AND created_by = $2' : '';
     await this.db.rawQuery(
       `UPDATE authz.invites SET revoked_at = now()
-       WHERE id = $1 AND revoked_at IS NULL`,
-      [id],
+       WHERE id = $1 AND revoked_at IS NULL ${ownerClause}`,
+      params,
     );
     return { revoked: true };
   }
@@ -160,20 +164,14 @@ export class InviteService {
       throw new BadRequestException('This invite is restricted to a different email address');
     }
 
-    // Create user via Supabase auth service
-    let createdUserId: string | undefined;
     try {
-      const createResult = await this.authService.createUser(
-        {
-          email,
-          password,
-          displayName: displayName ?? email.split('@')[0],
-          roles: [invite.role_name],
-          emailConfirm: true,
-        },
-        invite.created_by,
-      );
-      createdUserId = (createResult as unknown as Record<string, unknown>)?.id as string | undefined;
+      return await this.createAccountAndLogin({
+        email,
+        password,
+        displayName,
+        roleName: invite.role_name,
+        createdBy: invite.created_by,
+      });
     } catch (err) {
       // Unclaim the invite so it can be retried
       await this.db.rawQuery(
@@ -184,6 +182,49 @@ export class InviteService {
       this.logger.error(`Failed to create user for invite ${invite.id}: ${message}`);
       throw new BadRequestException(`Account creation failed: ${message}`);
     }
+  }
+
+  async signupPublic(email: string, password: string, displayName?: string) {
+    return this.createAccountAndLogin({
+      email,
+      password,
+      displayName,
+      roleName: 'member',
+      createdBy: 'self-signup',
+    });
+  }
+
+  private async resolveInviteRole(createdBy: string): Promise<'builder' | 'member'> {
+    const result = await this.db.rawQuery(
+      `SELECT lower(email) AS email FROM authz.users WHERE id = $1 LIMIT 1`,
+      [createdBy],
+    );
+    const rows = (result.data as Array<{ email: string | null }> | null) ?? [];
+    const creatorEmail = rows[0]?.email ?? null;
+    if (creatorEmail && getBuilderInviterEmails().includes(creatorEmail)) {
+      return 'builder';
+    }
+    return 'member';
+  }
+
+  private async createAccountAndLogin(input: {
+    email: string;
+    password: string;
+    displayName?: string;
+    roleName: string;
+    createdBy: string;
+  }) {
+    const createResult = await this.authService.createUser(
+      {
+        email: input.email,
+        password: input.password,
+        displayName: input.displayName ?? input.email.split('@')[0],
+        roles: input.roleName === 'builder' ? ['member', 'builder'] : [input.roleName],
+        emailConfirm: true,
+      },
+      input.createdBy,
+    );
+    const createdUserId = (createResult as unknown as Record<string, unknown>)?.id as string | undefined;
 
     // Seed a 30-day trial subscription for the newly created user.
     // Non-fatal if it errors: the user is created and can recover; billing cron
@@ -193,7 +234,7 @@ export class InviteService {
         await this.billing.ensureSubscription(createdUserId);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        this.logger.error(`ensureSubscription failed for new invite user ${createdUserId}: ${message}`);
+        this.logger.error(`ensureSubscription failed for new user ${createdUserId}: ${message}`);
       }
 
       // .edu student verification — fires when the signup email's domain suffix
@@ -201,24 +242,45 @@ export class InviteService {
       // so Phase 4 student-Price routing kicks in for any custom analyst /
       // instrument they author. Re-checked monthly by billing-lifecycle.cron.
       try {
-        if (matchesEduDomain(email, this.billingConfig.studentEduAllowedDomains)) {
+        if (matchesEduDomain(input.email, this.billingConfig.studentEduAllowedDomains)) {
           await this.db.rawQuery(
             `UPDATE authz.users
              SET is_student = true, edu_email = $2, edu_last_verified_at = now()
              WHERE id = $1`,
-            [createdUserId, email],
+            [createdUserId, input.email],
           );
-          this.logger.log(`Student verified at signup: userId=${createdUserId} email=${email}`);
+          this.logger.log(`Student verified at signup: userId=${createdUserId} email=${input.email}`);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         this.logger.error(`.edu verification failed for ${createdUserId}: ${message}`);
       }
+
+      if (input.roleName === 'builder') {
+        await this.bootstrapBuilderProfile(createdUserId);
+      }
     }
 
     // Auto-login and return JWT
-    const loginResult = await this.authService.login({ email, password });
+    const loginResult = await this.authService.login({ email: input.email, password: input.password });
     return loginResult;
+  }
+
+  private async bootstrapBuilderProfile(userId: string): Promise<void> {
+    try {
+      await this.db.rawQuery(
+        `INSERT INTO prediction.user_learning_profiles (user_id, mastery_level, preferred_level)
+         VALUES ($1, 'builder', 'builder')
+         ON CONFLICT (user_id) DO UPDATE
+           SET mastery_level = 'builder',
+               preferred_level = 'builder',
+               updated_at = now()`,
+        [userId],
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Builder profile bootstrap failed for ${userId}: ${message}`);
+    }
   }
 
   /**
@@ -234,9 +296,11 @@ export class InviteService {
        ORDER BY CASE rr.name
          WHEN 'super-admin' THEN 1
          WHEN 'owner' THEN 2
-         WHEN 'member' THEN 3
-         WHEN 'beta_reader' THEN 4
-         ELSE 5
+         WHEN 'admin' THEN 3
+         WHEN 'builder' THEN 4
+         WHEN 'member' THEN 5
+         WHEN 'beta_reader' THEN 6
+         ELSE 7
        END
        LIMIT 1`,
       [userId],

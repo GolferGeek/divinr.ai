@@ -1,8 +1,8 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Inject,
   Param,
@@ -35,6 +35,12 @@ interface InviteBody {
 
 interface SignupWithInviteBody {
   token?: string;
+  email?: string;
+  password?: string;
+  displayName?: string;
+}
+
+interface SignupBody {
   email?: string;
   password?: string;
   displayName?: string;
@@ -125,8 +131,7 @@ export class AuthController {
   // Effort: beta-user-share-path
 
   /**
-   * Create an invite link for a beta reader.
-   * Requires admin or owner role.
+   * Create an invite link for a new member.
    */
   @UseGuards(JwtAuthGuard)
   @Post('invites')
@@ -135,8 +140,6 @@ export class AuthController {
     @Body() body: InviteBody,
   ) {
     if (!req.user?.id) throw new UnauthorizedException('Authentication required');
-    // Only admin/owner can create invites
-    await this.requireInviteAccess(req.user.id);
     return this.inviteService.createInvite(req.user.id, body.email);
   }
 
@@ -149,8 +152,7 @@ export class AuthController {
     @Req() req: { user?: { id: string } },
   ) {
     if (!req.user?.id) throw new UnauthorizedException('Authentication required');
-    await this.requireInviteAccess(req.user.id);
-    return this.inviteService.listInvites();
+    return this.inviteService.listInvites(req.user.id);
   }
 
   /**
@@ -163,8 +165,7 @@ export class AuthController {
     @Param('id') id: string,
   ) {
     if (!req.user?.id) throw new UnauthorizedException('Authentication required');
-    await this.requireInviteAccess(req.user.id);
-    return this.inviteService.revokeInvite(id);
+    return this.inviteService.revokeInvite(id, req.user.id);
   }
 
   /**
@@ -178,7 +179,7 @@ export class AuthController {
 
   /**
    * Sign up using an invite token. Public — no auth required.
-   * Creates a Supabase account, assigns beta_reader role, returns JWT.
+   * Creates a Supabase account, assigns the invite role, returns JWT.
    */
   @Post('signup-with-invite')
   async signupWithInvite(@Body() body: SignupWithInviteBody) {
@@ -186,6 +187,18 @@ export class AuthController {
     if (!body.email) throw new UnauthorizedException('email is required');
     if (!body.password) throw new UnauthorizedException('password is required');
     return this.inviteService.acceptInvite(body.token, body.email, body.password, body.displayName);
+  }
+
+  /**
+   * Public organic signup. Creates a normal member account and starts the
+   * standard trial/subscription bootstrap. Organic signups cannot author custom
+   * analysts or instruments unless a founder later grants builder access.
+   */
+  @Post('signup')
+  async signup(@Body() body: SignupBody) {
+    if (!body.email) throw new BadRequestException('email is required');
+    if (!body.password) throw new BadRequestException('password is required');
+    return this.inviteService.signupPublic(body.email, body.password, body.displayName);
   }
 
   /**
@@ -246,14 +259,5 @@ export class AuthController {
       email: body.email,
       password: body.password,
     });
-  }
-
-  // ─── Helpers ───────────────────────────────────────────────────
-
-  private async requireInviteAccess(userId: string): Promise<void> {
-    const role = await this.inviteService.getUserRole(userId);
-    if (!role || !['super-admin', 'owner', 'admin'].includes(role)) {
-      throw new ForbiddenException('Only organization owners or admins can manage invites');
-    }
   }
 }

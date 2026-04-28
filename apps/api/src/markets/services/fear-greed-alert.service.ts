@@ -7,6 +7,8 @@ import type { FearGreedAlert } from '../markets.types';
 
 const CONFIDENCE_THRESHOLD = 0.7;
 const MAX_UNREAD_ALERTS = 5;
+const DEFAULT_REACTION_WINDOW_MINUTES = 30;
+const ALERT_VISIBILITY_AFTER_WINDOW_MINUTES = 90;
 
 @Injectable()
 export class FearGreedAlertService {
@@ -151,8 +153,14 @@ export class FearGreedAlertService {
     // Check alert cap: max unread alerts per user
     const countResult = await this.db.rawQuery(
       `select count(*) as cnt from prediction.fear_greed_alerts
-       where user_id = $1 and is_read = false`,
-      [userId],
+       where user_id = $1
+         and is_read = false
+         and ${this.activeAlertPredicate()}`,
+      [
+        userId,
+        DEFAULT_REACTION_WINDOW_MINUTES,
+        ALERT_VISIBILITY_AFTER_WINDOW_MINUTES,
+      ],
     );
     const count = parseInt(
       ((countResult.data as Array<{ cnt: string }> | null) ?? [])[0]?.cnt ?? '0',
@@ -236,16 +244,24 @@ export class FearGreedAlertService {
 
   // ─── Read API ─────────────────────────────────────────────────
 
+  private activeAlertPredicate(): string {
+    return `created_at + ((coalesce(estimated_reaction_window_minutes, $2) + $3) * interval '1 minute') > now()`;
+  }
+
   async getAlerts(userId: string, unreadOnly = false): Promise<FearGreedAlert[]> {
     const whereClause = unreadOnly
-      ? 'where user_id = $1 and is_read = false'
-      : 'where user_id = $1';
+      ? `where user_id = $1 and is_read = false and ${this.activeAlertPredicate()}`
+      : `where user_id = $1 and ${this.activeAlertPredicate()}`;
     const result = await this.db.rawQuery(
       `select * from prediction.fear_greed_alerts
        ${whereClause}
        order by created_at desc
        limit 100`,
-      [userId],
+      [
+        userId,
+        DEFAULT_REACTION_WINDOW_MINUTES,
+        ALERT_VISIBILITY_AFTER_WINDOW_MINUTES,
+      ],
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as FearGreedAlert[] | null) ?? [];
@@ -254,8 +270,14 @@ export class FearGreedAlertService {
   async getUnreadCount(userId: string): Promise<number> {
     const result = await this.db.rawQuery(
       `select count(*) as cnt from prediction.fear_greed_alerts
-       where user_id = $1 and is_read = false`,
-      [userId],
+       where user_id = $1
+         and is_read = false
+         and ${this.activeAlertPredicate()}`,
+      [
+        userId,
+        DEFAULT_REACTION_WINDOW_MINUTES,
+        ALERT_VISIBILITY_AFTER_WINDOW_MINUTES,
+      ],
     );
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Array<{ cnt: string }> | null) ?? [];

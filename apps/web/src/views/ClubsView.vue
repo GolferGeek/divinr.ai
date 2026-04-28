@@ -5,15 +5,18 @@ import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChi
 import { useClubStore } from '../stores/club.store';
 import { useTournamentStore } from '../stores/tournament.store';
 import { useCanWrite } from '../composables/useCanWrite';
+import { useMasteryStore } from '../stores/mastery.store';
 import { pluralize, formatBadge } from '../utils/format';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useClubStore();
 const tstore = useTournamentStore();
 const { canWrite } = useCanWrite();
+const mastery = useMasteryStore();
 const router = useRouter();
 const tab = ref<'mine' | 'discover'>('mine');
 const discoverSort = ref('ranking_score');
+const canCreateCommunity = computed(() => canWrite && mastery.canViewLevel('community_creation'));
 
 onMounted(async () => {
   store.fetchMyClubs();
@@ -45,7 +48,7 @@ function formatStartShort(iso: string): string {
       <h1>Clubs</h1>
       <div class="header-actions">
         <IonButton size="small" fill="outline" title="Cross-club leaderboard across all members." @click="router.push('/clubs/rankings')">Rankings</IonButton>
-        <IonButton v-if="canWrite" size="small" @click="router.push('/clubs/create')">Create Club</IonButton>
+        <IonButton v-if="canCreateCommunity" size="small" @click="router.push('/clubs/create')">Create Club</IonButton>
       </div>
     </div>
     <IonSegment v-model="tab">
@@ -54,7 +57,7 @@ function formatStartShort(iso: string): string {
     </IonSegment>
 
     <div v-if="tab === 'mine'" class="tab-content">
-      <div v-if="store.myClubs.length === 0" class="empty">No clubs yet. Create one or join with an invite code!</div>
+      <div v-if="store.myClubs.length === 0" class="empty">No clubs yet. Join an open club or use an invite code.</div>
       <IonCard v-for="c in store.myClubs" :key="c.id" @click="router.push(`/clubs/${c.id}`)">
         <IonCardHeader>
           <div class="my-club-header-row">

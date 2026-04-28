@@ -4,6 +4,7 @@ import {
   IonPage, IonHeader, IonToolbar, IonTitle,
   IonContent, IonIcon, IonLabel, IonChip, IonButton,
   IonButtons, IonPopover, IonList, IonItem, IonModal,
+  IonInput, IonText,
 } from '@ionic/vue';
 import {
   gridOutline, statsChartOutline, peopleOutline, playOutline,
@@ -14,7 +15,7 @@ import {
   chatbubblesOutline, trophyOutline, peopleCircleOutline,
   chevronDownOutline, chevronForwardOutline, compassOutline,
   createOutline, analyticsOutline, ellipsisHorizontalOutline,
-  schoolOutline,
+  schoolOutline, mailOutline,
 } from 'ionicons/icons';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useAuthStore } from '../stores/auth.store';
@@ -55,6 +56,11 @@ const router = useRouter();
 const sidebarOpen = ref(false);
 const learningPanelOpen = ref(false);
 const mobileViewport = ref(typeof window !== 'undefined' ? window.innerWidth < 960 : false);
+const inviteModalOpen = ref(false);
+const inviteEmail = ref('');
+const inviteLink = ref('');
+const inviteError = ref('');
+const inviteLoading = ref(false);
 
 const collapsedGroups = ref<Record<string, boolean>>({});
 
@@ -73,6 +79,7 @@ const visibleGroups = computed(() =>
       ...g,
       items: g.items.filter((i) => {
         if (i.adminOnly && !auth.isAdmin) return false;
+        if (i.authoringOnly && !auth.canAuthorContent) return false;
         return mastery.canViewLevel(i.minLevel, i.alwaysVisible);
       }),
     }))
@@ -99,6 +106,47 @@ function logout() {
   billing.clear();
   mastery.clear();
   router.push('/login');
+}
+
+function openInviteModal() {
+  inviteError.value = '';
+  inviteLink.value = '';
+  inviteEmail.value = '';
+  inviteModalOpen.value = true;
+}
+
+async function createInviteLink() {
+  inviteError.value = '';
+  inviteLink.value = '';
+  inviteLoading.value = true;
+  try {
+    const response = await fetch('/api/auth/invites', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${auth.token}`,
+      },
+      body: JSON.stringify({ email: inviteEmail.value.trim() || undefined }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({})) as { message?: string };
+      inviteError.value = data.message ?? `Invite failed (${response.status})`;
+      return;
+    }
+    const result = await response.json() as { inviteUrl?: string; token?: string };
+    inviteLink.value = result.token
+      ? `${window.location.origin}/signup/${result.token}`
+      : result.inviteUrl ?? '';
+  } catch (err) {
+    inviteError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    inviteLoading.value = false;
+  }
+}
+
+async function copyInviteLink() {
+  if (!inviteLink.value) return;
+  await navigator.clipboard.writeText(inviteLink.value);
 }
 
 function handleNavClick(path: string) {
@@ -244,6 +292,14 @@ onBeforeUnmount(() => {
         </div>
         <div v-if="showLearningPanelNav" class="sidebar-learning">
           <button
+            class="mastery-toggle-btn"
+            type="button"
+            :aria-pressed="mastery.masteryDisabled"
+            @click="mastery.toggleMasteryDisabled()"
+          >
+            {{ mastery.masteryDisabled ? 'Coddle me' : 'Stop coddling me' }}
+          </button>
+          <button
             class="learning-nav-btn"
             :class="{ active: learningPanelOpen || route.path === '/chat' }"
             type="button"
@@ -363,6 +419,10 @@ onBeforeUnmount(() => {
                       <ion-icon slot="start" :icon="compassOutline" />
                       <ion-label>Retake onboarding tour</ion-label>
                     </ion-item>
+                    <ion-item button :detail="false" @click="openInviteModal">
+                      <ion-icon slot="start" :icon="mailOutline" />
+                      <ion-label>Invite a friend</ion-label>
+                    </ion-item>
                     <ion-item
                       v-if="auth.isSuperAdmin"
                       button
@@ -419,6 +479,67 @@ onBeforeUnmount(() => {
         :instrument-id="learningPanelInstrumentId"
         @close="learningPanelOpen = false"
       />
+    </IonModal>
+    <IonModal
+      :is-open="inviteModalOpen"
+      @did-dismiss="inviteModalOpen = false"
+      class="invite-modal"
+    >
+      <ion-content class="ion-padding">
+        <div class="invite-card">
+          <h2>Invite a Friend</h2>
+          <p>
+            Send someone a signup link. Their account level depends on who creates the invite.
+          </p>
+
+          <ion-item>
+            <ion-input
+              v-model="inviteEmail"
+              type="email"
+              label="Email"
+              label-placement="floating"
+              placeholder="optional"
+              autocomplete="email"
+            />
+          </ion-item>
+
+          <ion-text v-if="inviteError" color="danger">
+            <p>{{ inviteError }}</p>
+          </ion-text>
+
+          <ion-button
+            expand="block"
+            class="ion-margin-top"
+            :disabled="inviteLoading"
+            @click="createInviteLink"
+          >
+            {{ inviteLoading ? 'Creating…' : 'Create Invite Link' }}
+          </ion-button>
+
+          <div v-if="inviteLink" class="invite-link-block">
+            <ion-item>
+              <ion-input
+                :value="inviteLink"
+                label="Invite Link"
+                label-placement="stacked"
+                readonly
+              />
+            </ion-item>
+            <ion-button expand="block" fill="outline" @click="copyInviteLink">
+              Copy Link
+            </ion-button>
+          </div>
+
+          <ion-button
+            expand="block"
+            fill="clear"
+            class="ion-margin-top"
+            @click="inviteModalOpen = false"
+          >
+            Close
+          </ion-button>
+        </div>
+      </ion-content>
     </IonModal>
     <WelcomeModal />
     <DocentPanel />
@@ -518,8 +639,8 @@ onBeforeUnmount(() => {
 }
 
 .learning-panel-modal {
-  --width: min(100vw, 460px);
-  --max-width: 460px;
+  --width: min(92vw, 760px);
+  --max-width: 760px;
   --height: 100%;
   --border-radius: 18px 0 0 18px;
 }
@@ -554,6 +675,32 @@ onBeforeUnmount(() => {
   background: var(--ion-color-primary-shade, #3171e0);
 }
 
+.invite-modal {
+  --width: min(92vw, 460px);
+  --max-width: 460px;
+  --height: auto;
+  --border-radius: 8px;
+}
+
+.invite-card {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.invite-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+}
+
+.invite-card p {
+  color: var(--ion-color-medium, #666);
+  margin: 0 0 16px;
+}
+
+.invite-link-block {
+  margin-top: 16px;
+}
+
 .tour-progress-badge {
   position: absolute;
   top: 4px;
@@ -580,6 +727,23 @@ onBeforeUnmount(() => {
 .sidebar-learning {
   padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid #e0e0e0;
+}
+
+.mastery-toggle-btn {
+  width: 100%;
+  min-height: 38px;
+  margin-bottom: 6px;
+  border: 1px solid var(--ion-color-medium, #92949c);
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.mastery-toggle-btn:hover {
+  background: #f4f5f8;
 }
 
 .learning-nav-btn {

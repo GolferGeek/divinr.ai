@@ -579,6 +579,12 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       "The person who invited you has set up a starter profile for you. Pick a " +
       "password, check the handle, and you're in.",
   },
+  'auth.signup': {
+    title: 'Create your account',
+    body:
+      'Start with the core market tools, paper portfolios, clubs, tournaments, ' +
+      'and the Learning Panel. You can add more advanced surfaces later.',
+  },
   'welcome-modal': {
     title: 'Thanks for coming',
     body:

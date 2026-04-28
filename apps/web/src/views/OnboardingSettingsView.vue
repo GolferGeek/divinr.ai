@@ -71,12 +71,14 @@ const levelOptions = computed(() => {
       label: 'Community Creation',
       body: 'Reveal club and tournament creation plus messaging workflows.',
     },
-    {
+  ];
+  if (auth.canAuthorContent) {
+    options.push({
       level: 'builder',
       label: 'Builder',
       body: 'Reveal research, analysts, and authored-content surfaces.',
-    },
-  ];
+    });
+  }
   if (auth.isAdmin) {
     options.push({
       level: 'operator',

@@ -4,11 +4,13 @@ import { useRoute, useRouter } from 'vue-router';
 import { IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonChip, IonNote } from '@ionic/vue';
 import { useTournamentStore } from '../stores/tournament.store';
 import { useCanWrite } from '../composables/useCanWrite';
+import { useMasteryStore } from '../stores/mastery.store';
 import AvatarStack from '../components/AvatarStack.vue';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useTournamentStore();
 const { canWrite } = useCanWrite();
+const mastery = useMasteryStore();
 const router = useRouter();
 const route = useRoute();
 const scopeFilter = ref<string>('');
@@ -17,6 +19,7 @@ const now = ref(Date.now());
 let tick: ReturnType<typeof setInterval> | null = null;
 
 const showNoActiveBanner = computed(() => route.query.reason === 'no-active-entry');
+const canCreateCommunity = computed(() => canWrite && mastery.canViewLevel('community_creation'));
 
 function dismissBanner() {
   router.replace({ path: route.path });
@@ -72,7 +75,7 @@ function pluralPlayers(n: number): string {
   <div class="tournaments-page">
     <div class="page-header">
       <h1>Tournaments</h1>
-      <IonButton v-if="canWrite" size="small" @click="router.push('/tournaments/create')">Create Tournament</IonButton>
+      <IonButton v-if="canCreateCommunity" size="small" @click="router.push('/tournaments/create')">Create Tournament</IonButton>
     </div>
 
     <div v-if="showNoActiveBanner" class="no-active-banner" role="status">
@@ -102,7 +105,7 @@ function pluralPlayers(n: number): string {
     <div v-if="store.loading" class="loading">Loading tournaments...</div>
 
     <div v-else-if="store.tournaments.length === 0" class="empty">
-      No tournaments found. Create one to get started!
+      No tournaments found.
     </div>
 
     <div v-else class="tournament-list">

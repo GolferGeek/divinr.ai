@@ -28,6 +28,12 @@ export const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/signup',
+      name: 'signup',
+      component: () => import('../views/SignupView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/join',
       name: 'club-join-signup',
       component: () => import('../views/ClubJoinSignupView.vue'),
@@ -135,8 +141,12 @@ router.beforeEach(async (to) => {
   if (policy.adminOnly && !auth.isAdmin) {
     return buildMasteryFallback(to.fullPath, policy.minLevel);
   }
+  if (policy.authoringOnly && !auth.canAuthorContent) {
+    return buildMasteryFallback(to.fullPath, policy.minLevel);
+  }
 
   const mastery = useMasteryStore();
+  if (mastery.masteryDisabled) return true;
   if (!mastery.loaded && !mastery.loading) {
     try {
       await mastery.fetch();

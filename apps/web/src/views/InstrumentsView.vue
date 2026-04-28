@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useInstrumentsStore } from '../stores/instruments.store';
 import { useDomainStore } from '../stores/domain.store';
+import { useAuthStore } from '../stores/auth.store';
 import {
   IonGrid, IonRow, IonCol, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonButton, IonChip, IonModal, IonItem, IonInput, IonLabel,
@@ -13,6 +14,7 @@ import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 
 const store = useInstrumentsStore();
 const domain = useDomainStore();
+const auth = useAuthStore();
 const router = useRouter();
 const dialog = ref(false);
 const newSymbol = ref('');
@@ -49,7 +51,7 @@ function formatField(value: unknown, type: string): string {
   <div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <h1 style="margin:0">Research</h1>
-      <ion-button color="primary" @click="dialog = true">
+      <ion-button v-if="auth.canAuthorContent" color="primary" @click="dialog = true">
         <ion-icon slot="start" :icon="addOutline" />
         Add Instrument
       </ion-button>

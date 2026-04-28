@@ -20,6 +20,7 @@
 insert into authz.rbac_roles (id, name, display_name, description, is_system) values
   ('role-super-admin', 'super-admin', 'Super Admin', 'Full access across all organizations',           true),
   ('role-owner',       'owner',       'Owner',       'Owns and manages an organization',               true),
+  ('role-builder',     'builder',     'Builder',     'Can author custom analysts and instruments',     true),
   ('role-member',      'member',      'Member',      'Standard member of an organization',             true),
   ('role-beta-reader', 'beta_reader', 'Beta Reader', 'Read-only invited user',                        true),
   ('role-admin',       'admin',       'Admin',       'Platform admin — full access',                   true),
@@ -32,6 +33,8 @@ insert into authz.rbac_role_permissions (role_id, permission_id) values
   ('role-super-admin', 'markets-instruments-write'),
   ('role-owner',       'markets-instruments-read'),
   ('role-owner',       'markets-instruments-write'),
+  ('role-builder',     'markets-instruments-read'),
+  ('role-builder',     'markets-instruments-write'),
   ('role-member',      'markets-instruments-read'),
   ('role-member',      'markets-instruments-write'),
   ('role-beta-reader', 'markets-instruments-read'),

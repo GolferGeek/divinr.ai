@@ -44,6 +44,14 @@ const tradeRecs: Array<{
 
 let notifCounter = 0;
 
+function isActiveAlert(alert: AlertRow): boolean {
+  const defaultWindowMinutes = 30;
+  const afterWindowMinutes = 90;
+  const windowMinutes = alert.estimated_reaction_window_minutes ?? defaultWindowMinutes;
+  const expiresAt = new Date(alert.created_at).getTime() + (windowMinutes + afterWindowMinutes) * 60_000;
+  return expiresAt > Date.now();
+}
+
 function stubRawQuery(sql: string, params?: unknown[]) {
   const trimmed = sql.replace(/\s+/g, ' ').trim();
 
@@ -89,8 +97,26 @@ function stubRawQuery(sql: string, params?: unknown[]) {
   // Unread count
   if (trimmed.includes('count(*)') && trimmed.includes('from prediction.fear_greed_alerts')) {
     const userId = (params as string[])[0];
-    const count = alerts.filter(a => a.user_id === userId && !a.is_read).length;
+    const requiresActive = trimmed.includes('estimated_reaction_window_minutes');
+    const count = alerts.filter(a => (
+      a.user_id === userId
+      && !a.is_read
+      && (!requiresActive || isActiveAlert(a))
+    )).length;
     return { data: [{ cnt: String(count) }], error: null };
+  }
+
+  // Read active alerts
+  if (trimmed.startsWith('select * from prediction.fear_greed_alerts')) {
+    const userId = (params as string[])[0];
+    const unreadOnly = trimmed.includes('is_read = false');
+    const rows = alerts
+      .filter(a => a.user_id === userId)
+      .filter(a => !unreadOnly || !a.is_read)
+      .filter(isActiveAlert)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, 100);
+    return { data: rows, error: null };
   }
 
   // Insert alert
@@ -310,6 +336,52 @@ function resetStores() {
   assert(alerts[0].trade_action === null, 'trade action is null when no rec');
   assert(alerts[0].entry_price === null, 'entry price is null when no rec');
   assert(notifications[0].summary?.includes('Analysis pending') ?? false, 'notification summary mentions "Analysis pending"');
+
+  // ─── Test (h): expired alerts are hidden and do not count ─────────
+  console.log('Test (h): expired alerts are hidden after reaction window + grace');
+  resetStores();
+  const now = Date.now();
+  alerts.push({
+    id: 'active-alert', user_id: 'user-exp', predictor_id: 'pred-active',
+    instrument_id: 'inst-exp', symbol: 'AMD', crowd_reaction: 'fear_trigger',
+    crowd_reaction_confidence: 0.8, estimated_reaction_window_minutes: 30,
+    trade_action: 'sell', entry_price: 100, stop_loss: 105, take_profit: 90,
+    notification_id: null, is_read: false, created_at: new Date(now - 119 * 60_000).toISOString(),
+  });
+  alerts.push({
+    id: 'expired-alert', user_id: 'user-exp', predictor_id: 'pred-expired',
+    instrument_id: 'inst-exp', symbol: 'AMD', crowd_reaction: 'greed_trigger',
+    crowd_reaction_confidence: 0.8, estimated_reaction_window_minutes: 30,
+    trade_action: 'buy', entry_price: 100, stop_loss: 95, take_profit: 110,
+    notification_id: null, is_read: false, created_at: new Date(now - 121 * 60_000).toISOString(),
+  });
+
+  const visible = await service.getAlerts('user-exp');
+  assert(visible.length === 1, 'only active alert returned');
+  assert(visible[0].id === 'active-alert', 'expired alert hidden from list');
+  const unread = await service.getUnreadCount('user-exp');
+  assert(unread === 1, 'expired alert does not count as unread');
+
+  // ─── Test (i): expired unread alerts do not block cap ─────────────
+  console.log('Test (i): expired unread alerts do not block alert cap');
+  resetStores();
+  positions.push({ user_id: 'user-cap-expired', instrument_id: 'inst-1', status: 'open' });
+  for (let i = 0; i < 5; i++) {
+    alerts.push({
+      id: `expired-cap-${i}`, user_id: 'user-cap-expired', predictor_id: `old-expired-${i}`,
+      instrument_id: 'inst-1', symbol: 'TEST', crowd_reaction: 'fear_trigger',
+      crowd_reaction_confidence: 0.8, estimated_reaction_window_minutes: 30,
+      trade_action: 'sell', entry_price: 100, stop_loss: 105, take_profit: 90,
+      notification_id: null, is_read: false, created_at: new Date(now - 121 * 60_000).toISOString(),
+    });
+  }
+  predictors.push({
+    id: 'pred-cap-expired', instrument_id: 'inst-1', crowd_reaction: 'fear_trigger',
+    crowd_reaction_confidence: 0.9, crowd_reaction_rationale: 'Fresh signal',
+    estimated_reaction_window_minutes: 15, symbol: 'TEST', instrument_name: 'Test Inc',
+  });
+  const expiredCapCount = await service.evaluatePredictors(['pred-cap-expired']);
+  assert(expiredCapCount === 1, 'fresh alert allowed when old unread alerts expired');
 
   // ─── Summary ──────────────────────────────────────────────────────
   console.log(`\n${passed} passed, ${failed} failed\n`);

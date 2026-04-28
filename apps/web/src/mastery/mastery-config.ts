@@ -35,6 +35,7 @@ export interface MasteryNavItem {
   minLevel: MasteryLevel;
   adminOnly?: boolean;
   alwaysVisible?: boolean;
+  authoringOnly?: boolean;
 }
 
 export interface MasteryNavGroup {
@@ -48,6 +49,7 @@ export interface MasteryRoutePolicy {
   minLevel: MasteryLevel;
   adminOnly?: boolean;
   alwaysVisible?: boolean;
+  authoringOnly?: boolean;
   notes?: string;
 }
 
@@ -86,15 +88,15 @@ export const masteryNavGroups: MasteryNavGroup[] = [
   {
     label: 'Community',
     items: [
-      { title: 'Clubs', icon: peopleCircleOutline, to: '/clubs', minLevel: 'competitive_participation' },
-      { title: 'Tournaments', icon: trophyOutline, to: '/tournaments', minLevel: 'competitive_participation' },
+      { title: 'Clubs', icon: peopleCircleOutline, to: '/clubs', minLevel: 'core_trading' },
+      { title: 'Tournaments', icon: trophyOutline, to: '/tournaments', minLevel: 'core_trading' },
       { title: 'Messages', icon: chatbubblesOutline, to: '/messages', minLevel: 'community_creation' },
     ],
   },
   {
     label: 'Settings',
     items: [
-      { title: 'Your Content', icon: createOutline, to: '/settings/authored-content', minLevel: 'builder' },
+      { title: 'Your Content', icon: createOutline, to: '/settings/authored-content', minLevel: 'builder', authoringOnly: true },
       { title: 'Onboarding', icon: schoolOutline, to: '/settings/onboarding', minLevel: 'competitive_participation' },
       { title: 'Visibility & Social', icon: shieldOutline, to: '/settings/social-opt-outs', minLevel: 'competitive_participation' },
       { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine', minLevel: 'operator', adminOnly: true },
@@ -143,25 +145,26 @@ export const masteryRoutePolicies: MasteryRoutePolicy[] = [
   { path: '/notifications', minLevel: 'core_trading' },
   { path: '/fear-greed-alerts', minLevel: 'core_trading' },
   { path: '/terms', minLevel: 'core_trading', alwaysVisible: true },
-  { path: '/tournaments', minLevel: 'competitive_participation' },
+  { path: '/tournaments', minLevel: 'core_trading' },
   { path: '/tournaments/history', minLevel: 'competitive_participation' },
-  { path: '/tournaments/invite', minLevel: 'competitive_participation' },
+  { path: '/tournaments/invite', minLevel: 'core_trading' },
   { path: '/tournaments/create', minLevel: 'community_creation' },
-  { path: '/tournaments/results', minLevel: 'competitive_participation' },
-  { path: '/clubs', minLevel: 'competitive_participation' },
-  { path: '/clubs/rankings', minLevel: 'competitive_participation' },
-  { path: '/clubs/compare', minLevel: 'competitive_participation' },
-  { path: '/clubs/invite', minLevel: 'competitive_participation' },
+  { path: '/tournaments/results', minLevel: 'core_trading' },
+  { path: '/clubs', minLevel: 'core_trading' },
+  { path: '/clubs/rankings', minLevel: 'core_trading' },
+  { path: '/clubs/compare', minLevel: 'core_trading' },
+  { path: '/clubs/invite', minLevel: 'core_trading' },
   { path: '/clubs/create', minLevel: 'community_creation' },
-  { path: '/clubs/:detail', minLevel: 'competitive_participation' },
+  { path: '/clubs/:detail', minLevel: 'core_trading' },
   { path: '/clubs/:clubId/curricula', minLevel: 'community_creation' },
   { path: '/clubs/:clubId/mentoring', minLevel: 'community_creation' },
   { path: '/messages', minLevel: 'community_creation' },
-  { path: '/settings/authored-content', minLevel: 'builder' },
+  { path: '/settings/authored-content', minLevel: 'builder', authoringOnly: true },
   { path: '/analysts', minLevel: 'builder' },
+  { path: '/analysts/:detail/contract', minLevel: 'builder', authoringOnly: true },
   { path: '/analysts/:detail', minLevel: 'builder' },
   { path: '/instruments', minLevel: 'builder' },
-  { path: '/instruments/:detail/contract', minLevel: 'builder' },
+  { path: '/instruments/:detail/contract', minLevel: 'builder', authoringOnly: true },
   { path: '/instruments/:detail', minLevel: 'core_trading' },
   { path: '/performance', minLevel: 'core_trading' },
   { path: '/settings/onboarding', minLevel: 'core_trading', alwaysVisible: true },

@@ -6,6 +6,8 @@ import { NIL_UUID } from '@orchestrator-ai/transport-types';
 import { MarketsSchemaService } from '../schema/markets-schema.service';
 import type { NotificationEventType, NotificationUrgency, Notification } from '../markets.types';
 
+const NOTIFICATION_VISIBLE_HOURS = 24;
+
 export interface NotifyInput {
   event_type: NotificationEventType;
   urgency: NotificationUrgency;
@@ -75,14 +77,14 @@ export class NotificationService {
 
   async getNotifications(userId: string, unreadOnly = false): Promise<Notification[]> {
     const whereClause = unreadOnly
-      ? 'where user_id = $1 and is_read = false'
-      : 'where user_id = $1';
+      ? `where user_id = $1 and is_read = false and ${this.activeNotificationPredicate()}`
+      : `where user_id = $1 and ${this.activeNotificationPredicate()}`;
     const result = await this.db.rawQuery(
       `select * from prediction.notifications
        ${whereClause}
        order by created_at desc
        limit 100`,
-      [userId],
+      [userId, NOTIFICATION_VISIBLE_HOURS],
     );
     if (result.error) throw new Error(result.error.message);
     return (result.data as Notification[] | null) ?? [];
@@ -91,12 +93,18 @@ export class NotificationService {
   async getUnreadCount(userId: string): Promise<number> {
     const result = await this.db.rawQuery(
       `select count(*) as cnt from prediction.notifications
-       where user_id = $1 and is_read = false`,
-      [userId],
+       where user_id = $1
+         and is_read = false
+         and ${this.activeNotificationPredicate()}`,
+      [userId, NOTIFICATION_VISIBLE_HOURS],
     );
     if (result.error) throw new Error(result.error.message);
     const rows = (result.data as Array<{ cnt: string }> | null) ?? [];
     return parseInt(rows[0]?.cnt ?? '0', 10);
+  }
+
+  private activeNotificationPredicate(): string {
+    return `created_at >= now() - ($2 * interval '1 hour')`;
   }
 
   async markRead(id: string, userId: string): Promise<void> {

@@ -41,6 +41,10 @@ INSERT INTO authz.rbac_roles (id, name, display_name, description, is_system)
 VALUES ('role-admin', 'admin', 'Admin', 'Platform admin — full access', true)
 ON CONFLICT (id) DO NOTHING;
 
+INSERT INTO authz.rbac_roles (id, name, display_name, description, is_system)
+VALUES ('role-builder', 'builder', 'Builder', 'Can author custom analysts and instruments', true)
+ON CONFLICT (id) DO NOTHING;
+
 -- 4b. Grant role-admin so Phase 5.7 admin specs can exercise admin surfaces.
 INSERT INTO authz.rbac_user_roles (user_id, role_id, assigned_by)
 SELECT u.id, 'role-admin', 'testing-team-seed'
