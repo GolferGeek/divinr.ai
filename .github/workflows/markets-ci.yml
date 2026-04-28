@@ -68,6 +68,7 @@ jobs:
       CONFIG_PROVIDER: local
       MARKETS_DEV_AUTH_BYPASS: 'true'
       MARKETS_ENABLE_LLM: 'true'
+      MARKETS_DISABLE_PREDICTION_GENERATION: 'false'
       API_PORT: '3100'
     steps:
       - name: Checkout
@@ -87,6 +88,9 @@ jobs:
 
       - name: Build workspace deps for the runner
         run: pnpm --filter @orchestratorai/planes... --filter @divinr/prediction-planes... run build
+
+      - name: Bootstrap API schema
+        run: pnpm --filter @divinr/api run bootstrap:schema
 
       - name: Markets integration suite
         run: pnpm --filter @divinr/api run test:markets:integration
