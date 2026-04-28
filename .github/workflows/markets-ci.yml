@@ -86,8 +86,8 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Build workspace deps for the runner
-        run: pnpm --filter @orchestratorai/planes... --filter @divinr/prediction-planes... run build
+      - name: Build workspace deps and API for the runner
+        run: pnpm --filter @orchestratorai/planes... --filter @divinr/prediction-planes... --filter @divinr/api run build
 
       - name: Bootstrap API schema
         run: pnpm --filter @divinr/api run bootstrap:schema
