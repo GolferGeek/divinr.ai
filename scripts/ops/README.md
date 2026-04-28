@@ -1,5 +1,22 @@
 # Divinr.ai Ops Scripts
 
+## Web assets served by nginx
+
+Nginx serves the built web app from `/var/www/divinr.ai` (owned by
+`www-data`). Nginx cannot read under `/home/golfergeek/...`, so the deploy
+flow rsyncs `apps/web/dist/` to `/var/www/divinr.ai/` after each web build:
+
+```bash
+sudo mkdir -p /var/www/divinr.ai
+sudo rsync -a --delete apps/web/dist/ /var/www/divinr.ai/
+sudo chown -R www-data:www-data /var/www/divinr.ai
+sudo chmod -R a+rX /var/www/divinr.ai
+```
+
+`spark-deploy.sh` runs these automatically after `pnpm --filter @divinr/web
+run build`. The nginx site config (`/etc/nginx/sites-enabled/divinr.ai`)
+must point at `root /var/www/divinr.ai;`.
+
 ## API + Stripe-listener systemd units (spark)
 
 Two units in `systemd/` boot the production stack on the spark machine:
@@ -56,7 +73,7 @@ journalctl -u divinr-api -f
 For a code-change deploy from on-spark, pull and rebuild first:
 
 ```bash
-git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build && bash scripts/ops/restart.sh
+git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build && sudo mkdir -p /var/www/divinr.ai && sudo rsync -a --delete apps/web/dist/ /var/www/divinr.ai/ && sudo chown -R www-data:www-data /var/www/divinr.ai && sudo chmod -R a+rX /var/www/divinr.ai && bash scripts/ops/restart.sh
 ```
 
 **Do not run `pnpm --filter @divinr/api run dev:up` on spark after

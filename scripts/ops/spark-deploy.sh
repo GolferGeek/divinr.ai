@@ -26,6 +26,10 @@ git pull
 $PNPM_BIN install
 $PNPM_BIN --filter @divinr/api run build
 $PNPM_BIN --filter @divinr/web run build
+sudo mkdir -p /var/www/divinr.ai
+sudo rsync -a --delete apps/web/dist/ /var/www/divinr.ai/
+sudo chown -R www-data:www-data /var/www/divinr.ai
+sudo chmod -R a+rX /var/www/divinr.ai
 bash scripts/ops/restart.sh
 '
 
