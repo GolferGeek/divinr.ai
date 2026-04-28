@@ -24,10 +24,19 @@ export const useMasteryStore = defineStore('mastery', () => {
   const currentLevel = computed<MasteryLevel>(() => profile.value?.currentLevel ?? DEFAULT_LEVEL);
   const preferredLevel = computed<MasteryLevel | null>(() => profile.value?.preferredLevel ?? null);
 
-  // Preserve operator visibility for real admin roles even if their stored
-  // learning profile has not been advanced yet.
+  // Preserve operator visibility for real admin roles only when they have not
+  // explicitly chosen a guided mastery level. Permissions are still enforced
+  // separately by auth role; this only controls shell/navigation visibility.
   const effectiveLevel = computed<MasteryLevel>(() => (
-    masteryDisabled.value ? 'operator' : auth.isAdmin ? 'operator' : auth.canAuthorContent ? 'builder' : currentLevel.value
+    masteryDisabled.value
+      ? 'operator'
+      : preferredLevel.value
+        ? currentLevel.value
+        : auth.isAdmin
+          ? 'operator'
+          : auth.canAuthorContent
+            ? 'builder'
+            : currentLevel.value
   ));
 
   const nextLevel = computed<MasteryLevel | null>(() => {

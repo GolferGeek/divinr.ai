@@ -115,11 +115,12 @@ export class MasteryService {
   ): Promise<LearningPanelMasteryContext> {
     const profile = await this.getProfile(userId);
     const effectiveRole = await this.resolveGlobalRole(userId, userRole);
-    const effectiveLevel = ADMIN_ROLES.has(effectiveRole ?? '')
+    const roleLevel = ADMIN_ROLES.has(effectiveRole ?? '')
       ? 'operator'
       : BUILDER_ROLES.has(effectiveRole ?? '')
         ? 'builder'
         : profile.currentLevel;
+    const effectiveLevel = profile.preferredLevel ? profile.currentLevel : roleLevel;
     return {
       currentLevel: profile.currentLevel,
       effectiveLevel,
