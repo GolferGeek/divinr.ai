@@ -45,7 +45,7 @@ Success criteria:
 **Module registration.** All new providers — `DayTraderSchedulerService`, `IntradayBarRefresherService`, `MarketHoursService` — are registered in `apps/api/src/markets/markets.module.ts` alongside the existing `DayTraderRunnerService`, `TwelveDataAdapter`, and data-source providers. The new admin endpoint (§4.6) routes via the existing `MarketsController` (or a lightweight new controller if that keeps concerns cleaner; plan decides).
 
 **Cron schedule:**
-- Env var: `DAY_TRADER_CRON` (default `0 14-21 * * 1-5` UTC — hourly 14:00–21:00 UTC Mon–Fri, which covers ~09:30 ET open through ~17:00 ET, one hour past close).
+- Env var: `DAY_TRADER_CRON` (default `0 14,17,20 * * 1-5` UTC — three demo ticks during the US equity session, with the market-hours gate as the authority; override in Spark env for a faster cadence).
 - Env kill-switch: `DAY_TRADER_DISABLE_CRON=true` skips execution entirely (pattern copied from `ATTRIBUTION_DISABLE_NIGHTLY_REFRESH`).
 - Handler re-checks market hours at execution time (belt + suspenders: cron schedule is coarse, the gate is authoritative).
 
@@ -187,7 +187,7 @@ Dependencies (all met):
 
 Risks:
 
-- **R1: Twelve Data free tier can't keep up.** 8 req/min ceiling; 30 instruments per hourly tick. *Mitigation:* rate limiter serializes, each call is <1s, 30 calls fits in ~4 minutes. Alert threshold: if `bars_refresh_failed / portfolios_run > 0.2` on any single run, log a warning. If demand outgrows the ceiling, the first move is increasing `DAY_TRADER_CRON` to every 2h, then caching across ticks, then paying for a tier bump.
+- **R1: Intraday data quota can't keep up.** Polygon is the primary intraday source and Twelve Data is fallback. *Mitigation:* rate limiters serialize provider calls, the default demo cadence runs three times per market day, and `DAY_TRADER_CRON` can be increased or decreased without a code deploy. Alert threshold: if `bars_refresh_failed / portfolios_run > 0.2` on any single run, log a warning.
 - **R2: `gap-and-go` fires aggressively on hourly bars.** It was designed for 15-min bars, so hourly may be too coarse to catch morning gaps; or it may fire every hour of a trending day (once-per-session guard is in `state.daily_armed_date` — already enforced). *Mitigation:* the once-per-day guard is correct by construction; acceptable behavior. Review after weekend testing.
 - **R3: Removing the 15-min invocation breaks something unseen.** `OutcomeTrackingService`'s day-trader call may be relied on by tests or side effects I don't see. *Mitigation:* unit tests cover the decoupling. Full `pnpm ci:markets` before merge.
 - **R4: Authored-analyst scoping has no real test subject.** Zero authored day-trader analysts exist. *Mitigation:* unit tests with synthetic analyst rows cover both branches (`user_id IS NULL` and `user_id IS NOT NULL`).

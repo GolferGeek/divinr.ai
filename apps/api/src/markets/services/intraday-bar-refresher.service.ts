@@ -1,5 +1,6 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import { PolygonAdapter } from '../adapters/polygon.adapter';
 import { TwelveDataAdapter } from '../adapters/twelve-data.adapter';
 import { INTRADAY_BARS_CAP } from '../constants';
 
@@ -14,6 +15,7 @@ export class IntradayBarRefresherService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
+    @Inject(PolygonAdapter) private readonly polygon: PolygonAdapter,
     @Inject(TwelveDataAdapter) private readonly twelveData: TwelveDataAdapter,
   ) {}
 
@@ -25,7 +27,10 @@ export class IntradayBarRefresherService {
 
     for (const inst of instruments) {
       try {
-        const bars = await this.twelveData.fetchIntradayBars(inst.symbol, 60, INTRADAY_BARS_CAP);
+        let bars = await this.polygon.fetchIntradayBars(inst.symbol, 60, INTRADAY_BARS_CAP);
+        if (!bars || bars.length === 0) {
+          bars = await this.twelveData.fetchIntradayBars(inst.symbol, 60, INTRADAY_BARS_CAP);
+        }
         if (!bars || bars.length === 0) {
           failed++;
           continue;

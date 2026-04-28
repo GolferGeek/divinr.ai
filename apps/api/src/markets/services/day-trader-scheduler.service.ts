@@ -18,7 +18,7 @@ export interface MarketDayTraderRunRow {
   error: string | null;
 }
 
-const DEFAULT_CRON = '0 14-21 * * 1-5';
+const DEFAULT_CRON = '0 14,17,20 * * 1-5';
 const DEFAULT_EOD_CRON = '55 15 * * 1-5';
 const EOD_CRON_TZ = 'America/New_York';
 
@@ -125,6 +125,8 @@ export class DayTraderSchedulerService {
       `select distinct on (symbol) id, symbol
          from prediction.instruments
         where is_active = true
+          and coalesce(asset_type, 'stock') = 'stock'
+          and symbol ~ '^[A-Z]{1,5}$'
         order by symbol`,
       [],
     );

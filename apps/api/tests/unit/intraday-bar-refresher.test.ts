@@ -60,12 +60,14 @@ async function main(): Promise<void> {
   // 1. Mixed success/failure tally
   {
     const db = new MockDb();
-    const adapter = new MockAdapter();
-    adapter.program('AAPL', [makeBar('2026-04-17 13:00:00', 100), makeBar('2026-04-17 14:00:00', 101)]);
-    adapter.program('MSFT', 'throw');
-    adapter.program('NVDA', []); // empty result → counted as failed per PRD §5 (graceful degradation)
+    const polygon = new MockAdapter();
+    const twelveData = new MockAdapter();
+    polygon.program('AAPL', [makeBar('2026-04-17 13:00:00', 100), makeBar('2026-04-17 14:00:00', 101)]);
+    polygon.program('MSFT', 'throw');
+    polygon.program('NVDA', []); // empty result falls through to Twelve Data
+    twelveData.program('NVDA', []); // empty fallback → counted as failed per PRD §5
 
-    const svc = new IntradayBarRefresherService(db as any, adapter as any);
+    const svc = new IntradayBarRefresherService(db as any, polygon as any, twelveData as any);
     const result = await svc.refreshBarsFor([
       { id: 'i-aapl', symbol: 'AAPL' },
       { id: 'i-msft', symbol: 'MSFT' },
@@ -74,8 +76,9 @@ async function main(): Promise<void> {
 
     assert(result.refreshed === 1, 'refreshed count = 1 (AAPL only)');
     assert(result.failed === 2, 'failed count = 2 (MSFT threw, NVDA empty)');
-    assert(adapter.calls.length === 3, 'adapter called for every instrument');
-    assert(adapter.calls[0].intervalMinutes === 60, 'adapter called with 60 min interval');
+    assert(polygon.calls.length === 3, 'Polygon adapter called for every instrument');
+    assert(polygon.calls[0].intervalMinutes === 60, 'Polygon adapter called with 60 min interval');
+    assert(twelveData.calls.length === 1, 'Twelve Data fallback called only for empty Polygon bars');
     assert(db.calls.length === 1, 'db write only for successful symbol');
     assert(
       db.calls[0].sql.includes('prediction.instruments') && db.calls[0].sql.includes('intraday_bars'),
@@ -91,10 +94,11 @@ async function main(): Promise<void> {
   {
     const db = new MockDb();
     db.shouldError = true;
-    const adapter = new MockAdapter();
-    adapter.program('AAPL', [makeBar('2026-04-17 13:00:00', 100)]);
-    adapter.program('MSFT', [makeBar('2026-04-17 13:00:00', 200)]);
-    const svc = new IntradayBarRefresherService(db as any, adapter as any);
+    const polygon = new MockAdapter();
+    const twelveData = new MockAdapter();
+    polygon.program('AAPL', [makeBar('2026-04-17 13:00:00', 100)]);
+    polygon.program('MSFT', [makeBar('2026-04-17 13:00:00', 200)]);
+    const svc = new IntradayBarRefresherService(db as any, polygon as any, twelveData as any);
     const result = await svc.refreshBarsFor([
       { id: 'i-aapl', symbol: 'AAPL' },
       { id: 'i-msft', symbol: 'MSFT' },
@@ -111,6 +115,7 @@ async function main(): Promise<void> {
       'utf8',
     ));
     assert(source.includes('@Inject(DATABASE_SERVICE)'), 'refresher uses @Inject(DATABASE_SERVICE)');
+    assert(source.includes('@Inject(PolygonAdapter)'), 'refresher uses @Inject(PolygonAdapter)');
     assert(source.includes('@Inject(TwelveDataAdapter)'), 'refresher uses @Inject(TwelveDataAdapter)');
   }
 

@@ -90,6 +90,7 @@ const modalMode = ref<'view' | 'trade'>('view');
 const modalInstrumentId = ref('');
 const modalCurrentPrice = ref<number | null>(null);
 const modalAssetType = ref<string>('stock');
+const modalPreferredDirection = ref<'long' | 'short' | null>(null);
 
 function lookupAssetType(instrumentId: string): string {
   const match = instruments.items.find(i => (i as Record<string, unknown>).id === instrumentId) as Record<string, unknown> | undefined;
@@ -106,19 +107,29 @@ function openAnalystModal(pred: DashboardPrediction, analystIndex: number) {
   modalInstrumentId.value = pred.instrument_id;
   modalCurrentPrice.value = pred.trade_recommendation?.entry_price ?? null;
   modalAssetType.value = lookupAssetType(pred.instrument_id);
+  modalPreferredDirection.value = null;
   modalOpen.value = true;
 }
 
 function openTradeModal(pred: DashboardPrediction) {
   if (pred.analysts.length === 0) return;
+  const preferredDirection = pred.trade_recommendation?.action === 'sell'
+    ? 'short'
+    : pred.trade_recommendation?.action === 'buy'
+      ? 'long'
+      : null;
+  const preferredIndex = preferredDirection
+    ? pred.analysts.findIndex(a => preferredDirection === 'short' ? a.direction === 'down' : a.direction === 'up')
+    : 0;
   modalSymbol.value = pred.symbol;
   modalName.value = pred.name;
   modalAnalysts.value = pred.analysts;
-  modalInitialIndex.value = 0;
+  modalInitialIndex.value = preferredIndex >= 0 ? preferredIndex : 0;
   modalMode.value = 'trade';
   modalInstrumentId.value = pred.instrument_id;
   modalCurrentPrice.value = pred.trade_recommendation?.entry_price ?? null;
   modalAssetType.value = lookupAssetType(pred.instrument_id);
+  modalPreferredDirection.value = preferredDirection;
   modalOpen.value = true;
 }
 
@@ -452,15 +463,26 @@ function formatStartShort(iso: string): string {
                 <span v-else class="trade-line-hold">hold</span>
               </div>
 
-              <!-- Footer: timestamp + single View CTA -->
+              <!-- Footer: timestamp + action CTAs -->
               <div class="card-footer">
                 <ion-note>{{ timeAgo(pred.created_at) }}</ion-note>
-                <ion-button
-                  size="small"
-                  color="primary"
-                  data-test="dashboard-card-view"
-                  @click.stop="openInstrumentDetail(pred.instrument_id)"
-                >View</ion-button>
+                <div class="card-actions">
+                  <ion-button
+                    v-if="pred.trade_recommendation && pred.trade_recommendation.action !== 'hold'"
+                    size="small"
+                    color="primary"
+                    data-test="dashboard-card-trade"
+                    data-tour="prediction-trade-cta"
+                    @click.stop="openTradeModal(pred)"
+                  >Trade</ion-button>
+                  <ion-button
+                    size="small"
+                    fill="outline"
+                    color="medium"
+                    data-test="dashboard-card-view"
+                    @click.stop="openInstrumentDetail(pred.instrument_id)"
+                  >View</ion-button>
+                </div>
               </div>
               </div>
             </ion-card-content>
@@ -479,6 +501,7 @@ function formatStartShort(iso: string): string {
       :instrument-id="modalInstrumentId"
       :current-price="modalCurrentPrice"
       :asset-type="modalAssetType"
+      :preferred-direction="modalPreferredDirection"
       @close="modalOpen = false"
     />
   <FirstTouchPanel surface-key="dashboard" />
@@ -682,9 +705,18 @@ function formatStartShort(iso: string): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid #eee;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* Equal-height cards in the same row */

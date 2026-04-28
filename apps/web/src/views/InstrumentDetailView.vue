@@ -6,14 +6,16 @@ import { useCanWrite } from '../composables/useCanWrite';
 import { useOnboardingStore } from '../stores/onboarding.store';
 import { useMasteryStore } from '../stores/mastery.store';
 import { useAuthStore } from '../stores/auth.store';
+import { usePortfolioStore, type TradeDestination } from '../stores/portfolio.store';
 import PredictorScoringPanel from '../components/PredictorScoringPanel.vue';
 import InstrumentAnalystPanel from '../components/InstrumentAnalystPanel.vue';
 import TripleVariantSwitcher from '../components/TripleVariantSwitcher.vue';
 import DebateSummary from '../components/DebateSummary.vue';
+import AnalystPredictionModal from '../components/AnalystPredictionModal.vue';
 import {
   IonButton, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
   IonSegment, IonSegmentButton, IonLabel, IonNote, useIonRouter,
-  IonModal, IonSpinner, IonChip,
+  IonModal, IonSpinner, IonChip, IonIcon,
 } from '@ionic/vue';
 import { arrowBackOutline, refreshOutline } from 'ionicons/icons';
 
@@ -22,6 +24,7 @@ const route = useRoute();
 const api = useApi();
 const { canWrite } = useCanWrite();
 const auth = useAuthStore();
+const portfolioStore = usePortfolioStore();
 const mastery = useMasteryStore();
 const onboarding = useOnboardingStore();
 const ionRouter = useIonRouter();
@@ -36,6 +39,10 @@ const riskGenerating = ref(false);
 const riskGenerateError = ref('');
 const riskProgressOpen = ref(false);
 const riskStageIndex = ref(0);
+const tradeDestinations = ref<TradeDestination[]>([]);
+const tradeDestinationsLoading = ref(false);
+const tradeModalOpen = ref(false);
+const tradeModalDirection = ref<'long' | 'short' | null>(null);
 let riskStageTimer: number | null = null;
 
 const riskStages = [
@@ -66,6 +73,23 @@ function goBack() {
 const arbitratorPrediction = computed(
   () => predictions.value.find(p => p['role'] === 'arbitrator') ?? null,
 );
+const analystModalRows = computed(() => predictions.value.map(row => ({
+  prediction_id: String(row['id'] ?? row['prediction_id'] ?? ''),
+  analyst_id: String(row['analyst_id'] ?? row['role'] ?? ''),
+  analyst_name: String(row['analyst_name'] ?? row['display_name'] ?? row['role'] ?? 'Analyst'),
+  analyst_slug: String(row['analyst_slug'] ?? row['role'] ?? ''),
+  direction: String(row['predicted_direction'] ?? row['direction'] ?? 'flat'),
+  confidence: Number(row['confidence'] ?? 0),
+  rationale: String(row['rationale'] ?? ''),
+  key_factors: row['key_factors'] ?? [],
+  risks: row['risks'] ?? [],
+})).filter(row => row.prediction_id && row.direction !== ''));
+const tradeInitialIndex = computed(() => {
+  const arbitratorId = String(arbitratorPrediction.value?.['id'] ?? arbitratorPrediction.value?.['prediction_id'] ?? '');
+  const index = analystModalRows.value.findIndex(row => row.prediction_id === arbitratorId);
+  return index >= 0 ? index : 0;
+});
+const canOpenTradeTicket = computed(() => !!instrument.value && analystModalRows.value.length > 0);
 const currentCompositeRisk = computed(
   () => (compositeScore.value?.['current'] as Record<string, unknown> | null) ?? null,
 );
@@ -110,6 +134,11 @@ function fmtPrice(): string {
   return Number.isFinite(price) && price > 0 ? `$${price.toFixed(2)}` : '-';
 }
 
+function currentPriceNumber(): number | null {
+  const price = Number(currentState()['price'] ?? currentState()['last_price']);
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
+
 function fmtChange(): string {
   const change = Number(currentState()['changePercent']);
   if (!Number.isFinite(change)) return '-';
@@ -125,6 +154,54 @@ function fmtRiskScore(v: unknown): string {
 function fmtDate(v: unknown): string {
   if (!v) return '';
   return new Date(String(v)).toLocaleString();
+}
+
+function fmtCurrency(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+}
+
+function fmtQty(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '0';
+  return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+const myPortfolioDestination = computed(
+  () => tradeDestinations.value.find(row => row.destinationType === 'user') ?? null,
+);
+const tournamentDestinations = computed(
+  () => tradeDestinations.value.filter(row => row.destinationType === 'tournament'),
+);
+
+async function loadTradeDestinations() {
+  if (!instrument.value) return;
+  tradeDestinationsLoading.value = true;
+  try {
+    const response = await portfolioStore.fetchTradeDestinations({
+      instrumentId: String(instrument.value['id']),
+      symbol: String(instrument.value['symbol'] ?? ''),
+    });
+    tradeDestinations.value = response.destinations;
+  } catch {
+    tradeDestinations.value = [];
+  } finally {
+    tradeDestinationsLoading.value = false;
+  }
+}
+
+function openTradeModal(direction?: 'long' | 'short') {
+  if (!canOpenTradeTicket.value) return;
+  tradeModalDirection.value = direction ?? null;
+  tradeModalOpen.value = true;
+}
+
+function preferredTradeDirection(): 'long' | 'short' | undefined {
+  const direction = String(arbitratorPrediction.value?.['predicted_direction'] ?? '').toLowerCase();
+  if (['down', 'short', 'bearish'].includes(direction)) return 'short';
+  if (['up', 'long', 'bullish'].includes(direction)) return 'long';
+  return undefined;
 }
 
 function verdictColor(v: unknown): string {
@@ -196,6 +273,7 @@ async function loadData() {
     predictions.value = await api.get<Record<string, unknown>[]>(
       buildTripleQs(`/predictions?instrumentId=${id}&role=all`),
     );
+    await loadTradeDestinations();
   } catch { /* instrument may not exist */ }
 }
 
@@ -251,6 +329,14 @@ onBeforeUnmount(() => {
           </div>
           <div class="instrument-hero__actions">
             <ion-button
+              size="small"
+              color="success"
+              :disabled="!canOpenTradeTicket"
+              @click="openTradeModal(preferredTradeDirection())"
+            >
+              Trade
+            </ion-button>
+            <ion-button
               v-if="canWrite"
               size="small"
               fill="outline"
@@ -275,6 +361,18 @@ onBeforeUnmount(() => {
             <strong>{{ fmtPrice() }}</strong>
           </div>
           <div>
+            <span>My Holding</span>
+            <strong>{{ tradeDestinationsLoading ? '...' : fmtQty(myPortfolioDestination?.netQty ?? 0) }}</strong>
+          </div>
+          <div>
+            <span>My Cash</span>
+            <strong>{{ tradeDestinationsLoading ? '...' : fmtCurrency(myPortfolioDestination?.currentBalance ?? 0) }}</strong>
+          </div>
+          <div>
+            <span>Tournaments</span>
+            <strong>{{ tournamentDestinations.length }}</strong>
+          </div>
+          <div>
             <span>Change</span>
             <strong>{{ fmtChange() }}</strong>
           </div>
@@ -285,6 +383,17 @@ onBeforeUnmount(() => {
           <div>
             <span>Analysts</span>
             <strong>{{ analysts.length }}</strong>
+          </div>
+        </div>
+        <div v-if="tournamentDestinations.length > 0" class="tournament-holdings">
+          <div
+            v-for="destination in tournamentDestinations"
+            :key="destination.id"
+            class="tournament-holdings__row"
+          >
+            <span>{{ destination.name }}</span>
+            <strong>{{ fmtQty(destination.netQty) }} sh</strong>
+            <small>{{ fmtCurrency(destination.currentBalance) }} cash</small>
           </div>
         </div>
         <ion-note v-if="riskGenerateError" color="danger">{{ riskGenerateError }}</ion-note>
@@ -446,6 +555,21 @@ onBeforeUnmount(() => {
   
   <FirstTouchPanel surface-key="instrument.detail" />
 
+  <AnalystPredictionModal
+    v-if="instrument"
+    :is-open="tradeModalOpen"
+    :symbol="String(instrument['symbol'] ?? '')"
+    :name="String(instrument['name'] ?? '')"
+    :analysts="analystModalRows"
+    :initial-index="tradeInitialIndex"
+    mode="trade"
+    :instrument-id="String(instrument['id'] ?? '')"
+    :current-price="currentPriceNumber()"
+    :asset-type="String(instrument['asset_type'] ?? 'stock')"
+    :preferred-direction="tradeModalDirection"
+    @close="tradeModalOpen = false"
+  />
+
   <ion-modal :is-open="riskProgressOpen" class="risk-progress-modal" @did-dismiss="riskProgressOpen = false">
     <div class="risk-progress">
       <ion-spinner name="crescent" />
@@ -524,6 +648,30 @@ onBeforeUnmount(() => {
 .instrument-metrics strong,
 .risk-overview strong {
   font-size: 1rem;
+}
+
+.tournament-holdings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tournament-holdings__row {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--ion-color-light-shade, #ddd);
+  border-radius: 8px;
+}
+
+.tournament-holdings__row span,
+.tournament-holdings__row small {
+  color: var(--ion-color-medium);
+}
+
+.tournament-holdings__row span {
+  font-size: 0.8rem;
 }
 
 .risk-row {

@@ -245,6 +245,10 @@ async function main(): Promise<void> {
       src.includes('@Inject(MarketHoursService)'),
       'market-hours constructor uses @Inject(MarketHoursService)',
     );
+    assert(
+      src.includes("const DEFAULT_CRON = '0 14,17,20 * * 1-5'"),
+      'default day-trader cadence is throttled to three demo ticks per market day',
+    );
   }
 
   // 6. forceEodFlat=true → runner called with isLastTickOfSession=true regardless of time.

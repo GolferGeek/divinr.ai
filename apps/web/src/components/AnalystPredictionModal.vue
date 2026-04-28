@@ -52,7 +52,8 @@ const props = withDefaults(defineProps<{
   instrumentId?: string;
   currentPrice?: number | null;
   assetType?: string;
-}>(), { mode: 'view', instrumentId: '', currentPrice: null, assetType: 'stock' });
+  preferredDirection?: 'long' | 'short' | null;
+}>(), { mode: 'view', instrumentId: '', currentPrice: null, assetType: 'stock', preferredDirection: null });
 
 const emit = defineEmits<{
   close: [];
@@ -197,7 +198,11 @@ const shouldShowTradeTicket = computed(() => props.mode === 'trade' || showTrade
 watch(() => [props.isOpen, currentIndex.value], () => {
   // Default direction from current analyst stance when opening trade form
   const a = analyst.value;
-  if (a) tradeDirection.value = a.direction === 'down' ? 'short' : 'long';
+  if (props.preferredDirection) {
+    tradeDirection.value = props.preferredDirection;
+  } else if (a) {
+    tradeDirection.value = a.direction === 'down' ? 'short' : 'long';
+  }
   if (props.isOpen && props.instrumentId && props.symbol) {
     void loadTradeDestinations();
   }

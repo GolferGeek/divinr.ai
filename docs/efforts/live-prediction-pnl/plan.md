@@ -109,7 +109,7 @@ Before moving to Phase 3, ALL of the following must pass:
 ### Steps
 - [x] 3.1 Create `apps/api/src/markets/services/day-trader-scheduler.service.ts` exporting `DayTraderSchedulerService`:
   - Constructor with explicit `@Inject` on every param: `@Inject(DATABASE_SERVICE)`, `@Inject(DayTraderRunnerService)`, `@Inject(IntradayBarRefresherService)`, `@Inject(MarketHoursService)`.
-  - `@Cron(process.env.DAY_TRADER_CRON ?? '0 14-21 * * 1-5')` on the scheduled handler; early-return when `process.env.DAY_TRADER_DISABLE_CRON === 'true'`.
+  - `@Cron(process.env.DAY_TRADER_CRON ?? '0 14,17,20 * * 1-5')` on the scheduled handler; early-return when `process.env.DAY_TRADER_DISABLE_CRON === 'true'`.
   - Public `handleCron(opts?: { manual?: boolean }): Promise<MarketDayTraderRunRow>` — this is the unit of work: (1) check market-hours gate; (2) if closed AND not ignored, write an audit row with `market_open=false` and return it without running anything; (3) load active instruments (reuse/extract `DayTraderRunnerService` query or add a small internal helper); (4) call `IntradayBarRefresherService.refreshBarsFor(...)`; (5) call `DayTraderRunnerService.runStrategies({ isLastTickOfSession: DayTraderRunnerService.isLastTickOfSession(new Date()) })`; (6) write one `market_day_trader_runs` row with the aggregated counts and `duration_ms`; (7) return it.
   - Any thrown error is caught at the top level, written to the `error` column of the audit row, re-thrown so admin callers see failure status.
 - [x] 3.2 Modify `apps/api/src/markets/services/day-trader-runner.service.ts`:

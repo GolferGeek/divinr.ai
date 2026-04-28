@@ -12,10 +12,10 @@ Each hourly tick also writes one row to a new `prediction.market_day_trader_runs
 
 ## Scope
 
-- New env-configurable cron (env var `DAY_TRADER_CRON`, default `0 14-21 * * 1-5` UTC — hourly 14:00–21:00 UTC Mon–Fri, covering standard-time US market hours 9:30 AM ET open through 4:00 PM ET close plus one tick past). A market-hours gate inside the handler is authoritative; off-hours firings no-op with a log line.
+- New env-configurable cron (env var `DAY_TRADER_CRON`, default `0 14,17,20 * * 1-5` UTC — three demo ticks during the US equity session). A market-hours gate inside the handler is authoritative; off-hours firings no-op with a log line.
 - Env kill-switch (`DAY_TRADER_DISABLE_CRON=true`) and off-hours override (`DAY_TRADER_IGNORE_MARKET_HOURS=true`) for weekend smoke tests.
 - Decouple the strategy invocation from the 15-min `OutcomeTrackingService` tick. The hourly day-trader cron becomes the sole entry point for strategy runs during the day.
-- Extend `TwelveDataAdapter` with a new `fetchIntradayBars()` method (1-hour interval) and build an `IntradayBarRefresherService` that writes the results to `instruments.current_state.intraday_bars`. Rate-limiting is already handled by the adapter's existing `RateLimiter(8)`. Free tier only — ~30 calls/hour fits inside the 8/min ceiling with room to spare.
+- Extend the market data adapters with `fetchIntradayBars()` (1-hour interval) and build an `IntradayBarRefresherService` that writes the results to `instruments.current_state.intraday_bars`. Polygon is the primary intraday source; Twelve Data remains the fallback.
 - Per-analyst instrument scoping:
   - **Base day-trader analysts** (`user_id IS NULL`, `analyst_type='day_trader'`) continue to iterate all active instruments — that's the intended default for the shared analysts.
   - **User-authored day-trader analysts** (`user_id IS NOT NULL`, `analyst_type='day_trader'`) iterate only the instruments they're enabled against in `prediction.user_enabled_triples`. The relationship already exists from the slot-based-enablement effort; the day-trader runner just needs to honor it. No authored day-trader analysts exist today; this effort makes the infrastructure ready for when one appears.

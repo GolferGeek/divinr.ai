@@ -299,7 +299,10 @@ export class DayTraderRunnerService {
     const result = await this.db.rawQuery(
       `select id, symbol, current_state
          from prediction.instruments
-        where id = ANY($1) and is_active = true`,
+        where id = ANY($1)
+          and is_active = true
+          and coalesce(asset_type, 'stock') = 'stock'
+          and symbol ~ '^[A-Z]{1,5}$'`,
       [enabled],
     );
     return this.projectPricedInstruments(result.data);
@@ -310,6 +313,8 @@ export class DayTraderRunnerService {
       `select distinct on (symbol) id, symbol, current_state
          from prediction.instruments
         where is_active = true
+          and coalesce(asset_type, 'stock') = 'stock'
+          and symbol ~ '^[A-Z]{1,5}$'
         order by symbol`,
       [],
     );
