@@ -1,0 +1,24 @@
+# Cloudflare Tunnel ingress for divinr.ai.
+#
+# Installed copy lives at /etc/cloudflared/config-divinr.yml — keep this file
+# and the deployed copy in sync. scripts/ops/install-services.sh and
+# scripts/ops/spark-deploy.sh both copy this file into place.
+#
+# The credentials file is a tunnel secret and is NOT tracked in the repo —
+# it stays at /home/golfergeek/.cloudflared/<tunnel-id>.json on Spark.
+#
+# When changing an ingress port: update this file, push, run spark-deploy
+# (which copies and restarts divinr-cloudflared.service). The old "503/502
+# from divinr.ai" symptom typically means an ingress port here is stale.
+
+tunnel: 8a8fd2a7-e848-406b-add7-38ed132f0df0
+credentials-file: /home/golfergeek/.cloudflared/8a8fd2a7-e848-406b-add7-38ed132f0df0.json
+
+ingress:
+  - hostname: api.divinr.ai
+    service: http://localhost:7100
+  - hostname: divinr.ai
+    service: http://localhost:80
+  - hostname: "*.divinr.ai"
+    service: http://localhost:80
+  - service: http_status:404

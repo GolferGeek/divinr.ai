@@ -1,0 +1,29 @@
+# Template — paths get substituted by scripts/ops/install-services.sh
+# Installed copy lives at /etc/systemd/system/divinr-cloudflared.service
+#
+# Runs the Cloudflare Tunnel that fronts divinr.ai and api.divinr.ai.
+# Reads ingress from /etc/cloudflared/config-divinr.yml (installed from
+# scripts/ops/cloudflared/config-divinr.yml). The tunnel credentials file
+# is a per-machine secret kept under the user's ~/.cloudflared/.
+[Unit]
+Description=Divinr.ai Cloudflare Tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=golfergeek
+Group=golfergeek
+Environment=HOME=/home/golfergeek
+WorkingDirectory=/home/golfergeek
+ExecStart=__CLOUDFLARED_BIN__ tunnel --config /etc/cloudflared/config-divinr.yml --no-autoupdate run
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=divinr-cloudflared
+
+[Install]
+WantedBy=multi-user.target

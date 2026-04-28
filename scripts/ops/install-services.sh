@@ -46,6 +46,21 @@ if [ -z "$STRIPE_BIN" ] || [ ! -x "$STRIPE_BIN" ]; then
   exit 1
 fi
 
+# 2b. Locate cloudflared CLI.
+CLOUDFLARED_BIN="${CLOUDFLARED_BIN:-$(command -v cloudflared || true)}"
+if [ -z "$CLOUDFLARED_BIN" ] || [ ! -x "$CLOUDFLARED_BIN" ]; then
+  echo "× Could not find the cloudflared CLI." >&2
+  echo "  Install: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/" >&2
+  exit 1
+fi
+TUNNEL_CRED_FILE="$HOME/.cloudflared/8a8fd2a7-e848-406b-add7-38ed132f0df0.json"
+if [ ! -f "$TUNNEL_CRED_FILE" ]; then
+  echo "× $TUNNEL_CRED_FILE missing — needed to authenticate the divinr Cloudflare Tunnel." >&2
+  echo "  Run 'cloudflared tunnel login' and 'cloudflared tunnel create ...' to provision," >&2
+  echo "  or copy the credentials file from another spark." >&2
+  exit 1
+fi
+
 # 3. Sanity checks.
 if [ ! -f "$ENV_FILE" ]; then
   echo "× $ENV_FILE missing — the API needs an env file before it can boot." >&2
@@ -61,10 +76,11 @@ if [ ! -f "$HOME/.config/stripe/config.toml" ]; then
 fi
 
 echo "── Installing divinr.ai systemd units ──"
-echo "REPO_ROOT  = $REPO_ROOT"
-echo "NODE_BIN   = $NODE_BIN"
-echo "STRIPE_BIN = $STRIPE_BIN"
-echo "TARGET     = $TARGET_DIR"
+echo "REPO_ROOT       = $REPO_ROOT"
+echo "NODE_BIN        = $NODE_BIN"
+echo "STRIPE_BIN      = $STRIPE_BIN"
+echo "CLOUDFLARED_BIN = $CLOUDFLARED_BIN"
+echo "TARGET          = $TARGET_DIR"
 echo
 
 # 4. Stop and disable any prior broken unit so it doesn't fight for port 7100.
@@ -74,32 +90,42 @@ if systemctl list-unit-files 2>/dev/null | awk '{print $1}' | grep -qx divinr-de
   sudo systemctl disable divinr-dev.service 2>/dev/null || true
 fi
 
-# 5. Render templates and install.
-for unit in divinr-api.service divinr-stripe-listen.service; do
+# 5. Install Cloudflare Tunnel ingress config.
+echo "→ Installing /etc/cloudflared/config-divinr.yml..."
+sudo mkdir -p /etc/cloudflared
+sudo cp "$REPO_ROOT/scripts/ops/cloudflared/config-divinr.yml" /etc/cloudflared/config-divinr.yml
+
+# 6. Render templates and install.
+for unit in divinr-api.service divinr-stripe-listen.service divinr-cloudflared.service; do
   echo "→ Installing $unit..."
   sed \
     -e "s|__NODE_BIN__|$NODE_BIN|g" \
     -e "s|__STRIPE_BIN__|$STRIPE_BIN|g" \
+    -e "s|__CLOUDFLARED_BIN__|$CLOUDFLARED_BIN|g" \
     -e "s|__REPO_ROOT__|$REPO_ROOT|g" \
     "$TEMPLATE_DIR/$unit" | sudo tee "$TARGET_DIR/$unit" >/dev/null
 done
 
 sudo systemctl daemon-reload
 
-# 6. Enable + start (idempotent — no-op if already enabled).
-for unit in divinr-api.service divinr-stripe-listen.service; do
+# 7. Enable + start (idempotent — no-op if already enabled).
+for unit in divinr-api.service divinr-stripe-listen.service divinr-cloudflared.service; do
   sudo systemctl enable --now "$unit"
 done
 
 echo
 echo "── Status ──"
-sudo systemctl status divinr-api.service        --no-pager --lines=5 || true
+sudo systemctl status divinr-api.service          --no-pager --lines=5 || true
 echo
 sudo systemctl status divinr-stripe-listen.service --no-pager --lines=5 || true
+echo
+sudo systemctl status divinr-cloudflared.service  --no-pager --lines=5 || true
 echo
 echo "── Done ──"
 echo "  Manage from now on with systemd, NOT dev-up.sh:"
 echo "    sudo systemctl restart divinr-api"
 echo "    sudo systemctl restart divinr-stripe-listen"
+echo "    sudo systemctl restart divinr-cloudflared"
 echo "    journalctl -u divinr-api -f"
 echo "    journalctl -u divinr-stripe-listen -f"
+echo "    journalctl -u divinr-cloudflared -f"

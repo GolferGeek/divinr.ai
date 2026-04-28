@@ -33,6 +33,8 @@ sudo chmod -R a+rX /var/www/divinr.ai
 sudo cp scripts/ops/nginx/divinr.ai.conf /etc/nginx/sites-enabled/divinr.ai
 sudo nginx -t
 sudo systemctl reload nginx
+sudo mkdir -p /etc/cloudflared
+sudo cp scripts/ops/cloudflared/config-divinr.yml /etc/cloudflared/config-divinr.yml
 bash scripts/ops/restart.sh
 '
 

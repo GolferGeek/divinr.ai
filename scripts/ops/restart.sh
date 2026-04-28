@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Restart the divinr API + Stripe listener on spark via systemd.
+# Restart the divinr API + Stripe listener + Cloudflare Tunnel on spark via systemd.
 #
 # Usage (on spark):
 #   pnpm restart
@@ -16,7 +16,7 @@ if [ "$(uname -s)" != "Linux" ]; then
   exit 1
 fi
 
-UNITS=(divinr-api.service divinr-stripe-listen.service)
+UNITS=(divinr-api.service divinr-stripe-listen.service divinr-cloudflared.service)
 
 echo "→ Restarting: ${UNITS[*]}"
 sudo systemctl restart "${UNITS[@]}"

@@ -35,9 +35,31 @@ sudo nginx -t && sudo systemctl reload nginx
 
 `spark-deploy.sh` runs all of this automatically after the web build.
 
+## Cloudflare Tunnel (public origin)
+
+`divinr.ai`, `www.divinr.ai`, `*.divinr.ai`, and `api.divinr.ai` are fronted
+by a Cloudflare Tunnel running on Spark — there is no public IP / port
+forward. The tunnel ingress config is tracked at
+`scripts/ops/cloudflared/config-divinr.yml` and installed to
+`/etc/cloudflared/config-divinr.yml` by `install-services.sh` and
+`spark-deploy.sh`. It points:
+
+- `divinr.ai` / `*.divinr.ai` → `http://localhost:80` (nginx)
+- `api.divinr.ai` → `http://localhost:7100` (API direct)
+
+The tunnel credentials file (`~/.cloudflared/<tunnel-id>.json`) is a
+per-machine secret and is **not** tracked in the repo. To bootstrap a new
+Spark, copy that file across before running `install-services.sh`.
+
+The tunnel runs under `divinr-cloudflared.service` with `Restart=always`,
+so it auto-recovers on crash and starts on boot. **Renaming an origin port
+without updating `config-divinr.yml` will silently 502 the public site** —
+that's how we lost `https://divinr.ai/` after the Vite dev server (`:7101`)
+was retired.
+
 ## API + Stripe-listener systemd units (spark)
 
-Two units in `systemd/` boot the production stack on the spark machine:
+Three units in `systemd/` boot the production stack on the spark machine:
 
 - `divinr-api.service` — runs the built API (`node dist/src/main.js`) with
   `Restart=always`. Reads env from repo-root `.env`. Logs to journald
@@ -47,6 +69,7 @@ Two units in `systemd/` boot the production stack on the spark machine:
   `stripe login` having populated `~/.config/stripe/config.toml`. Will
   go away once the dashboard-registered webhook lands (per the
   stripe-cutover runbook).
+- `divinr-cloudflared.service` — runs the Cloudflare Tunnel (see above).
 
 ### Install on spark
 
@@ -60,8 +83,9 @@ bash scripts/ops/install-services.sh
 ```
 
 The install script is idempotent — re-run it after a code update to
-refresh the unit files. It detects `node` and `stripe` paths
-automatically, or honors `NODE_BIN=...` / `STRIPE_BIN=...` overrides.
+refresh the unit files. It detects `node`, `stripe`, and `cloudflared`
+paths automatically, or honors `NODE_BIN=...` / `STRIPE_BIN=...` /
+`CLOUDFLARED_BIN=...` overrides.
 
 ### Manage
 
@@ -91,7 +115,7 @@ journalctl -u divinr-api -f
 For a code-change deploy from on-spark, pull and rebuild first:
 
 ```bash
-git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build && sudo mkdir -p /var/www/divinr.ai && sudo rsync -a --delete apps/web/dist/ /var/www/divinr.ai/ && sudo chown -R www-data:www-data /var/www/divinr.ai && sudo chmod -R a+rX /var/www/divinr.ai && sudo cp scripts/ops/nginx/divinr.ai.conf /etc/nginx/sites-enabled/divinr.ai && sudo nginx -t && sudo systemctl reload nginx && bash scripts/ops/restart.sh
+git pull && pnpm install && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build && sudo mkdir -p /var/www/divinr.ai && sudo rsync -a --delete apps/web/dist/ /var/www/divinr.ai/ && sudo chown -R www-data:www-data /var/www/divinr.ai && sudo chmod -R a+rX /var/www/divinr.ai && sudo cp scripts/ops/nginx/divinr.ai.conf /etc/nginx/sites-enabled/divinr.ai && sudo nginx -t && sudo systemctl reload nginx && sudo mkdir -p /etc/cloudflared && sudo cp scripts/ops/cloudflared/config-divinr.yml /etc/cloudflared/config-divinr.yml && bash scripts/ops/restart.sh
 ```
 
 **Do not run `pnpm --filter @divinr/api run dev:up` on spark after
