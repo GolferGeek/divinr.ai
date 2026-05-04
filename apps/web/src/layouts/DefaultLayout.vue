@@ -326,9 +326,9 @@ onBeforeUnmount(() => {
                 class="chrome-desktop-only universe-chip"
                 role="button"
                 tabindex="0"
-                title="Open instruments"
-                @click="router.push('/instruments')"
-                @keyup.enter="router.push('/instruments')"
+                title="Open analyses"
+                @click="router.push('/predictions')"
+                @keyup.enter="router.push('/predictions')"
               >
                 <ion-icon :icon="earthOutline" />
                 <ion-label class="header-universe-label">{{ domain.activeUniverse }}</ion-label>
@@ -369,7 +369,7 @@ onBeforeUnmount(() => {
               <ion-popover trigger="mobile-chrome-trigger" trigger-action="click" dismiss-on-select>
                 <ion-content>
                   <ion-list>
-                    <ion-item button :detail="false" @click="router.push('/instruments')">
+                    <ion-item button :detail="false" @click="router.push('/predictions')">
                       <ion-icon slot="start" :icon="earthOutline" />
                       <ion-label>Universe: {{ domain.activeUniverse }}</ion-label>
                     </ion-item>

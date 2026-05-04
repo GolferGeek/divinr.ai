@@ -468,7 +468,7 @@ async function loadChallenges() {
         <div class="analyst-tabs">
           <button
             v-for="(a, i) in analysts"
-            :key="a.analyst_id"
+            :key="a.prediction_id || `${a.analyst_id}:${i}`"
             class="analyst-tab"
             :class="{ active: i === currentIndex, up: a.direction === 'up', down: a.direction === 'down' }"
             @click="goTo(i)"

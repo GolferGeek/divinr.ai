@@ -71,11 +71,25 @@ function goBack() {
 }
 
 const arbitratorPrediction = computed(
-  () => predictions.value.find(p => p['role'] === 'arbitrator') ?? null,
+  () => latestPredictionRows.value.find(p => p['role'] === 'arbitrator') ?? null,
 );
 const analystSignalRows = computed(() =>
-  predictions.value.filter(p => p['role'] === 'analyst' || p['role'] === 'paper'),
+  latestPredictionRows.value.filter(p => p['role'] === 'analyst' || p['role'] === 'paper'),
 );
+const latestPredictionRows = computed(() => {
+  const seen = new Set<string>();
+  const rows: Record<string, unknown>[] = [];
+  for (const row of predictions.value) {
+    const role = String(row['role'] ?? 'analyst');
+    const analystId = String(row['analyst_id'] ?? role);
+    const authorUserId = String(row['author_user_id'] ?? '');
+    const key = `${role}:${analystId}:${authorUserId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push(row);
+  }
+  return rows;
+});
 const compositeSignal = computed(() => {
   const arb = arbitratorPrediction.value;
   const direction = String(arb?.['predicted_direction'] ?? 'flat').toLowerCase();
@@ -91,7 +105,7 @@ const compositeSignal = computed(() => {
     rationale: String(arb?.['rationale'] ?? ''),
   };
 });
-const analystModalRows = computed(() => predictions.value.map(row => ({
+const analystModalRows = computed(() => latestPredictionRows.value.map(row => ({
   prediction_id: String(row['id'] ?? row['prediction_id'] ?? ''),
   analyst_id: String(row['analyst_id'] ?? row['role'] ?? ''),
   analyst_name: String(row['analyst_name'] ?? row['display_name'] ?? row['role'] ?? 'Analyst'),
