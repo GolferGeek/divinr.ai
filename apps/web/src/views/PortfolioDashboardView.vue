@@ -221,10 +221,66 @@ const groupedPortfolios = computed(() => {
   return groups;
 });
 
+function numberFrom(row: Record<string, unknown>, keys: string[], fallback = 0): number {
+  for (const key of keys) {
+    const n = Number(row[key] ?? NaN);
+    if (Number.isFinite(n)) return n;
+  }
+  return fallback;
+}
+
 const mySummaryPortfolio = computed(() => {
   const myId = String(portfolio.myPortfolio?.['id'] ?? '');
   if (!myId) return null;
-  return portfolio.allPortfolios.find(p => p.kind === 'user' && p.id === myId) ?? null;
+  const summary = portfolio.allPortfolios.find(p => p.kind === 'user' && p.id === myId);
+  if (summary) return summary;
+
+  const row = portfolio.myPortfolio ?? {};
+  const initial = numberFrom(row, ['initial_balance'], 0);
+  const cash = numberFrom(row, ['current_balance'], initial);
+  const detailKey = `user:${myId}`;
+  const detailPositions = portfolio.portfolioDetails[detailKey]?.positions ?? portfolio.myPositions;
+  const openPositionCount = detailPositions.filter(pos => String(pos.status ?? 'open') === 'open').length;
+  const realized = numberFrom(row, ['total_realized_pnl', 'realized_pnl'], 0);
+  const unrealized = detailPositions.reduce((sum, pos) => sum + numberFrom(pos, ['unrealized_pnl'], 0), 0);
+  const holdingsValue = portfolio.portfolioDetails[detailKey]?.positions
+    ? holdingsFor({
+      kind: 'user',
+      id: myId,
+      name: 'My Portfolio',
+      current_balance: cash,
+      realized_pnl: realized,
+      unrealized_pnl: unrealized,
+      win_rate: null,
+      total_return_pct: 0,
+      total_bailouts: 0,
+      open_position_count: openPositionCount,
+      sharpe_30d: null,
+      max_drawdown_30d: null,
+      longest_win_streak: 0,
+      calibration_score: null,
+      analyst_id: null,
+    }).reduce((sum, holding) => sum + holding.marketValue, 0)
+    : 0;
+  const totalReturnPct = initial > 0 ? ((cash + holdingsValue - initial) / initial) * 100 : 0;
+
+  return {
+    kind: 'user',
+    id: myId,
+    name: 'My Portfolio',
+    current_balance: cash,
+    realized_pnl: realized,
+    unrealized_pnl: unrealized,
+    win_rate: null,
+    total_return_pct: totalReturnPct,
+    total_bailouts: 0,
+    open_position_count: openPositionCount,
+    sharpe_30d: null,
+    max_drawdown_30d: null,
+    longest_win_streak: 0,
+    calibration_score: null,
+    analyst_id: null,
+  } satisfies PortfolioSummary;
 });
 
 const mySummaryHistory = computed(() =>
@@ -233,6 +289,10 @@ const mySummaryHistory = computed(() =>
 
 const mySummaryBenchmark = computed(() =>
   mySummaryPortfolio.value ? detailBenchmark(mySummaryPortfolio.value) : [],
+);
+
+const mySummaryHoldings = computed(() =>
+  mySummaryPortfolio.value ? holdingsFor(mySummaryPortfolio.value) : [],
 );
 
 function fmtSharpe(v: number | null): string {
@@ -271,7 +331,12 @@ interface HoldingRow {
 }
 
 function positionsFor(p: PortfolioSummary): Array<Record<string, unknown>> {
-  return portfolio.portfolioDetails[rowKey(p)]?.positions ?? [];
+  const detailPositions = portfolio.portfolioDetails[rowKey(p)]?.positions;
+  if (detailPositions) return detailPositions;
+  if (p.kind === 'user' && String(portfolio.myPortfolio?.['id'] ?? '') === p.id) {
+    return portfolio.myPositions;
+  }
+  return [];
 }
 
 function holdingsFor(p: PortfolioSummary): HoldingRow[] {
@@ -354,6 +419,9 @@ function holdingsValueFor(p: PortfolioSummary): number {
 
 function cashFor(p: PortfolioSummary): number {
   const detail = portfolio.portfolioDetails[rowKey(p)]?.portfolio;
+  if (p.kind === 'user' && String(portfolio.myPortfolio?.['id'] ?? '') === p.id) {
+    return Number(detail?.current_balance ?? portfolio.myPortfolio?.['current_balance'] ?? p.current_balance ?? 0);
+  }
   return Number(detail?.current_balance ?? p.current_balance ?? 0);
 }
 
@@ -405,7 +473,7 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
         </div>
         <div class="brokerage-summary__actions">
           <IonButton size="small" fill="outline" @click="router.push('/performance')">Performance</IonButton>
-          <IonButton size="small" @click="router.push('/instruments')">Find Instruments</IonButton>
+          <IonButton size="small" @click="router.push('/predictions')">Find Instruments</IonButton>
         </div>
       </div>
 
@@ -430,8 +498,37 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
         </div>
         <div>
           <span>Open Holdings</span>
-          <strong>{{ holdingsFor(mySummaryPortfolio).length }}</strong>
+          <strong>{{ mySummaryHoldings.length }}</strong>
         </div>
+      </div>
+
+      <div class="my-holdings-panel" data-testid="my-holdings-panel">
+        <div class="my-holdings-panel__header">
+          <div>
+            <p>Holdings</p>
+            <h3>What you own right now</h3>
+          </div>
+          <strong>{{ formatCurrency(holdingsValueFor(mySummaryPortfolio)) }}</strong>
+        </div>
+        <div v-if="mySummaryHoldings.length > 0" class="my-holdings-list">
+          <div class="my-holdings-list__header">
+            <span>Symbol</span>
+            <span>Net Qty</span>
+            <span>Price</span>
+            <span>Value</span>
+            <span>Unrealized</span>
+          </div>
+          <div v-for="holding in mySummaryHoldings" :key="holding.symbol" class="my-holdings-list__row">
+            <strong>{{ holding.symbol }}</strong>
+            <span :class="holding.netQty > 0 ? 'positive' : holding.netQty < 0 ? 'negative' : 'neutral'">
+              {{ formatQty(holding.netQty) }}
+            </span>
+            <span>{{ formatMaybeCurrency(holding.currentPrice) }}</span>
+            <span :style="pnlColor(holding.marketValue)">{{ formatCurrency(holding.marketValue) }}</span>
+            <span :style="pnlColor(holding.unrealizedPnl)">{{ formatCurrency(holding.unrealizedPnl) }}</span>
+          </div>
+        </div>
+        <IonNote v-else color="primary" class="my-holdings-empty">No open holdings.</IonNote>
       </div>
 
       <div class="brokerage-summary__chart">
@@ -849,6 +946,66 @@ function refLevels(pos: Record<string, unknown>): { label: string; value: string
 }
 .brokerage-summary__metrics strong {
   font-size: 1rem;
+}
+.my-holdings-panel {
+  margin: 0 0 14px;
+  border: 1px solid var(--ion-color-step-150, var(--ion-color-step-100));
+  border-radius: 8px;
+  overflow: hidden;
+}
+.my-holdings-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--ion-color-step-50);
+  border-bottom: 1px solid var(--ion-color-step-100);
+}
+.my-holdings-panel__header p {
+  margin: 0 0 3px;
+  color: var(--ion-color-medium);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.my-holdings-panel__header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.my-holdings-panel__header strong {
+  flex: 0 0 auto;
+  font-size: 1rem;
+}
+.my-holdings-list {
+  overflow-x: auto;
+}
+.my-holdings-list__header,
+.my-holdings-list__row {
+  display: grid;
+  grid-template-columns: minmax(92px, 1.2fr) repeat(4, minmax(88px, 1fr));
+  gap: 8px;
+  min-width: 560px;
+  align-items: center;
+  padding: 10px 12px;
+}
+.my-holdings-list__header {
+  color: var(--ion-color-medium);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.my-holdings-list__row {
+  border-top: 1px solid var(--ion-color-step-100);
+  font-size: 0.9rem;
+}
+.my-holdings-list__header span:not(:first-child),
+.my-holdings-list__row span {
+  text-align: right;
+}
+.my-holdings-empty {
+  display: block;
+  padding: 12px;
 }
 .brokerage-summary__chart {
   max-width: 960px;
