@@ -91,6 +91,34 @@ test('runSingleAnalyst captures analyst article IDs and inserts them', () => {
   );
 });
 
+test('runSingleAnalyst upserts active analyst prediction conflicts', () => {
+  const analystFnStart = runnerSrc.indexOf('private async runSingleAnalyst');
+  assert.ok(analystFnStart > 0, 'runSingleAnalyst not found');
+  const arbitratorFnStart = runnerSrc.indexOf('private async runArbitrator');
+  const analystBody = runnerSrc.slice(analystFnStart, arbitratorFnStart);
+
+  assert.match(
+    analystBody,
+    /on\s+conflict\s+\(\(coalesce\(author_user_id,\s*'base'\)\),\s*analyst_id,\s*instrument_id\)/i,
+    'analyst write should target the active-triple unique index',
+  );
+  assert.match(
+    analystBody,
+    /where\s+settled_at\s+is\s+null\s+and\s+analyst_id\s+is\s+not\s+null/i,
+    'analyst upsert should target only active analyst predictions',
+  );
+  assert.match(
+    analystBody,
+    /if\s*\(insertPrediction\.error\)\s*\{\s*throw\s+new\s+Error\(insertPrediction\.error\.message\);?\s*\}/,
+    'analyst write errors must not be ignored',
+  );
+  assert.match(
+    analystBody,
+    /returning\s+id/i,
+    'analyst upsert should return the persisted prediction id',
+  );
+});
+
 test('runArbitrator unions analyst article IDs and inserts the dedup set', () => {
   const arbitratorFnStart = runnerSrc.indexOf('private async runArbitrator');
   assert.ok(arbitratorFnStart > 0, 'runArbitrator not found');

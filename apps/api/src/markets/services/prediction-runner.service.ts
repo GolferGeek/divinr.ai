@@ -329,12 +329,30 @@ export class PredictionRunnerService {
       { id: analyst.id, user_id: analyst.user_id ?? null },
       { id: instrument.id, user_id: instrument.user_id ?? null },
     );
-    await this.db.rawQuery(
+    const insertPrediction = await this.db.rawQuery(
       `insert into prediction.market_predictions
         (id, run_id, instrument_id, analyst_id, role,
          predicted_direction, confidence, horizon_minutes, rationale,
          key_factors, risks, config_version_id, is_paper, source_context, llm_usage_id, author_user_id, contributing_article_ids, created_at)
-       values ($1, $2, $3, $4, 'analyst', $5, $6, 240, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+       values ($1, $2, $3, $4, 'analyst', $5, $6, 240, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       on conflict ((coalesce(author_user_id, 'base')), analyst_id, instrument_id)
+       where settled_at is null and analyst_id is not null
+       do update set
+         run_id = excluded.run_id,
+         role = excluded.role,
+         predicted_direction = excluded.predicted_direction,
+         confidence = excluded.confidence,
+         horizon_minutes = excluded.horizon_minutes,
+         rationale = excluded.rationale,
+         key_factors = excluded.key_factors,
+         risks = excluded.risks,
+         config_version_id = excluded.config_version_id,
+         is_paper = excluded.is_paper,
+         source_context = excluded.source_context,
+         llm_usage_id = excluded.llm_usage_id,
+         contributing_article_ids = excluded.contributing_article_ids,
+         created_at = excluded.created_at
+       returning id`,
       [
         predictionId, run.id, run.instrument_id,
         analyst.id, parsed.direction, parsed.confidence, parsed.rationale,
@@ -344,9 +362,13 @@ export class PredictionRunnerService {
         new Date().toISOString(),
       ],
     );
+    if (insertPrediction.error) {
+      throw new Error(insertPrediction.error.message);
+    }
+    const predictionRows = (insertPrediction.data as Array<{ id: string }> | null) ?? [];
 
     const outcome: PredictionOutcome = {
-      id: predictionId,
+      id: predictionRows[0]?.id ?? predictionId,
       run_id: run.id,
       instrument_id: run.instrument_id,
       analyst_id: analyst.id,
