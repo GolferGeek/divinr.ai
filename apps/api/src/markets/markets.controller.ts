@@ -880,6 +880,7 @@ export class MarketsController {
     @Query('role') role?: 'analyst' | 'arbitrator' | 'all',
     @Query('analystId') analystId?: string,
     @Query('authorUserId') authorUserId?: string,
+    @Query('limit') limit?: string,
   ) {
     const user = this.getUser(req);
     if (role) {
@@ -890,6 +891,7 @@ export class MarketsController {
         role,
         analystId,
         authorUserId: authorUserId !== undefined ? (authorUserId || null) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
       });
     }
     return this.markets.listPredictionOutcomes({

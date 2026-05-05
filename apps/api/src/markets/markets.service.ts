@@ -3914,8 +3914,10 @@ Respond ONLY with valid JSON.`,
     role?: 'analyst' | 'arbitrator' | 'all';
     analystId?: string;
     authorUserId?: string | null;
+    limit?: number;
   }) {
     await this.requireRead(input.userId);
+    const limit = Number.isFinite(input.limit) ? Math.min(Math.max(Math.trunc(input.limit ?? 240), 1), 500) : 240;
 
     let query = `select mp.*,
         ma.display_name as analyst_name,
@@ -3954,6 +3956,8 @@ Respond ONLY with valid JSON.`,
       idx++;
     }
     query += ' order by mp.created_at desc';
+    query += ` limit $${idx}`;
+    params.push(limit);
 
     const result = await this.db.rawQuery(query, params);
     if (result.error) throw new Error(result.error.message);

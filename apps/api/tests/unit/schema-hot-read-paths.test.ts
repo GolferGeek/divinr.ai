@@ -89,14 +89,22 @@ async function main() {
 
   await test('MarketsService.listPredictionsWithRole skips runtime schema bootstrap', async () => {
     const svc = Object.create(MarketsService.prototype) as MarketsService;
+    let query = '';
+    let params: unknown[] = [];
     (svc as any).db = {
-      rawQuery: async () => ({ data: [{ id: 'pred-1' }], error: null }),
+      rawQuery: async (sql: string, values: unknown[]) => {
+        query = sql;
+        params = values;
+        return { data: [{ id: 'pred-1' }], error: null };
+      },
     };
     (svc as any).schema = throwingSchema();
     (svc as any).requireRead = async () => undefined;
 
-    const rows = await svc.listPredictionsWithRole({ userId: 'u1', role: 'analyst' });
+    const rows = await svc.listPredictionsWithRole({ userId: 'u1', role: 'analyst', limit: 999 });
     assert.equal(rows.length, 1);
+    assert.match(query, /limit \$2$/);
+    assert.deepEqual(params, ['analyst', 500]);
   });
 
   await test('NotificationService.getUnreadCount skips runtime schema bootstrap', async () => {

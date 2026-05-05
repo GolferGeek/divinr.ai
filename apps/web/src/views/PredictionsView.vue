@@ -29,7 +29,7 @@ interface AnalysisGroup {
 onMounted(() => {
   void Promise.all([
     instruments.fetch(),
-    predictions.fetch({ role: 'all' }),
+    predictions.fetch({ role: 'all', limit: 240 }),
   ]);
 });
 

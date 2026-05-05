@@ -6,7 +6,7 @@ export const usePredictionsStore = defineStore('predictions', () => {
   const items = ref<Record<string, unknown>[]>([]);
   const loading = ref(false);
 
-  async function fetch(opts?: { role?: string; runId?: string; instrumentId?: string }) {
+  async function fetch(opts?: { role?: string; runId?: string; instrumentId?: string; limit?: number }) {
     const api = useApi();
     loading.value = true;
     try {
@@ -14,6 +14,7 @@ export const usePredictionsStore = defineStore('predictions', () => {
       if (opts?.role) params.set('role', opts.role);
       if (opts?.runId) params.set('runId', opts.runId);
       if (opts?.instrumentId) params.set('instrumentId', opts.instrumentId);
+      if (opts?.limit) params.set('limit', String(opts.limit));
       const qs = params.toString();
       items.value = await api.get<Record<string, unknown>[]>(`/predictions${qs ? `?${qs}` : ''}`);
     } finally {
