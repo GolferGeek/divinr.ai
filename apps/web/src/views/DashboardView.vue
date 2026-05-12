@@ -746,12 +746,12 @@ function formatStartShort(iso: string): string {
 }
 .pathway-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin: 16px 0 24px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .pathway-grid {
     grid-template-columns: repeat(3, 1fr);
   }
