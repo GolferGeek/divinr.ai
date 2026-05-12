@@ -24,6 +24,12 @@ import { UserPortfolioService } from './services/user-portfolio.service';
 import { TradeRecommendationService } from './services/trade-recommendation.service';
 import { AffinityService } from './services/affinity.service';
 import { ArticleRelevanceService } from './services/article-relevance.service';
+import { AnalysisPreferencesService } from './services/analysis-preferences.service';
+import {
+  scoreDashboardAnalysis,
+  type DashboardAnalysisRelevance,
+  type DashboardPriorityMode,
+} from './utils/dashboard-relevance';
 import {
   parseContractMarkdown as parseContractMarkdownUtil,
   validateContractSections,
@@ -198,6 +204,8 @@ export class MarketsService {
     private readonly optOuts: SocialOptOutService,
     @Inject(ArticleRelevanceService)
     private readonly articleRelevance: ArticleRelevanceService,
+    @Inject(AnalysisPreferencesService)
+    private readonly analysisPreferences: AnalysisPreferencesService,
   ) {}
 
   private isExternalCrawlerSyncEnabled(force = false): boolean {
@@ -3326,10 +3334,12 @@ Respond ONLY with valid JSON.`,
       risks: unknown;
     }>;
     trade_recommendation: TradeRecommendation | null;
+    relevance: DashboardAnalysisRelevance;
   }>> {
     await this.requireRead(userId);
 
     const minDashboardConfidence = Number(process.env.DASHBOARD_SIGNAL_MIN_CONFIDENCE ?? 70);
+    const relevanceContext = await this.loadDashboardRelevanceContext(userId);
 
     // Get latest unsettled high-conviction signal run per instrument.
     // Neutral or low-conviction analyses remain available on instrument pages,
@@ -3391,6 +3401,20 @@ Respond ONLY with valid JSON.`,
 
       const arbitratorPred = preds.find(p => p.role === 'arbitrator');
       const analystPreds = preds.filter(p => p.role === 'analyst' || p.role === 'paper');
+      const analystIds = analystPreds
+        .map(p => String(p.analyst_id || ''))
+        .filter(Boolean);
+      const directions = analystPreds.map(p => String(p.predicted_direction || ''));
+      if (arbitratorPred) directions.push(String(arbitratorPred.predicted_direction || ''));
+      const relevanceResult = scoreDashboardAnalysis({
+        instrumentId: run.instrument_id,
+        analystIds,
+        confidence: arbitratorPred ? Number(arbitratorPred.confidence) : 0,
+        directions,
+        createdAt: run.created_at,
+        ...relevanceContext,
+      });
+      if (relevanceResult.hidden) continue;
 
       // Phase 6: ensure a portfolio_manager trade recommendation exists for
       // this run, then size it for THIS viewing user.
@@ -3433,10 +3457,110 @@ Respond ONLY with valid JSON.`,
           risks: p.risks,
         })),
         trade_recommendation: tradeRec,
+        relevance: relevanceResult.relevance,
       });
     }
 
-    return dashboardPredictions;
+    return dashboardPredictions
+      .sort((a, b) => {
+        const scoreDiff = b.relevance.score - a.relevance.score;
+        if (scoreDiff !== 0) return scoreDiff;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      })
+      .slice(0, 8);
+  }
+
+  private async loadDashboardRelevanceContext(userId: string): Promise<{
+    followedAnalystIds: Set<string>;
+    watchedInstrumentIds: Set<string>;
+    mutedInstrumentIds: Set<string>;
+    openPositionInstrumentIds: Set<string>;
+    queuedTradeInstrumentIds: Set<string>;
+    activeTournamentInstrumentIds: Set<string>;
+    analystAffinityScores: Map<string, number>;
+    priorityMode: DashboardPriorityMode;
+  }> {
+    const defaults = {
+      followedAnalystIds: new Set<string>(),
+      watchedInstrumentIds: new Set<string>(),
+      mutedInstrumentIds: new Set<string>(),
+      openPositionInstrumentIds: new Set<string>(),
+      queuedTradeInstrumentIds: new Set<string>(),
+      activeTournamentInstrumentIds: new Set<string>(),
+      analystAffinityScores: new Map<string, number>(),
+      priorityMode: 'balanced' as DashboardPriorityMode,
+    };
+
+    try {
+      const preferences = await this.analysisPreferences.getPreferences(userId);
+      defaults.followedAnalystIds = new Set(preferences.followed_analyst_ids);
+      defaults.watchedInstrumentIds = new Set(preferences.watched_instrument_ids);
+      defaults.mutedInstrumentIds = new Set(preferences.muted_instrument_ids);
+      defaults.priorityMode = preferences.priority_mode;
+    } catch (err) {
+      this.logger.warn(`Dashboard preferences unavailable: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    try {
+      const positions = await this.userPortfolio.listPositions(userId, 'open');
+      defaults.openPositionInstrumentIds = new Set(
+        positions.map((row) => String((row as Record<string, unknown>).instrument_id ?? '')).filter(Boolean),
+      );
+    } catch (err) {
+      this.logger.warn(`Dashboard open positions unavailable: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    try {
+      const queue = await this.userPortfolio.getQueuedTrades(userId);
+      defaults.queuedTradeInstrumentIds = new Set(
+        queue.map((row) => String(row.instrument_id ?? '')).filter(Boolean),
+      );
+    } catch (err) {
+      this.logger.warn(`Dashboard queued trades unavailable: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    try {
+      const tournamentResult = await this.db.rawQuery(
+        `
+        select distinct instrument_id
+        from (
+          select jsonb_array_elements_text(coalesce(t.allowed_instruments, '[]'::jsonb)) as instrument_id
+          from prediction.tournament_entries te
+          join prediction.tournaments t on t.id = te.tournament_id
+          where te.user_id = $1 and t.status = 'active'
+          union
+          select i.id as instrument_id
+          from prediction.tournament_entries te
+          join prediction.tournaments t on t.id = te.tournament_id
+          join prediction.tournament_positions tp on tp.tournament_id = te.tournament_id and tp.user_id = te.user_id
+          join prediction.instruments i on i.symbol = tp.symbol
+          where te.user_id = $1 and t.status = 'active' and tp.status = 'open'
+        ) x
+        where instrument_id is not null and instrument_id <> ''
+        `,
+        [userId],
+      );
+      if (!tournamentResult.error) {
+        defaults.activeTournamentInstrumentIds = new Set(
+          ((tournamentResult.data as Array<{ instrument_id: string }> | null) ?? [])
+            .map((row) => row.instrument_id)
+            .filter(Boolean),
+        );
+      }
+    } catch (err) {
+      this.logger.warn(`Dashboard tournament instruments unavailable: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    try {
+      const affinity = await this.affinity.getUserAffinityProfile(userId);
+      defaults.analystAffinityScores = new Map(
+        affinity.map((row) => [row.analyst_id, Number(row.affinity_score)]),
+      );
+    } catch (err) {
+      this.logger.warn(`Dashboard affinity unavailable: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    return defaults;
   }
 
   /**

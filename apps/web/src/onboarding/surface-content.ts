@@ -786,6 +786,12 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       "Toggling anything off keeps the underlying feature working; only the " +
       "social surface changes.",
   },
+  'settings.analysis-preferences': {
+    title: 'Analysis preferences',
+    body:
+      'Follow analysts, watch instruments, mute instruments, and choose whether ' +
+      'your dashboard should lean toward portfolio positions, tournaments, or a balanced mix.',
+  },
   'settings.byo-credentials': {
     title: 'Your model credentials',
     body:

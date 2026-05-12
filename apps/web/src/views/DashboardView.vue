@@ -13,6 +13,7 @@ import { useDomainStore } from '../stores/domain.store';
 import AnalystPredictionModal from '../components/AnalystPredictionModal.vue';
 import { useAffinityStore } from '../stores/affinity.store';
 import { useTournamentStore } from '../stores/tournament.store';
+import { usePortfolioStore } from '../stores/portfolio.store';
 import { useClubStore } from '../stores/club.store';
 import ContrarianAlert from '../components/ContrarianAlert.vue';
 import DailyAnalystSummary from '../components/DailyAnalystSummary.vue';
@@ -67,6 +68,15 @@ interface DashboardPrediction {
   arbitrator: { direction: string; confidence: number; rationale: string } | null;
   analysts: AnalystStance[];
   trade_recommendation: TradeRecommendation | null;
+  relevance?: {
+    score: number;
+    reasons: string[];
+    explicit_preference_score: number;
+    open_position_count: number;
+    active_tournament_count: number;
+    top_affinity_score: number | null;
+    disagreement_score: number | null;
+  };
 }
 
 const instruments = useInstrumentsStore();
@@ -138,14 +148,19 @@ function openInstrumentDetail(instrumentId: string) {
 }
 
 const tournamentStore = useTournamentStore();
+const portfolioStore = usePortfolioStore();
 const clubStore = useClubStore();
 const showCommunitySurfaces = computed(() => mastery.canViewLevel('competitive_participation'));
 const showBuilderSurfaces = computed(() => mastery.canViewLevel('builder'));
+const tournamentStandings = ref<Record<string, { rank: number; total_pnl: number; return_pct: number; rank_delta: number | null }>>({});
 
 onMounted(async () => {
   await instruments.fetch().catch(() => {});
   affinityStore.fetchAffinityProfile().catch(() => {});
-  tournamentStore.fetchMyEntries().catch(() => {});
+  portfolioStore.fetchMyPortfolio().catch(() => {});
+  portfolioStore.fetchMyPositions('open').catch(() => {});
+  await tournamentStore.fetchMyEntries().catch(() => {});
+  loadTournamentStandings().catch(() => {});
   clubStore.fetchMyClubs().catch(() => {});
   try {
     predictions.value = await get<DashboardPrediction[]>('/predictions/dashboard');
@@ -159,6 +174,28 @@ onMounted(async () => {
     el.style.flex = '1';
   });
 });
+
+async function loadTournamentStandings() {
+  const activeEntries = tournamentStore.myEntries
+    .filter((entry) => entry.tournament_status === 'active')
+    .slice(0, 3);
+  const next: Record<string, { rank: number; total_pnl: number; return_pct: number; rank_delta: number | null }> = {};
+  for (const entry of activeEntries) {
+    try {
+      await tournamentStore.fetchLeaderboard(entry.tournament_id);
+      const mine = tournamentStore.leaderboard.find((row) => row.user_id === entry.user_id);
+      if (mine) {
+        next[entry.tournament_id] = {
+          rank: mine.rank,
+          total_pnl: mine.total_pnl,
+          return_pct: mine.return_pct,
+          rank_delta: mine.rank_delta,
+        };
+      }
+    } catch { /* keep tournament row without standing context */ }
+  }
+  tournamentStandings.value = next;
+}
 
 /** Sort analysts by affinity (highest first) when affinity data is available. */
 function sortedAnalysts(analysts: AnalystStance[]): AnalystStance[] {
@@ -214,10 +251,67 @@ function actionLabel(action: string): string {
   return 'HOLD';
 }
 
+function relevanceLabel(reason: string): string {
+  switch (reason) {
+    case 'followed_analyst': return 'Followed analyst';
+    case 'watched_instrument': return 'Watched instrument';
+    case 'open_position': return 'In your portfolio';
+    case 'queued_trade': return 'Queued trade';
+    case 'active_tournament': return 'In an active tournament';
+    case 'analyst_affinity': return 'Analyst you read often';
+    case 'high_conviction': return 'High-conviction signal';
+    case 'analyst_disagreement': return 'Analysts disagree';
+    default: return '';
+  }
+}
+
+function relevanceReasons(pred: DashboardPrediction): string[] {
+  return (pred.relevance?.reasons ?? [])
+    .map(relevanceLabel)
+    .filter((label) => label.length > 0)
+    .slice(0, 3);
+}
+
 function formatPrice(n: number | null): string {
   if (n == null || isNaN(n)) return '—';
   return `$${n.toFixed(2)}`;
 }
+
+function formatSignedCurrency(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  const formatted = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${n < 0 ? '-' : '+'}$${formatted}`;
+}
+
+function formatPct(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
+}
+
+function positionInstrumentId(position: Record<string, unknown>): string {
+  return String(position['instrument_id'] ?? '');
+}
+
+function positionSymbol(position: Record<string, unknown>): string {
+  return String(position['symbol'] ?? '—');
+}
+
+function openPositionAnalysis(position: Record<string, unknown>) {
+  const id = positionInstrumentId(position);
+  if (id) router.push(`/instruments/${id}`);
+  else router.push('/predictions');
+}
+
+const dashboardTournamentEntries = computed(() => {
+  return [...tournamentStore.myEntries]
+    .sort((a, b) => {
+      const statusRank = (status?: string) => status === 'active' ? 0 : status === 'upcoming' ? 1 : 2;
+      return statusRank(a.tournament_status) - statusRank(b.tournament_status);
+    })
+    .slice(0, 4);
+});
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -242,8 +336,89 @@ function formatStartShort(iso: string): string {
     <UserUsageWidget />
     <StudentAccrualWidget />
 
+    <section class="attention-grid">
+      <IonCard class="attention-card" data-test="dashboard-positions">
+        <IonCardHeader>
+          <IonCardTitle>Current Positions</IonCardTitle>
+        </IonCardHeader>
+        <IonCardContent>
+          <div v-if="portfolioStore.myPositions.length === 0" class="empty-attention">
+            <IonNote>No open positions right now.</IonNote>
+            <div class="attention-actions">
+              <IonButton size="small" fill="outline" @click="router.push('/predictions')">Browse Analyses</IonButton>
+              <IonButton size="small" fill="clear" @click="router.push('/portfolios')">Portfolios</IonButton>
+            </div>
+          </div>
+          <div
+            v-for="position in portfolioStore.myPositions.slice(0, 5)"
+            :key="String(position['id'])"
+            class="attention-row"
+            data-test="dashboard-position-row"
+            role="button"
+            tabindex="0"
+            @click="openPositionAnalysis(position)"
+            @keyup.enter="openPositionAnalysis(position)"
+          >
+            <div>
+              <strong>{{ positionSymbol(position) }}</strong>
+              <IonNote>{{ position['direction'] }} · {{ position['quantity'] }} sh</IonNote>
+            </div>
+            <div class="attention-metrics">
+              <span>{{ formatPrice(Number(position['entry_price'] ?? 0)) }}</span>
+              <strong :class="{ positive: Number(position['unrealized_pnl']) > 0, negative: Number(position['unrealized_pnl']) < 0 }">
+                {{ formatSignedCurrency(position['unrealized_pnl']) }}
+              </strong>
+            </div>
+          </div>
+          <IonButton v-if="portfolioStore.myPositions.length > 5" size="small" fill="clear" @click="router.push('/portfolios')">
+            View all positions
+          </IonButton>
+        </IonCardContent>
+      </IonCard>
+
+      <IonCard v-if="showCommunitySurfaces" class="attention-card" data-test="dashboard-tournaments">
+        <IonCardHeader>
+          <IonCardTitle>Tournament Standings</IonCardTitle>
+        </IonCardHeader>
+        <IonCardContent>
+          <div v-if="dashboardTournamentEntries.length === 0" class="empty-attention">
+            <IonNote>No active tournament entries.</IonNote>
+            <div class="attention-actions">
+              <IonButton size="small" fill="outline" @click="router.push('/tournaments')">Find Tournaments</IonButton>
+            </div>
+          </div>
+          <div
+            v-for="entry in dashboardTournamentEntries"
+            :key="entry.id"
+            class="attention-row"
+            data-test="dashboard-tournament-row"
+            role="button"
+            tabindex="0"
+            @click="router.push(`/tournaments/${entry.tournament_id}`)"
+            @keyup.enter="router.push(`/tournaments/${entry.tournament_id}`)"
+          >
+            <div>
+              <strong>{{ entry.tournament_name }}</strong>
+              <IonChip size="small" :color="entry.tournament_status === 'active' ? 'success' : 'warning'">
+                {{ entry.tournament_status }}
+              </IonChip>
+            </div>
+            <div class="attention-metrics">
+              <template v-if="tournamentStandings[entry.tournament_id]">
+                <span>Rank {{ tournamentStandings[entry.tournament_id].rank }}</span>
+                <strong :class="{ positive: tournamentStandings[entry.tournament_id].total_pnl > 0, negative: tournamentStandings[entry.tournament_id].total_pnl < 0 }">
+                  {{ formatSignedCurrency(tournamentStandings[entry.tournament_id].total_pnl) }}
+                </strong>
+              </template>
+              <IonNote v-else>{{ entry.tournament_status === 'upcoming' && entry.tournament_starts_at ? `Starts ${formatStartShort(entry.tournament_starts_at)}` : 'Open detail' }}</IonNote>
+            </div>
+          </div>
+        </IonCardContent>
+      </IonCard>
+    </section>
+
     <!-- Pathway Cards -->
-    <div class="pathway-grid">
+    <div class="pathway-grid secondary-actions">
       <div class="pathway-card" @click="router.push('/predictions')">
         <ion-icon :icon="statsChartOutline" class="pathway-icon" />
         <div class="pathway-label">Analyses</div>
@@ -307,71 +482,19 @@ function formatStartShort(iso: string): string {
       </IonCardContent>
     </IonCard>
 
-    <!-- Your Tournaments -->
-    <IonCard
-      v-if="showCommunitySurfaces && tournamentStore.myEntries.length > 0"
-      class="tournament-dashboard-card"
-    >
-      <IonCardHeader>
-        <IonCardTitle>Your Tournaments</IonCardTitle>
-      </IonCardHeader>
-      <IonCardContent>
-        <div v-for="entry in tournamentStore.myEntries" :key="entry.id" class="tournament-entry"
-          @click="router.push(`/tournaments/${entry.tournament_id}`)" role="link" tabindex="0">
-          <strong>{{ entry.tournament_name }}</strong>
-          <IonChip size="small" :color="entry.tournament_status === 'active' ? 'success' : 'warning'">
-            {{ entry.tournament_status }}<template v-if="entry.tournament_status === 'upcoming' && entry.tournament_starts_at"> • Starts {{ formatStartShort(entry.tournament_starts_at) }}</template>
-          </IonChip>
-        </div>
-      </IonCardContent>
-    </IonCard>
-
     <!-- Daily Analyst Summary (most visible when markets are closed) -->
     <DailyAnalystSummary />
 
     <!-- Contrarian Alerts -->
     <ContrarianAlert />
 
-    <!-- Summary Stats -->
-    <ion-grid>
-      <ion-row>
-        <ion-col size="6" size-md="3">
-          <ion-card>
-            <ion-card-content class="ion-text-center">
-              <div class="stat-value">{{ instruments.items.length }}</div>
-              <ion-note>Tickers</ion-note>
-            </ion-card-content>
-          </ion-card>
-        </ion-col>
-        <ion-col size="6" size-md="3">
-          <ion-card>
-            <ion-card-content class="ion-text-center">
-              <div class="stat-value">{{ predictions.length }}</div>
-              <ion-note>Active Analyses</ion-note>
-            </ion-card-content>
-          </ion-card>
-        </ion-col>
-        <ion-col size="6" size-md="3">
-          <ion-card>
-            <ion-card-content class="ion-text-center">
-              <div class="stat-value">{{ predictions.filter(p => p.analysts.length > 0).length }}</div>
-              <ion-note>Multi-Analyst</ion-note>
-            </ion-card-content>
-          </ion-card>
-        </ion-col>
-        <ion-col size="6" size-md="3">
-          <ion-card>
-            <ion-card-content class="ion-text-center">
-              <div class="stat-value">{{ predictions.reduce((sum, p) => sum + p.analysts.length, 0) }}</div>
-              <ion-note>Analyst Stances</ion-note>
-            </ion-card-content>
-          </ion-card>
-        </ion-col>
-      </ion-row>
-    </ion-grid>
-
     <!-- Signal Cards -->
-    <h2 style="margin-top:24px">Active Signals</h2>
+    <div class="section-heading">
+      <h2>Relevant Analysis</h2>
+      <ion-button fill="clear" size="small" @click="router.push('/settings/analysis-preferences')">
+        Preferences
+      </ion-button>
+    </div>
 
     <div v-if="loading" style="text-align:center;padding:40px;color:#999">Loading analyses...</div>
     <div v-else-if="predictions.length === 0" style="text-align:center;padding:40px;color:#999">
@@ -426,6 +549,15 @@ function formatStartShort(iso: string): string {
                 >All analysts neutral</span>
               </div>
               <div v-else class="stance-neutral">Single analyst analysis</div>
+
+              <div v-if="relevanceReasons(pred).length > 0" class="relevance-row" data-test="dashboard-analysis-reasons">
+                <ion-chip
+                  v-for="reason in relevanceReasons(pred)"
+                  :key="reason"
+                  class="relevance-chip"
+                  color="tertiary"
+                >{{ reason }}</ion-chip>
+              </div>
 
               <!-- Bottom section: rationale + one-line trade rec + footer -->
               <div class="card-bottom-section" style="margin-top:auto">
@@ -539,6 +671,70 @@ function formatStartShort(iso: string): string {
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.15s;
 }
+
+.attention-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.attention-card {
+  margin: 0;
+}
+
+.attention-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ion-color-light-shade);
+  cursor: pointer;
+}
+
+.attention-row:last-child {
+  border-bottom: 0;
+}
+
+.attention-row strong,
+.attention-row ion-note {
+  display: block;
+}
+
+.attention-metrics {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 96px;
+  text-align: right;
+}
+
+.attention-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.empty-attention {
+  padding: 8px 0;
+}
+
+.positive {
+  color: var(--ion-color-success);
+}
+
+.negative {
+  color: var(--ion-color-danger);
+}
+
+@media (max-width: 860px) {
+  .attention-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .club-entry:hover, .tournament-entry:hover {
   background: var(--ion-color-light, #f4f5f8);
   border-color: var(--ion-color-light-shade);
@@ -606,6 +802,18 @@ function formatStartShort(iso: string): string {
   font-weight: bold;
 }
 
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.section-heading h2 {
+  margin: 0;
+}
+
 .prediction-card {
   transition: transform 0.15s;
   height: 100%;
@@ -613,6 +821,19 @@ function formatStartShort(iso: string): string {
 
 .prediction-card:hover {
   transform: translateY(-2px);
+}
+
+.relevance-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.relevance-chip {
+  height: 24px;
+  margin: 0;
+  font-size: 0.72rem;
 }
 
 /* placeholder */

@@ -15,6 +15,7 @@ import {
 @Injectable()
 export class MarketsSchemaService {
   private static readonly ddlBootstrapKey = 'markets-ddl-v2026-04-27';
+  private static readonly analysisPreferencesBootstrapKey = 'markets-analysis-preferences-v2026-05-12';
   private static schemaReady = false;
   private static schemaReadyPromise: Promise<void> | null = null;
   private static bootstrapReady = false;
@@ -81,6 +82,7 @@ export class MarketsSchemaService {
       ${this.auditFindingsDdl()}
       ${this.userScopingMigrationDdl()}
       ${this.affinityDdl()}
+      ${this.analysisPreferencesDdl()}
       ${this.notificationsDdl()}
       ${this.fearGreedAlertsDdl()}
       ${this.coordinationDdl()}
@@ -119,6 +121,7 @@ export class MarketsSchemaService {
 
   async bootstrap(): Promise<void> {
     await this.ensureSchema();
+    await this.ensureAnalysisPreferencesSchema();
     if (MarketsSchemaService.bootstrapReady) return;
     await RuntimeSchemaBootstrapCoordinator.runExclusive(REQUEST_SCHEMA_BOOTSTRAP_LOCK, async () => {
       if (MarketsSchemaService.bootstrapReady) return;
@@ -162,6 +165,16 @@ export class MarketsSchemaService {
         }
       }
     });
+  }
+
+  private async ensureAnalysisPreferencesSchema(): Promise<void> {
+    await this.ensureBootstrapStateTable();
+    if (await this.isBootstrapStepComplete(MarketsSchemaService.analysisPreferencesBootstrapKey)) return;
+    const result = await this.db.rawQuery(this.analysisPreferencesDdl());
+    if (result.error) {
+      throw new Error(`Analysis preferences schema creation failed: ${result.error.message}`);
+    }
+    await this.markBootstrapStepComplete(MarketsSchemaService.analysisPreferencesBootstrapKey);
   }
 
   /**
@@ -234,6 +247,8 @@ export class MarketsSchemaService {
       'prediction.market_run_artifacts',
       'prediction.market_predictions',
       'prediction.risk_assessments',
+      'prediction.user_analysis_preferences',
+      'prediction.user_dashboard_preferences',
     ];
     const relationResult = await this.db.rawQuery(
       `
@@ -2156,6 +2171,29 @@ export class MarketsSchemaService {
       );
       create index if not exists prediction_contrarian_alerts_user_idx
         on prediction.user_contrarian_alerts (user_id, is_read, created_at desc);
+    `;
+  }
+
+  private analysisPreferencesDdl(): string {
+    return `
+      create table if not exists prediction.user_analysis_preferences (
+        user_id text not null references authz.users(id) on delete cascade,
+        preference_type text not null check (preference_type in ('followed_analyst', 'watched_instrument', 'muted_instrument')),
+        target_id text not null,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now(),
+        primary key (user_id, preference_type, target_id)
+      );
+      create index if not exists idx_user_analysis_preferences_user_type
+        on prediction.user_analysis_preferences (user_id, preference_type);
+
+      create table if not exists prediction.user_dashboard_preferences (
+        user_id text primary key references authz.users(id) on delete cascade,
+        priority_mode text not null default 'balanced'
+          check (priority_mode in ('balanced', 'portfolio_first', 'tournaments_first')),
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
     `;
   }
 

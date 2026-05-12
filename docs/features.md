@@ -1,6 +1,6 @@
 # Divinr Features — Authoritative Inventory
 
-**Last updated**: 2026-04-23
+**Last updated**: 2026-05-12
 **Source of truth for**: marketing copy, landing page, onboarding seed content, regression test checklists.
 
 This doc is the single place to look up "what does Divinr ship today?" Anything added to the product should land here in the same PR that ships it.
@@ -22,7 +22,7 @@ This doc is the single place to look up "what does Divinr ship today?" Anything 
 - **Signal-to-trade-intent flow** — every analysis links to a pre-filled paper-trade ticket sized by conviction. Shipped.
 - **Article sourcing on analyst signals** — every analyst signal surfaces the articles it cited, collapsed by default and expandable inline. Pre-migration signals show a best-effort fallback of recent articles the analyst scored for the ticker. Shipped.
 - **Article Relevance tab on tickers** — every ticker detail page lists the articles each analyst scored for it, with per-analyst relevance bars and timestamps. Shipped.
-- **Slim dashboard analysis cards** — the home page fits five+ cards above the fold on a 1440×900 display; stance chips per analyst, a single trade-line summary, and a "Read more" inline link that opens the full-analysis modal. Shipped.
+- **Focused dashboard attention surface** — the home page centers current portfolio positions, active tournament standing, and a bounded set of relevant analysis cards with visible relevance reasons. Explicit analysis preferences let users follow analysts, watch or mute instruments, and choose whether the dashboard prioritizes portfolio, tournaments, or a balanced view. In progress.
 
 ## Learning System
 
@@ -51,7 +51,7 @@ This doc is the single place to look up "what does Divinr ship today?" Anything 
 
 ## Onboarding & Explainability
 
-- **First-touch walkthroughs** — 66 active surfaces wired with contextual popovers (105 authored incl. deferred). Shipped.
+- **First-touch walkthroughs** — 78 active surfaces wired with contextual popovers (117 authored incl. deferred). Shipped.
 - **5-beat Beginner Tour** — five-stop guided walkthrough surfaced on welcome. Shipped.
 - **Welcome modal** — lightweight entry point that offers the tour or freeform exploration. Shipped.
 - **Settings-driven opt-outs** — per-surface and global onboarding opt-outs. Shipped.

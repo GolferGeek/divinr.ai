@@ -82,8 +82,11 @@ export class StudentBillingService {
   ) {}
 
   private currentMonth(): string { return new Date().toISOString().slice(0, 7); }
-  private priorMonth(): string {
-    const d = new Date();
+  private priorMonth(yearMonth = this.currentMonth()): string {
+    const match = yearMonth.match(/^(\d{4})-(\d{2})$/);
+    const d = match
+      ? new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1))
+      : new Date();
     d.setMonth(d.getMonth() - 1);
     return d.toISOString().slice(0, 7);
   }
@@ -138,7 +141,7 @@ export class StudentBillingService {
 
   async getMySummary(userId: string, yearMonth?: string): Promise<MySummary> {
     const ym = yearMonth ?? this.currentMonth();
-    const prior = this.priorMonth();
+    const prior = this.priorMonth(ym);
 
     const totalsResult = await this.db.rawQuery(
       `SELECT coalesce(total_calls, 0)::integer as total_calls,

@@ -48,6 +48,7 @@ import { PerformanceService } from './services/performance.service';
 import { WiringService } from './services/wiring.service';
 import { EnablementService } from './services/enablement.service';
 import { LlmUsageQueryService } from './services/llm-usage-query.service';
+import { AnalysisPreferencesService } from './services/analysis-preferences.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { SkipReadOnly } from '../billing/skip-read-only.decorator';
 import { LearningPanelService } from '../learning-panel/learning-panel.service';
@@ -144,6 +145,7 @@ export class MarketsController {
     @Inject(LlmUsageQueryService) private readonly usageQuery: LlmUsageQueryService,
     @Inject(MarketsBarsService) private readonly marketsBars: MarketsBarsService,
     @Inject(LearningPanelService) private readonly learningPanel: LearningPanelService,
+    @Inject(AnalysisPreferencesService) private readonly analysisPreferences: AnalysisPreferencesService,
   ) {
     this.markets = markets;
   }
@@ -861,6 +863,24 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     return this.markets.getDashboardPredictions(user.id);
+  }
+
+  @Get('preferences/analysis')
+  async getAnalysisPreferences(
+    @Req() req: { user?: AuthenticatedUser },
+  ) {
+    const user = this.getUser(req);
+    return this.analysisPreferences.getPreferences(user.id);
+  }
+
+  @Put('preferences/analysis')
+  async updateAnalysisPreferences(
+    @Req() req: { user?: AuthenticatedUser },
+    @Body() body: Record<string, unknown>,
+  ) {
+    const user = this.getUser(req);
+    await this.requireWriteAccess(user);
+    return this.analysisPreferences.replacePreferences(user.id, body);
   }
 
   @Get('runs/:runId/trade-recommendation')

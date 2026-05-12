@@ -44,6 +44,7 @@ test.describe('predictions facet — dashboard card shape', () => {
 
     // The slim card replaces the vertical stance list with `.stance-chip-row`.
     await expect(firstCard.locator('.stance-chip-row, .stance-neutral')).toBeVisible();
+    await expect(firstCard.locator('[data-test="dashboard-analysis-reasons"]').first()).toBeVisible();
     await expect(firstCard.locator('.analyst-stances')).toHaveCount(0);
     await expect(firstCard.locator('.trade-rec-details')).toHaveCount(0);
 

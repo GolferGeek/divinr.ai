@@ -44,6 +44,7 @@ import { FearGreedAlertService } from './services/fear-greed-alert.service';
 import { CoordinationService } from './services/coordination.service';
 import { PerformanceService } from './services/performance.service';
 import { ArticleRelevanceService } from './services/article-relevance.service';
+import { AnalysisPreferencesService } from './services/analysis-preferences.service';
 import { WiringService } from './services/wiring.service';
 import { ActiveAuthorshipService } from './services/active-authorship.service';
 import { EnablementService } from './services/enablement.service';
@@ -117,6 +118,7 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     CoordinationService,
     PerformanceService,
     ArticleRelevanceService,
+    AnalysisPreferencesService,
     WiringService,
     ActiveAuthorshipService,
     EnablementService,
@@ -126,6 +128,6 @@ import { RedditAdapter } from './adapters/reddit.adapter';
     MessagingSchemaService,
     MessagingService,
   ],
-  exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService, LlmUsageQueryService, MarketsLlmService, NightlyEvaluationService, MarketsSchemaService, MessagingSchemaService],
+  exports: [MarketsService, AnalystPortfolioService, TradeRecommendationService, AnalysisPreferencesService, LlmUsageQueryService, MarketsLlmService, NightlyEvaluationService, MarketsSchemaService, MessagingSchemaService],
 })
 export class MarketsModule {}

@@ -48,7 +48,7 @@ class MockDb {
       return { data: [], error: null };
     }
     if (sql.includes('from unnest($1::text[]) as rel_name')) {
-      return { data: [{ present: this.signaturePresent ? 8 : 0 }], error: null };
+      return { data: [{ present: this.signaturePresent ? 10 : 0 }], error: null };
     }
     if (sql.includes('join information_schema.columns c')) {
       return { data: [{ present: this.signaturePresent ? 6 : 0 }], error: null };

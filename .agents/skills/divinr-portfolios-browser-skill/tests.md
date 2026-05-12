@@ -48,6 +48,7 @@ test('portfolios dashboard loads, enforces vocabulary, no 5xx', async ({ page })
 
 ## Chrome-MCP exploratory (not in CI)
 
+- Dashboard home: open `/` and confirm `[data-test="dashboard-positions"]` appears above secondary navigation. Assert either `[data-test="dashboard-position-row"]` exists or the open-position empty state links to Analyses and Portfolios. Click a populated row and confirm it reaches the relevant instrument or Analyses route.
 - Switch tabs: `mine` → `analysts` → `triples`. On `analysts` confirm the kind chips include `analyst`, `arbitrator`, `day_trader`. On `triples` confirm `AddTripleFlow` button or empty-state note renders.
 - Click the user row in `mine` tab and confirm the expanded panel shows Account cards, Equity Curve, Positions list (or `No positions in last 30 days.`), Queued Trades section, and Decisions section.
 - Type a known portfolio name into `[data-testid="portfolio-search"]` and confirm rows filter live.

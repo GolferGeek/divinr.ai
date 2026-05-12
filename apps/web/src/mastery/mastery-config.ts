@@ -9,6 +9,7 @@ import {
   gitNetworkOutline,
   gridOutline,
   heartOutline,
+  optionsOutline,
   newspaperOutline,
   peopleCircleOutline,
   peopleOutline,
@@ -97,6 +98,7 @@ export const masteryNavGroups: MasteryNavGroup[] = [
     label: 'Settings',
     items: [
       { title: 'Your Content', icon: createOutline, to: '/settings/authored-content', minLevel: 'builder', authoringOnly: true },
+      { title: 'Analysis Preferences', icon: optionsOutline, to: '/settings/analysis-preferences', minLevel: 'core_trading' },
       { title: 'Onboarding', icon: schoolOutline, to: '/settings/onboarding', minLevel: 'competitive_participation' },
       { title: 'Visibility & Social', icon: shieldOutline, to: '/settings/social-opt-outs', minLevel: 'competitive_participation' },
       { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine', minLevel: 'operator', adminOnly: true },
@@ -160,6 +162,7 @@ export const masteryRoutePolicies: MasteryRoutePolicy[] = [
   { path: '/clubs/:clubId/mentoring', minLevel: 'community_creation' },
   { path: '/messages', minLevel: 'community_creation' },
   { path: '/settings/authored-content', minLevel: 'builder', authoringOnly: true },
+  { path: '/settings/analysis-preferences', minLevel: 'core_trading' },
   { path: '/analysts', minLevel: 'builder' },
   { path: '/analysts/:detail/contract', minLevel: 'builder', authoringOnly: true },
   { path: '/analysts/:detail', minLevel: 'builder' },

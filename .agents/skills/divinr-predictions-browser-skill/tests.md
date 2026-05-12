@@ -47,9 +47,15 @@ Primary section: Playwright cases the smoke spec encodes. Secondary section: Chr
 ### 6a. Dashboard prediction card — slim shape (spec: `apps/e2e/tests/predictions/dashboard-card.spec.ts`)
 
 - Surface: `/` (`DashboardView`).
-- Asserts `.prediction-card` present, renders `.stance-chip-row` (or `.stance-neutral` when all analysts are flat), has a single `[data-test="dashboard-card-view"]` CTA, and that the old dense elements (`.analyst-stances`, `.trade-rec-details`) are gone.
+- Asserts `.prediction-card` present, renders `.stance-chip-row` (or `.stance-neutral` when all analysts are flat), renders `[data-test="dashboard-analysis-reasons"]`, has a single `[data-test="dashboard-card-view"]` CTA, and that the old dense elements (`.analyst-stances`, `.trade-rec-details`) are gone.
 - `test.skip()`s cleanly when no cards are seeded for the testing-team user.
 - Manual density check (1440×900, ≥5 cards above the fold) lives in the PR description, not the spec.
+
+### 6b. Analysis preferences settings (spec: `apps/e2e/tests/predictions/analysis-preferences.spec.ts`)
+
+- Surface: `/settings/analysis-preferences`.
+- Asserts the settings page loads, the dashboard priority segment is visible, follow/watch/mute controls are present when analysts and instruments are seeded, preferences can be saved, and reload does not produce 5xx responses.
+- The surface is intentionally small: followed analysts, watched instruments, muted instruments, and dashboard priority mode only.
 
 ### 6. Prediction sources component — collapse/expand + fallback
 

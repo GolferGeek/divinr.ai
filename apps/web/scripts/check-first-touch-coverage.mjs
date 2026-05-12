@@ -24,12 +24,12 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname, '..');
 const srcRoot = path.join(webRoot, 'src');
 
-// PRD Appendix A — the 105 canonical surface keys. Keep in sync with
+// PRD Appendix A — the canonical surface keys. Keep in sync with
 // docs/efforts/current/onboarding-tour-extended/prd.md §Appendix A.
 const APPENDIX_A = [
-  // Top-level sections (11)
+  // Top-level sections (12)
   'dashboard', 'predictions', 'instruments', 'portfolios', 'performance',
-  'analysts', 'clubs', 'tournaments', 'messages', 'notifications', 'settings',
+  'analysts', 'clubs', 'tournaments', 'messages', 'notifications', 'settings', 'chat',
   // Predictions & trade path (5)
   'prediction.card', 'prediction.detail', 'prediction.trade-cta', 'prediction.sources',
   'tournament.picker',
@@ -77,8 +77,8 @@ const APPENDIX_A = [
   'tournament.create', 'tournament.history', 'tournament.invite-landing',
   // Clubs extra (4)
   'club.compare', 'club.rankings', 'club.invite-landing', 'club.join-signup',
-  // Auth & onboarding (2)
-  'auth.invite-signup', 'welcome-modal',
+  // Auth & onboarding (3)
+  'auth.signup', 'auth.invite-signup', 'welcome-modal',
   // Cost & billing (7)
   'billing.summary', 'billing.compute-breakdown', 'billing.student-accrual',
   'billing.trial-countdown', 'billing.read-only-banner', 'billing.bill-overview',
@@ -91,13 +91,13 @@ const APPENDIX_A = [
   'admin.contract-editor', 'admin.notification-debug', 'admin.attribution',
   'admin.domain-dashboard', 'admin.user-billing',
   'admin.billing-webhook-health',
-  // Settings (6)
+  // Settings (7)
   'settings.onboarding', 'settings.opt-outs', 'settings.social-opt-outs',
-  'settings.byo-credentials', 'settings.profile', 'settings.terms',
+  'settings.analysis-preferences', 'settings.byo-credentials', 'settings.profile', 'settings.terms',
 ];
 
-if (APPENDIX_A.length !== 114) {
-  console.error(`Appendix A baseline is malformed: expected 114, got ${APPENDIX_A.length}`);
+if (APPENDIX_A.length !== 117) {
+  console.error(`Appendix A baseline is malformed: expected 117, got ${APPENDIX_A.length}`);
   process.exit(2);
 }
 const inventory = new Set(APPENDIX_A);
@@ -124,7 +124,7 @@ function scanDir(dir) {
       scanDir(full);
     } else if (entry.isFile() && (full.endsWith('.vue') || full.endsWith('.ts'))) {
       const txt = fs.readFileSync(full, 'utf8');
-      for (const m of txt.matchAll(/surface-key\s*=\s*"([^"]+)"/g)) wiredKeys.add(m[1]);
+      for (const m of txt.matchAll(/(?<!:)surface-key\s*=\s*"([^"]+)"/g)) wiredKeys.add(m[1]);
       for (const m of txt.matchAll(/useFirstTouch\(\s*['"]([^'"]+)['"]/g)) wiredKeys.add(m[1]);
     }
   }

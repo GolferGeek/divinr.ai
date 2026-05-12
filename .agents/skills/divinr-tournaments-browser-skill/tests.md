@@ -74,6 +74,7 @@ via the italic note on that toggle.
 
 ## Chrome-MCP exploratory (not in CI)
 
+- Dashboard home: open `/` and confirm `[data-test="dashboard-tournaments"]` appears near the top when community surfaces are available. Assert either `[data-test="dashboard-tournament-row"]` exists or the empty state links to `/tournaments`. Click a populated row and confirm it opens `/tournaments/:id`.
 - `/tournaments/:id?tab=trade&symbol=AAPL&direction=long&qty=1` — verify `applyTradePrefillFromQuery` populates the trade form and clears the URL. Manual-only until we add a deterministic trade fixture.
 - Leaderboard → `MemberProfileDrawer` — click a leaderboard row on a club-scoped tournament.
 - Countdown line on upcoming tournament — verify countdown format and that the `Enter Game` button gates on status/canWrite.
