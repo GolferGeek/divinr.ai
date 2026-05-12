@@ -501,10 +501,9 @@ function formatStartShort(iso: string): string {
       No high-conviction signals are active right now. Instrument pages still show neutral and lower-conviction analysis.
     </div>
 
-    <ion-grid v-else>
-      <ion-row>
-        <ion-col v-for="pred in predictions" :key="pred.instrument_id" size="12" size-md="6" size-lg="4" style="display:flex">
-          <ion-card class="prediction-card" data-tour="dashboard-prediction-card" style="display:flex;flex-direction:column;height:100%" button @click="router.push(`/instruments/${pred.instrument_id}`)">
+    <div v-else class="analysis-grid">
+      <div v-for="pred in predictions" :key="pred.instrument_id" class="analysis-grid-item">
+        <ion-card class="prediction-card" data-tour="dashboard-prediction-card" button @click="router.push(`/instruments/${pred.instrument_id}`)">
             <ion-card-header>
               <div class="prediction-header">
                 <div>
@@ -524,7 +523,7 @@ function formatStartShort(iso: string): string {
               </div>
             </ion-card-header>
 
-            <ion-card-content style="display:flex;flex-direction:column;flex:1">
+            <ion-card-content>
               <!-- Compact analyst stance chips (top 3 non-flat + "+N more") -->
               <div v-if="pred.analysts.length > 0" class="stance-chip-row">
                 <template v-for="a in nonFlatAnalysts(pred.analysts).slice(0, 3)" :key="a.analyst_id">
@@ -560,7 +559,7 @@ function formatStartShort(iso: string): string {
               </div>
 
               <!-- Bottom section: rationale + one-line trade rec + footer -->
-              <div class="card-bottom-section" style="margin-top:auto">
+              <div class="card-bottom-section">
 
               <!-- Rationale preview with inline Read more -->
               <div v-if="pred.arbitrator?.rationale" class="rationale-preview">
@@ -619,9 +618,8 @@ function formatStartShort(iso: string): string {
               </div>
             </ion-card-content>
           </ion-card>
-        </ion-col>
-      </ion-row>
-    </ion-grid>
+      </div>
+    </div>
 
     <AnalystPredictionModal
       :is-open="modalOpen"
@@ -814,26 +812,71 @@ function formatStartShort(iso: string): string {
   margin: 0;
 }
 
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.analysis-grid-item {
+  display: flex;
+  min-width: 0;
+}
+
+@media (max-width: 1250px) {
+  .analysis-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .analysis-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .prediction-card {
+  display: flex;
+  flex-direction: column;
   transition: transform 0.15s;
   height: 100%;
+  width: 100%;
+  margin: 0;
 }
 
 .prediction-card:hover {
   transform: translateY(-2px);
 }
 
+.prediction-card ion-card-header {
+  padding: 12px 12px 8px;
+}
+
+.prediction-card ion-card-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 0 12px 12px;
+}
+
 .relevance-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 8px 0 10px;
+  gap: 4px;
+  margin: 6px 0 8px;
 }
 
 .relevance-chip {
-  height: 24px;
+  height: 22px;
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
 }
 
 /* placeholder */
@@ -842,16 +885,18 @@ function formatStartShort(iso: string): string {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 8px;
 }
 
 .consensus-badge {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .consensus-badge.up {
@@ -878,7 +923,7 @@ function formatStartShort(iso: string): string {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin: 6px 0 8px;
+  margin: 4px 0 6px;
   align-items: center;
 }
 
@@ -908,12 +953,16 @@ function formatStartShort(iso: string): string {
 }
 
 .rationale-preview {
-  font-size: 0.78rem;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.76rem;
   color: #888;
-  margin: 0 0 6px 0;
+  margin: 0 0 5px 0;
   line-height: 1.35;
   border-top: 1px solid #eee;
-  padding-top: 6px;
+  padding-top: 5px;
 }
 .read-more {
   color: var(--ion-color-primary);
@@ -927,7 +976,7 @@ function formatStartShort(iso: string): string {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
+  margin-top: 4px;
   padding-top: 6px;
   border-top: 1px solid #eee;
 }
