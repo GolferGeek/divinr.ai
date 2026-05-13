@@ -62,13 +62,13 @@ async function main(): Promise<void> {
     const results = await service.runAll();
     assert.deepEqual(calls, [
       'billing',
+      'onboarding',
       'markets',
       'messaging',
       'clubs',
       'tournaments',
       'curriculum',
       'credentials',
-      'onboarding',
       'invites',
       'first-touch',
       'learning-panel',

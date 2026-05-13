@@ -55,13 +55,13 @@ export class SchemaBootstrapService {
   private getTasks(): Array<{ key: string; run: () => Promise<void> }> {
     return [
       { key: 'billing', run: () => this.billingSchema.ensureSchema() },
+      { key: 'onboarding', run: () => this.onboardingSchema.ensureSchema() },
       { key: 'markets', run: () => this.marketsSchema.bootstrap() },
       { key: 'messaging', run: () => this.messagingSchema.ensureSchema() },
       { key: 'clubs', run: () => this.clubSchema.ensureSchema() },
       { key: 'tournaments', run: () => this.tournamentSchema.ensureSchema() },
       { key: 'curriculum', run: () => this.curriculumSchema.ensureSchema() },
       { key: 'credentials', run: () => this.credentialsSchema.ensureSchema() },
-      { key: 'onboarding', run: () => this.onboardingSchema.ensureSchema() },
       { key: 'invites', run: () => this.inviteSchema.ensureSchema() },
       { key: 'first-touch', run: () => this.firstTouchSchema.ensureSchema() },
       { key: 'learning-panel', run: () => this.learningPanelSchema.ensureSchema() },
