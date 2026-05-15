@@ -10,6 +10,7 @@ coverage
 .DS_Store
 backups/
 .monitor/
+.testing-artifacts/
 apps/e2e/.env
 apps/e2e/.auth/
 apps/e2e/test-results/

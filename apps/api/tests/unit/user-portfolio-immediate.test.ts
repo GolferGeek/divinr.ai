@@ -70,10 +70,11 @@ async function main() {
     const portfolio = basePortfolio();
     const existingPos = { id: 'pos-existing', portfolio_id: portfolio.id, user_id: 'user-1', direction: 'long', quantity: 10, entry_price: 100, status: 'open' };
     let secondInsertHappened = false;
-    const db = new MockDb((sql) => {
+    const db = new MockDb((sql, params) => {
       if (sql.includes('select * from prediction.user_portfolios')) return { data: [portfolio], error: null };
       if (sql.includes('insert into prediction.user_portfolios')) return { data: [portfolio], error: null };
       if (sql.includes('from prediction.instruments')) return { data: [{ symbol: 'NVDA', current_state: { price: 100 } }], error: null };
+      if (sql.includes('direction = $4') && params[3] === 'short') return { data: [], error: null };
       if (sql.includes('select * from prediction.user_positions')) return { data: [existingPos], error: null };
       if (sql.includes('insert into prediction.user_positions')) { secondInsertHappened = true; return { data: [], error: null }; }
       return { data: [], error: null };
@@ -87,13 +88,63 @@ async function main() {
     assert(secondInsertHappened === false, 'no second INSERT issued');
   }
 
+  // 2a. Opposite buy covers an open short instead of opening a bad long.
+  console.log('\nBuy-to-cover:');
+  {
+    const portfolio = basePortfolio();
+    const shortPos = {
+      id: 'short-pos',
+      portfolio_id: portfolio.id,
+      user_id: 'user-1',
+      prediction_id: 'pred-short',
+      instrument_id: 'inst-1',
+      symbol: 'NVDA',
+      direction: 'short',
+      quantity: 10,
+      entry_price: 120,
+      current_price: 110,
+      unrealized_pnl: 100,
+      status: 'open',
+    };
+    let insertedLong = false;
+    let realizedPnl: number | null = null;
+    let portfolioPnl: number | null = null;
+    const db = new MockDb((sql, params) => {
+      if (sql.includes('select * from prediction.user_portfolios')) return { data: [portfolio], error: null };
+      if (sql.includes('from prediction.instruments')) return { data: [{ symbol: 'NVDA', current_state: { price: 100 } }], error: null };
+      if (sql.includes('direction = $4') && params[3] === 'short') return { data: [shortPos], error: null };
+      if (sql.includes('update prediction.user_positions') && sql.includes("status = 'closed'")) {
+        realizedPnl = Number(params[1]);
+        return { data: [{ ...shortPos, status: 'closed', exit_price: params[0], realized_pnl: params[1] }], error: null };
+      }
+      if (sql.includes('update prediction.user_portfolios') && sql.includes('total_realized_pnl')) {
+        portfolioPnl = Number(params[1]);
+        return { data: [], error: null };
+      }
+      if (sql.includes('insert into prediction.user_positions')) {
+        insertedLong = true;
+        return { data: [], error: null };
+      }
+      return { data: [], error: null };
+    });
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
+    const result = await svc.executeImmediate({
+      userId: 'user-1', predictionId: 'pred-cover',
+      instrumentId: 'inst-1', direction: 'long', quantity: 10,
+    });
+    assert((result as any).id === 'short-pos', 'returns the covered short row');
+    assert(realizedPnl === 200, 'short cover realizes profit: (120-100)*10 = 200');
+    assert(portfolioPnl === 200, 'portfolio realized PnL is incremented');
+    assert(insertedLong === false, 'does not insert a long when cover quantity matches short');
+  }
+
   // 2b. Immediate trades no longer auto-mirror into tournaments.
   console.log('\nNo automatic tournament mirror:');
   {
     const portfolio = basePortfolio();
     let tournamentLookupHappened = false;
     let tournamentInsertHappened = false;
-    const db = new MockDb((sql) => {
+    const db = new MockDb((sql, params) => {
       if (sql.includes('select * from prediction.user_portfolios')) return { data: [portfolio], error: null };
       if (sql.includes('insert into prediction.user_portfolios')) return { data: [portfolio], error: null };
       if (sql.includes('from prediction.instruments')) return { data: [{ symbol: 'NVDA', current_state: { price: 100 } }], error: null };
@@ -183,6 +234,47 @@ async function main() {
     });
     assert(result.currentPrice === 244.8, 'returns cached IBM price from duplicate symbol row');
     assert(result.destinations[0].allowed === true, 'keeps My Portfolio selectable');
+  }
+
+  // 2e. Stale cached quote falls through to intraday bars.
+  console.log('\nStale quote fallback:');
+  {
+    const portfolio = basePortfolio();
+    let debitAmount: number | null = null;
+    const db = new MockDb((sql, params) => {
+      if (sql.includes('select * from prediction.user_portfolios')) return { data: [portfolio], error: null };
+      if (sql.includes('insert into prediction.user_portfolios')) return { data: [portfolio], error: null };
+      if (sql.includes('select id, symbol, current_state')) {
+        return {
+          data: [{
+            id: 'inst-1',
+            symbol: 'NVDA',
+            current_state: { price: 198.87, price_updated_at: '2026-04-17T00:32:19.980Z' },
+          }],
+          error: null,
+        };
+      }
+      if (sql.includes('direction = $4')) return { data: [], error: null };
+      if (sql.includes('select * from prediction.user_positions')) return { data: [], error: null };
+      if (sql.includes('insert into prediction.user_positions')) {
+        return { data: [{ id: 'pos-1', portfolio_id: portfolio.id, user_id: 'user-1', direction: 'long', quantity: 10, entry_price: 227.03, status: 'open', trigger_reason: 'manual' }], error: null };
+      }
+      if (sql.includes('update prediction.user_portfolios')) {
+        debitAmount = Number(params[0]);
+        return { data: [], error: null };
+      }
+      return { data: [], error: null };
+    });
+    const bars = {
+      getIntradayBarsForSymbols: async () => new Map([['NVDA', [{ t: '2026-05-15 09:49:00', o: 226.63, h: 227.05, l: 226.48, c: 227.03, v: 84906 }]]]),
+    } as any;
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, bars, stubMarketHours);
+    const pos = await svc.executeImmediate({
+      userId: 'user-1', predictionId: 'pred-1',
+      instrumentId: 'inst-1', direction: 'long', quantity: 10,
+    });
+    assert((pos as any).entry_price === 227.03, 'uses latest intraday close instead of stale cached quote');
+    assert(debitAmount === 2270.3, 'portfolio debit uses latest intraday price');
   }
 
   // 3. closePosition long P&L

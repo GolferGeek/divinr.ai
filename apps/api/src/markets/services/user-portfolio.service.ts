@@ -9,10 +9,17 @@ import type { IntradayBar } from '../adapters/twelve-data.adapter';
 import type { UserPortfolio, UserTradeQueueEntry } from '../markets.types';
 
 const ET_TZ = 'America/New_York';
+const QUOTE_FRESHNESS_MS = 15 * 60 * 1000;
 
 interface InstrumentQuote {
   symbol: string;
   currentPrice: number;
+}
+
+interface OppositeCloseResult {
+  remainingQuantity: number;
+  closedRows: Record<string, unknown>[];
+  portfolioCashDelta: number;
 }
 
 /**
@@ -121,20 +128,44 @@ export class UserPortfolioService {
           continue;
         }
 
-        // Create user position
-        const posId = randomUUID();
-        await this.db.rawQuery(
-          `insert into prediction.user_positions
-            (id, portfolio_id, user_id, prediction_id,
-             instrument_id, symbol, direction, quantity, entry_price, current_price,
-             status, opened_at)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'open', now())`,
-          [
-            posId, trade.portfolio_id, trade.user_id,
-            trade.prediction_id, trade.instrument_id, trade.symbol,
-            trade.direction, trade.quantity, closingPrice, closingPrice,
-          ],
-        );
+        const closeResult = await this.closeOppositeUserPositions({
+          userId: trade.user_id,
+          portfolioId: trade.portfolio_id,
+          predictionId: trade.prediction_id,
+          instrumentId: trade.instrument_id,
+          direction: trade.direction,
+          quantity: trade.quantity,
+          executionPrice: closingPrice,
+        });
+
+        let posId = closeResult.closedRows.at(-1)?.id as string | undefined;
+        if (closeResult.remainingQuantity > 0) {
+          // Create user position for the portion not consumed by opposite lots.
+          posId = randomUUID();
+          const insertResult = await this.db.rawQuery(
+            `insert into prediction.user_positions
+              (id, portfolio_id, user_id, prediction_id,
+               instrument_id, symbol, direction, quantity, entry_price, current_price,
+               status, opened_at)
+             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'open', now())`,
+            [
+              posId, trade.portfolio_id, trade.user_id,
+              trade.prediction_id, trade.instrument_id, trade.symbol,
+              trade.direction, closeResult.remainingQuantity, closingPrice, closingPrice,
+            ],
+          );
+          if (insertResult.error) throw new Error(insertResult.error.message);
+
+          const cost = closeResult.remainingQuantity * closingPrice;
+          const balanceResult = await this.db.rawQuery(
+            `update prediction.user_portfolios
+               set current_balance = current_balance - $1,
+                   updated_at = now()
+             where id = $2`,
+            [cost, trade.portfolio_id],
+          );
+          if (balanceResult.error) throw new Error(balanceResult.error.message);
+        }
 
         // Mark trade as executed
         await this.db.rawQuery(
@@ -197,19 +228,32 @@ export class UserPortfolioService {
       throw new Error(`No cached price for instrument ${input.instrumentId}`);
     }
 
-    // Idempotency: same user/prediction/instrument open today.
+    const closeResult = await this.closeOppositeUserPositions({
+      userId: input.userId,
+      portfolioId: portfolio.id,
+      predictionId: input.predictionId,
+      instrumentId: input.instrumentId,
+      direction: input.direction,
+      quantity: input.quantity,
+      executionPrice: entryPrice,
+    });
+    if (closeResult.remainingQuantity <= 0) {
+      return closeResult.closedRows.at(-1) ?? {};
+    }
+
+    // Idempotency: same user/prediction/instrument/direction open today.
     const existing = await this.db.rawQuery(
       `select * from prediction.user_positions
         where user_id = $1 and prediction_id = $2 and instrument_id = $3
-          and status = 'open' and opened_at::date = current_date
+          and direction = $4 and status = 'open' and opened_at::date = current_date
         limit 1`,
-      [input.userId, input.predictionId, input.instrumentId],
+      [input.userId, input.predictionId, input.instrumentId, input.direction],
     );
     const existingRows = (existing.data as Record<string, unknown>[] | null) ?? [];
     if (existingRows.length > 0) return existingRows[0];
 
     const id = randomUUID();
-    const cost = input.quantity * entryPrice;
+    const cost = closeResult.remainingQuantity * entryPrice;
     const insertResult = await this.db.rawQuery(
       `insert into prediction.user_positions
          (id, portfolio_id, user_id, prediction_id,
@@ -219,7 +263,7 @@ export class UserPortfolioService {
        returning *`,
       [
         id, portfolio.id, input.userId, input.predictionId,
-        input.instrumentId, symbol, input.direction, input.quantity, entryPrice,
+        input.instrumentId, symbol, input.direction, closeResult.remainingQuantity, entryPrice,
       ],
     );
     if (insertResult.error) throw new Error(insertResult.error.message);
@@ -232,7 +276,7 @@ export class UserPortfolioService {
     );
 
     this.logger.log(
-      `User immediate trade: user=${input.userId} symbol=${symbol} qty=${input.quantity} entry=${entryPrice} dir=${input.direction}`,
+      `User immediate trade: user=${input.userId} symbol=${symbol} qty=${closeResult.remainingQuantity} entry=${entryPrice} dir=${input.direction}`,
     );
     return ((insertResult.data as Record<string, unknown>[] | null) ?? [])[0]!;
   }
@@ -389,8 +433,22 @@ export class UserPortfolioService {
     entryPrice: number;
   }): Promise<Record<string, unknown>> {
     const portfolio = await this.ensurePortfolio(input.userId);
-    const cost = input.quantity * input.entryPrice;
-    if (Number(portfolio.current_balance ?? 0) < cost) {
+    const closeResult = await this.closeOppositeUserPositions({
+      userId: input.userId,
+      portfolioId: portfolio.id,
+      predictionId: input.predictionId,
+      instrumentId: input.instrumentId,
+      direction: input.direction,
+      quantity: input.quantity,
+      executionPrice: input.entryPrice,
+    });
+    if (closeResult.remainingQuantity <= 0) {
+      return closeResult.closedRows.at(-1) ?? {};
+    }
+
+    const cost = closeResult.remainingQuantity * input.entryPrice;
+    const availableCash = Number(portfolio.current_balance ?? 0) + closeResult.portfolioCashDelta;
+    if (availableCash < cost) {
       throw new Error(`Insufficient cash in My Portfolio`);
     }
 
@@ -404,7 +462,7 @@ export class UserPortfolioService {
        returning *`,
       [
         id, portfolio.id, input.userId, input.predictionId,
-        input.instrumentId, input.symbol, input.direction, input.quantity, input.entryPrice,
+        input.instrumentId, input.symbol, input.direction, closeResult.remainingQuantity, input.entryPrice,
       ],
     );
     if (insertResult.error) throw new Error(insertResult.error.message);
@@ -416,6 +474,105 @@ export class UserPortfolioService {
       [cost, portfolio.id],
     );
     return ((insertResult.data as Record<string, unknown>[] | null) ?? [])[0]!;
+  }
+
+  private async closeOppositeUserPositions(input: {
+    userId: string;
+    portfolioId: string;
+    predictionId: string | null;
+    instrumentId: string;
+    direction: 'long' | 'short';
+    quantity: number;
+    executionPrice: number;
+  }): Promise<OppositeCloseResult> {
+    const oppositeDirection = input.direction === 'long' ? 'short' : 'long';
+    const openResult = await this.db.rawQuery(
+      `select *
+       from prediction.user_positions
+       where user_id = $1
+         and portfolio_id = $2
+         and instrument_id = $3
+         and direction = $4
+         and status = 'open'
+       order by opened_at asc`,
+      [input.userId, input.portfolioId, input.instrumentId, oppositeDirection],
+    );
+    if (openResult.error) throw new Error(openResult.error.message);
+
+    const openRows = (openResult.data as Record<string, unknown>[] | null) ?? [];
+    const closedRows: Record<string, unknown>[] = [];
+    let remainingQuantity = Number(input.quantity);
+    let portfolioCashDelta = 0;
+
+    for (const pos of openRows) {
+      if (remainingQuantity <= 0) break;
+      const positionQuantity = Number(pos.quantity);
+      const entryPrice = Number(pos.entry_price);
+      if (positionQuantity <= 0 || !Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+
+      const closeQuantity = Math.min(remainingQuantity, positionQuantity);
+      const realizedPnl = pos.direction === 'short'
+        ? (entryPrice - input.executionPrice) * closeQuantity
+        : (input.executionPrice - entryPrice) * closeQuantity;
+      const closedUnrealizedPnl = Number(pos.unrealized_pnl ?? 0) * (closeQuantity / positionQuantity);
+      const closeCredit = closeQuantity * entryPrice + realizedPnl;
+      portfolioCashDelta += closeCredit;
+
+      if (closeQuantity === positionQuantity) {
+        const updateResult = await this.db.rawQuery(
+          `update prediction.user_positions
+             set status = 'closed',
+                 exit_price = $1,
+                 realized_pnl = $2,
+                 unrealized_pnl = 0,
+                 current_price = $1,
+                 closed_at = now(),
+                 updated_at = now()
+           where id = $3
+           returning *`,
+          [input.executionPrice, realizedPnl, pos.id],
+        );
+        if (updateResult.error) throw new Error(updateResult.error.message);
+        const rows = (updateResult.data as Record<string, unknown>[] | null) ?? [];
+        if (rows.length > 0) closedRows.push(rows[0]);
+      } else {
+        const remainingOpenQuantity = positionQuantity - closeQuantity;
+        const remainingUnrealizedPnl = Number(pos.unrealized_pnl ?? 0) - closedUnrealizedPnl;
+        const updateResult = await this.db.rawQuery(
+          `update prediction.user_positions
+             set quantity = $1,
+                 current_price = $2,
+                 unrealized_pnl = $3,
+                 updated_at = now()
+           where id = $4
+           returning *`,
+          [remainingOpenQuantity, input.executionPrice, remainingUnrealizedPnl, pos.id],
+        );
+        if (updateResult.error) throw new Error(updateResult.error.message);
+        closedRows.push({
+          ...(pos as Record<string, unknown>),
+          quantity: closeQuantity,
+          exit_price: input.executionPrice,
+          realized_pnl: realizedPnl,
+          status: 'closed',
+        });
+      }
+
+      const portfolioResult = await this.db.rawQuery(
+        `update prediction.user_portfolios
+           set current_balance = current_balance + $1,
+               total_realized_pnl = total_realized_pnl + $2,
+               total_unrealized_pnl = total_unrealized_pnl - $3,
+               updated_at = now()
+         where id = $4`,
+        [closeCredit, realizedPnl, closedUnrealizedPnl, input.portfolioId],
+      );
+      if (portfolioResult.error) throw new Error(portfolioResult.error.message);
+
+      remainingQuantity -= closeQuantity;
+    }
+
+    return { remainingQuantity, closedRows, portfolioCashDelta };
   }
 
   private async loadInstrumentQuote(instrumentId: string, symbolHint?: string): Promise<InstrumentQuote> {
@@ -436,10 +593,14 @@ export class UserPortfolioService {
 
     const symbol = byIdRows[0].symbol || symbolHint || '';
     const exactPrice = this.extractCurrentPrice(byIdRows[0].current_state);
-    if (exactPrice > 0) return { symbol, currentPrice: exactPrice };
+    if (exactPrice > 0 && this.isQuoteFresh(byIdRows[0].current_state)) {
+      return { symbol, currentPrice: exactPrice };
+    }
+    const intradayPrice = await this.loadLatestIntradayPrice(symbol);
+    if (intradayPrice > 0) return { symbol, currentPrice: intradayPrice };
 
     const fallbackSymbol = symbolHint || symbol;
-    if (!fallbackSymbol) return { symbol, currentPrice: 0 };
+    if (!fallbackSymbol) return { symbol, currentPrice: exactPrice };
 
     const fallbackResult = await this.db.rawQuery(
       `select id, symbol, current_state
@@ -456,15 +617,45 @@ export class UserPortfolioService {
     }> | null) ?? [];
     for (const row of fallbackRows) {
       const price = this.extractCurrentPrice(row.current_state);
+      if (price > 0 && this.isQuoteFresh(row.current_state)) {
+        return { symbol: row.symbol || symbol, currentPrice: price };
+      }
+      const fallbackIntradayPrice = await this.loadLatestIntradayPrice(row.symbol || symbol);
+      if (fallbackIntradayPrice > 0) {
+        return { symbol: row.symbol || symbol, currentPrice: fallbackIntradayPrice };
+      }
       if (price > 0) return { symbol: row.symbol || symbol, currentPrice: price };
     }
 
-    return { symbol, currentPrice: 0 };
+    return { symbol, currentPrice: exactPrice };
   }
 
   private extractCurrentPrice(currentState: Record<string, unknown> | null): number {
     const price = Number(currentState?.price ?? currentState?.last_price ?? 0);
     return Number.isFinite(price) && price > 0 ? price : 0;
+  }
+
+  private isQuoteFresh(currentState: Record<string, unknown> | null): boolean {
+    const raw = currentState?.price_updated_at ?? currentState?.updated_at;
+    if (typeof raw !== 'string' || raw.length === 0) return false;
+    const updatedAt = Date.parse(raw);
+    return Number.isFinite(updatedAt) && Date.now() - updatedAt <= QUOTE_FRESHNESS_MS;
+  }
+
+  private async loadLatestIntradayPrice(symbol: string): Promise<number> {
+    if (!symbol) return 0;
+    try {
+      const barsMap = await this.marketsBars.getIntradayBarsForSymbols([symbol]);
+      const bars = barsMap.get(symbol.toUpperCase()) ?? barsMap.get(symbol) ?? [];
+      const latest = bars.at(-1);
+      const price = Number(latest?.c ?? 0);
+      return Number.isFinite(price) && price > 0 ? price : 0;
+    } catch (err) {
+      this.logger.warn(
+        `loadLatestIntradayPrice failed for ${symbol}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return 0;
+    }
   }
 
   private async openTournamentDestination(input: {
@@ -614,11 +805,13 @@ export class UserPortfolioService {
       ? (entry - exitPrice) * qty
       : (exitPrice - entry) * qty;
     const credit = qty * entry + realizedPnl; // mirrors the open-time debit + P&L
+    const closedUnrealizedPnl = Number(pos.unrealized_pnl ?? 0);
 
     const updateResult = await this.db.rawQuery(
       `update prediction.user_positions
          set status = 'closed', exit_price = $1, closed_at = now(),
-             realized_pnl = $2, current_price = $1, updated_at = now()
+             realized_pnl = $2, unrealized_pnl = 0,
+             current_price = $1, updated_at = now()
        where id = $3
        returning *`,
       [exitPrice, realizedPnl, input.positionId],
@@ -627,9 +820,12 @@ export class UserPortfolioService {
 
     await this.db.rawQuery(
       `update prediction.user_portfolios
-         set current_balance = current_balance + $1, updated_at = now()
-       where id = $2`,
-      [credit, pos.portfolio_id],
+         set current_balance = current_balance + $1,
+             total_realized_pnl = total_realized_pnl + $2,
+             total_unrealized_pnl = total_unrealized_pnl - $3,
+             updated_at = now()
+       where id = $4`,
+      [credit, realizedPnl, closedUnrealizedPnl, pos.portfolio_id],
     );
 
     this.logger.log(

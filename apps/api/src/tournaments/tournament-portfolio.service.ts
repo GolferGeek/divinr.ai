@@ -249,14 +249,17 @@ export class TournamentPortfolioService {
           continue;
         }
 
-        // Create position
-        const posId = randomUUID();
-        await this.db.rawQuery(
-          `INSERT INTO prediction.tournament_positions
-            (id, tournament_id, portfolio_id, user_id, symbol, direction, quantity, entry_price, current_price, status, opened_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open', now())`,
-          [posId, trade.tournament_id, trade.portfolio_id, trade.user_id, trade.symbol, trade.direction, trade.quantity, entryPrice, entryPrice],
-        );
+        const remainingQuantity = await this.closeOppositeTournamentPositions(trade, entryPrice);
+        if (remainingQuantity > 0) {
+          const posId = randomUUID();
+          const insertResult = await this.db.rawQuery(
+            `INSERT INTO prediction.tournament_positions
+              (id, tournament_id, portfolio_id, user_id, symbol, direction, quantity, entry_price, current_price, status, opened_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open', now())`,
+            [posId, trade.tournament_id, trade.portfolio_id, trade.user_id, trade.symbol, trade.direction, remainingQuantity, entryPrice, entryPrice],
+          );
+          if (insertResult.error) throw new Error(insertResult.error.message);
+        }
 
         // Mark trade as executed
         await this.db.rawQuery(
@@ -272,6 +275,89 @@ export class TournamentPortfolioService {
 
     this.logger.log(`Tournament EOD: executed ${executed} trades, ${errors.length} errors`);
     return { executed, errors };
+  }
+
+  private async closeOppositeTournamentPositions(
+    trade: TournamentTradeQueueEntry,
+    executionPrice: number,
+  ): Promise<number> {
+    const oppositeDirection = trade.direction === 'long' ? 'short' : 'long';
+    const openResult = await this.db.rawQuery(
+      `SELECT id, direction, quantity, entry_price, unrealized_pnl
+       FROM prediction.tournament_positions
+       WHERE tournament_id = $1
+         AND portfolio_id = $2
+         AND user_id = $3
+         AND symbol = $4
+         AND direction = $5
+         AND status = 'open'
+       ORDER BY opened_at ASC`,
+      [trade.tournament_id, trade.portfolio_id, trade.user_id, trade.symbol, oppositeDirection],
+    );
+    if (openResult.error) throw new Error(openResult.error.message);
+
+    const openPositions = (openResult.data as Array<{
+      id: string;
+      direction: 'long' | 'short';
+      quantity: number;
+      entry_price: number | null;
+      unrealized_pnl: number | null;
+    }> | null) ?? [];
+
+    let remainingQuantity = Number(trade.quantity);
+    for (const position of openPositions) {
+      if (remainingQuantity <= 0) break;
+      const positionQuantity = Number(position.quantity);
+      const entryPrice = Number(position.entry_price);
+      if (positionQuantity <= 0 || !Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+
+      const closeQuantity = Math.min(remainingQuantity, positionQuantity);
+      const realizedPnl = position.direction === 'long'
+        ? (executionPrice - entryPrice) * closeQuantity
+        : (entryPrice - executionPrice) * closeQuantity;
+      const closedUnrealizedPnl = Number(position.unrealized_pnl ?? 0) * (closeQuantity / positionQuantity);
+
+      if (closeQuantity === positionQuantity) {
+        const updateResult = await this.db.rawQuery(
+          `UPDATE prediction.tournament_positions
+           SET status = 'closed',
+               current_price = $1,
+               exit_price = $1,
+               realized_pnl = $2,
+               unrealized_pnl = 0,
+               closed_at = now()
+           WHERE id = $3`,
+          [executionPrice, realizedPnl, position.id],
+        );
+        if (updateResult.error) throw new Error(updateResult.error.message);
+      } else {
+        const remainingOpenQuantity = positionQuantity - closeQuantity;
+        const remainingUnrealizedPnl = Number(position.unrealized_pnl ?? 0) - closedUnrealizedPnl;
+        const updateResult = await this.db.rawQuery(
+          `UPDATE prediction.tournament_positions
+           SET quantity = $1,
+               current_price = $2,
+               unrealized_pnl = $3
+           WHERE id = $4`,
+          [remainingOpenQuantity, executionPrice, remainingUnrealizedPnl, position.id],
+        );
+        if (updateResult.error) throw new Error(updateResult.error.message);
+      }
+
+      const portfolioResult = await this.db.rawQuery(
+        `UPDATE prediction.tournament_portfolios
+         SET current_balance = current_balance + $1,
+             total_realized_pnl = total_realized_pnl + $1,
+             total_unrealized_pnl = total_unrealized_pnl - $2
+         WHERE id = $3`,
+        [realizedPnl, closedUnrealizedPnl, trade.portfolio_id],
+      );
+      if (portfolioResult.error) throw new Error(portfolioResult.error.message);
+
+      remainingQuantity -= closeQuantity;
+    }
+
+    return remainingQuantity;
   }
 
   async updateTournamentUnrealizedPnl(closingPrices: Map<string, number>): Promise<number> {

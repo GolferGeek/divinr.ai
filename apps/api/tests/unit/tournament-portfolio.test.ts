@@ -2,6 +2,7 @@
  * Unit tests for TournamentPortfolioService logic.
  * Tests business rules without a full NestJS bootstrap or database.
  */
+import { TournamentPortfolioService } from '../../src/tournaments/tournament-portfolio.service';
 
 let passed = 0;
 let failed = 0;
@@ -133,7 +134,82 @@ console.log('\nStarting balance isolation:');
   assert(tournamentBalance === 100000, 'Tournament portfolio uses tournament starting_balance');
 }
 
+// ─── Test 8: Opposite trade closes an open position ─────────────
+
+console.log('\nQueued opposite trade execution:');
+async function runQueuedOppositeTradeTest(): Promise<void> {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const db = {
+    rawQuery: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+
+      if (sql.includes('FROM prediction.tournament_trade_queue tq')) {
+        return {
+          data: [{
+            id: 'trade-cover',
+            tournament_id: 't-1',
+            portfolio_id: 'pf-1',
+            user_id: 'tom-weber',
+            prediction_id: null,
+            symbol: 'NVDA',
+            direction: 'long',
+            quantity: 10,
+            status: 'queued',
+            queued_at: '2026-05-15T00:00:00Z',
+            execution_price: null,
+            executed_at: null,
+            tournament_status: 'active',
+          }],
+          error: null,
+        };
+      }
+
+      if (sql.includes('SELECT id FROM prediction.instruments')) {
+        return { data: [{ id: 'inst-nvda' }], error: null };
+      }
+
+      if (sql.includes('FROM prediction.tournament_positions') && sql.includes('direction = $5')) {
+        return {
+          data: [{
+            id: 'short-pos',
+            direction: 'short',
+            quantity: 10,
+            entry_price: 120,
+            unrealized_pnl: 150,
+          }],
+          error: null,
+        };
+      }
+
+      return { data: [], error: null };
+    },
+  };
+
+  const service = new TournamentPortfolioService(db as never, {} as never, {} as never);
+  const result = await service.executeQueuedTournamentTrades(new Map([['inst-nvda', 100]]));
+  const closedPosition = calls.find(call => call.sql.includes("SET status = 'closed'"));
+  const portfolioUpdate = calls.find(call => call.sql.includes('total_realized_pnl = total_realized_pnl + $1'));
+  const newPositionInsert = calls.find(call => call.sql.includes('INSERT INTO prediction.tournament_positions'));
+
+  assert(result.executed === 1, 'opposite buy-to-cover trade is executed');
+  assert(closedPosition !== undefined, 'existing short position is closed');
+  assert(closedPosition?.params[0] === 100, 'short exits at current execution price');
+  assert(closedPosition?.params[1] === 200, 'short profit is realized: (120 - 100) * 10 = 200');
+  assert(portfolioUpdate?.params[0] === 200, 'portfolio realized PnL is incremented by short profit');
+  assert(newPositionInsert === undefined, 'no new long position is opened when quantity fully covers short');
+}
+
 // ─── Results ──────────────────────────────────────────────────
 
-console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
-process.exit(failed > 0 ? 1 : 0);
+runQueuedOppositeTradeTest()
+  .then(() => {
+    console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
+    process.exit(failed > 0 ? 1 : 0);
+  })
+  .catch((err) => {
+    failed++;
+    console.error('  ✗ queued opposite trade test threw');
+    console.error(err);
+    console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
+    process.exit(1);
+  });
