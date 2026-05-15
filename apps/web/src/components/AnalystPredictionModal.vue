@@ -186,7 +186,8 @@ const tradeError = ref('');
 const disclaimerAcknowledged = ref(false);
 
 // Trade-mode form state
-const tradeQty = ref(10);
+const DEFAULT_TRADE_QUANTITY = 100;
+const tradeQty = ref(DEFAULT_TRADE_QUANTITY);
 const tradeDirection = ref<'long' | 'short'>('long');
 const tradeSubmitting = ref(false);
 const tradeDestinations = ref<Array<TradeDestination & { selected: boolean; quantity: number }>>([]);
@@ -225,7 +226,7 @@ function suggestedQty(destination: TradeDestination): number {
   if (!Number.isFinite(p) || p <= 0) return 0;
   const maxQty = Math.floor(Number(destination.currentBalance ?? 0) / p);
   if (maxQty <= 0) return 0;
-  return Math.min(10, maxQty);
+  return Math.min(DEFAULT_TRADE_QUANTITY, maxQty);
 }
 
 async function loadTradeDestinations() {

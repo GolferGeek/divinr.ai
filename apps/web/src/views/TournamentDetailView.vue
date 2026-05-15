@@ -51,10 +51,11 @@ function sizePct(pos: { quantity: number; entry_price: number | null }): number 
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => route.params.id as string);
+const DEFAULT_TRADE_QUANTITY = 100;
 const tab = ref<'leaderboard' | 'positions' | 'trade' | 'info'>('leaderboard');
 const tradeSymbol = ref('');
 const tradeDirection = ref<'long' | 'short'>('long');
-const tradeQuantity = ref(1);
+const tradeQuantity = ref(DEFAULT_TRADE_QUANTITY);
 const tradeError = ref('');
 const tradeSuccess = ref('');
 const predictionIdForTrade = ref<string | null>(null);
@@ -113,7 +114,7 @@ async function queueTrade() {
       });
     }
     tradeSymbol.value = '';
-    tradeQuantity.value = 1;
+    tradeQuantity.value = DEFAULT_TRADE_QUANTITY;
     predictionIdForTrade.value = null;
     tradeSuccess.value = `${submittedDirection === 'long' ? 'Long' : 'Short'} ${submittedQuantity} ${submittedSymbol} queued successfully.`;
     recentQueuedTrades.value = [queuedTrade, ...recentQueuedTrades.value].slice(0, 5);
