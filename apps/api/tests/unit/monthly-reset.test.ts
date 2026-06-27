@@ -110,6 +110,25 @@ class FakeDb {
 async function main(): Promise<void> {
   console.log('\n=== MonthlyResetService Tests ===\n');
 
+  // 0. Cron is opt-in. Manual admin reset remains available, but scheduled
+  // resets should not close normal user holdings unless explicitly enabled.
+  console.log('Cron gate:');
+  {
+    const previous = process.env.MARKETS_ENABLE_MONTHLY_RESET;
+    delete process.env.MARKETS_ENABLE_MONTHLY_RESET;
+    const db = new FakeDb();
+    const svc = new MonthlyResetService(db as any, {} as any, {} as any);
+    let called = false;
+    (svc as unknown as { runReset: MonthlyResetService['runReset'] }).runReset = async () => {
+      called = true;
+      return { ledgerRowsWritten: 0, alreadyResetCount: 0, portfoliosProcessed: 0, errors: [] };
+    };
+    await svc.handleCron();
+    assert(called === false, 'scheduled reset is disabled unless MARKETS_ENABLE_MONTHLY_RESET=true');
+    if (previous === undefined) delete process.env.MARKETS_ENABLE_MONTHLY_RESET;
+    else process.env.MARKETS_ENABLE_MONTHLY_RESET = previous;
+  }
+
   // 1. Writes one ledger row per portfolio + resets balance
   console.log('First reset:');
   {

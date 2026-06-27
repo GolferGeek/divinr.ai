@@ -156,13 +156,13 @@ export class UserPortfolioService {
           );
           if (insertResult.error) throw new Error(insertResult.error.message);
 
-          const cost = closeResult.remainingQuantity * closingPrice;
+          const cashDelta = this.openCashDelta(trade.direction, closeResult.remainingQuantity, closingPrice);
           const balanceResult = await this.db.rawQuery(
             `update prediction.user_portfolios
-               set current_balance = current_balance - $1,
+               set current_balance = current_balance + $1,
                    updated_at = now()
              where id = $2`,
-            [cost, trade.portfolio_id],
+            [cashDelta, trade.portfolio_id],
           );
           if (balanceResult.error) throw new Error(balanceResult.error.message);
         }
@@ -253,7 +253,7 @@ export class UserPortfolioService {
     if (existingRows.length > 0) return existingRows[0];
 
     const id = randomUUID();
-    const cost = closeResult.remainingQuantity * entryPrice;
+    const cashDelta = this.openCashDelta(input.direction, closeResult.remainingQuantity, entryPrice);
     const insertResult = await this.db.rawQuery(
       `insert into prediction.user_positions
          (id, portfolio_id, user_id, prediction_id,
@@ -270,9 +270,9 @@ export class UserPortfolioService {
 
     await this.db.rawQuery(
       `update prediction.user_portfolios
-         set current_balance = current_balance - $1, updated_at = now()
+         set current_balance = current_balance + $1, updated_at = now()
        where id = $2`,
-      [cost, portfolio.id],
+      [cashDelta, portfolio.id],
     );
 
     this.logger.log(
@@ -446,7 +446,8 @@ export class UserPortfolioService {
       return closeResult.closedRows.at(-1) ?? {};
     }
 
-    const cost = closeResult.remainingQuantity * input.entryPrice;
+    const cashDelta = this.openCashDelta(input.direction, closeResult.remainingQuantity, input.entryPrice);
+    const cost = input.direction === 'long' ? -cashDelta : 0;
     const availableCash = Number(portfolio.current_balance ?? 0) + closeResult.portfolioCashDelta;
     if (availableCash < cost) {
       throw new Error(`Insufficient cash in My Portfolio`);
@@ -469,9 +470,9 @@ export class UserPortfolioService {
 
     await this.db.rawQuery(
       `update prediction.user_portfolios
-         set current_balance = current_balance - $1, updated_at = now()
+         set current_balance = current_balance + $1, updated_at = now()
        where id = $2`,
-      [cost, portfolio.id],
+      [cashDelta, portfolio.id],
     );
     return ((insertResult.data as Record<string, unknown>[] | null) ?? [])[0]!;
   }
@@ -515,8 +516,8 @@ export class UserPortfolioService {
         ? (entryPrice - input.executionPrice) * closeQuantity
         : (input.executionPrice - entryPrice) * closeQuantity;
       const closedUnrealizedPnl = Number(pos.unrealized_pnl ?? 0) * (closeQuantity / positionQuantity);
-      const closeCredit = closeQuantity * entryPrice + realizedPnl;
-      portfolioCashDelta += closeCredit;
+      const closeCashDelta = this.closeCashDelta(pos.direction === 'short' ? 'short' : 'long', closeQuantity, input.executionPrice);
+      portfolioCashDelta += closeCashDelta;
 
       if (closeQuantity === positionQuantity) {
         const updateResult = await this.db.rawQuery(
@@ -565,7 +566,7 @@ export class UserPortfolioService {
                total_unrealized_pnl = total_unrealized_pnl - $3,
                updated_at = now()
          where id = $4`,
-        [closeCredit, realizedPnl, closedUnrealizedPnl, input.portfolioId],
+        [closeCashDelta, realizedPnl, closedUnrealizedPnl, input.portfolioId],
       );
       if (portfolioResult.error) throw new Error(portfolioResult.error.message);
 
@@ -804,7 +805,7 @@ export class UserPortfolioService {
     const realizedPnl = pos.direction === 'short'
       ? (entry - exitPrice) * qty
       : (exitPrice - entry) * qty;
-    const credit = qty * entry + realizedPnl; // mirrors the open-time debit + P&L
+    const closeCashDelta = this.closeCashDelta(pos.direction === 'short' ? 'short' : 'long', qty, exitPrice);
     const closedUnrealizedPnl = Number(pos.unrealized_pnl ?? 0);
 
     const updateResult = await this.db.rawQuery(
@@ -825,7 +826,7 @@ export class UserPortfolioService {
              total_unrealized_pnl = total_unrealized_pnl - $3,
              updated_at = now()
        where id = $4`,
-      [credit, realizedPnl, closedUnrealizedPnl, pos.portfolio_id],
+      [closeCashDelta, realizedPnl, closedUnrealizedPnl, pos.portfolio_id],
     );
 
     this.logger.log(
@@ -843,6 +844,16 @@ export class UserPortfolioService {
     const rows = (result.data as Record<string, unknown>[] | null) ?? [];
     if (rows.length === 0) return rows;
     return this.enrichWithIntraday(rows);
+  }
+
+  private openCashDelta(direction: 'long' | 'short', quantity: number, price: number): number {
+    const notional = quantity * price;
+    return direction === 'short' ? notional : -notional;
+  }
+
+  private closeCashDelta(direction: 'long' | 'short', quantity: number, price: number): number {
+    const notional = quantity * price;
+    return direction === 'short' ? -notional : notional;
   }
 
   private async enrichWithIntraday(

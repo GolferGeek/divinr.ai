@@ -14,7 +14,8 @@ const RESET_TARGET = 1_000_000;
  * 3. Writes a bailout_ledger row (idempotent on (kind,id,reset_date))
  * 4. Resets current_balance to $1M
  *
- * Runs on the 1st of every month at 00:00 UTC.
+ * Scheduled resets are opt-in only. Demo and production users should not have
+ * holdings closed unless an operator explicitly enables the monthly game reset.
  */
 @Injectable()
 export class MonthlyResetService {
@@ -28,7 +29,7 @@ export class MonthlyResetService {
 
   @Cron('0 0 1 * *')
   async handleCron(): Promise<void> {
-    if (process.env.MARKETS_DISABLE_MONTHLY_RESET === 'true') return;
+    if (process.env.MARKETS_ENABLE_MONTHLY_RESET !== 'true') return;
     try {
       await this.runReset({ manual: false });
     } catch (err) {

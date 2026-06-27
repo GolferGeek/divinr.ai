@@ -59,9 +59,34 @@ async function main() {
     });
     assert(inserted, 'INSERT into user_positions issued');
     assert((pos as any).trigger_reason === 'manual', 'trigger_reason=manual on returned row');
-    const balUpdate = db.calls.find(c => c.sql.includes('update prediction.user_portfolios') && c.sql.includes('current_balance = current_balance -'));
-    assert(balUpdate !== undefined, 'balance debit issued');
-    assert(Number(balUpdate!.params[0]) === 1000, 'debit amount = qty * entry = 1000');
+    const balUpdate = db.calls.find(c => c.sql.includes('update prediction.user_portfolios') && c.sql.includes('current_balance = current_balance +'));
+    assert(balUpdate !== undefined, 'balance update issued');
+    assert(Number(balUpdate!.params[0]) === -1000, 'long cash delta = -(qty * entry) = -1000');
+  }
+
+  // 1a. Opening a short credits cash with sale proceeds.
+  console.log('\nShort open cash:');
+  {
+    const portfolio = basePortfolio();
+    const db = new MockDb((sql, _params) => {
+      if (sql.includes('select * from prediction.user_portfolios')) return { data: [portfolio], error: null };
+      if (sql.includes('insert into prediction.user_portfolios')) return { data: [portfolio], error: null };
+      if (sql.includes('from prediction.instruments')) return { data: [{ symbol: 'NVDA', current_state: { price: 100 } }], error: null };
+      if (sql.includes('select * from prediction.user_positions')) return { data: [], error: null };
+      if (sql.includes('insert into prediction.user_positions')) {
+        return { data: [{ id: 'pos-short', portfolio_id: portfolio.id, user_id: 'user-1', direction: 'short', quantity: 10, entry_price: 100, status: 'open', trigger_reason: 'manual' }], error: null };
+      }
+      if (sql.includes('update prediction.user_portfolios')) return { data: [], error: null };
+      return { data: [], error: null };
+    });
+    const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
+    await svc.executeImmediate({
+      userId: 'user-1', predictionId: 'pred-short',
+      instrumentId: 'inst-1', direction: 'short', quantity: 10,
+    });
+    const balUpdate = db.calls.find(c => c.sql.includes('update prediction.user_portfolios') && c.sql.includes('current_balance = current_balance +'));
+    assert(balUpdate !== undefined, 'short balance update issued');
+    assert(Number(balUpdate!.params[0]) === 1000, 'short cash delta = sale proceeds = +1000');
   }
 
   // 2. Idempotency: re-call returns same position id
@@ -240,7 +265,7 @@ async function main() {
   console.log('\nStale quote fallback:');
   {
     const portfolio = basePortfolio();
-    let debitAmount: number | null = null;
+    let cashDelta: number | null = null;
     const db = new MockDb((sql, params) => {
       if (sql.includes('select * from prediction.user_portfolios')) return { data: [portfolio], error: null };
       if (sql.includes('insert into prediction.user_portfolios')) return { data: [portfolio], error: null };
@@ -260,7 +285,7 @@ async function main() {
         return { data: [{ id: 'pos-1', portfolio_id: portfolio.id, user_id: 'user-1', direction: 'long', quantity: 10, entry_price: 227.03, status: 'open', trigger_reason: 'manual' }], error: null };
       }
       if (sql.includes('update prediction.user_portfolios')) {
-        debitAmount = Number(params[0]);
+        cashDelta = Number(params[0]);
         return { data: [], error: null };
       }
       return { data: [], error: null };
@@ -274,7 +299,7 @@ async function main() {
       instrumentId: 'inst-1', direction: 'long', quantity: 10,
     });
     assert((pos as any).entry_price === 227.03, 'uses latest intraday close instead of stale cached quote');
-    assert(debitAmount === 2270.3, 'portfolio debit uses latest intraday price');
+    assert(cashDelta === -2270.3, 'long cash delta uses latest intraday price');
   }
 
   // 3. closePosition long P&L
@@ -310,6 +335,7 @@ async function main() {
     const portfolio = basePortfolio();
     const pos = { id: 'pos-2', portfolio_id: portfolio.id, user_id: 'user-1', instrument_id: 'inst-1', direction: 'short', quantity: 10, entry_price: 100, status: 'open' };
     let updatedPnl: number | null = null;
+    let cashDelta: number | null = null;
     const db = new MockDb((sql, params) => {
       if (sql.includes('select * from prediction.user_positions')) return { data: [pos], error: null };
       if (sql.includes('from prediction.instruments')) return { data: [{ current_state: { price: 80 } }], error: null };
@@ -317,11 +343,16 @@ async function main() {
         updatedPnl = Number(params[1]);
         return { data: [{ ...pos, status: 'closed', exit_price: 80, realized_pnl: updatedPnl }], error: null };
       }
+      if (sql.includes('update prediction.user_portfolios')) {
+        cashDelta = Number(params[0]);
+        return { data: [], error: null };
+      }
       return { data: [], error: null };
     });
     const svc = new UserPortfolioService(db as any, stubSchema, stubSizing, stubBars, stubMarketHours);
     await svc.closePosition({ userId: 'user-1', positionId: 'pos-2' });
     assert(updatedPnl === 200, 'short P&L = (100-80)*10 = 200');
+    assert(cashDelta === -800, 'short close cash delta = buy-to-cover cost = -800');
   }
 
   // 5. closePosition rejects other-user positions
