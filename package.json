@@ -1,6 +1,7 @@
 {
   "name": "divinr-ai",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "packageManager": "pnpm@10.8.0",
   "scripts": {
