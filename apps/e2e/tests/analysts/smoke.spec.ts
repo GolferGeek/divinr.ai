@@ -21,6 +21,8 @@ test.describe('analysts facet — smoke', () => {
     // (b) grid container always renders (empty or populated). FirstTouchPanel is hidden
     // once dismissed, so we don't rely on it as an alternative.
     await expect(page.locator('ion-grid').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('ion-toggle').first())
+      .toBeVisible({ timeout: 10_000 });
 
     // (c) vocabulary check with .legal-disclaimer / [surface-key] exclusion
     const nonDisclaimerText = await page.evaluate(() => {

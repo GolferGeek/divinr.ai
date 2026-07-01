@@ -6,6 +6,12 @@ import {
 } from '@orchestratorai/planes/database';
 import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
 import Parser from 'rss-parser';
+import {
+  demoDefaultInt,
+  getDisabledSourceKeys,
+  getEnabledSourceKeys,
+  isMarketsDemoMode,
+} from '../utils/demo-mode';
 
 interface RssItem {
   title?: string;
@@ -101,6 +107,11 @@ export class CrawlerService {
    * Run a full crawl cycle across all sources due for refresh.
    */
   async runCrawl(): Promise<CrawlResult> {
+    if (this.isDisabled()) {
+      this.logger.debug('Crawling disabled by MARKETS_DISABLE_CRAWLING');
+      return { sourcesProcessed: 0, sourcesSucceeded: 0, sourcesFailed: 0, articlesNew: 0, errors: [] };
+    }
+
     if (this.isRunning) {
       this.logger.warn('Skipping crawl — previous run still in progress');
       return { sourcesProcessed: 0, sourcesSucceeded: 0, sourcesFailed: 0, articlesNew: 0, errors: [] };
@@ -165,19 +176,26 @@ export class CrawlerService {
    * (default 15 minutes).
    */
   private async getSourcesDueForCrawl(): Promise<CrawlableSource[]> {
+    const sourceLimit = demoDefaultInt('MARKETS_CRAWL_SOURCE_LIMIT', 2, 50);
+    const enabledSourceKeys = getEnabledSourceKeys();
+    const disabledSourceKeys = getDisabledSourceKeys();
     const result = await this.db.rawQuery(
       `
       select id, source_key, display_name, base_url, tier,
              source_type, crawl_frequency_minutes, last_crawled_at
-      from prediction.source_catalog
-      where is_global_default = true
+      from prediction.source_catalog sc
+      left join prediction.tenant_source_entitlements tse on tse.source_id = sc.id
+      where coalesce(tse.is_enabled, sc.is_global_default) = true
+        and (cardinality($2::text[]) = 0 or lower(sc.source_key) = any($2::text[]))
+        and not (lower(sc.source_key) = any($3::text[]))
         and (
-          last_crawled_at is null
-          or last_crawled_at < now() - (coalesce(crawl_frequency_minutes, 15) || ' minutes')::interval
+          sc.last_crawled_at is null
+          or sc.last_crawled_at < now() - (coalesce(sc.crawl_frequency_minutes, 15) || ' minutes')::interval
         )
-      order by last_crawled_at asc nulls first
-      limit 50
+      order by sc.last_crawled_at asc nulls first
+      limit $1
       `,
+      [sourceLimit, enabledSourceKeys, disabledSourceKeys],
     );
     if (result.error) {
       this.logger.error(`Failed to query sources: ${result.error.message}`);
@@ -290,6 +308,11 @@ export class CrawlerService {
       summary?: string;
     }>
   > {
+    if (isMarketsDemoMode() && process.env.MARKETS_DEMO_ALLOW_FIRECRAWL !== 'true') {
+      this.logger.debug(`Demo mode — skipping Firecrawl web scrape for ${source.display_name}`);
+      return [];
+    }
+
     const firecrawlKey = process.env.FIRECRAWL_API_KEY;
     if (!firecrawlKey) {
       this.logger.debug(`No FIRECRAWL_API_KEY — skipping web crawl for ${source.display_name}`);

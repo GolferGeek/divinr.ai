@@ -24,6 +24,8 @@ test.describe('instruments facet — smoke', () => {
     const cards = page.locator('ion-card');
     const addBtn = page.getByRole('button', { name: /add instrument/i });
     await expect(cards.first().or(addBtn)).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('ion-toggle').first())
+      .toBeVisible({ timeout: 10_000 });
 
     // Vocabulary check — scope to the list surface only. The instrument detail
     // page renders LLM-authored rationale that may legitimately leak forbidden

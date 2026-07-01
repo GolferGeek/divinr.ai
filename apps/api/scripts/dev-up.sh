@@ -13,6 +13,7 @@ ENV_FILE="$REPO_ROOT/.env"
 LOG_API=/tmp/divinr-api.log
 LOG_STRIPE=/tmp/divinr-stripe-listen.log
 API_PORT="${PORT:-7100}"
+export DIVINR_ENV_FILE="$ENV_FILE"
 
 echo "── divinr api dev-up ──"
 echo "API_DIR    = $API_DIR"
@@ -25,9 +26,23 @@ spawn_detached() {
   python3 - "$logfile" "$@" <<'PY'
 import subprocess
 import sys
+import os
+import re
 
 log_path = sys.argv[1]
 cmd = sys.argv[2:]
+env = os.environ.copy()
+env_file = env.get("DIVINR_ENV_FILE")
+if env_file and os.path.exists(env_file):
+    env_line = re.compile(r"^([A-Z0-9_]+)=(.*)$")
+    with open(env_file, "r", encoding="utf-8") as f:
+        for raw in f:
+            match = env_line.match(raw.rstrip("\n"))
+            if not match:
+                continue
+            key, value = match.groups()
+            if key not in env or env[key] == "":
+                env[key] = value
 with open(log_path, "ab", buffering=0) as log:
     proc = subprocess.Popen(
         cmd,
@@ -36,6 +51,7 @@ with open(log_path, "ab", buffering=0) as log:
         stderr=subprocess.STDOUT,
         start_new_session=True,
         close_fds=True,
+        env=env,
     )
 print(proc.pid)
 PY

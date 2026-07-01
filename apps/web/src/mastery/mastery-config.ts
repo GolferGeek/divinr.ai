@@ -81,6 +81,7 @@ export const masteryNavGroups: MasteryNavGroup[] = [
     items: [
       { title: 'Research', icon: compassOutline, to: '/instruments', minLevel: 'builder' },
       { title: 'Analysts', icon: peopleOutline, to: '/analysts', minLevel: 'builder' },
+      { title: 'Sources', icon: newspaperOutline, to: '/sources', minLevel: 'builder' },
       { title: 'Performance', icon: trendingUpOutline, to: '/performance', minLevel: 'competitive_participation' },
       { title: 'Coordination', icon: gitNetworkOutline, to: '/coordination', minLevel: 'operator', adminOnly: true },
       { title: 'Affinity', icon: heartOutline, to: '/affinity', minLevel: 'operator', adminOnly: true },
@@ -110,7 +111,6 @@ export const masteryNavGroups: MasteryNavGroup[] = [
     adminOnly: true,
     items: [
       { title: 'Runs', icon: playOutline, to: '/runs', minLevel: 'operator', adminOnly: true },
-      { title: 'Sources', icon: newspaperOutline, to: '/sources', minLevel: 'operator', adminOnly: true },
       { title: 'Evaluations', icon: ribbonOutline, to: '/evaluations', minLevel: 'operator', adminOnly: true },
       { title: 'Learning', icon: bulbOutline, to: '/learning', minLevel: 'operator', adminOnly: true },
       { title: 'Proposals', icon: constructOutline, to: '/proposals', minLevel: 'operator', adminOnly: true },
@@ -182,7 +182,7 @@ export const masteryRoutePolicies: MasteryRoutePolicy[] = [
   { path: '/admin/users', minLevel: 'operator', adminOnly: true },
   { path: '/admin/billing', minLevel: 'operator', adminOnly: true },
   { path: '/runs', minLevel: 'operator', adminOnly: true },
-  { path: '/sources', minLevel: 'operator', adminOnly: true },
+  { path: '/sources', minLevel: 'builder' },
   { path: '/evaluations', minLevel: 'operator', adminOnly: true },
   { path: '/learning', minLevel: 'operator', adminOnly: true },
   { path: '/learning/canonical', minLevel: 'operator', adminOnly: true },

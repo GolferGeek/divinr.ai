@@ -6,6 +6,12 @@ import {
 } from '@orchestratorai/planes/database';
 import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
 import { StopLossWatcherService } from './stop-loss-watcher.service';
+import {
+  getDisabledInstrumentSymbols,
+  getPipelineInstrumentLimit,
+  getPipelineInstrumentSymbols,
+  isMarketsDemoMode,
+} from '../utils/demo-mode';
 
 interface ActiveInstrumentPrice {
   id: string;
@@ -323,11 +329,19 @@ export class OutcomeTrackingService {
    * Get all active instruments.
    */
   private async getActiveInstruments(): Promise<ActiveInstrumentPrice[]> {
+    const demoMode = isMarketsDemoMode();
+    const symbols = getPipelineInstrumentSymbols();
+    const disabledSymbols = getDisabledInstrumentSymbols();
+    const limit = getPipelineInstrumentLimit(1000);
     const result = await this.db.rawQuery(
       `select distinct on (symbol) id, symbol, current_state
        from prediction.instruments
        where is_active = true
-       order by symbol`,
+         and ($1::boolean = false or cardinality($2::text[]) = 0 or upper(symbol) = any($2::text[]))
+         and not (upper(symbol) = any($4::text[]))
+       order by symbol
+       limit $3`,
+      [demoMode, symbols, limit, disabledSymbols],
     );
     if (result.error) {
       this.logger.error(`Failed to query instruments: ${result.error.message}`);

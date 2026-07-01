@@ -23,5 +23,10 @@ export const useInstrumentsStore = defineStore('instruments', () => {
     return result;
   }
 
-  return { items, loading, fetch: fetchInstruments, fetchInstruments, create };
+  async function updateActive(instrumentId: string, isActive: boolean) {
+    const api = useApi();
+    return api.patch(`/instruments/${instrumentId}`, { isActive });
+  }
+
+  return { items, loading, fetch: fetchInstruments, fetchInstruments, create, updateActive };
 });

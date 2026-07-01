@@ -7,6 +7,13 @@ import {
 import { ObservabilityEventsService } from '@orchestratorai/planes/observability';
 import { PredictionRunnerService } from './prediction-runner.service';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
+import {
+  demoDefaultInt,
+  getDisabledInstrumentSymbols,
+  getPipelineInstrumentLimit,
+  getPipelineInstrumentSymbols,
+  isMarketsDemoMode,
+} from '../utils/demo-mode';
 
 interface InstrumentWithPredictors {
   instrument_id: string;
@@ -76,10 +83,16 @@ export class PredictionGeneratorService {
   }
 
   private getThresholdConfig(): ThresholdConfig {
+    const demoMode = isMarketsDemoMode();
     return {
-      signalThreshold: parseFloat(process.env.MARKETS_SIGNAL_THRESHOLD || '1.5'),
-      urgentRelevance: parseFloat(process.env.MARKETS_URGENT_RELEVANCE || '0.75'),
-      maxRunAgeMinutes: parseInt(process.env.MARKETS_MAX_RUN_AGE_MINUTES || '60', 10),
+      signalThreshold: parseFloat(process.env.MARKETS_SIGNAL_THRESHOLD || (demoMode ? '0' : '1.5')),
+      urgentRelevance: parseFloat(process.env.MARKETS_URGENT_RELEVANCE || (demoMode ? '0' : '0.75')),
+      maxRunAgeMinutes: parseInt(
+        demoMode
+          ? (process.env.MARKETS_DEMO_MAX_RUN_AGE_MINUTES || '2')
+          : (process.env.MARKETS_MAX_RUN_AGE_MINUTES || '60'),
+        10,
+      ),
     };
   }
 
@@ -109,6 +122,8 @@ export class PredictionGeneratorService {
     this.isRunning = true;
     const startTime = Date.now();
     const config = this.getThresholdConfig();
+    const demoMode = isMarketsDemoMode();
+    const demoRunLimit = demoDefaultInt('MARKETS_DEMO_PREDICTION_INSTRUMENT_LIMIT', 1, Number.MAX_SAFE_INTEGER);
     const errors: string[] = [];
     let runsTriggered = 0;
     let thresholdsNotMet = 0;
@@ -134,7 +149,9 @@ export class PredictionGeneratorService {
           const hasUrgent = inst.max_relevance >= config.urgentRelevance;
           const meetsSignal = inst.signal_strength >= config.signalThreshold;
 
-          if (!hasUrgent && !meetsSignal) {
+          const demoFallbackRun = demoMode && runsTriggered < demoRunLimit;
+
+          if (!hasUrgent && !meetsSignal && !demoFallbackRun) {
             thresholdsNotMet++;
             this.logger.debug(
               `Signal not met for ${inst.symbol}: ` +
@@ -148,6 +165,10 @@ export class PredictionGeneratorService {
           if (hasUrgent) {
             this.logger.log(
               `Urgent signal for ${inst.symbol}: predictor at ${inst.max_relevance.toFixed(2)} relevance — triggering prediction`,
+            );
+          } else if (demoFallbackRun) {
+            this.logger.log(
+              `Demo mode: triggering capped prediction run for ${inst.symbol} without requiring fresh predictor signal`,
             );
           }
 
@@ -206,6 +227,12 @@ export class PredictionGeneratorService {
    * Pipeline runs against base instruments; all orgs see the results.
    */
   private async getInstrumentsWithPredictorStats(): Promise<InstrumentWithPredictors[]> {
+    const demoMode = isMarketsDemoMode();
+    const symbols = getPipelineInstrumentSymbols();
+    const disabledSymbols = getDisabledInstrumentSymbols();
+    const limit = demoMode
+      ? demoDefaultInt('MARKETS_DEMO_PREDICTION_INSTRUMENT_LIMIT', 1, 1000)
+      : getPipelineInstrumentLimit(1000);
     const result = await this.db.rawQuery(
       `
       select
@@ -221,9 +248,13 @@ export class PredictionGeneratorService {
         on mp.instrument_id = i.id
         and mp.status = 'active'
       where i.is_active = true
+        and ($1::boolean = false or cardinality($2::text[]) = 0 or upper(i.symbol) = any($2::text[]))
+        and not (upper(i.symbol) = any($4::text[]))
       group by i.id, i.symbol, i.name
       order by count(mp.id) desc
+      limit $3
       `,
+      [demoMode, symbols, limit, disabledSymbols],
     );
     if (result.error) {
       this.logger.error(`Failed to query instrument predictor stats: ${result.error.message}`);

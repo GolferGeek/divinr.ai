@@ -27,6 +27,17 @@ function toggleArticles(sourceId: string) {
   }
 }
 
+async function toggleSource(source: Record<string, unknown>, checked: boolean) {
+  source['is_enabled'] = checked;
+  try {
+    await store.toggleEntitlement(String(source['id']), checked);
+    await store.fetch();
+  } catch (err) {
+    source['is_enabled'] = !checked;
+    throw err;
+  }
+}
+
 function timeAgo(dateStr: string): string {
   if (!dateStr) return '';
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -93,15 +104,19 @@ function timeAgo(dateStr: string): string {
             <h3>{{ s['display_name'] }}</h3>
             <p>
               <ion-chip style="font-size:0.65rem;height:18px">{{ s['tier'] }}</ion-chip>
+              <ion-chip :color="Boolean(s['is_enabled'] ?? s['is_global_default']) ? 'success' : 'medium'" style="font-size:0.65rem;height:18px">
+                {{ Boolean(s['is_enabled'] ?? s['is_global_default']) ? 'Enabled' : 'Off' }}
+              </ion-chip>
               <span style="font-size:0.75rem;opacity:0.6;margin-left:4px">{{ s['source_origin'] || 'divinr' }}</span>
             </p>
           </ion-label>
           <ion-toggle
-            v-if="canWrite"
             slot="end"
             :checked="Boolean(s['is_enabled'] ?? s['is_global_default'])"
             color="success"
-            @ion-change.stop="(e: any) => store.toggleEntitlement(String(s['id']), e.detail.checked)"
+            :disabled="!canWrite"
+            @click.stop
+            @ion-change="(e: any) => toggleSource(s, e.detail.checked)"
           />
         </ion-item>
 

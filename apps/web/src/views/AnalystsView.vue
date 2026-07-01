@@ -56,6 +56,21 @@ async function handleCreate() {
   dialog.value = false;
   form.value = { slug: '', displayName: '', personaPrompt: '' };
 }
+
+function canToggleAnalyst(a: Record<string, unknown>): boolean {
+  return Boolean(auth.isAdmin || (canWrite.value && a['user_id']));
+}
+
+async function toggleAnalyst(a: Record<string, unknown>, checked: boolean) {
+  a['is_enabled'] = checked;
+  try {
+    await store.update(String(a['id']), { isEnabled: checked });
+    await store.fetch();
+  } catch (err) {
+    a['is_enabled'] = !checked;
+    throw err;
+  }
+}
 </script>
 
 <template>
@@ -94,12 +109,13 @@ async function handleCreate() {
                 <ion-button fill="outline" size="small" style="margin-left:4px">Performance</ion-button>
               </router-link>
             </div>
-            <div v-if="canWrite" style="padding:0 16px 16px">
+            <div style="padding:0 16px 16px">
               <ion-item lines="none">
                 <ion-toggle
                   :checked="Boolean(a['is_enabled'])"
                   :color="a['is_enabled'] ? 'success' : 'danger'"
-                  @ion-change="async (e: any) => { await store.update(String(a['id']), { isEnabled: e.detail.checked }); await store.fetch(); }"
+                  :disabled="!canToggleAnalyst(a)"
+                  @ion-change="(e: any) => toggleAnalyst(a, e.detail.checked)"
                 >
                   {{ a['is_enabled'] ? 'Enabled' : 'Disabled' }}
                 </ion-toggle>

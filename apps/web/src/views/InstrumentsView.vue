@@ -4,10 +4,12 @@ import { useRouter } from 'vue-router';
 import { useInstrumentsStore } from '../stores/instruments.store';
 import { useDomainStore } from '../stores/domain.store';
 import { useAuthStore } from '../stores/auth.store';
+import { useCanWrite } from '../composables/useCanWrite';
 import {
   IonGrid, IonRow, IonCol, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
-  IonCardContent, IonButton, IonChip, IonModal, IonItem, IonInput, IonLabel,
+  IonCardContent, IonButton, IonChip, IonModal, IonItem, IonInput,
   IonHeader, IonToolbar, IonTitle, IonContent, IonButtons,
+  IonToggle,
 } from '@ionic/vue';
 import { addOutline } from 'ionicons/icons';
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
@@ -15,6 +17,7 @@ import FirstTouchPanel from '../components/FirstTouchPanel.vue';
 const store = useInstrumentsStore();
 const domain = useDomainStore();
 const auth = useAuthStore();
+const { canWrite } = useCanWrite();
 const router = useRouter();
 const dialog = ref(false);
 const newSymbol = ref('');
@@ -45,6 +48,21 @@ function formatField(value: unknown, type: string): string {
   if (type === 'percentage') return `${Number(value).toFixed(1)}%`;
   return String(value);
 }
+
+function canToggleInstrument(inst: Record<string, unknown>): boolean {
+  return Boolean(auth.isAdmin || (canWrite.value && inst['user_id']));
+}
+
+async function toggleInstrument(inst: Record<string, unknown>, checked: boolean) {
+  inst['is_active'] = checked;
+  try {
+    await store.updateActive(String(inst['id']), checked);
+    await store.fetch();
+  } catch (err) {
+    inst['is_active'] = !checked;
+    throw err;
+  }
+}
 </script>
 
 <template>
@@ -62,7 +80,13 @@ function formatField(value: unknown, type: string): string {
         <ion-col v-for="inst in store.items" :key="String(inst['id'])" size="12" size-sm="6" size-md="4" size-lg="3">
           <ion-card button @click="router.push(`/instruments/${inst['id']}`)">
             <ion-card-header>
-              <ion-card-title>{{ inst['symbol'] }}</ion-card-title>
+              <ion-card-title style="display:flex;align-items:center;gap:8px">
+                <span>{{ inst['symbol'] }}</span>
+                <span style="flex:1" />
+                <ion-chip :color="inst['is_active'] ? 'success' : 'medium'" style="font-size:0.7rem;height:20px">
+                  {{ inst['is_active'] ? 'Active' : 'Off' }}
+                </ion-chip>
+              </ion-card-title>
               <ion-card-subtitle>{{ inst['name'] }}</ion-card-subtitle>
             </ion-card-header>
             <ion-card-content>
@@ -75,6 +99,20 @@ function formatField(value: unknown, type: string): string {
                   <template v-else>{{ formatField(getFieldValue(inst, field.key), field.type) }}</template>
                 </span>
               </div>
+              <ion-item
+                lines="none"
+                style="--padding-start:0;--inner-padding-end:0;margin-top:12px"
+                @click.stop
+              >
+                <ion-toggle
+                  :checked="Boolean(inst['is_active'])"
+                  :color="inst['is_active'] ? 'success' : 'medium'"
+                  :disabled="!canToggleInstrument(inst)"
+                  @ion-change="(e: any) => toggleInstrument(inst, e.detail.checked)"
+                >
+                  {{ inst['is_active'] ? 'Enabled' : 'Disabled' }}
+                </ion-toggle>
+              </ion-item>
             </ion-card-content>
           </ion-card>
         </ion-col>

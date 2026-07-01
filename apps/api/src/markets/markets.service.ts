@@ -576,13 +576,16 @@ export class MarketsService {
     tierInstructions?: Record<string, string>;
     isEnabled?: boolean;
     changeReason?: string;
+    allowSystem?: boolean;
   }): Promise<MarketAnalyst> {
     await this.requireWrite(input.userId);
 
     // Load current analyst
     const current = await this.db.rawQuery(
-      `select * from prediction.market_analysts where id = $1 and user_id = $2`,
-      [input.analystId, input.userId],
+      `select * from prediction.market_analysts
+       where id = $1
+         and (user_id = $2 or ($3::boolean = true and user_id is null))`,
+      [input.analystId, input.userId, input.allowSystem === true],
     );
     if (current.error) throw new Error(current.error.message);
     const analyst = ((current.data as MarketAnalyst[] | null) ?? [])[0];
@@ -630,13 +633,28 @@ export class MarketsService {
     }
 
     // Update analyst with new values
-    const update = await this.db.rawQuery(
-      `update prediction.market_analysts
+    const updateSql = input.allowSystem === true
+      ? `with _admin_override as (select set_config('divinr.admin_override', 'true', true))
+       update prediction.market_analysts
        set persona_prompt = $1, default_weight = $2, tier_instructions = $3,
            is_enabled = $4, current_config_version_id = $5, updated_at = $6
-       where id = $7 and user_id = $8
-       returning *`,
-      [newPrompt, newWeight, JSON.stringify(newTier), newEnabled, versionId, new Date().toISOString(), input.analystId, input.userId],
+       from _admin_override
+       where id = $7
+         and (user_id = $8 or ($9::boolean = true and user_id is null))
+       returning prediction.market_analysts.*`
+      : `update prediction.market_analysts
+       set persona_prompt = $1, default_weight = $2, tier_instructions = $3,
+           is_enabled = $4, current_config_version_id = $5, updated_at = $6
+       where id = $7
+         and (user_id = $8 or ($9::boolean = true and user_id is null))
+       returning *`;
+    const update = await this.db.rawQuery(
+      updateSql,
+      [
+        newPrompt, newWeight, JSON.stringify(newTier), newEnabled,
+        versionId, new Date().toISOString(), input.analystId, input.userId,
+        input.allowSystem === true,
+      ],
     );
     if (update.error) throw new Error(update.error.message);
     return ((update.data as MarketAnalyst[] | null) ?? [])[0] as MarketAnalyst;
@@ -730,6 +748,37 @@ export class MarketsService {
     return (result.data as MarketAnalyst[]) ?? [];
   }
 
+  async setInstrumentActive(input: {
+    userId: string;
+    instrumentId: string;
+    isActive: boolean;
+    allowSystem?: boolean;
+  }): Promise<MarketInstrument> {
+    await this.requireWrite(input.userId);
+
+    const updateSql = input.allowSystem === true
+      ? `with _admin_override as (select set_config('divinr.admin_override', 'true', true))
+       update prediction.instruments
+       set is_active = $1
+       from _admin_override
+       where id = $2
+         and (user_id = $3 or ($4::boolean = true and user_id is null))
+       returning prediction.instruments.*`
+      : `update prediction.instruments
+       set is_active = $1
+       where id = $2
+         and (user_id = $3 or ($4::boolean = true and user_id is null))
+       returning *`;
+    const result = await this.db.rawQuery(
+      updateSql,
+      [input.isActive, input.instrumentId, input.userId, input.allowSystem === true],
+    );
+    if (result.error) throw new Error(result.error.message);
+    const row = ((result.data as MarketInstrument[] | null) ?? [])[0];
+    if (!row) throw new BadRequestException('Instrument not found');
+    return row;
+  }
+
   async listAnalystsForInstrument(
     userId: string,
     instrumentId: string,
@@ -812,10 +861,12 @@ export class MarketsService {
       entitlementBySourceId.set(row.source_id, row);
     }
 
-    return ((sources.data as MarketSource[] | null) ?? []).map((source) => ({
-      ...source,
-      entitlement: entitlementBySourceId.get(source.id) ?? null,
-    }));
+    return ((sources.data as MarketSource[] | null) ?? [])
+      .map((source) => ({
+        ...source,
+        is_enabled: entitlementBySourceId.get(source.id)?.is_enabled ?? source.is_global_default,
+        entitlement: entitlementBySourceId.get(source.id) ?? null,
+      }));
   }
 
   async listSourceArticles(
@@ -3071,6 +3122,12 @@ Respond ONLY with valid JSON.`,
           and ($1::text is null or id = $1)
           and ($2::text is null or run_type = $2)
           and (run_type <> 'prediction' or $3::boolean = true)
+          and exists (
+            select 1
+            from prediction.instruments i
+            where i.id = orchestration_runs.instrument_id
+              and i.is_active = true
+          )
         order by created_at asc
         for update skip locked
         limit 1

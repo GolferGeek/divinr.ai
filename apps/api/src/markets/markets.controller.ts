@@ -281,6 +281,33 @@ export class MarketsController {
     return { deleted: true };
   }
 
+  @Patch('instruments/:instrumentId')
+  async updateInstrument(
+    @Req() req: { user?: AuthenticatedUser },
+    @Param('instrumentId') instrumentId: string,
+    @Body() body: { isActive?: boolean },
+  ) {
+    const user = this.getUser(req);
+    if (!instrumentId) throw new BadRequestException('instrumentId is required');
+    if (body?.isActive === undefined) throw new BadRequestException('isActive is required');
+
+    const rowResult = await this.db.rawQuery(
+      `select user_id from prediction.instruments where id = $1 limit 1`,
+      [instrumentId],
+    );
+    const row = ((rowResult.data as Array<{ user_id: string | null }> | null) ?? [])[0];
+    if (!row) throw new BadRequestException('Instrument not found');
+    if (row.user_id === null) await this.requireAdmin(user);
+    else await this.requireWriteAccess(user);
+
+    return this.markets.setInstrumentActive({
+      userId: user.id,
+      instrumentId,
+      isActive: body.isActive,
+      allowSystem: row.user_id === null,
+    });
+  }
+
   // ─── Analysts ──────────────────────────────────────────────────
 
   @Get('analysts')
@@ -377,7 +404,16 @@ export class MarketsController {
   ) {
     const user = this.getUser(req);
     if (!analystId) throw new BadRequestException('analystId is required');
-    await this.requireWriteAccess(user);
+
+    const rowResult = await this.db.rawQuery(
+      `select user_id from prediction.market_analysts where id = $1 limit 1`,
+      [analystId],
+    );
+    const row = ((rowResult.data as Array<{ user_id: string | null }> | null) ?? [])[0];
+    if (!row) throw new BadRequestException('Analyst not found');
+    if (row.user_id === null) await this.requireAdmin(user);
+    else await this.requireWriteAccess(user);
+
     return this.markets.updateAnalyst({
       userId: user.id,
       analystId,
@@ -386,6 +422,7 @@ export class MarketsController {
       tierInstructions: body.tierInstructions,
       isEnabled: body.isEnabled,
       changeReason: body.changeReason,
+      allowSystem: row.user_id === null,
     });
   }
 

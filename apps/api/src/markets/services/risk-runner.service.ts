@@ -25,6 +25,12 @@ import { loadContractFragment } from '../utils/contract-loader';
 import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
 import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
 import { resolveTripleContext } from '../utils/resolve-triple-context';
+import {
+  demoDefaultInt,
+  getDisabledAnalystSlugs,
+  getEnabledAnalystSlugs,
+  isMarketsDemoMode,
+} from '../utils/demo-mode';
 
 export interface RiskRunResult {
   compositeScore: RiskCompositeScore;
@@ -348,7 +354,7 @@ export class RiskRunnerService {
       return { assessmentsWritten, debatesRun, errors };
     }
 
-    const batchLimit = parseInt(process.env.MARKETS_RISK_BATCH_LIMIT ?? '50', 10);
+    const batchLimit = demoDefaultInt('MARKETS_RISK_BATCH_LIMIT', 2, 50);
     const workload: Array<{ instrumentId: string; analyst: AnalystRef }> = [];
     for (const scope of instrumentScopes) {
       for (const analyst of scope.analysts) {
@@ -525,18 +531,28 @@ export class RiskRunnerService {
   }
 
   private async loadBasePersonalityAnalysts(): Promise<AnalystRef[]> {
+    const analystLimit = demoDefaultInt('MARKETS_PIPELINE_ANALYST_LIMIT', 2, 100);
+    const enabledSlugs = getEnabledAnalystSlugs();
+    const disabledSlugs = getDisabledAnalystSlugs();
     const result = await this.db.rawQuery(
       `select id, slug, display_name, persona_prompt, default_weight, user_id, current_config_version_id
        from prediction.market_analysts
        where analyst_type = 'personality' and is_enabled = true and is_active = true
          and workflow_scope in ('risk', 'both')
          and user_id is null
-       order by default_weight desc`,
+         and (cardinality($2::text[]) = 0 or lower(slug) = any($2::text[]))
+         and not (lower(slug) = any($3::text[]))
+       order by default_weight desc
+       limit $1`,
+      [analystLimit, enabledSlugs, disabledSlugs],
     );
     return (result.data as AnalystRef[] | null) ?? [];
   }
 
   private async loadAssignedAnalystsForInstrument(instrumentId: string): Promise<AnalystRef[]> {
+    const analystLimit = demoDefaultInt('MARKETS_PIPELINE_ANALYST_LIMIT', 2, 100);
+    const enabledSlugs = getEnabledAnalystSlugs();
+    const disabledSlugs = getDisabledAnalystSlugs();
     const result = await this.db.rawQuery(
       `select ma.id, ma.slug, ma.display_name, ma.persona_prompt, ma.default_weight, ma.user_id, ma.current_config_version_id
        from prediction.market_instrument_analyst_assignments mia
@@ -544,21 +560,32 @@ export class RiskRunnerService {
        where mia.instrument_id = $1
          and ma.is_enabled = true and ma.is_active = true
          and ma.workflow_scope in ('risk', 'both')
-       order by ma.default_weight desc`,
-      [instrumentId],
+         and (cardinality($3::text[]) = 0 or lower(ma.slug) = any($3::text[]))
+         and not (lower(ma.slug) = any($4::text[]))
+       order by ma.default_weight desc
+       limit $2`,
+      [instrumentId, analystLimit, enabledSlugs, disabledSlugs],
     );
     return (result.data as AnalystRef[] | null) ?? [];
   }
 
   private async loadAnalystsByIds(ids: string[]): Promise<AnalystRef[]> {
     if (ids.length === 0) return [];
+    const analystLimit = demoDefaultInt('MARKETS_AUTHORED_PIPELINE_ANALYST_LIMIT', 0, 100);
+    if (analystLimit <= 0) return [];
+    const enabledSlugs = getEnabledAnalystSlugs();
+    const disabledSlugs = getDisabledAnalystSlugs();
     const result = await this.db.rawQuery(
       `select id, slug, display_name, persona_prompt, default_weight, user_id, current_config_version_id
        from prediction.market_analysts
        where id = any($1::text[])
          and is_enabled = true and is_active = true
-         and workflow_scope in ('risk', 'both')`,
-      [ids],
+         and workflow_scope in ('risk', 'both')
+         and (cardinality($3::text[]) = 0 or lower(slug) = any($3::text[]))
+         and not (lower(slug) = any($4::text[]))
+       order by default_weight desc
+       limit $2`,
+      [ids, analystLimit, enabledSlugs, disabledSlugs],
     );
     return (result.data as AnalystRef[] | null) ?? [];
   }
@@ -844,12 +871,18 @@ Respond with valid JSON only:
     predictorLines: string[],
   ): Promise<Array<{ analystId: string; analystSlug: string; score: number; confidence: number; weight: number; reasoning: string | null; evidence: string[]; }>> {
     // Load personality analysts
+    const enabledSlugs = getEnabledAnalystSlugs();
+    const disabledSlugs = getDisabledAnalystSlugs();
     const result = await this.db.rawQuery(
       `select id, slug, display_name, persona_prompt, default_weight, current_config_version_id, user_id
        from prediction.market_analysts
        where analyst_type = 'personality' and is_enabled = true and is_active = true
          and workflow_scope in ('risk', 'both')
-       order by default_weight desc`,
+         and (cardinality($2::text[]) = 0 or lower(slug) = any($2::text[]))
+         and not (lower(slug) = any($3::text[]))
+       order by default_weight desc
+       limit $1`,
+      [demoDefaultInt('MARKETS_PIPELINE_ANALYST_LIMIT', 2, 100), enabledSlugs, disabledSlugs],
     );
     const analysts = (result.data as Array<{
       id: string; slug: string; display_name: string; persona_prompt: string; default_weight: number;
@@ -864,10 +897,12 @@ Respond with valid JSON only:
       try {
         // Fetch specialized data for this analyst
         let dataSourceText = '';
-        try {
-          const dsResult = await this.dataSources.fetchForAnalyst(analyst.id, instrument.symbol);
-          dataSourceText = dsResult.context;
-        } catch { /* graceful degradation */ }
+        if (!isMarketsDemoMode() || process.env.MARKETS_DEMO_DATA_SOURCES === 'true') {
+          try {
+            const dsResult = await this.dataSources.fetchForAnalyst(analyst.id, instrument.symbol);
+            dataSourceText = dsResult.context;
+          } catch { /* graceful degradation */ }
+        }
 
         const runnerDeps = { db: this.db, logger: this.logger, observability: this.observability };
         const [analystLoad, instrumentLoad] = await Promise.all([
@@ -1023,6 +1058,8 @@ Respond with valid JSON only:
   }
 
   private async loadRiskAnalystPerspectives(): Promise<AnalystPerspective[]> {
+    const enabledSlugs = getEnabledAnalystSlugs();
+    const disabledSlugs = getDisabledAnalystSlugs();
     const result = await this.db.rawQuery(
       `select display_name, default_weight, persona_prompt
        from prediction.market_analysts
@@ -1030,7 +1067,11 @@ Respond with valid JSON only:
          and is_enabled = true
          and is_active = true
          and workflow_scope in ('risk', 'both')
-       order by default_weight desc, created_at asc`,
+         and (cardinality($2::text[]) = 0 or lower(slug) = any($2::text[]))
+         and not (lower(slug) = any($3::text[]))
+       order by default_weight desc, created_at asc
+       limit $1`,
+      [demoDefaultInt('MARKETS_PIPELINE_ANALYST_LIMIT', 2, 100), enabledSlugs, disabledSlugs],
     );
     const rows = (result.data as Array<{ display_name: string; default_weight: number; persona_prompt: string }> | null) ?? [];
     return rows.map((r) => ({

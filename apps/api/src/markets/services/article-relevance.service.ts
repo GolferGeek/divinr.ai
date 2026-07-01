@@ -6,6 +6,12 @@ import { MarketsLlmService } from './markets-llm.service';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
 import { instrumentKeywordScore } from '../utils/instrument-keyword-match';
 import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
+import {
+  getDisabledInstrumentSymbols,
+  getPipelineInstrumentLimit,
+  getPipelineInstrumentSymbols,
+  isMarketsDemoMode,
+} from '../utils/demo-mode';
 
 const STAGE1_TRAILING_INSTRUCTIONS =
   'Use the language "analysis" and "signal", never "advice" or "recommendation". Respond with valid JSON: {"is_relevant": true/false, "rationale": "brief explanation"}.';
@@ -152,7 +158,10 @@ export class ArticleRelevanceService {
     const res = await this.db.rawQuery(
       `select ma.id, ma.title, ma.summary, ma.content
        from prediction.market_articles ma
+       join prediction.source_catalog sc on sc.id = ma.source_id
+       left join prediction.tenant_source_entitlements tse on tse.source_id = sc.id
        where coalesce(ma.published_at, ma.first_seen_at, ma.created_at) >= now() - interval '7 days'
+         and coalesce(tse.is_enabled, sc.is_global_default) = true
          and not exists (
            select 1 from prediction.article_instrument_relevance air
            where air.article_id = ma.id and air.instrument_id = $1
@@ -166,8 +175,19 @@ export class ArticleRelevanceService {
 
   private async getActiveInstruments(): Promise<InstrumentRow[]> {
     // Includes both base (user_id IS NULL) and authored (user_id IS NOT NULL) instruments
+    const demoMode = isMarketsDemoMode();
+    const symbols = getPipelineInstrumentSymbols();
+    const disabledSymbols = getDisabledInstrumentSymbols();
+    const limit = getPipelineInstrumentLimit(1000);
     const res = await this.db.rawQuery(
-      `select id, symbol, name from prediction.instruments where is_active = true order by symbol`,
+      `select id, symbol, name
+       from prediction.instruments
+       where is_active = true
+         and ($1::boolean = false or cardinality($2::text[]) = 0 or upper(symbol) = any($2::text[]))
+         and not (upper(symbol) = any($4::text[]))
+       order by symbol
+       limit $3`,
+      [demoMode, symbols, limit, disabledSymbols],
     );
     return (res.data as InstrumentRow[] | null) ?? [];
   }
@@ -176,7 +196,10 @@ export class ArticleRelevanceService {
     const res = await this.db.rawQuery(
       `select distinct ma.id, ma.title, ma.summary, ma.content
        from prediction.market_articles ma
+       join prediction.source_catalog sc on sc.id = ma.source_id
+       left join prediction.tenant_source_entitlements tse on tse.source_id = sc.id
        where coalesce(ma.published_at, ma.first_seen_at, ma.created_at) >= now() - interval '7 days'
+         and coalesce(tse.is_enabled, sc.is_global_default) = true
          and not exists (
            select 1 from prediction.article_instrument_relevance air
            where air.article_id = ma.id

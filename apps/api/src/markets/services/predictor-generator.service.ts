@@ -12,6 +12,15 @@ import { loadContractFragment } from '../utils/contract-loader';
 import { loadInstrumentContractFragment } from '../utils/instrument-contract-loader';
 import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
 import { resolveTripleContext } from '../utils/resolve-triple-context';
+import {
+  demoDefaultInt,
+  getDisabledAnalystSlugs,
+  getDisabledInstrumentSymbols,
+  getPipelineInstrumentLimit,
+  getPipelineInstrumentSymbols,
+  isMarketsDemoMode,
+  getEnabledAnalystSlugs,
+} from '../utils/demo-mode';
 
 interface UnscoredArticle {
   id: string;
@@ -239,12 +248,19 @@ export class PredictorGeneratorService {
    * Get base personality analysts (user_id IS NULL) for shared pipeline scoring.
    */
   private async getPersonalityAnalysts(): Promise<ScoringAnalyst[]> {
+    const analystLimit = demoDefaultInt('MARKETS_PIPELINE_ANALYST_LIMIT', 2, 100);
+    const enabledSlugs = getEnabledAnalystSlugs();
+    const disabledSlugs = getDisabledAnalystSlugs();
     const result = await this.db.rawQuery(
       `select id, slug, display_name, current_config_version_id, user_id from prediction.market_analysts
        where analyst_type = 'personality'
          and is_enabled = true and is_active = true
          and user_id is null
-       order by slug`,
+         and (cardinality($2::text[]) = 0 or lower(slug) = any($2::text[]))
+         and not (lower(slug) = any($3::text[]))
+       order by slug
+       limit $1`,
+      [analystLimit, enabledSlugs, disabledSlugs],
     );
     const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null; user_id: string | null }> | null) ?? [];
     return rows.map(r => ({
@@ -259,6 +275,10 @@ export class PredictorGeneratorService {
    * (user_id IS NOT NULL) that participate alongside base analysts.
    */
   private async getAuthoredAnalystsForInstrument(instrumentId: string): Promise<ScoringAnalyst[]> {
+    const analystLimit = demoDefaultInt('MARKETS_AUTHORED_PIPELINE_ANALYST_LIMIT', 0, 100);
+    if (analystLimit <= 0) return [];
+    const enabledSlugs = getEnabledAnalystSlugs();
+    const disabledSlugs = getDisabledAnalystSlugs();
     const result = await this.db.rawQuery(
       `SELECT DISTINCT ma.id, ma.slug, ma.display_name, ma.current_config_version_id,
               ma.user_id, viaa.viewer_user_id
@@ -266,8 +286,12 @@ export class PredictorGeneratorService {
        JOIN prediction.market_analysts ma ON ma.id = viaa.analyst_id
        WHERE viaa.instrument_id = $1
          AND ma.is_active = true
-         AND ma.user_id IS NOT NULL`,
-      [instrumentId],
+         AND ma.user_id IS NOT NULL
+         AND (cardinality($3::text[]) = 0 OR lower(ma.slug) = any($3::text[]))
+         AND NOT (lower(ma.slug) = any($4::text[]))
+       ORDER BY ma.slug
+       LIMIT $2`,
+      [instrumentId, analystLimit, enabledSlugs, disabledSlugs],
     );
     const rows = (result.data as Array<{ id: string; slug: string; display_name: string; current_config_version_id: string | null; user_id: string | null }> | null) ?? [];
     return rows.map(r => ({
@@ -281,11 +305,19 @@ export class PredictorGeneratorService {
    * all orgs see the base results.
    */
   private async getActiveInstruments(): Promise<ActiveInstrument[]> {
+    const demoMode = isMarketsDemoMode();
+    const symbols = getPipelineInstrumentSymbols();
+    const disabledSymbols = getDisabledInstrumentSymbols();
+    const limit = getPipelineInstrumentLimit(1000);
     const result = await this.db.rawQuery(
       `select id, symbol, name, asset_type, user_id
        from prediction.instruments
        where is_active = true
-       order by symbol`,
+         and ($1::boolean = false or cardinality($2::text[]) = 0 or upper(symbol) = any($2::text[]))
+         and not (upper(symbol) = any($4::text[]))
+       order by symbol
+       limit $3`,
+      [demoMode, symbols, limit, disabledSymbols],
     );
     if (result.error) {
       this.logger.error(`Failed to query instruments: ${result.error.message}`);
@@ -306,6 +338,8 @@ export class PredictorGeneratorService {
       `
       select ma.id, ma.title, ma.summary, ma.content, ma.source_id, ma.published_at
       from prediction.market_articles ma
+      join prediction.source_catalog sc on sc.id = ma.source_id
+      left join prediction.tenant_source_entitlements tse on tse.source_id = sc.id
       where (
         select count(distinct mp.scored_by_analyst_id)
         from prediction.market_predictors mp
@@ -313,11 +347,12 @@ export class PredictorGeneratorService {
           and mp.article_id = ma.id
           and mp.scored_by_analyst_id is not null
       ) < $2
+      and coalesce(tse.is_enabled, sc.is_global_default) = true
       and coalesce(ma.published_at, ma.first_seen_at, ma.created_at) >= now() - interval '7 days'
       order by coalesce(ma.published_at, ma.first_seen_at, ma.created_at) desc
-      limit 20
+      limit $3
       `,
-      [instrument.id, analystCount],
+      [instrument.id, analystCount, demoDefaultInt('MARKETS_ARTICLES_PER_INSTRUMENT_LIMIT', 3, 20)],
     );
     if (result.error) {
       this.logger.error(`Failed to query unscored articles for ${instrument.symbol}: ${result.error.message}`);

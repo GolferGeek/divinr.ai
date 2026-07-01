@@ -311,7 +311,7 @@ ${findingsSummary}`;
     const analystResult = await this.db.rawQuery(
       `SELECT id, display_name
        FROM prediction.market_analysts
-       WHERE is_active = true AND learning_enabled = true`,
+       WHERE is_active = true AND is_enabled = true AND learning_enabled = true`,
     );
     if (analystResult.error) throw new Error(analystResult.error.message);
     const analysts = (analystResult.data as Array<{

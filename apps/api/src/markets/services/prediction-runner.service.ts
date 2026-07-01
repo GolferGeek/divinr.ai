@@ -16,6 +16,7 @@ import { loadInstrumentContractFragment } from '../utils/instrument-contract-loa
 import { buildMergedSystemPrompt, emitPromptTokenEstimate } from '../utils/merge-prompts';
 import { resolveTripleContext } from '../utils/resolve-triple-context';
 import { WorkflowStage } from '../workflow-stages/workflow-stage';
+import { demoDefaultInt, filterByEnabledDisabledSlug, isMarketsDemoMode } from '../utils/demo-mode';
 import type {
   MarketRun,
   MarketInstrument,
@@ -68,6 +69,7 @@ export class PredictionRunnerService {
     instrument: MarketInstrument,
     userId: string,
   ): Promise<MultiAnalystRunResult> {
+    const demoMode = isMarketsDemoMode();
 
     const context = this.llmService.buildExecutionContext(
       userId,
@@ -87,17 +89,22 @@ export class PredictionRunnerService {
     await this.warnIfRiskStale(run.instrument_id);
 
     // 3. Get all enabled personality analysts
-    const analysts = await this.getAnalystsForRun(run.instrument_id);
+    const allAnalysts = await this.getAnalystsForRun(run.instrument_id);
+    const analystLimit = demoDefaultInt('MARKETS_PIPELINE_ANALYST_LIMIT', 2, allAnalysts.length);
+    const analysts = allAnalysts.slice(0, analystLimit);
     if (analysts.length === 0) {
       throw new Error('No enabled personality analysts available for this prediction run');
     }
 
     // 4. Load and execute context providers
-    const providers = await this.contextProviders.loadContextProviders(run.instrument_id);
-    const providerOutputs = await this.contextProviders.executeContextProviders(
-      context, providers, instrument.symbol, instrument.name, planeContext, instrument.id,
-    );
-    const contextProviderText = this.contextProviders.formatContextForPrompt(providerOutputs);
+    let contextProviderText = '';
+    if (!demoMode || process.env.MARKETS_DEMO_CONTEXT_PROVIDERS === 'true') {
+      const providers = await this.contextProviders.loadContextProviders(run.instrument_id);
+      const providerOutputs = await this.contextProviders.executeContextProviders(
+        context, providers, instrument.symbol, instrument.name, planeContext, instrument.id,
+      );
+      contextProviderText = this.contextProviders.formatContextForPrompt(providerOutputs);
+    }
 
     // 5. Per-analyst execution
     this.logger.log(`Running ${analysts.length} analysts for ${instrument.symbol} prediction`);
@@ -116,7 +123,7 @@ export class PredictionRunnerService {
         analystOutcomes.push(outcome);
         artifactIds.push(artifactId);
         try {
-          await this.convictionTrader.evaluateAnalyst(outcome);
+          if (!demoMode) await this.convictionTrader.evaluateAnalyst(outcome);
         } catch (err) {
           this.logger.warn(`Conviction autotrade (analyst ${analyst.slug}) failed: ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -127,7 +134,7 @@ export class PredictionRunnerService {
       }
 
       // Paper mode: if analyst has a paper config, run a second pass with it
-      if (analyst.paper_config_version_id) {
+      if (!demoMode && analyst.paper_config_version_id) {
         try {
           const paperConfig = await this.loadConfigVersion(analyst.paper_config_version_id);
           if (paperConfig) {
@@ -159,7 +166,7 @@ export class PredictionRunnerService {
       arbitratorOutcome = arbResult.outcome;
       artifactIds.push(arbResult.artifactId);
       try {
-        await this.convictionTrader.evaluateArbitrator(arbitratorOutcome);
+        if (!demoMode) await this.convictionTrader.evaluateArbitrator(arbitratorOutcome);
       } catch (err) {
         this.logger.warn(`Conviction autotrade (arbitrator) failed: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -172,7 +179,7 @@ export class PredictionRunnerService {
     // Persistence is idempotent and portfolio-agnostic; per-user quantity is
     // computed at read time. Failure here is non-fatal — the dashboard will
     // lazily generate on first read if this fails.
-    if (arbitratorOutcome) {
+    if (arbitratorOutcome && (!demoMode || process.env.MARKETS_DEMO_TRADE_RECOMMENDATIONS === 'true')) {
       try {
         await this.tradeRecommendation.generateForRun({
           runId: run.id,
@@ -210,12 +217,14 @@ export class PredictionRunnerService {
     // Fetch specialized data for this analyst
     let dataSourceText = '';
     let sourceContext: Record<string, unknown> = {};
-    try {
-      const dsResult = await this.dataSources.fetchForAnalyst(analyst.id, instrument.symbol);
-      dataSourceText = dsResult.context;
-      sourceContext = dsResult.sourceContext;
-    } catch (err) {
-      this.logger.warn(`Data source fetch failed for ${analyst.slug}: ${err instanceof Error ? err.message : String(err)}`);
+    if (!isMarketsDemoMode() || process.env.MARKETS_DEMO_DATA_SOURCES === 'true') {
+      try {
+        const dsResult = await this.dataSources.fetchForAnalyst(analyst.id, instrument.symbol);
+        dataSourceText = dsResult.context;
+        sourceContext = dsResult.sourceContext;
+      } catch (err) {
+        this.logger.warn(`Data source fetch failed for ${analyst.slug}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     // Load per-analyst predictor lines (articles this analyst scored as relevant)
@@ -712,7 +721,7 @@ Respond ONLY with valid JSON.`;
       }
     }
 
-    return baseAnalysts;
+    return filterByEnabledDisabledSlug(baseAnalysts);
   }
 
   private async getLatestRiskComposite(

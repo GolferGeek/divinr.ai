@@ -4,6 +4,7 @@ import type { ExecutionContext } from '@orchestrator-ai/transport-types';
 import { LLM_SERVICE, type LLMServiceProvider } from '@orchestratorai/planes/llm';
 import type { RunType } from '../markets.types';
 import { LlmUsageLogger } from './llm-usage-logger.service';
+import { isMarketsDemoMode } from '../utils/demo-mode';
 
 export interface LlmConfig {
   provider: string;
@@ -51,6 +52,10 @@ export class MarketsLlmService {
   ) {}
 
   isLlmEnabled(): boolean {
+    if (isMarketsDemoMode() && process.env.MARKETS_DEMO_ENABLE_LLM !== 'true') {
+      return false;
+    }
+
     return (
       process.env.MARKETS_ENABLE_LLM === 'true' ||
       process.env.PHASE1_ENABLE_LLM === 'true'

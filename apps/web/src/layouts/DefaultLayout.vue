@@ -453,6 +453,12 @@ onBeforeUnmount(() => {
         </ion-header>
         <ion-content class="ion-padding">
           <ReadOnlyBanner />
+          <div class="demo-mode-banner" role="status">
+            <ion-icon :icon="warningOutline" />
+            <span>
+              This application has purposely limited the number of sources, analysts, and instruments because we're in demo mode. Everything is working completely; we've just limited the number of actors.
+            </span>
+          </div>
           <router-view />
           <div class="legal-footer">
             <LegalDisclaimer variant="short" />
@@ -645,6 +651,31 @@ onBeforeUnmount(() => {
 
 .header-user-chip {
   cursor: pointer;
+}
+
+.demo-mode-banner {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #f1c232;
+  border-radius: 6px;
+  background: #fff7d6;
+  color: #3f3300;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.demo-mode-banner ion-icon {
+  margin-top: 1px;
+  color: #946200;
+  font-size: 1.1rem;
+  flex: 0 0 auto;
 }
 
 .learning-panel-modal {

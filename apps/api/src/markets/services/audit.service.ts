@@ -344,6 +344,9 @@ Output ONLY the policy text. No preamble.`;
            SELECT prediction_id FROM prediction.audit_findings
            WHERE created_at > now() - interval '7 days'
          )
+         AND i.is_active = true
+         AND ma.is_active = true
+         AND ma.is_enabled = true
        ORDER BY
          CASE WHEN e.was_correct THEN 1 ELSE 0 END ASC,
          random()
