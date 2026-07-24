@@ -369,7 +369,7 @@ Database conventions:
 | `oauth_access_token_jtis` | token JTI/hash, grant ID, audience, scopes hash, `dpop_jkt`, issued/expires/revoked timestamps | unique JTI; grant + expiry; supports immediate revocation/audit without storing JWT plaintext |
 | `dpop_proof_replays` | `dpop_jkt`, proof JTI, method, canonical URI hash, access-token hash where present, seen/expires timestamps | unique `dpop_jkt,proof_jti`; expiry index |
 | `dpop_nonces` | nonce hash, `dpop_jkt` or installation ID, issued/expires/consumed timestamps, purpose | unique nonce hash; active key + expiry; one-time consumption when profile requires it |
-| `cryptographic_key_registry` | key ID, owner/service, role (`oauth_signing`, `ap2_merchant`, `quote`, `receipt`, `push`, `facade_mtls`), algorithm, public JWK/certificate hash, external custody reference, status, valid from/until, supersedes key ID | unique owner + role + key ID; active role/validity index; no private key material |
+| `cryptographic_key_registry` | key ID, owner/service, role (`agent_card`, `oauth_signing`, `ap2_merchant`, `quote`, `receipt`, `push`, `facade_mtls`), algorithm, public JWK/certificate hash, external custody reference, status, valid from/until, supersedes key ID | unique owner + role + key ID; active role/validity index; no private key material |
 
 Device approval, grant creation, and device-code consumption occur in one transaction. Refresh rotation inserts the next token, marks the prior token used, and advances the family generation in one transaction. Reuse of an already used token marks the family compromised and revokes the grant according to policy.
 

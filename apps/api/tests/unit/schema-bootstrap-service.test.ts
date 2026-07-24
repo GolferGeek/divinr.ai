@@ -92,7 +92,9 @@ async function main(): Promise<void> {
         error: null,
       }),
     };
-    const service = new SchemaReadinessService(db as never);
+    const service = new SchemaReadinessService(db as never, {
+      assertProductionReady: async () => undefined,
+    } as never);
     const state = await service.check();
     assert.equal(state.ok, false);
     assert.deepEqual(state.missing, ['credentials.user_llm_credentials']);
@@ -105,7 +107,9 @@ async function main(): Promise<void> {
         error: null,
       }),
     };
-    const service = new SchemaReadinessService(db as never);
+    const service = new SchemaReadinessService(db as never, {
+      assertProductionReady: async () => undefined,
+    } as never);
     await assert.rejects(() => service.assertReady(), /missing relations: prediction.learning_panel_threads/);
   });
 
@@ -129,13 +133,45 @@ async function main(): Promise<void> {
         };
       },
     };
-    const service = new SchemaReadinessService(db as never);
+    const service = new SchemaReadinessService(db as never, {
+      assertProductionReady: async () => undefined,
+    } as never);
     const state = await service.check();
     assert.equal(state.ok, false);
     assert.deepEqual(state.missing, [
       'seed:apple-assistant-native-v1',
       'seed:agent_commerce.a2a_products:v0.2',
     ]);
+  });
+
+  await test('readiness fails closed when production Agent Card custody is not ready', async () => {
+    let call = 0;
+    const db = {
+      rawQuery: async () => {
+        call += 1;
+        if (call === 1) {
+          return {
+            data: AGENT_COMMERCE_REQUIRED_RELATIONS.map((key) => ({
+              key,
+              present: true,
+            })),
+            error: null,
+          };
+        }
+        return {
+          data: [{ oauth_client_present: true, active_product_count: 7 }],
+          error: null,
+        };
+      },
+    };
+    const service = new SchemaReadinessService(db as never, {
+      assertProductionReady: async () => {
+        throw new Error('missing external key');
+      },
+    } as never);
+    const state = await service.check();
+    assert.equal(state.ok, false);
+    assert.deepEqual(state.missing, ['key:agent-card-production-readiness']);
   });
 
   console.log(`\nPassed: ${passed}, Failed: ${failed}`);

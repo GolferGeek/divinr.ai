@@ -22,7 +22,7 @@ import {
 interface PublicKeySeed {
   keyId: string;
   ownerService: string;
-  keyRole: 'oauth_signing' | 'ap2_merchant' | 'quote' | 'receipt' | 'push' | 'facade_mtls';
+  keyRole: 'agent_card' | 'oauth_signing' | 'ap2_merchant' | 'quote' | 'receipt' | 'push' | 'facade_mtls';
   algorithm: string;
   publicJwk?: Record<string, unknown>;
   certificateSha256?: string;

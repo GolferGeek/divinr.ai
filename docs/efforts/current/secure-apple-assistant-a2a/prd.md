@@ -188,7 +188,7 @@ All primary keys are UUID; external protocol IDs are separate unique text. Times
 | `oauth_access_token_jtis` | JTI/hash, grant, audience, scope hash, `dpop_jkt`, issue/expiry/revoke times; unique JTI. |
 | `dpop_proof_replays` | `dpop_jkt`, proof JTI, method, canonical URI hash, optional token hash, seen/expiry; unique `(dpop_jkt,proof_jti)`. |
 | `dpop_nonces` | Nonce hash, installation/key, purpose, issue/expiry/consume times; unique and one-use; at most four active per installation. |
-| `cryptographic_key_registry` | Key ID, owner/service, distinct role, algorithm, public JWK/cert hash, external custody ref, status/validity/supersession; no private material. |
+| `cryptographic_key_registry` | Key ID, owner/service, distinct role including dedicated Agent Card signing, algorithm, public JWK/cert hash, external custody ref, status/validity/supersession; no private material. |
 
 #### Divinr A2A, AP2, payment, result, push, and audit tables
 

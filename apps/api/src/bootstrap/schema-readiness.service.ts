@@ -4,6 +4,10 @@ import {
   AGENT_COMMERCE_REQUIRED_RELATIONS,
   APPLE_ASSISTANT_OAUTH_CLIENT_ID,
 } from '../agent-commerce/agent-commerce-schema.constants';
+import {
+  AGENT_KEY_PROVIDER,
+  type AgentKeyProvider,
+} from '../agent-commerce/agent-key-provider';
 
 export interface SchemaReadinessCheck {
   ok: boolean;
@@ -36,6 +40,7 @@ export class SchemaReadinessService {
 
   constructor(
     @Inject(DATABASE_SERVICE) private readonly db: DatabaseService,
+    @Inject(AGENT_KEY_PROVIDER) private readonly agentKeys: AgentKeyProvider,
   ) {}
 
   async check(): Promise<SchemaReadinessCheck> {
@@ -85,6 +90,13 @@ export class SchemaReadinessService {
       }
       if (seed?.active_product_count !== 7) {
         missing.push('seed:agent_commerce.a2a_products:v0.2');
+      }
+      if (missing.length === 0) {
+        try {
+          await this.agentKeys.assertProductionReady();
+        } catch {
+          missing.push('key:agent-card-production-readiness');
+        }
       }
     }
     return {

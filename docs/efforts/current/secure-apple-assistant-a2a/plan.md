@@ -8,7 +8,7 @@
 
 - [x] Phase 1: Frozen contract and atomic foundation
 - [x] Phase 2: Versioned Divinr persistence
-- [ ] Phase 3: A2A 1.0 discovery and task protocol
+- [x] Phase 3: A2A 1.0 discovery and task protocol
 - [ ] Phase 4: Device authorization and connected-agent UI
 - [ ] Phase 5: DPoP credentials and recovery
 - [ ] Phase 6: Deterministic admission and paid update skills
@@ -88,31 +88,33 @@
 
 ## Phase 3: A2A 1.0 Discovery and Task Protocol
 
-**Status**: Not Started  
+**Status**: Complete
 **Objective**: Replace the insecure prototype with signed A2A 1.0 discovery and fail-closed task protocol plumbing while keeping business skills disabled.
 
 ### Steps
 
-- [ ] 3.1 Add role-specific key-provider interfaces and test custody; load Agent Card public/signing references through `cryptographic_key_registry` and fail production readiness on fallback/test keys.
-- [ ] 3.2 Replace `/.well-known/agent.json` with `/.well-known/agent-card.json`, A2A 1.0 `supportedInterfaces`, modes, seven skill schema URIs/examples, OAuth/DPoP metadata, and the frozen optional global extension/required-skill list.
-- [ ] 3.3 Add RFC 8785 Agent Card canonicalization, detached/embedded ES256 signature per frozen schema, and role-filtered `/.well-known/jwks.json`.
-- [ ] 3.4 Replace custom `invoke` parsing with strict JSON-RPC `SendMessage`, `GetTask`, `ListTasks`, and `CancelTask`; enforce 1.0/version headers, profile extension, body/response size, pagination, and frozen errors.
-- [ ] 3.5 Add task access binding and placeholder authentication policy that denies every protected business call until Phase 5; public discovery cannot select protected policy.
-- [ ] 3.6 Remove caller-context user selection from the v0.2 path and prove `div_sk_` service keys cannot impersonate a personal-agent grant; retain only separately approved legacy routes if needed.
-- [ ] 3.7 Add A2A/profile conformance, JSON-RPC, version/extension, size/rate, pagination, cross-task, and legacy-regression tests.
+- [x] 3.1 Add role-specific key-provider interfaces and test custody; load Agent Card public/signing references through `cryptographic_key_registry` and fail production readiness on fallback/test keys.
+- [x] 3.2 Replace `/.well-known/agent.json` with `/.well-known/agent-card.json`, A2A 1.0 `supportedInterfaces`, modes, seven skill schema URIs/examples, OAuth/DPoP metadata, and the frozen optional global extension/required-skill list.
+- [x] 3.3 Add RFC 8785 Agent Card canonicalization, detached/embedded ES256 signature per frozen schema, and role-filtered `/.well-known/jwks.json`.
+- [x] 3.4 Replace custom `invoke` parsing with strict JSON-RPC `SendMessage`, `GetTask`, `ListTasks`, and `CancelTask`; enforce 1.0/version headers, profile extension, body/response size, pagination, and frozen errors.
+- [x] 3.5 Add task access binding and placeholder authentication policy that denies every protected business call until Phase 5; public discovery cannot select protected policy.
+- [x] 3.6 Remove caller-context user selection from the v0.2 path and prove `div_sk_` service keys cannot impersonate a personal-agent grant; retain only separately approved legacy routes if needed.
+- [x] 3.7 Add A2A/profile conformance, JSON-RPC, version/extension, size/rate, pagination, cross-task, and legacy-regression tests.
+
+**Implementation note (2026-07-24):** The frozen JWKS contract requires a dedicated `agent-card` role that the original key-registry allowlist omitted. An additive migration and matching Divinr intention/PRD correction add `agent_card`; the Apple Assistant intention is unchanged. Non-production may generate an in-memory fallback key for tests only. Production startup requires an externally custodied private JWK whose derived public key matches an active registry row, and JWKS includes active plus retiring public keys. All protected A2A calls remain HTTP 401 until Phase 5 DPoP authentication replaces the phase gate.
 
 ### Quality Gate
 
-- [ ] **Lint**: `pnpm --filter @divinr/api run lint`
-- [ ] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/api run build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/a2a-agent-card.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/a2a-protocol.test.ts && pnpm --filter @divinr/api run test:unit`
-- [ ] **E2E Tests**: `pnpm --filter @divinr/api exec tsx tests/integration/a2a-conformance.test.ts`
-- [ ] **Curl Tests**: `curl -fsS http://127.0.0.1:7100/.well-known/agent-card.json | jq -e '.protocolVersion == "1.0.0"'`; `curl -fsS http://127.0.0.1:7100/.well-known/jwks.json | jq -e '.keys | length > 0'`; unauthenticated `POST /a2a` `SendMessage` must return HTTP 401/DPoP auth error.
-- [ ] **Chrome Tests**: N/A — protocol-only phase; visually opening the Agent Card is not a user application surface.
-- [ ] **Phase Review**: Compare implementation with PRD Phase 3.
-  - [ ] Discovery/signature/version/schema are conformant and non-sensitive.
-  - [ ] Only four methods exist and task access is tuple-bound.
-  - [ ] Protected business work remains disabled.
+- [x] **Lint**: `pnpm --filter @divinr/api run lint`
+- [x] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/api run build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/a2a-agent-card.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/a2a-protocol.test.ts && pnpm --filter @divinr/api run test:unit`
+- [x] **E2E Tests**: `pnpm --filter @divinr/api exec tsx tests/integration/a2a-conformance.test.ts`
+- [x] **HTTP Tests**: The isolated Nest HTTP conformance harness verifies signed Agent Card/JWKS discovery, old-route removal, 256 KiB rejection, and HTTP 401 for both unauthenticated and legacy `div_sk_` calls. Spark production curl remains part of the authorized deployment smoke.
+- [x] **Chrome Tests**: N/A — protocol-only phase; visually opening the Agent Card is not a user application surface.
+- [x] **Phase Review**: Compare implementation with PRD Phase 3.
+  - [x] Discovery/signature/version/schema are conformant and non-sensitive.
+  - [x] Only four methods exist and task access is tuple-bound.
+  - [x] Protected business work remains disabled.
 
 ---
 
