@@ -6,7 +6,10 @@ import {
 } from 'node:crypto';
 import { AgentContractSchemaRegistry } from '../../src/agent-contracts/contract-bundle';
 import { OAuthCredentialService } from '../../src/oauth/oauth-credential.service';
-import { OAuthProtocolError } from '../../src/oauth/oauth-errors';
+import {
+  OAuthDPoPNonceRequiredError,
+  OAuthProtocolError,
+} from '../../src/oauth/oauth-errors';
 
 async function main(): Promise<void> {
   const pair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -66,8 +69,7 @@ async function main(): Promise<void> {
       },
     } as never,
   );
-  const response = await service.exchangeApprovedDevice(
-    {
+  const authorization = {
       id: credential.authorization_internal_id,
       authorization_id: credential.authorization_id,
       oauth_client_id: '50000000-0000-0000-0000-000000000001',
@@ -86,9 +88,28 @@ async function main(): Promise<void> {
       last_polled_at: null,
       approving_user_id: credential.user_id,
       denied_at: null,
+  };
+  let tokenNonce = '';
+  await assert.rejects(
+    () => service.exchangeApprovedDevice(authorization, {
+      thumbprint: credential.dpop_jkt,
+      jti: 'device-proof-initial',
+      method: 'POST',
+      uri: 'https://divinr.ai/oauth/token',
+    }),
+    (error) => {
+      if (!(error instanceof OAuthDPoPNonceRequiredError)) return false;
+      tokenNonce = error.nonce;
+      return tokenNonce.length >= 32;
     },
-    credential.dpop_jkt,
   );
+  const response = await service.exchangeApprovedDevice(authorization, {
+    thumbprint: credential.dpop_jkt,
+    jti: 'device-proof-with-nonce',
+    nonce: tokenNonce,
+    method: 'POST',
+    uri: 'https://divinr.ai/oauth/token',
+  });
   new AgentContractSchemaRegistry().validate('tokenResponse', response);
   const accessToken = String(response.access_token);
   const parts = accessToken.split('.');
@@ -182,7 +203,13 @@ async function main(): Promise<void> {
         refresh_token: 'r'.repeat(48),
         client_id: 'apple-assistant-native-v1',
       },
-      credential.dpop_jkt,
+      {
+        thumbprint: credential.dpop_jkt,
+        jti: 'refresh-reuse-proof',
+        nonce: 'refresh-reuse-nonce',
+        method: 'POST',
+        uri: 'https://divinr.ai/oauth/token',
+      },
     ),
     (error) => (
       error instanceof OAuthProtocolError
@@ -194,6 +221,67 @@ async function main(): Promise<void> {
     sql.includes("SET status = 'compromised'")));
   assert(reuseQueries.some((sql) =>
     sql.includes('UPDATE agent_commerce.oauth_access_token_jtis')));
+
+  const revocationQueries: string[] = [];
+  const revocationTransaction = {
+    rawQuery: async (sql: string) => {
+      revocationQueries.push(sql);
+      if (sql.includes('SELECT access.id AS access_internal_id')) {
+        return {
+          data: [{
+            ...credential,
+            access_internal_id: '80000000-0000-0000-0000-000000000001',
+          }],
+          error: null,
+        };
+      }
+      if (sql.includes('SELECT EXISTS')) {
+        return { data: [{ present: false }], error: null };
+      }
+      if (
+        sql.includes('UPDATE agent_commerce.dpop_nonces')
+        && sql.includes('nonce_hash')
+      ) {
+        return { data: [{ id: 'nonce-consumed' }], error: null };
+      }
+      return { data: [{ id: 'updated' }], error: null };
+    },
+  };
+  const revokeService = new OAuthCredentialService(
+    {
+      withTransaction: async (
+        work: (tx: typeof revocationTransaction) => Promise<unknown>,
+      ) => work(revocationTransaction),
+    } as never,
+    keys as never,
+    { appendAuditEvent: async () => ({ eventId: 'audit-revoke' }) } as never,
+  );
+  let revokeNonce = '';
+  await assert.rejects(
+    () => revokeService.revoke('a'.repeat(64), {
+      thumbprint: credential.dpop_jkt,
+      jti: 'revoke-proof-initial',
+      method: 'POST',
+      uri: 'https://divinr.ai/oauth/revoke',
+    }),
+    (error) => {
+      if (!(error instanceof OAuthDPoPNonceRequiredError)) return false;
+      revokeNonce = error.nonce;
+      return revokeNonce.length >= 32;
+    },
+  );
+  assert.equal(
+    await revokeService.revoke('a'.repeat(64), {
+      thumbprint: credential.dpop_jkt,
+      jti: 'revoke-proof-with-nonce',
+      nonce: revokeNonce,
+      method: 'POST',
+      uri: 'https://divinr.ai/oauth/revoke',
+    }),
+    null,
+  );
+  assert(revocationQueries.some((sql) =>
+    sql.includes('SET revoked_at = COALESCE(revoked_at, now())')));
 
   console.log('OAuth agent token and refresh recovery tests passed');
 }

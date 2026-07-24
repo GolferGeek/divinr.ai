@@ -6,8 +6,9 @@ import {
   Inject,
   Post,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { AgentContractSchemaRegistry } from '../agent-contracts/contract-bundle';
 import { DeviceAuthorizationService } from './device-authorization.service';
 import { DPoPProofService } from './dpop-proof.service';
@@ -17,7 +18,10 @@ import {
   DIVINR_A2A_RESOURCE,
   DIVINR_ISSUER,
 } from './oauth.constants';
-import { OAuthProtocolError } from './oauth-errors';
+import {
+  OAuthDPoPNonceRequiredError,
+  OAuthProtocolError,
+} from './oauth-errors';
 import { OAuthRateLimiter } from './oauth-rate-limiter';
 import { OAuthCredentialService } from './oauth-credential.service';
 import type { TokenRequest } from './oauth.types';
@@ -90,6 +94,7 @@ export class OAuthController {
     @Body() body: unknown,
     @Headers('dpop') proof: string | undefined,
     @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
   ) {
     const source = request.ip || request.socket.remoteAddress || 'unknown';
     this.rateLimiter.assert(`device-poll:${source}`, 120);
@@ -101,18 +106,27 @@ export class OAuthController {
       throw new OAuthProtocolError(400, 'invalid_request', 'Token request is invalid');
     }
     const tokenRequest = body as TokenRequest;
-    if (tokenRequest.grant_type === DEVICE_GRANT_TYPE) {
-      const authorization = await this.deviceAuthorizations.poll(
-        body,
-        verified.thumbprint,
-      );
-      return this.credentials.exchangeApprovedDevice(
-        authorization,
-        verified.thumbprint,
-      );
-    }
-    if (tokenRequest.grant_type === 'refresh_token') {
-      return this.credentials.refresh(tokenRequest, verified.thumbprint);
+    const proofContext = { ...verified, method: 'POST', uri };
+    try {
+      if (tokenRequest.grant_type === DEVICE_GRANT_TYPE) {
+        const authorization = await this.deviceAuthorizations.poll(
+          body,
+          verified.thumbprint,
+        );
+        return await this.credentials.exchangeApprovedDevice(
+          authorization,
+          proofContext,
+        );
+      }
+      if (tokenRequest.grant_type === 'refresh_token') {
+        return await this.credentials.refresh(tokenRequest, proofContext);
+      }
+    } catch (error) {
+      if (error instanceof OAuthDPoPNonceRequiredError) {
+        response.setHeader('DPoP-Nonce', error.nonce);
+        response.setHeader('WWW-Authenticate', 'DPoP error="use_dpop_nonce"');
+      }
+      throw error;
     }
     throw new OAuthProtocolError(
       400,
@@ -126,6 +140,7 @@ export class OAuthController {
     @Body() body: unknown,
     @Headers('dpop') proof: string | undefined,
     @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
   ) {
     try {
       this.registry.validate('revocationRequest', body);
@@ -135,6 +150,18 @@ export class OAuthController {
     const uri = `${publicOrigin(request)}/oauth/revoke`;
     const verified = this.dpop.verify(proof, 'POST', uri);
     const token = (body as { token: string; client_id: string }).token;
-    return this.credentials.revoke(token, verified.thumbprint);
+    try {
+      return await this.credentials.revoke(token, {
+        ...verified,
+        method: 'POST',
+        uri,
+      });
+    } catch (error) {
+      if (error instanceof OAuthDPoPNonceRequiredError) {
+        response.setHeader('DPoP-Nonce', error.nonce);
+        response.setHeader('WWW-Authenticate', 'DPoP error="use_dpop_nonce"');
+      }
+      throw error;
+    }
   }
 }

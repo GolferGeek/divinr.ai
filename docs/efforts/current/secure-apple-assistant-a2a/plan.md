@@ -10,7 +10,7 @@
 - [x] Phase 2: Versioned Divinr persistence
 - [x] Phase 3: A2A 1.0 discovery and task protocol
 - [x] Phase 4: Device authorization and connected-agent UI
-- [ ] Phase 5: DPoP credentials and recovery
+- [x] Phase 5: DPoP credentials and recovery
 - [ ] Phase 6: Deterministic admission and paid update skills
 - [ ] Phase 7: Spark two-node regtest and restricted facades
 - [ ] Phase 8: AP2 and A2A-carried payment exchange
@@ -153,30 +153,32 @@
 
 ## Phase 5: DPoP Credentials and Recovery
 
-**Status**: In Progress
+**Status**: Complete
 **Objective**: Issue and enforce short-lived sender-constrained agent credentials with refresh-family recovery and revocation.
 
 ### Steps
 
 - [x] 5.1 Implement ES256 OAuth key custody/registry/JWKS rotation and exact `at+jwt` claims/audience/scopes/lifetimes.
-- [ ] 5.2 Implement DPoP proof verification for device authorization, token, refresh, revocation, and protected A2A: `typ`, signature/JWK, `jkt`, `htm`, canonical `htu`, `ath`, time, nonce, JTI replay, token/grant state.
-- [ ] 5.3 Implement up to four concurrent five-minute one-use nonces per installation, 60-second proof age, 600-second replay retention, and exactly one challenge for absent/stale nonce.
+- [x] 5.2 Implement DPoP proof verification for device authorization, token, refresh, revocation, and protected A2A: `typ`, signature/JWK, `jkt`, `htm`, canonical `htu`, `ath`, time, nonce, JTI replay, token/grant state.
+- [x] 5.3 Implement up to four concurrent five-minute one-use nonces per installation, 60-second proof age, 600-second replay retention, and exactly one challenge for absent/stale nonce.
 - [x] 5.4 Issue hashed opaque refresh tokens, rotate generations, bind families to the same `dpop_jkt`, detect reuse, revoke compromised families/JTIs, and audit recovery.
-- [ ] 5.5 Implement grant/installation/key-rotation revocation and forced reauthorization; retain retiring public verification keys for 90 days.
-- [ ] 5.6 Add credential redaction tests covering logs, errors, tasks, analytics, audits, and model inputs; add `apps/api/tests/http/oauth-dpop-curl.sh` to exercise valid and frozen negative proof cases using ephemeral test keys.
+- [x] 5.5 Implement grant/installation/key-rotation revocation and forced reauthorization; retain retiring public verification keys for 90 days.
+- [x] 5.6 Add credential redaction tests covering logs, errors, tasks, analytics, audits, and model inputs; add `apps/api/tests/http/oauth-dpop-curl.sh` to exercise valid and frozen negative proof cases using ephemeral test keys.
 
 ### Quality Gate
 
-- [ ] **Lint**: `pnpm --filter @divinr/api run lint`
-- [ ] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/api run build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/dpop-verifier.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/oauth-agent-tokens.test.ts && pnpm --filter @divinr/api run test:unit`
-- [ ] **E2E Tests**: `pnpm --filter @divinr/api exec tsx tests/integration/oauth-dpop-flow.test.ts`
-- [ ] **Curl Tests**: `AGENT_HTTP_BASE=http://127.0.0.1:7100 bash apps/api/tests/http/oauth-dpop-curl.sh`
-- [ ] **Chrome Tests**: Re-run connected-agent approval/revocation Playwright/Chrome scenarios and confirm revoked status prevents client refresh; no new surface is added.
-- [ ] **Phase Review**: Compare implementation with PRD Phase 5.
-  - [ ] Credentials are sender-constrained and role-separated.
-  - [ ] Rotation/reuse/revocation behavior is deterministic and tested.
-  - [ ] Secrets never enter unsafe stores or output.
+- [x] **Lint**: `pnpm --filter @divinr/api run lint`
+- [x] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/api run build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/dpop-verifier.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/oauth-agent-tokens.test.ts && pnpm --filter @divinr/api run test:unit`
+- [x] **E2E Tests**: `pnpm --filter @divinr/api exec tsx tests/integration/oauth-dpop-flow.test.ts`
+- [x] **Curl Tests**: `AGENT_HTTP_BASE=http://127.0.0.1:7198 bash apps/api/tests/http/oauth-dpop-curl.sh`
+- [x] **Chrome Tests**: Re-run connected-agent approval/revocation Playwright/Chrome scenarios and confirm revoked status prevents client refresh; no new surface is added.
+- [x] **Phase Review**: Compare implementation with PRD Phase 5.
+  - [x] Credentials are sender-constrained and role-separated.
+  - [x] Rotation/reuse/revocation behavior is deterministic and tested.
+  - [x] Secrets never enter unsafe stores or output.
+
+**Implementation note (2026-07-24):** OAuth access tokens use a dedicated registry-bound ES256 role and exact 600-second `at+jwt` claims. Device exchange, refresh, revocation, and protected A2A proofs enforce the sender thumbprint, method/URI, proof age, one-use five-minute nonce, and persistent 10-minute replay record; protected calls additionally enforce `ath`, audience, token JTI, grant, and installation state. Refresh reuse commits family/token/JTI compromise before returning `invalid_grant`. Retiring verification rows must encode at least 90 days of overlap. The isolated port-7198 HTTP harness passed valid retry plus wrong key/method/URL/`ath`, replay, expiry, and revocation cases without changing Spark.
 
 ---
 

@@ -26,7 +26,10 @@ import {
   DIVINR_A2A_RESOURCE,
   DIVINR_ISSUER,
 } from './oauth.constants';
-import { OAuthProtocolError } from './oauth-errors';
+import {
+  OAuthDPoPNonceRequiredError,
+  OAuthProtocolError,
+} from './oauth-errors';
 import type {
   DeviceAuthorizationRow,
   TokenRequest,
@@ -54,6 +57,14 @@ interface CredentialRow {
   refresh_revoked_at?: string | null;
 }
 
+export interface OAuthDPoPProofContext {
+  thumbprint: string;
+  jti: string;
+  nonce?: string;
+  method: string;
+  uri: string;
+}
+
 function rows<T>(result: QueryResult, operation: string): T[] {
   if (result.error) throw new Error(`${operation} failed: ${result.error.message}`);
   return (result.data as T[] | null) ?? [];
@@ -78,17 +89,17 @@ export class OAuthCredentialService {
 
   async exchangeApprovedDevice(
     authorization: DeviceAuthorizationRow,
-    proofThumbprint: string,
+    proof: OAuthDPoPProofContext,
   ): Promise<Record<string, unknown>> {
     if (
       authorization.status !== 'approved'
       || !authorization.user_id
-      || authorization.proposed_dpop_jkt !== proofThumbprint
+      || authorization.proposed_dpop_jkt !== proof.thumbprint
     ) {
       throw new OAuthProtocolError(400, 'invalid_grant', 'Device authorization is invalid');
     }
     const signingKey = await this.keys.getSigningKey('oauth-access-token');
-    return runSerializableTransaction(this.db, async (transaction) => {
+    const result = await runSerializableTransaction(this.db, async (transaction) => {
       const credential = rows<CredentialRow>(
         await transaction.rawQuery(
           `SELECT authorization.id AS authorization_internal_id,
@@ -120,9 +131,15 @@ export class OAuthCredentialService {
         ),
         'lock approved device authorization',
       )[0];
-      if (!credential || credential.dpop_jkt !== proofThumbprint) {
+      if (!credential || credential.dpop_jkt !== proof.thumbprint) {
         throw new OAuthProtocolError(400, 'invalid_grant', 'Device authorization is invalid');
       }
+      const proofState = await this.enforceTokenProof(
+        transaction,
+        credential,
+        proof,
+      );
+      if (proofState) return proofState;
       const familyInternalId = randomUUID();
       const familyId = randomUUID();
       rows(
@@ -164,13 +181,27 @@ export class OAuthCredentialService {
         authorizationId: credential.authorization_id,
         familyId,
       });
-      return response;
+      return { response };
     });
+    if ('challenge' in result) {
+      if (typeof result.challenge !== 'string') {
+        throw new OAuthProtocolError(401, 'invalid_dpop_proof', 'DPoP nonce is invalid');
+      }
+      throw new OAuthDPoPNonceRequiredError(result.challenge);
+    }
+    if ('replay' in result) {
+      throw new OAuthProtocolError(
+        401,
+        'invalid_dpop_proof',
+        'DPoP proof was already used',
+      );
+    }
+    return result.response;
   }
 
   async refresh(
     request: TokenRequest,
-    proofThumbprint: string,
+    proof: OAuthDPoPProofContext,
   ): Promise<Record<string, unknown>> {
     if (!request.refresh_token) {
       throw new OAuthProtocolError(400, 'invalid_request', 'Refresh token is required');
@@ -211,9 +242,15 @@ export class OAuthCredentialService {
         ),
         'lock refresh token',
       )[0];
-      if (!credential || credential.dpop_jkt !== proofThumbprint) {
+      if (!credential || credential.dpop_jkt !== proof.thumbprint) {
         throw new OAuthProtocolError(400, 'invalid_grant', 'Refresh credential is invalid');
       }
+      const proofState = await this.enforceTokenProof(
+        transaction,
+        credential,
+        proof,
+      );
+      if (proofState) return proofState;
       if (
         credential.refresh_used_at
         || credential.refresh_revoked_at
@@ -274,6 +311,19 @@ export class OAuthCredentialService {
       });
       return response;
     });
+    if ('challenge' in result) {
+      if (typeof result.challenge !== 'string') {
+        throw new OAuthProtocolError(401, 'invalid_dpop_proof', 'DPoP nonce is invalid');
+      }
+      throw new OAuthDPoPNonceRequiredError(result.challenge);
+    }
+    if ('replay' in result) {
+      throw new OAuthProtocolError(
+        401,
+        'invalid_dpop_proof',
+        'DPoP proof was already used',
+      );
+    }
     if ('reuseDetected' in result) {
       throw new OAuthProtocolError(
         400,
@@ -284,9 +334,9 @@ export class OAuthCredentialService {
     return result;
   }
 
-  async revoke(token: string, proofThumbprint: string): Promise<null> {
+  async revoke(token: string, proof: OAuthDPoPProofContext): Promise<null> {
     const tokenHash = sha256(token);
-    await runSerializableTransaction(this.db, async (transaction) => {
+    const result = await runSerializableTransaction(this.db, async (transaction) => {
       const access = rows<CredentialRow & { access_internal_id: string }>(
         await transaction.rawQuery(
           `SELECT access.id AS access_internal_id, access.user_id,
@@ -306,9 +356,15 @@ export class OAuthCredentialService {
         'resolve access token revocation',
       )[0];
       if (access) {
-        if (access.dpop_jkt !== proofThumbprint) {
+        if (access.dpop_jkt !== proof.thumbprint) {
           throw new OAuthProtocolError(401, 'invalid_dpop_proof', 'DPoP key does not match token');
         }
+        const proofState = await this.enforceTokenProof(
+          transaction,
+          access,
+          proof,
+        );
+        if (proofState) return proofState;
         await transaction.rawQuery(
           `UPDATE agent_commerce.oauth_access_token_jtis
               SET revoked_at = COALESCE(revoked_at, now()),
@@ -317,7 +373,7 @@ export class OAuthCredentialService {
           [access.access_internal_id],
         );
         await this.audit(transaction, access, 'oauth.access-token.revoked', {});
-        return;
+        return null;
       }
       const refresh = rows<CredentialRow>(
         await transaction.rawQuery(
@@ -340,12 +396,29 @@ export class OAuthCredentialService {
         ),
         'resolve refresh token revocation',
       )[0];
-      if (!refresh) return;
-      if (refresh.dpop_jkt !== proofThumbprint) {
+      if (!refresh) return null;
+      if (refresh.dpop_jkt !== proof.thumbprint) {
         throw new OAuthProtocolError(401, 'invalid_dpop_proof', 'DPoP key does not match token');
       }
+      const proofState = await this.enforceTokenProof(
+        transaction,
+        refresh,
+        proof,
+      );
+      if (proofState) return proofState;
       await this.revokeFamily(transaction, refresh, 'client_revocation');
+      return null;
     });
+    if (result && 'challenge' in result) {
+      throw new OAuthDPoPNonceRequiredError(result.challenge);
+    }
+    if (result && 'replay' in result) {
+      throw new OAuthProtocolError(
+        401,
+        'invalid_dpop_proof',
+        'DPoP proof was already used',
+      );
+    }
     return null;
   }
 
@@ -518,5 +591,100 @@ export class OAuthCredentialService {
       reason,
       redactedDetail: detail,
     });
+  }
+
+  private async enforceTokenProof(
+    transaction: DatabaseTransaction,
+    credential: CredentialRow,
+    proof: OAuthDPoPProofContext,
+  ): Promise<{ challenge: string } | { replay: true } | null> {
+    const replay = rows<{ present: boolean }>(
+      await transaction.rawQuery(
+        `SELECT EXISTS (
+           SELECT 1 FROM agent_commerce.dpop_proof_replays
+            WHERE dpop_jkt = $1 AND proof_jti = $2 AND expires_at > now()
+         ) AS present`,
+        [credential.dpop_jkt, proof.jti],
+      ),
+      'check OAuth DPoP replay',
+    )[0]?.present;
+    if (replay) return { replay: true };
+    if (proof.nonce) {
+      const consumed = rows<{ id: string }>(
+        await transaction.rawQuery(
+          `UPDATE agent_commerce.dpop_nonces
+              SET consumed_at = now(), lock_version = lock_version + 1
+            WHERE nonce_hash = $1
+              AND user_id = $2
+              AND installation_id = $3
+              AND dpop_jkt = $4
+              AND purpose = 'token'
+              AND consumed_at IS NULL
+              AND expires_at > now()
+            RETURNING id`,
+          [
+            sha256(proof.nonce),
+            credential.user_id,
+            credential.installation_internal_id,
+            credential.dpop_jkt,
+          ],
+        ),
+        'consume OAuth DPoP nonce',
+      )[0];
+      if (consumed) {
+        const inserted = rows(
+          await transaction.rawQuery(
+            `INSERT INTO agent_commerce.dpop_proof_replays (
+               user_id, dpop_jkt, proof_jti, http_method,
+               canonical_uri_hash, expires_at
+             ) VALUES ($1,$2,$3,$4,$5,now() + interval '10 minutes')
+             ON CONFLICT (dpop_jkt, proof_jti) DO NOTHING
+             RETURNING id`,
+            [
+              credential.user_id,
+              credential.dpop_jkt,
+              proof.jti,
+              proof.method.toUpperCase(),
+              sha256(proof.uri),
+            ],
+          ),
+          'record OAuth DPoP proof',
+        );
+        return inserted.length === 1 ? null : { replay: true };
+      }
+    }
+    const nonce = randomBytes(32).toString('base64url');
+    await transaction.rawQuery(
+      `UPDATE agent_commerce.dpop_nonces
+          SET consumed_at = now(), lock_version = lock_version + 1
+        WHERE id IN (
+          SELECT id
+            FROM agent_commerce.dpop_nonces
+           WHERE installation_id = $1
+             AND purpose = 'token'
+             AND consumed_at IS NULL
+             AND expires_at > now()
+           ORDER BY issued_at DESC
+           OFFSET 3
+        )`,
+      [credential.installation_internal_id],
+    );
+    rows(
+      await transaction.rawQuery(
+        `INSERT INTO agent_commerce.dpop_nonces (
+           user_id, nonce_hash, dpop_jkt, installation_id, purpose,
+           issued_at, expires_at
+         ) VALUES ($1,$2,$3,$4,'token',now(),now() + interval '5 minutes')
+         RETURNING id`,
+        [
+          credential.user_id,
+          sha256(nonce),
+          credential.dpop_jkt,
+          credential.installation_internal_id,
+        ],
+      ),
+      'issue OAuth DPoP nonce',
+    );
+    return { challenge: nonce };
   }
 }

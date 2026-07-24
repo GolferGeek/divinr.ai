@@ -12,6 +12,16 @@ export class OAuthProtocolError extends HttpException {
   }
 }
 
+export class OAuthDPoPNonceRequiredError extends OAuthProtocolError {
+  constructor(readonly nonce: string) {
+    super(
+      401,
+      'use_dpop_nonce',
+      'Retry with the supplied one-use DPoP nonce',
+    );
+  }
+}
+
 export function connectedAgentError(
   status: number,
   code:

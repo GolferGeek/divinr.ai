@@ -18,6 +18,7 @@ interface DPoPPayload {
   htu?: unknown;
   iat?: unknown;
   jti?: unknown;
+  nonce?: unknown;
 }
 
 interface PublicP256Jwk {
@@ -62,7 +63,7 @@ export class DPoPProofService {
     method: string,
     uri: string,
     expectedThumbprint?: string,
-  ): { thumbprint: string; jti: string } {
+  ): { thumbprint: string; jti: string; nonce?: string } {
     if (!compact) {
       throw new OAuthProtocolError(401, 'invalid_dpop_proof', 'DPoP proof is required');
     }
@@ -120,6 +121,10 @@ export class DPoPProofService {
       throw new OAuthProtocolError(401, 'invalid_dpop_proof', 'DPoP proof was already used');
     }
     this.replay.set(replayKey, now + 600_000);
-    return { thumbprint, jti: payload.jti };
+    return {
+      thumbprint,
+      jti: payload.jti,
+      ...(typeof payload.nonce === 'string' ? { nonce: payload.nonce } : {}),
+    };
   }
 }

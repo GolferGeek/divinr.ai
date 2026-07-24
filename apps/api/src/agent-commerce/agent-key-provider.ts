@@ -188,7 +188,7 @@ implements AgentKeyProvider {
       return activeKeys.map((key) => key.publicJwk);
     }
     const result = await this.db.rawQuery(
-      `SELECT key_id, key_role, public_jwk
+      `SELECT key_id, key_role, public_jwk, status, updated_at, valid_until
          FROM agent_commerce.cryptographic_key_registry
         WHERE owner_service = 'divinr'
           AND key_role IN ('agent_card','oauth_signing')
@@ -204,6 +204,9 @@ implements AgentKeyProvider {
       key_id: string;
       key_role: 'agent_card' | 'oauth_signing';
       public_jwk: Record<string, unknown>;
+      status: 'active' | 'retiring';
+      updated_at: string;
+      valid_until: string | null;
     }> | null) ?? [];
     const keys = rows.map((row): AgentPublicJwk => {
       assertDivinrKeyId(row.key_id);
@@ -214,6 +217,18 @@ implements AgentKeyProvider {
         || typeof row.public_jwk.y !== 'string'
       ) {
         throw new Error(`Invalid Agent Card public JWK for ${row.key_id}`);
+      }
+      if (
+        row.status === 'retiring'
+        && (
+          !row.valid_until
+          || new Date(row.valid_until).getTime()
+            < new Date(row.updated_at).getTime() + 90 * 24 * 60 * 60 * 1000
+        )
+      ) {
+        throw new Error(
+          `Retiring verification key ${row.key_id} lacks the required 90-day overlap`,
+        );
       }
       return {
         kty: 'EC',
@@ -254,7 +269,7 @@ implements AgentKeyProvider {
         WHERE owner_service = 'divinr'
           AND key_role = $2
           AND key_id = $1
-          AND status IN ('active','retiring')
+          AND status = 'active'
           AND valid_from <= now()
           AND (valid_until IS NULL OR valid_until > now())
         LIMIT 1`,
