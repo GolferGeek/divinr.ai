@@ -12,10 +12,15 @@ async function main(): Promise<void> {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalPrivateJwk = process.env.DIVINR_AGENT_CARD_PRIVATE_JWK;
   const originalKeyId = process.env.DIVINR_AGENT_CARD_KEY_ID;
+  const originalOauthPrivateJwk =
+    process.env.DIVINR_OAUTH_ACCESS_TOKEN_PRIVATE_JWK;
+  const originalOauthKeyId = process.env.DIVINR_OAUTH_ACCESS_TOKEN_KEY_ID;
   try {
     process.env.NODE_ENV = 'test';
     delete process.env.DIVINR_AGENT_CARD_PRIVATE_JWK;
     delete process.env.DIVINR_AGENT_CARD_KEY_ID;
+    delete process.env.DIVINR_OAUTH_ACCESS_TOKEN_PRIVATE_JWK;
+    delete process.env.DIVINR_OAUTH_ACCESS_TOKEN_KEY_ID;
     const db = {
       rawQuery: async () => {
         throw new Error('fallback test key must not query the registry');
@@ -71,8 +76,10 @@ async function main(): Promise<void> {
     const { signatures: _removed, ...unsignedCard } = card;
     const payload = Buffer.from(canonicalJsonBytes(unsignedCard)).toString('base64url');
     const jwks = await service.getJwks();
-    assert.equal(jwks.keys.length, 1);
-    const jwk = jwks.keys[0] as {
+    assert.equal(jwks.keys.length, 2);
+    const jwk = (jwks.keys as Array<Record<string, unknown>>).find(
+      (key) => key.gg_role === 'agent-card',
+    ) as {
       kty: 'EC';
       crv: 'P-256';
       x: string;
@@ -106,15 +113,17 @@ async function main(): Promise<void> {
     process.env.DIVINR_AGENT_CARD_KEY_ID = 'divinr-agent-card-v2';
     const registryDb = {
       rawQuery: async (sql: string) => {
-        if (sql.includes('SELECT key_id, public_jwk')) {
+        if (sql.includes('SELECT key_id, key_role, public_jwk')) {
           return {
             data: [
               {
                 key_id: 'divinr-agent-card-v2',
+                key_role: 'agent_card',
                 public_jwk: configuredPublic,
               },
               {
                 key_id: 'divinr-agent-card-v1',
+                key_role: 'agent_card',
                 public_jwk: retiringPublic,
               },
             ],
@@ -138,7 +147,7 @@ async function main(): Promise<void> {
     const configuredProvider = new RegistryBackedAgentKeyProvider(registryDb as never);
     const configuredKey = await configuredProvider.getSigningKey('agent-card');
     assert.equal(configuredKey.fallback, false);
-    assert.equal((await configuredProvider.getPublicKeys()).length, 2);
+    assert.equal((await configuredProvider.getPublicKeys()).length, 3);
 
     delete process.env.DIVINR_AGENT_CARD_PRIVATE_JWK;
     delete process.env.DIVINR_AGENT_CARD_KEY_ID;
@@ -160,6 +169,17 @@ async function main(): Promise<void> {
     }
     if (originalKeyId === undefined) delete process.env.DIVINR_AGENT_CARD_KEY_ID;
     else process.env.DIVINR_AGENT_CARD_KEY_ID = originalKeyId;
+    if (originalOauthPrivateJwk === undefined) {
+      delete process.env.DIVINR_OAUTH_ACCESS_TOKEN_PRIVATE_JWK;
+    } else {
+      process.env.DIVINR_OAUTH_ACCESS_TOKEN_PRIVATE_JWK =
+        originalOauthPrivateJwk;
+    }
+    if (originalOauthKeyId === undefined) {
+      delete process.env.DIVINR_OAUTH_ACCESS_TOKEN_KEY_ID;
+    } else {
+      process.env.DIVINR_OAUTH_ACCESS_TOKEN_KEY_ID = originalOauthKeyId;
+    }
   }
 }
 

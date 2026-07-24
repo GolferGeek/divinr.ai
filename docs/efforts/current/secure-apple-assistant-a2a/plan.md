@@ -153,15 +153,15 @@
 
 ## Phase 5: DPoP Credentials and Recovery
 
-**Status**: Not Started  
+**Status**: In Progress
 **Objective**: Issue and enforce short-lived sender-constrained agent credentials with refresh-family recovery and revocation.
 
 ### Steps
 
-- [ ] 5.1 Implement ES256 OAuth key custody/registry/JWKS rotation and exact `at+jwt` claims/audience/scopes/lifetimes.
+- [x] 5.1 Implement ES256 OAuth key custody/registry/JWKS rotation and exact `at+jwt` claims/audience/scopes/lifetimes.
 - [ ] 5.2 Implement DPoP proof verification for device authorization, token, refresh, revocation, and protected A2A: `typ`, signature/JWK, `jkt`, `htm`, canonical `htu`, `ath`, time, nonce, JTI replay, token/grant state.
 - [ ] 5.3 Implement up to four concurrent five-minute one-use nonces per installation, 60-second proof age, 600-second replay retention, and exactly one challenge for absent/stale nonce.
-- [ ] 5.4 Issue hashed opaque refresh tokens, rotate generations, bind families to the same `dpop_jkt`, detect reuse, revoke compromised families/JTIs, and audit recovery.
+- [x] 5.4 Issue hashed opaque refresh tokens, rotate generations, bind families to the same `dpop_jkt`, detect reuse, revoke compromised families/JTIs, and audit recovery.
 - [ ] 5.5 Implement grant/installation/key-rotation revocation and forced reauthorization; retain retiring public verification keys for 90 days.
 - [ ] 5.6 Add credential redaction tests covering logs, errors, tasks, analytics, audits, and model inputs; add `apps/api/tests/http/oauth-dpop-curl.sh` to exercise valid and frozen negative proof cases using ephemeral test keys.
 

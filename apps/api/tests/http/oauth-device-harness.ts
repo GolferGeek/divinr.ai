@@ -10,6 +10,7 @@ import {
   OAuthMetadataController,
 } from '../../src/oauth/oauth.controller';
 import { OAuthRateLimiter } from '../../src/oauth/oauth-rate-limiter';
+import { OAuthCredentialService } from '../../src/oauth/oauth-credential.service';
 
 const authorizations = new Map<string, Record<string, unknown>>();
 
@@ -77,6 +78,18 @@ const database = {
     DeviceAuthorizationService,
     DPoPProofService,
     OAuthRateLimiter,
+    {
+      provide: OAuthCredentialService,
+      useValue: {
+        exchangeApprovedDevice: async () => {
+          throw new Error('Harness does not issue credentials');
+        },
+        refresh: async () => {
+          throw new Error('Harness does not issue credentials');
+        },
+        revoke: async () => null,
+      },
+    },
     { provide: DATABASE_SERVICE, useValue: database },
   ],
 })

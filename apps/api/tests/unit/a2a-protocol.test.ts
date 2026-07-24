@@ -84,7 +84,12 @@ async function main(): Promise<void> {
   assert.equal(protectedMethod.error.code, -32050);
   assert.equal(protectedMethod.error.data?.code, 'AUTH_REQUIRED');
 
-  const guard = new A2APhaseGateGuard();
+  const deniedDpop = {
+    authenticate: async () => {
+      throw new UnauthorizedException();
+    },
+  };
+  const guard = new A2APhaseGateGuard(deniedDpop as never);
   const context = (contentLength: number, rawBodyLength = 0) => ({
     switchToHttp: () => ({
       getRequest: () => ({
@@ -94,24 +99,25 @@ async function main(): Promise<void> {
         },
         rawBody: Buffer.alloc(rawBodyLength),
       }),
+      getResponse: () => ({ setHeader: () => undefined }),
     }),
   });
-  assert.throws(
+  await assert.rejects(
     () => guard.canActivate(context(1) as never),
     UnauthorizedException,
   );
-  assert.throws(
+  await assert.rejects(
     () => guard.canActivate(context(256 * 1024 + 1) as never),
     PayloadTooLargeException,
   );
-  const rateGuard = new A2APhaseGateGuard();
+  const rateGuard = new A2APhaseGateGuard(deniedDpop as never);
   for (let index = 0; index < 60; index += 1) {
-    assert.throws(
+    await assert.rejects(
       () => rateGuard.canActivate(context(1) as never),
       UnauthorizedException,
     );
   }
-  assert.throws(
+  await assert.rejects(
     () => rateGuard.canActivate(context(1) as never),
     (error: unknown) =>
       error instanceof HttpException && error.getStatus() === 429,
@@ -142,7 +148,7 @@ async function main(): Promise<void> {
       ForbiddenException,
     );
   }
-  assert.throws(
+  await assert.rejects(
     () => guard.canActivate(context(0, 256 * 1024 + 1) as never),
     PayloadTooLargeException,
   );

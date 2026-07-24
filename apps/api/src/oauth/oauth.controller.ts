@@ -8,7 +8,7 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { APPLE_ASSISTANT_OAUTH_CLIENT_ID } from '../agent-commerce/agent-commerce-schema.constants';
+import { AgentContractSchemaRegistry } from '../agent-contracts/contract-bundle';
 import { DeviceAuthorizationService } from './device-authorization.service';
 import { DPoPProofService } from './dpop-proof.service';
 import {
@@ -19,6 +19,8 @@ import {
 } from './oauth.constants';
 import { OAuthProtocolError } from './oauth-errors';
 import { OAuthRateLimiter } from './oauth-rate-limiter';
+import { OAuthCredentialService } from './oauth-credential.service';
+import type { TokenRequest } from './oauth.types';
 
 function publicOrigin(request: Request): string {
   if (process.env.OAUTH_PUBLIC_ORIGIN) return process.env.OAUTH_PUBLIC_ORIGIN.replace(/\/$/, '');
@@ -57,6 +59,8 @@ export class OAuthMetadataController {
 
 @Controller('oauth')
 export class OAuthController {
+  private readonly registry = new AgentContractSchemaRegistry();
+
   constructor(
     @Inject(DeviceAuthorizationService)
     private readonly deviceAuthorizations: DeviceAuthorizationService,
@@ -64,6 +68,8 @@ export class OAuthController {
     private readonly dpop: DPoPProofService,
     @Inject(OAuthRateLimiter)
     private readonly rateLimiter: OAuthRateLimiter,
+    @Inject(OAuthCredentialService)
+    private readonly credentials: OAuthCredentialService,
   ) {}
 
   @Post('device_authorization')
@@ -89,15 +95,46 @@ export class OAuthController {
     this.rateLimiter.assert(`device-poll:${source}`, 120);
     const uri = `${publicOrigin(request)}/oauth/token`;
     const verified = this.dpop.verify(proof, 'POST', uri);
-    return this.deviceAuthorizations.poll(body, verified.thumbprint);
+    try {
+      this.registry.validate('tokenRequest', body);
+    } catch {
+      throw new OAuthProtocolError(400, 'invalid_request', 'Token request is invalid');
+    }
+    const tokenRequest = body as TokenRequest;
+    if (tokenRequest.grant_type === DEVICE_GRANT_TYPE) {
+      const authorization = await this.deviceAuthorizations.poll(
+        body,
+        verified.thumbprint,
+      );
+      return this.credentials.exchangeApprovedDevice(
+        authorization,
+        verified.thumbprint,
+      );
+    }
+    if (tokenRequest.grant_type === 'refresh_token') {
+      return this.credentials.refresh(tokenRequest, verified.thumbprint);
+    }
+    throw new OAuthProtocolError(
+      400,
+      'unsupported_grant_type',
+      'OAuth grant type is not supported',
+    );
   }
 
   @Post('revoke')
-  revoke() {
-    throw new OAuthProtocolError(
-      503,
-      'temporarily_unavailable',
-      `Credential revocation for ${APPLE_ASSISTANT_OAUTH_CLIENT_ID} is enabled in Phase 5`,
-    );
+  async revoke(
+    @Body() body: unknown,
+    @Headers('dpop') proof: string | undefined,
+    @Req() request: Request,
+  ) {
+    try {
+      this.registry.validate('revocationRequest', body);
+    } catch {
+      throw new OAuthProtocolError(400, 'invalid_request', 'Revocation request is invalid');
+    }
+    const uri = `${publicOrigin(request)}/oauth/revoke`;
+    const verified = this.dpop.verify(proof, 'POST', uri);
+    const token = (body as { token: string; client_id: string }).token;
+    return this.credentials.revoke(token, verified.thumbprint);
   }
 }

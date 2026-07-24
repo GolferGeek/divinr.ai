@@ -202,9 +202,9 @@ async function main(): Promise<void> {
     (error) => protocolError(error, 'expired_token'),
   );
   pollRow = { ...baseAuthorization, status: 'approved' };
-  await assert.rejects(
-    () => service.poll(tokenBody, verified.thumbprint),
-    (error) => protocolError(error, 'temporarily_unavailable'),
+  assert.equal(
+    (await service.poll(tokenBody, verified.thumbprint)).status,
+    'approved',
   );
   await assert.rejects(
     () => service.poll(tokenBody, 'different-thumbprint'),

@@ -168,7 +168,7 @@ export class DeviceAuthorizationService {
   async poll(
     body: unknown,
     proofThumbprint: string,
-  ): Promise<never> {
+  ): Promise<DeviceAuthorizationRow> {
     try {
       this.registry.validate('tokenRequest', body);
     } catch {
@@ -237,10 +237,6 @@ export class DeviceAuthorizationService {
     if (authorization.status === 'pending') {
       throw new OAuthProtocolError(400, 'authorization_pending', 'Authorization is still pending');
     }
-    throw new OAuthProtocolError(
-      503,
-      'temporarily_unavailable',
-      'Authorization is approved; sender-constrained credential issuance is enabled in Phase 5',
-    );
+    return authorization;
   }
 }

@@ -2,11 +2,18 @@ import {
   CanActivate,
   ExecutionContext,
   HttpException,
+  Inject,
   Injectable,
   PayloadTooLargeException,
   UnsupportedMediaTypeException,
   UnauthorizedException,
 } from '@nestjs/common';
+import {
+  DPoPNonceRequiredError,
+  DPoPResourceService,
+  type VerifiedAgentPrincipal,
+} from '../oauth/dpop-resource.service';
+import { DIVINR_A2A_RESOURCE } from '../oauth/oauth.constants';
 
 const MAX_A2A_BODY_BYTES = 256 * 1024;
 const MAX_UNAUTHENTICATED_REQUESTS_PER_MINUTE = 60;
@@ -15,12 +22,22 @@ const MAX_UNAUTHENTICATED_REQUESTS_PER_MINUTE = 60;
 export class A2APhaseGateGuard implements CanActivate {
   private readonly windows = new Map<string, { startedAt: number; count: number }>();
 
-  canActivate(context: ExecutionContext): boolean {
+  constructor(
+    @Inject(DPoPResourceService)
+    private readonly dpop: DPoPResourceService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{
       rawBody?: Buffer;
       headers?: Record<string, string | string[] | undefined>;
       ip?: string;
       socket?: { remoteAddress?: string };
+      method?: string;
+      agentPrincipal?: VerifiedAgentPrincipal;
+    }>();
+    const response = context.switchToHttp().getResponse<{
+      setHeader(name: string, value: string): void;
     }>();
     const contentLength = Number(request.headers?.['content-length'] ?? 0);
     if (
@@ -61,10 +78,27 @@ export class A2APhaseGateGuard implements CanActivate {
         if (now - value.startedAt >= 60_000) this.windows.delete(key);
       }
     }
-    throw new UnauthorizedException({
-      code: 'AUTH_REQUIRED',
-      message: 'DPoP connected-agent authentication is not enabled yet.',
-      retryable: false,
-    });
+    const authorization = request.headers?.authorization;
+    const proof = request.headers?.dpop;
+    try {
+      request.agentPrincipal = await this.dpop.authenticate(
+        Array.isArray(authorization) ? authorization[0] : authorization,
+        Array.isArray(proof) ? proof[0] : proof,
+        request.method ?? 'POST',
+        DIVINR_A2A_RESOURCE,
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof DPoPNonceRequiredError) {
+        response.setHeader('DPoP-Nonce', error.nonce);
+        response.setHeader('WWW-Authenticate', 'DPoP error="use_dpop_nonce"');
+      }
+      if (error instanceof HttpException) throw error;
+      throw new UnauthorizedException({
+        code: 'AUTH_REQUIRED',
+        message: 'Valid sender-constrained credentials are required.',
+        retryable: false,
+      });
+    }
   }
 }

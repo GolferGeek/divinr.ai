@@ -7,9 +7,10 @@ import { AgentCommerceModule } from '../agent-commerce/agent-commerce.module';
 import { AgentCardService } from './agent-card.service';
 import { A2APhaseGateGuard } from './a2a-phase-gate.guard';
 import { A2ATaskAccessPolicy } from './a2a-task-access.policy';
+import { OAuthModule } from '../oauth/oauth.module';
 
 @Module({
-  imports: [AgentCommerceModule],
+  imports: [AgentCommerceModule, OAuthModule],
   controllers: [A2AController, A2AInvokeController, A2AAdminController],
   providers: [
     ServiceApiKeyService,

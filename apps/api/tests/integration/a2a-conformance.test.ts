@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { Module } from '@nestjs/common';
+import { Module, UnauthorizedException } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import {
@@ -10,6 +10,7 @@ import request from 'supertest';
 import { A2AController } from '../../src/a2a/a2a.controller';
 import { A2AInvokeController } from '../../src/a2a/a2a-invoke.controller';
 import { A2APhaseGateGuard } from '../../src/a2a/a2a-phase-gate.guard';
+import { DPoPResourceService } from '../../src/oauth/dpop-resource.service';
 import { AgentCardService } from '../../src/a2a/agent-card.service';
 import {
   AGENT_KEY_PROVIDER,
@@ -53,6 +54,18 @@ const testKeys: AgentKeyProvider = {
   providers: [
     AgentCardService,
     A2APhaseGateGuard,
+    {
+      provide: DPoPResourceService,
+      useValue: {
+        authenticate: async () => {
+          throw new UnauthorizedException({
+            code: 'AUTH_REQUIRED',
+            message: 'Valid sender-constrained credentials are required.',
+            retryable: false,
+          });
+        },
+      },
+    },
     { provide: AGENT_KEY_PROVIDER, useValue: testKeys },
   ],
 })

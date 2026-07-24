@@ -5,6 +5,9 @@ export const DEVICE_GRANT_TYPE =
   'urn:ietf:params:oauth:grant-type:device_code';
 export const DEVICE_CODE_LIFETIME_SECONDS = 600;
 export const DEVICE_POLL_INTERVAL_SECONDS = 5;
+export const ACCESS_TOKEN_LIFETIME_SECONDS = 600;
+export const REFRESH_TOKEN_FAMILY_LIFETIME_SECONDS = 30 * 24 * 60 * 60;
+export const APPLE_ASSISTANT_CLIENT_ID = 'apple-assistant-native-v1';
 export const AGENT_SCOPES = Object.freeze([
   'analysis:purchase',
   'commerce:purchase',

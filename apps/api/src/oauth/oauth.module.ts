@@ -7,6 +7,8 @@ import {
   OAuthMetadataController,
 } from './oauth.controller';
 import { OAuthRateLimiter } from './oauth-rate-limiter';
+import { OAuthCredentialService } from './oauth-credential.service';
+import { DPoPResourceService } from './dpop-resource.service';
 
 @Module({
   imports: [AgentCommerceModule],
@@ -15,7 +17,15 @@ import { OAuthRateLimiter } from './oauth-rate-limiter';
     DeviceAuthorizationService,
     DPoPProofService,
     OAuthRateLimiter,
+    OAuthCredentialService,
+    DPoPResourceService,
   ],
-  exports: [DeviceAuthorizationService, OAuthRateLimiter],
+  exports: [
+    DeviceAuthorizationService,
+    DPoPProofService,
+    OAuthCredentialService,
+    DPoPResourceService,
+    OAuthRateLimiter,
+  ],
 })
 export class OAuthModule {}
