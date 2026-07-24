@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import {
   IonPage, IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonItem, IonInput, IonButton, IonIcon, IonText, IonSpinner,
@@ -11,6 +12,7 @@ import { useAuthStore } from '../stores/auth.store';
 
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
 
 const email = ref('');
 const password = ref('');
@@ -68,7 +70,12 @@ async function login() {
     await pinDemoUserToCoreTrading(me, loginData.accessToken);
 
     auth.setAuth(me.id, loginData.accessToken, me.globalRole ?? me.role, me.email, me.displayName, loginData.refreshToken);
-    await router.push('/');
+    const redirect = typeof route.query.redirect === 'string'
+      && route.query.redirect.startsWith('/')
+      && !route.query.redirect.startsWith('//')
+      ? route.query.redirect
+      : '/';
+    await router.push(redirect);
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {

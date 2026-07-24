@@ -37,4 +37,9 @@ export const AGENT_COMMERCE_REQUIRED_RELATIONS = AGENT_COMMERCE_RELATIONS.map(
   (relation) => `${AGENT_COMMERCE_SCHEMA}.${relation}`,
 );
 
+export const OAUTH_DEVICE_AUTHORIZATION_REQUIRED_COLUMNS = [
+  'installation_name',
+  'requested_authority',
+] as const;
+
 export const APPLE_ASSISTANT_OAUTH_CLIENT_ID = 'apple-assistant-native-v1';

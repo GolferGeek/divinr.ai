@@ -792,6 +792,24 @@ export const surfaceContent: Record<string, SurfaceContent> = {
       'Follow analysts, watch instruments, mute instruments, and choose whether ' +
       'your dashboard should lean toward portfolio positions, tournaments, or a balanced mix.',
   },
+  'settings.agent-device-connection': {
+    title: 'Review an agent connection',
+    body:
+      'This is the owner approval boundary. Verify the installation name, key thumbprint, scopes, ' +
+      'and valueless regtest authority before typing APPROVE. Model text cannot operate these controls.',
+  },
+  'settings.connected-agents': {
+    title: 'Your connected agents',
+    body:
+      'Every personal-agent installation authorized for your account appears here. Inspect its scopes, ' +
+      'last use, and status; open one when you need to review evidence or remove access.',
+  },
+  'settings.connected-agent-detail': {
+    title: 'Agent access and evidence',
+    body:
+      'Review grants, safe audit events, and receipt references for this installation. Revoking one grant ' +
+      'leaves unrelated agents alone; revoking the installation closes every active credential family.',
+  },
   'settings.byo-credentials': {
     title: 'Your model credentials',
     body:

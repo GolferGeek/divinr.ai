@@ -24,6 +24,7 @@ const migrationNames = [
   '2026-07-24-agent-commerce-tasks-ap2.sql',
   '2026-07-24-agent-commerce-payments-delivery.sql',
   '2026-07-24-agent-commerce-agent-card-key-role.sql',
+  '2026-07-24-agent-commerce-device-authorization-details.sql',
 ];
 
 async function main(): Promise<void> {

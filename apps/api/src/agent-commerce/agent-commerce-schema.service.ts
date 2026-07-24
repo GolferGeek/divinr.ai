@@ -17,6 +17,7 @@ import {
 import {
   AGENT_COMMERCE_REQUIRED_RELATIONS,
   APPLE_ASSISTANT_OAUTH_CLIENT_ID,
+  OAUTH_DEVICE_AUTHORIZATION_REQUIRED_COLUMNS,
 } from './agent-commerce-schema.constants';
 
 interface PublicKeySeed {
@@ -125,6 +126,7 @@ export class AgentCommerceSchemaService {
 
   async bootstrap(): Promise<void> {
     await this.assertRelationsExist();
+    await this.assertRequiredColumnsExist();
     const registry = new AgentContractSchemaRegistry();
     const catalog = loadAgentProductCatalog(registry);
     const keySeeds = readPublicKeySeeds();
@@ -154,6 +156,31 @@ export class AgentCommerceSchemaService {
     if (missing.length > 0) {
       throw new Error(
         `Agent-commerce migrations are required; missing relations: ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  private async assertRequiredColumnsExist(): Promise<void> {
+    const rows = dataRows<{ column_name: string }>(
+      await this.db.rawQuery(
+        `SELECT column_name
+           FROM information_schema.columns
+          WHERE table_schema = 'agent_commerce'
+            AND table_name = 'oauth_device_authorizations'
+            AND column_name = ANY($1::text[])`,
+        [OAUTH_DEVICE_AUTHORIZATION_REQUIRED_COLUMNS],
+      ),
+      'agent-commerce column readiness',
+    );
+    const present = new Set(rows.map((row) => row.column_name));
+    const missing = OAUTH_DEVICE_AUTHORIZATION_REQUIRED_COLUMNS.filter(
+      (column) => !present.has(column),
+    );
+    if (missing.length > 0) {
+      throw new Error(
+        `Agent-commerce migrations are required; missing columns: ${missing
+          .map((column) => `agent_commerce.oauth_device_authorizations.${column}`)
+          .join(', ')}`,
       );
     }
   }

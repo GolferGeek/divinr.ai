@@ -11,6 +11,7 @@ const migrationNames = [
   '2026-07-24-agent-commerce-identities.sql',
   '2026-07-24-agent-commerce-tasks-ap2.sql',
   '2026-07-24-agent-commerce-payments-delivery.sql',
+  '2026-07-24-agent-commerce-device-authorization-details.sql',
 ];
 
 function migrationSql(): string {
@@ -44,6 +45,30 @@ async function main(): Promise<void> {
   await assert.rejects(
     () => new AgentCommerceSchemaService(missingDb as never).bootstrap(),
     /migrations are required.*oauth_clients/,
+  );
+
+  let missingColumnCall = 0;
+  const missingColumnDb = {
+    rawQuery: async () => {
+      missingColumnCall += 1;
+      if (missingColumnCall === 1) {
+        return {
+          data: AGENT_COMMERCE_REQUIRED_RELATIONS.map((key) => ({
+            key,
+            present: true,
+          })),
+          error: null,
+        };
+      }
+      return {
+        data: [{ column_name: 'installation_name' }],
+        error: null,
+      };
+    },
+  };
+  await assert.rejects(
+    () => new AgentCommerceSchemaService(missingColumnDb as never).bootstrap(),
+    /missing columns: agent_commerce\.oauth_device_authorizations\.requested_authority/,
   );
 
   const executed: Array<{ sql: string; params: unknown[] }> = [];
@@ -103,11 +128,27 @@ async function main(): Promise<void> {
       return { data: [{ id: 'seeded' }], error: null };
     },
   };
+  let readinessCall = 0;
   const readyDb = {
-    rawQuery: async () => ({
-      data: AGENT_COMMERCE_REQUIRED_RELATIONS.map((key) => ({ key, present: true })),
-      error: null,
-    }),
+    rawQuery: async () => {
+      readinessCall += 1;
+      if (readinessCall === 1) {
+        return {
+          data: AGENT_COMMERCE_REQUIRED_RELATIONS.map((key) => ({
+            key,
+            present: true,
+          })),
+          error: null,
+        };
+      }
+      return {
+        data: [
+          { column_name: 'installation_name' },
+          { column_name: 'requested_authority' },
+        ],
+        error: null,
+      };
+    },
     withTransaction: async (work: (tx: typeof transaction) => Promise<void>) => work(transaction),
   };
   await new AgentCommerceSchemaService(readyDb as never).bootstrap();

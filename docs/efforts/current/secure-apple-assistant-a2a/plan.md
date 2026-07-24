@@ -9,7 +9,7 @@
 - [x] Phase 1: Frozen contract and atomic foundation
 - [x] Phase 2: Versioned Divinr persistence
 - [x] Phase 3: A2A 1.0 discovery and task protocol
-- [ ] Phase 4: Device authorization and connected-agent UI
+- [x] Phase 4: Device authorization and connected-agent UI
 - [ ] Phase 5: DPoP credentials and recovery
 - [ ] Phase 6: Deterministic admission and paid update skills
 - [ ] Phase 7: Spark two-node regtest and restricted facades
@@ -120,32 +120,34 @@
 
 ## Phase 4: Device Authorization and Connected-Agent UI
 
-**Status**: Not Started  
+**Status**: Complete
 **Objective**: Let an authenticated Divinr user explicitly approve, inspect, and revoke a proposed Apple Assistant installation.
 
 ### Steps
 
-- [ ] 4.1 Implement RFC-shaped authorization-server/protected-resource metadata and `POST /oauth/device_authorization` with explicit request, proposed DPoP thumbprint, scope/resource allowlist, keyed code hashes, single use, expiry, and initiation/poll/entry limits.
-- [ ] 4.2 Implement device-grant polling states at `/oauth/token` without issuing usable tokens yet; implement atomic approval/denial and durable installation/grant/audit creation.
-- [ ] 4.3 Add browser-authenticated connected-agent APIs for code review, typed approval/denial, list/detail, grant revocation, and installation revocation with cross-user non-disclosure.
-- [ ] 4.4 Add `/connect/device`, preserve the code through login, and render installation ID/name/thumbprint/scopes/authority/expiry with typed Approve/Deny controls.
-- [ ] 4.5 Add `/settings/connected-agents` and detail views with grants, status, last use, safe audit/receipt references, and typed revocation controls.
-- [ ] 4.6 Add `FirstTouchPanel`/`useFirstTouch` keys and `surface-content.ts` entries for both new surfaces; use approved analysis/signal vocabulary and `LegalDisclaimer` where applicable.
-- [ ] 4.7 Create `.agents/skills/divinr-connected-agents-browser-skill/` with SKILL/what/where/expectations/tests/completeness, register a `connected-agents` Playwright project, and add desktop/mobile specs under `apps/e2e/tests/connected-agents/`.
-- [ ] 4.8 Add device flow, code race/replay/expiry, excessive scope, login return, cross-user, approve/deny/revoke, accessibility, and first-touch tests; add `apps/api/tests/http/oauth-device-curl.sh` with exact DPoP fixture generation, curl requests, headers/bodies, and `jq` assertions.
+- [x] 4.1 Implement RFC-shaped authorization-server/protected-resource metadata and `POST /oauth/device_authorization` with explicit request, proposed DPoP thumbprint, scope/resource allowlist, keyed code hashes, single use, expiry, and initiation/poll/entry limits.
+- [x] 4.2 Implement device-grant polling states at `/oauth/token` without issuing usable tokens yet; implement atomic approval/denial and durable installation/grant/audit creation.
+- [x] 4.3 Add browser-authenticated connected-agent APIs for code review, typed approval/denial, list/detail, grant revocation, and installation revocation with cross-user non-disclosure.
+- [x] 4.4 Add `/connect/device`, preserve the code through login, and render installation ID/name/thumbprint/scopes/authority/expiry with typed Approve/Deny controls.
+- [x] 4.5 Add `/settings/connected-agents` and detail views with grants, status, last use, safe audit/receipt references, and typed revocation controls.
+- [x] 4.6 Add `FirstTouchPanel`/`useFirstTouch` keys and `surface-content.ts` entries for both new surfaces; use approved analysis/signal vocabulary and `LegalDisclaimer` where applicable.
+- [x] 4.7 Create `.agents/skills/divinr-connected-agents-browser-skill/` with SKILL/what/where/expectations/tests/completeness, register a `connected-agents` Playwright project, and add desktop/mobile specs under `apps/e2e/tests/connected-agents/`.
+- [x] 4.8 Add device flow, code race/replay/expiry, excessive scope, login return, cross-user, approve/deny/revoke, accessibility, and first-touch tests; add `apps/api/tests/http/oauth-device-curl.sh` with exact DPoP fixture generation, curl requests, headers/bodies, and `jq` assertions.
 
 ### Quality Gate
 
-- [ ] **Lint**: `pnpm --filter @divinr/api run lint && pnpm --filter @divinr/web run lint`
-- [ ] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/web run typecheck && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/oauth-device-authorization.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/connected-agents.test.ts && pnpm --filter @divinr/api run test:unit`
-- [ ] **E2E Tests**: `BASE_URL=http://127.0.0.1:7101 API_BASE_URL=http://127.0.0.1:7100 pnpm --filter @divinr/e2e exec playwright test --project=connected-agents`
-- [ ] **Curl Tests**: `AGENT_HTTP_BASE=http://127.0.0.1:7100 bash apps/api/tests/http/oauth-device-curl.sh`
-- [ ] **Chrome Tests**: In Chrome, complete login-return → review → approve, deny a second code, inspect the list/detail, revoke a grant, revoke an installation, and repeat at mobile width with no clipping or model-rendered action.
-- [ ] **Phase Review**: Compare implementation with PRD Phase 4.
-  - [ ] Approval is typed, explicit, owner-bound, single-use, and auditable.
-  - [ ] New surfaces have first-touch and deep testing coverage.
-  - [ ] No browser/service credential is issued to Apple.
+- [x] **Lint**: `pnpm --filter @divinr/api run lint && pnpm --filter @divinr/web run lint`
+- [x] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/web run typecheck && pnpm --filter @divinr/api run build && pnpm --filter @divinr/web run build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/oauth-device-authorization.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/connected-agents.test.ts && pnpm --filter @divinr/api run test:unit`
+- [x] **E2E Tests**: `BASE_URL=http://127.0.0.1:7101 API_BASE_URL=http://127.0.0.1:7100 pnpm --filter @divinr/e2e exec playwright test --project=connected-agents`
+- [x] **Curl Tests**: `AGENT_HTTP_BASE=http://127.0.0.1:7100 bash apps/api/tests/http/oauth-device-curl.sh`
+- [x] **Chrome Tests**: In Chrome, complete login-return → review → approve, deny a second code, inspect the list/detail, revoke a grant, revoke an installation, and repeat at mobile width with no clipping or model-rendered action.
+- [x] **Phase Review**: Compare implementation with PRD Phase 4.
+  - [x] Approval is typed, explicit, owner-bound, single-use, and auditable.
+  - [x] New surfaces have first-touch and deep testing coverage.
+  - [x] No browser/service credential is issued to Apple.
+
+**Implementation note (2026-07-24):** Device authorization now fails production startup without a stable keyed user-code hashing secret, and bootstrap/readiness verifies the additive v0.2 authorization columns as well as the table. Six controlled Chromium scenarios cover login return, approve, deny, list/detail, both typed revocations, and 390px layout. The interactive in-app browser confirmed the public and authenticated surfaces render without horizontal overflow. The HTTP script passed against the isolated port-7199 harness; neither the unmigrated Spark production database nor its port-7100 API was changed.
 
 ---
 

@@ -37,6 +37,8 @@ import { UsersModule } from './users/users.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AuthController } from './auth/auth.controller';
 import { InviteService } from './auth/invite.service';
+import { OAuthModule } from './oauth/oauth.module';
+import { ConnectedAgentsModule } from './connected-agents/connected-agents.module';
 
 @Module({
   imports: [
@@ -67,6 +69,8 @@ import { InviteService } from './auth/invite.service';
     MasteryModule,
     BootstrapModule,
     UsersModule,
+    OAuthModule,
+    ConnectedAgentsModule,
   ],
   controllers: [HealthController, AuthController],
   providers: [

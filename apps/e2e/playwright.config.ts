@@ -70,5 +70,6 @@ export default defineConfig({
     { name: 'admin', testMatch: 'admin/*.spec.ts' },
     { name: 'learning-panel', testMatch: 'learning-panel/*.spec.ts' },
     { name: 'mastery', testMatch: 'mastery/*.spec.ts' },
+    { name: 'connected-agents', testMatch: 'connected-agents/*.spec.ts' },
   ],
 });

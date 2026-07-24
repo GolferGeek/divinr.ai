@@ -129,5 +129,4 @@ export interface AuditEventInput {
   outcome: 'allowed' | 'denied' | 'succeeded' | 'failed' | 'unknown';
   reason?: string;
   redactedDetail: unknown;
-  eventHash: string;
 }

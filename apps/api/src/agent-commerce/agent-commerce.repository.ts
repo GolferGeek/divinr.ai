@@ -14,6 +14,7 @@ import type {
   TaskAdmissionInput,
   TaskAdmissionResult,
 } from './agent-commerce.types';
+import { canonicalSha256 } from '../agent-contracts/canonical-json';
 
 export class AgentCommercePersistenceError extends Error {
   constructor(message: string, readonly code?: string) {
@@ -486,6 +487,23 @@ export class AgentCommerceRepository {
       'lock audit chain',
     )[0];
     const sequence = prior ? BigInt(prior.sequence) + 1n : 1n;
+    const eventHash = canonicalSha256({
+      previousEventHash: prior?.event_hash ?? null,
+      eventId: input.eventId,
+      orderingKey: input.orderingKey,
+      sequence: sequence.toString(),
+      actorPrincipal: input.actorPrincipal,
+      userId: input.userId ?? null,
+      installationId: input.installationId ?? null,
+      taskId: input.taskId ?? null,
+      mandateId: input.mandateId ?? null,
+      paymentSubmissionId: input.paymentSubmissionId ?? null,
+      receiptId: input.receiptId ?? null,
+      action: input.action,
+      outcome: input.outcome,
+      reason: input.reason ?? null,
+      redactedDetail: input.redactedDetail,
+    });
     rows(
       await transaction.rawQuery(
         `INSERT INTO agent_commerce.security_audit_events (
@@ -512,7 +530,7 @@ export class AgentCommerceRepository {
           input.reason ?? null,
           JSON.stringify(input.redactedDetail),
           prior?.event_hash ?? null,
-          input.eventHash,
+          eventHash,
         ],
       ),
       'append security audit event',

@@ -128,7 +128,11 @@ async function main(): Promise<void> {
           };
         }
         return {
-          data: [{ oauth_client_present: false, active_product_count: 6 }],
+          data: [{
+            oauth_client_present: false,
+            active_product_count: 6,
+            device_authorization_column_count: 2,
+          }],
           error: null,
         };
       },
@@ -159,7 +163,11 @@ async function main(): Promise<void> {
           };
         }
         return {
-          data: [{ oauth_client_present: true, active_product_count: 7 }],
+          data: [{
+            oauth_client_present: true,
+            active_product_count: 7,
+            device_authorization_column_count: 2,
+          }],
           error: null,
         };
       },

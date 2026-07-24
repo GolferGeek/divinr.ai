@@ -24,6 +24,7 @@ Load `divinr-workflow-browser-skill` for the shared Playwright / Chrome-MCP patt
 | `authoring` | `.Codex/skills/divinr-authoring-browser-skill/` | Authored content (analysts/instruments/wiring/llm credentials/billing) |
 | `billing` | `.Codex/skills/divinr-billing-browser-skill/` | App-shell trial-countdown chip, read-only banner, `/billing/status` lifecycle |
 | `admin` | `.Codex/skills/divinr-admin-browser-skill/` | Admin surfaces: attribution, cost calibration/defensibility/experiments, graduation candidates |
+| `connected-agents` | `.agents/skills/divinr-connected-agents-browser-skill/` | OAuth device review, typed approval/denial, inspection and revocation |
 
 ## Shared components (verified against `apps/web/src/components/`)
 
@@ -72,6 +73,10 @@ Load `divinr-workflow-browser-skill` for the shared Playwright / Chrome-MCP patt
 - `/admin/cost/experiments`, `/admin/cost/experiments/:id`
 - `/admin/attribution`, `/admin/attribution/sources`, `/admin/attribution/graduation-candidates`
 - `/attribution/mine`, `/findings`, `/risk`
+
+### Connected agents
+- `/connect/device`
+- `/settings/connected-agents`, `/settings/connected-agents/:installationId`
 
 ## How to use
 

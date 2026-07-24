@@ -16,6 +16,7 @@ import {
   playOutline,
   ribbonOutline,
   schoolOutline,
+  hardwareChipOutline,
   shieldOutline,
   statsChartOutline,
   trendingUpOutline,
@@ -100,6 +101,7 @@ export const masteryNavGroups: MasteryNavGroup[] = [
     items: [
       { title: 'Your Content', icon: createOutline, to: '/settings/authored-content', minLevel: 'builder', authoringOnly: true },
       { title: 'Analysis Preferences', icon: optionsOutline, to: '/settings/analysis-preferences', minLevel: 'core_trading' },
+      { title: 'Connected Agents', icon: hardwareChipOutline, to: '/settings/connected-agents', minLevel: 'core_trading', alwaysVisible: true },
       { title: 'Onboarding', icon: schoolOutline, to: '/settings/onboarding', minLevel: 'competitive_participation' },
       { title: 'Visibility & Social', icon: shieldOutline, to: '/settings/social-opt-outs', minLevel: 'competitive_participation' },
       { title: 'My Attribution', icon: trendingUpOutline, to: '/attribution/mine', minLevel: 'operator', adminOnly: true },
@@ -163,6 +165,7 @@ export const masteryRoutePolicies: MasteryRoutePolicy[] = [
   { path: '/messages', minLevel: 'community_creation' },
   { path: '/settings/authored-content', minLevel: 'builder', authoringOnly: true },
   { path: '/settings/analysis-preferences', minLevel: 'core_trading' },
+  { path: '/settings/connected-agents', minLevel: 'core_trading', alwaysVisible: true },
   { path: '/analysts', minLevel: 'builder' },
   { path: '/analysts/:detail/contract', minLevel: 'builder', authoringOnly: true },
   { path: '/analysts/:detail', minLevel: 'builder' },

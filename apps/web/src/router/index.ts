@@ -22,6 +22,12 @@ export const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/connect/device',
+      name: 'device-connection',
+      component: () => import('../views/DeviceConnectionView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/pricing',
       name: 'pricing',
       component: () => import('../views/PricingView.vue'),
@@ -105,6 +111,8 @@ export const router = createRouter({
         { path: 'settings/authored-content', name: 'authored-content', component: () => import('../views/AuthoredContentView.vue') },
         { path: 'settings/analysis-preferences', name: 'analysis-preferences', component: () => import('../views/AnalysisPreferencesView.vue') },
         { path: 'settings/onboarding', name: 'onboarding-settings', component: () => import('../views/OnboardingSettingsView.vue') },
+        { path: 'settings/connected-agents', name: 'connected-agents', component: () => import('../views/ConnectedAgentsView.vue') },
+        { path: 'settings/connected-agents/:installationId', name: 'connected-agent-detail', component: () => import('../views/ConnectedAgentDetailView.vue') },
         { path: 'settings/social-opt-outs', name: 'social-opt-outs', component: () => import('../views/settings/SocialOptOutsTab.vue') },
         { path: 'usage', name: 'usage', component: () => import('../views/UsageDashboardView.vue') },
         { path: 'billing/summary', name: 'billing-summary', component: () => import('../views/BillingSummaryView.vue') },

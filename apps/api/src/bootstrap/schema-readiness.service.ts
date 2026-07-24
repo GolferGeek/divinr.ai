@@ -3,6 +3,7 @@ import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/d
 import {
   AGENT_COMMERCE_REQUIRED_RELATIONS,
   APPLE_ASSISTANT_OAUTH_CLIENT_ID,
+  OAUTH_DEVICE_AUTHORIZATION_REQUIRED_COLUMNS,
 } from '../agent-commerce/agent-commerce-schema.constants';
 import {
   AGENT_KEY_PROVIDER,
@@ -73,8 +74,18 @@ export class SchemaReadinessService {
              SELECT count(*)::integer
                FROM agent_commerce.a2a_products
               WHERE product_version = 2 AND status = 'active'
-           ) AS active_product_count`,
-        [APPLE_ASSISTANT_OAUTH_CLIENT_ID],
+           ) AS active_product_count,
+           (
+             SELECT count(*)::integer
+               FROM information_schema.columns
+              WHERE table_schema = 'agent_commerce'
+                AND table_name = 'oauth_device_authorizations'
+                AND column_name = ANY($2::text[])
+           ) AS device_authorization_column_count`,
+        [
+          APPLE_ASSISTANT_OAUTH_CLIENT_ID,
+          OAUTH_DEVICE_AUTHORIZATION_REQUIRED_COLUMNS,
+        ],
       );
       if (seedResult.error) {
         throw new Error(`Schema seed readiness query failed: ${seedResult.error.message}`);
@@ -83,6 +94,7 @@ export class SchemaReadinessService {
         seedResult.data as Array<{
           oauth_client_present: boolean;
           active_product_count: number;
+          device_authorization_column_count: number;
         }> | null
       )?.[0];
       if (!seed?.oauth_client_present) {
@@ -90,6 +102,12 @@ export class SchemaReadinessService {
       }
       if (seed?.active_product_count !== 7) {
         missing.push('seed:agent_commerce.a2a_products:v0.2');
+      }
+      if (
+        seed?.device_authorization_column_count
+        !== OAUTH_DEVICE_AUTHORIZATION_REQUIRED_COLUMNS.length
+      ) {
+        missing.push('column:agent_commerce.oauth_device_authorizations:v0.2');
       }
       if (missing.length === 0) {
         try {
