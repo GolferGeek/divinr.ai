@@ -1,0 +1,109 @@
+name: divinr-lightning-regtest
+
+x-regtest-only: &regtest-only
+  DIVINR_BITCOIN_NETWORK: ${DIVINR_BITCOIN_NETWORK:-regtest}
+
+services:
+  network-check:
+    image: alpine@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+    restart: "no"
+    environment: *regtest-only
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        test "$${DIVINR_BITCOIN_NETWORK}" = regtest ||
+          { echo "Only economically valueless Bitcoin regtest is permitted" >&2; exit 78; }
+    networks: [commerce-internal]
+
+  bitcoind:
+    build:
+      context: ../..
+      dockerfile: infra/lightning-regtest/bitcoin-core.Dockerfile
+    image: divinr/bitcoin-core:31.1-verified
+    restart: unless-stopped
+    depends_on:
+      network-check:
+        condition: service_completed_successfully
+    command:
+      - -conf=/run/divinr/bitcoin.conf
+      - -datadir=/data
+    volumes:
+      - bitcoin-data:/data
+      - ${DIVINR_AGENT_COMMERCE_ROOT:-./.runtime}/secrets/bitcoin.conf:/run/divinr/bitcoin.conf:ro
+    networks: [commerce-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "bitcoin-cli -conf=/run/divinr/bitcoin.conf -datadir=/data getblockchaininfo | grep -q '\"chain\": \"regtest\"'"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 10s
+    security_opt: ["no-new-privileges:true"]
+
+  payer-lnd:
+    image: lightninglabs/lnd@sha256:f0a2bdc4b8bc89cb3b31b6e12d6b16ac5145defd916d8152cf0c1c07d8697cff
+    restart: unless-stopped
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+    command: ["--configfile=/run/divinr/lnd.conf"]
+    volumes:
+      - payer-lnd-data:/root/.lnd
+      - ${DIVINR_AGENT_COMMERCE_ROOT:-./.runtime}/secrets/payer-lnd.conf:/run/divinr/lnd.conf:ro
+    networks: [commerce-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "lncli --network=regtest getinfo | grep -q '\"network\": \"regtest\"'"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+      start_period: 15s
+    security_opt: ["no-new-privileges:true"]
+
+  merchant-lnd:
+    image: lightninglabs/lnd@sha256:f0a2bdc4b8bc89cb3b31b6e12d6b16ac5145defd916d8152cf0c1c07d8697cff
+    restart: unless-stopped
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+    command: ["--configfile=/run/divinr/lnd.conf"]
+    volumes:
+      - merchant-lnd-data:/root/.lnd
+      - ${DIVINR_AGENT_COMMERCE_ROOT:-./.runtime}/secrets/merchant-lnd.conf:/run/divinr/lnd.conf:ro
+    networks: [commerce-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "lncli --network=regtest getinfo | grep -q '\"network\": \"regtest\"'"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+      start_period: 15s
+    security_opt: ["no-new-privileges:true"]
+
+  miner:
+    image: divinr/bitcoin-core:31.1-verified
+    restart: unless-stopped
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+      payer-lnd:
+        condition: service_healthy
+      merchant-lnd:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/opt/divinr/miner.sh"]
+    volumes:
+      - ${DIVINR_AGENT_COMMERCE_ROOT:-./.runtime}/secrets/bitcoin.conf:/run/divinr/bitcoin.conf:ro
+      - ./scripts/miner.sh:/opt/divinr/miner.sh:ro
+    networks: [commerce-internal]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  commerce-internal:
+    name: divinr-lightning-regtest-internal
+    internal: true
+
+volumes:
+  bitcoin-data:
+    name: divinr-lightning-regtest-bitcoin
+  payer-lnd-data:
+    name: divinr-lightning-regtest-payer-lnd
+  merchant-lnd-data:
+    name: divinr-lightning-regtest-merchant-lnd

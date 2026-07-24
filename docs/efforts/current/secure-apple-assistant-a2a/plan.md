@@ -226,19 +226,38 @@ messaging/onboarding mock-state warnings outside this effort.
 
 ## Phase 7: Spark Two-Node Regtest and Restricted Facades
 
-**Status**: Not Started  
+**Status**: In Progress
 **Objective**: Build an isolated Spark-hosted two-node Lightning regtest environment and separately trusted payer and merchant services.
 
 ### Steps
 
-- [ ] 7.1 Inventory and diagnose the existing Spark bitcoind/LND/miner state read-only; record sync, volumes, credentials, ports, and OrchestratorAI dependencies without disrupting it.
-- [ ] 7.2 Add `infra/lightning-regtest/` with pinned images/digests, one bitcoind regtest backend, deterministic miner, two LND identities/volumes, health probes, funding/channel bootstrap, backup/reset, and explicit non-regtest rejection.
+- [x] 7.1 Inventory and diagnose the existing Spark bitcoind/LND/miner state read-only; record sync, volumes, credentials, ports, and OrchestratorAI dependencies without disrupting it.
+- [x] 7.2 Add `infra/lightning-regtest/` with pinned images/digests, one bitcoind regtest backend, deterministic miner, two LND identities/volumes, health probes, funding/channel bootstrap, backup/reset, and explicit non-regtest rejection.
 - [ ] 7.3 Add `apps/payment-facades/` package with separate payer and merchant entrypoints, explicit `@Inject` use, separate service users/config, and schema-validated APIs.
 - [ ] 7.4 Add payer and merchant migrations for every PRD 4.2 table, restricted roles, exact uniqueness/checks, immutable policies, audit/outbox, and independent readiness.
 - [ ] 7.5 Implement TLS 1.3 mTLS identity/SAN/SPKI/serial/operation authorization, payer Tailscale + loopback verifier listeners, merchant loopback listener, and no fallback auth.
 - [ ] 7.6 Implement least-privilege LND clients, exact invoice/payment/status/receipt/balance/reconciliation/refund primitives, deduplicated observations, and safe credential handling.
 - [ ] 7.7 Synchronize/fund both nodes, open an active channel, execute exact payments, capture both balance views, and test reset/restart/recovery; add `apps/payment-facades/tests/http/regtest-facades-curl.sh` using temporary test mTLS leaves.
 - [ ] 7.8 Cut over from the old instance only after all gates pass; retain documented rollback and stable service names independent of OrchestratorAI.
+
+### Phase 7 implementation notes
+
+- 2026-07-24 read-only Spark inventory diagnosed the preserved OrchestratorAI
+  LND wallet as bound to a different regtest history (`block not found` at
+  height 59422). No Spark state was changed.
+- The isolated local topology uses verified Bitcoin Core 31.1 release
+  archives, pinned Debian base and LND 0.20.1 image digests, distinct payer and
+  merchant identities/volumes, no raw host-published node ports, and
+  least-privilege baked facade macaroons.
+- Local infrastructure acceptance is green: both nodes synchronized, an active
+  channel opened, an exact `10000` msat invoice settled, the merchant observed
+  exactly `10000` msat, protected channel backups were produced, both LND
+  processes recovered synchronized with the active channel after restart, and
+  reset attempts without the exact confirmation or against `mainnet` failed
+  closed. Protected preimage material was not archived.
+- This evidence is local-only. No Spark deployment, migration, restart, port
+  exposure, or cutover has been performed or authorized. Step 7.7 remains open
+  until the schema-defined facades and their curl suite exercise the same flow.
 
 ### Quality Gate
 
