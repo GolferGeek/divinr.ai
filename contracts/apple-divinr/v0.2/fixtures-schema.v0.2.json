@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:golfergeek:schema:apple-divinr-fixtures:v0.2",
+  "title": "Apple Assistant to Divinr conformance fixtures v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "canonicalization", "hash", "positive", "protocolFixtures", "negativeMutations"],
+  "properties": {
+    "$schema": {"const": "urn:golfergeek:schema:apple-divinr-fixtures:v0.2"},
+    "schemaVersion": {"const": 2},
+    "canonicalization": {"const": "RFC8785"},
+    "hash": {"const": "SHA-256 base64url without padding"},
+    "positive": {
+      "type": "array",
+      "minItems": 17,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fixtureId", "schemaRef", "value", "canonicalSha256"],
+        "properties": {
+          "fixtureId": {"type": "string", "minLength": 1},
+          "schemaRef": {"type": "string", "pattern": "^urn:golfergeek:schema:apple-divinr-integration:v0\\.2#/\\$defs/[A-Za-z][A-Za-z0-9]+$"},
+          "value": {},
+          "canonicalSha256": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}
+        }
+      }
+    },
+    "protocolFixtures": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dpop", "quote", "budget", "payment", "refund", "push"],
+      "properties": {
+        "dpop": {"type": "object", "additionalProperties": false, "required": ["htu", "htm", "iat", "jti", "nonce", "ath", "proofJkt", "tokenCnfJkt"], "properties": {"htu": {"const": "https://divinr.ai/a2a"}, "htm": {"const": "POST"}, "iat": {"type": "integer"}, "jti": {"type": "string"}, "nonce": {"type": "string"}, "ath": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/sha256Base64Url"}, "proofJkt": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/sha256Base64Url"}, "tokenCnfJkt": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/sha256Base64Url"}}},
+        "quote": {"type": "object", "additionalProperties": false, "required": ["quoteId", "taskId", "skillId", "productId", "priceMinorUnits", "atomicAmount", "createdAt", "expiresAt"], "properties": {"quoteId": {"type": "string"}, "taskId": {"type": "string"}, "skillId": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/skillId"}, "productId": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productId"}, "priceMinorUnits": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/priceMinorUnits"}, "atomicAmount": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productAtomicAmount"}, "createdAt": {"type": "string", "format": "date-time"}, "expiresAt": {"type": "string", "format": "date-time"}}},
+        "budget": {"type": "object", "additionalProperties": false, "required": ["authorityId", "windowStart", "windowEnd", "maximumCount", "reservedCount", "committedCount", "maximumPriceMinorUnits", "reservedPriceMinorUnits", "committedPriceMinorUnits", "maximumAtomicAmount", "reservedAtomicAmount", "committedAtomicAmount", "lockVersion"], "properties": {"authorityId": {"type": "string"}, "windowStart": {"type": "string", "format": "date-time"}, "windowEnd": {"type": "string", "format": "date-time"}, "maximumCount": {"const": 10}, "reservedCount": {"type": "integer", "minimum": 0}, "committedCount": {"type": "integer", "minimum": 0}, "maximumPriceMinorUnits": {"const": 25}, "reservedPriceMinorUnits": {"type": "integer", "minimum": 0}, "committedPriceMinorUnits": {"type": "integer", "minimum": 0}, "maximumAtomicAmount": {"const": "250000"}, "reservedAtomicAmount": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/atomicAmount"}, "committedAtomicAmount": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/atomicAmount"}, "lockVersion": {"type": "integer", "minimum": 0}}},
+        "payment": {"type": "object", "additionalProperties": false, "required": ["paymentRequestId", "paymentHash", "invoice", "productId", "amount", "asset", "unit", "state", "retryAllowed"], "properties": {"paymentRequestId": {"type": "string"}, "paymentHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "invoice": {"type": "string", "pattern": "^lnbcrt[0-9a-z]+$"}, "productId": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productId"}, "amount": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productAtomicAmount"}, "asset": {"const": "BTC-REGTEST"}, "unit": {"const": "msat"}, "state": {"enum": ["prepared", "paying", "settled", "failed", "unknown"]}, "retryAllowed": {"type": "boolean"}}},
+        "refund": {"type": "object", "additionalProperties": false, "required": ["refundId", "originalPaymentId", "originalPaymentHash", "refundPaymentHash", "amount", "asset", "unit", "reason", "state"], "properties": {"refundId": {"type": "string"}, "originalPaymentId": {"type": "string"}, "originalPaymentHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "refundPaymentHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "amount": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productAtomicAmount"}, "asset": {"const": "BTC-REGTEST"}, "unit": {"const": "msat"}, "reason": {"enum": ["DUPLICATE_CHARGE", "SERVICE_NOT_DELIVERED", "PRODUCT_MISMATCH", "AMOUNT_MISMATCH"]}, "state": {"enum": ["required", "invoice_created", "paying", "completed", "failed", "unknown"]}}},
+        "push": {"$ref": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/pushEvent"}
+      }
+    },
+    "negativeMutations": {
+      "type": "array",
+      "minItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fixtureId"],
+        "properties": {
+          "fixtureId": {"type": "string", "minLength": 1},
+          "base": {"type": "string", "minLength": 1},
+          "protocolFixture": {"enum": ["dpop", "quote", "budget", "payment", "refund", "push"]},
+          "pointer": {"type": "string", "pattern": "^/"},
+          "replacement": {},
+          "operation": {"enum": ["add", "advance-clock-past-expiry", "cancel-before-settlement", "drop-response-after-lnd-acceptance", "drop-response-after-refund-payment-acceptance", "fail-service-after-verified-settlement", "present-original-hash-after-value-mutation", "race-two-reservations-for-one-remaining-count", "remove", "repeat-event-id-and-signature", "repeat-refund-submitted-with-same-idempotency-key", "replay-identical-proof", "reserve-after-25-minor-units-reserved-or-committed", "reserve-after-250000-msat-reserved-or-committed", "reserve-after-five-state-changing-tournament-actions", "reserve-after-ten-committed-counts", "reuse-consumed-owner-action-approval", "reverse-constraints-array", "set-verification-clock-at-window-end", "set-verification-clock-before-validity-window", "submit-invoice-bound-to-different-original-payment", "substitute-payment-approval-for-owner-action-approval", "use-token-with-different-proof-key"]},
+          "additionalReplacement": {"type": "object", "additionalProperties": false, "required": ["pointer", "value"], "properties": {"pointer": {"type": "string", "pattern": "^/"}, "value": {}}},
+          "reuseIdempotencyKey": {"type": "boolean"},
+          "expectedCode": {"type": "string"},
+          "expectedState": {"type": "string"},
+          "expectedNextState": {"type": "string"},
+          "expectedRetryAllowed": {"type": "boolean"},
+          "expectedSideEffects": {"type": "integer", "minimum": 0},
+          "expectedAccepted": {"type": "integer", "minimum": 0},
+          "expectedRejected": {"type": "integer", "minimum": 0},
+          "expectedMerchantPayments": {"type": "integer", "minimum": 0}
+          ,"expectedCharges": {"type": "integer", "minimum": 0}
+        },
+        "oneOf": [
+          {"required": ["base"], "not": {"required": ["protocolFixture"]}},
+          {"required": ["protocolFixture"], "not": {"required": ["base"]}}
+        ]
+      }
+    }
+  }
+}

@@ -14,4 +14,6 @@ export {
   type QueryResult,
   type QueryBuilder,
   type DatabaseService,
+  type DatabaseTransaction,
+  type TransactionIsolationLevel,
 } from '@orchestrator-ai/transport-types';

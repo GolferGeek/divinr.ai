@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "profileId": "urn:golfergeek:profile:apple-divinr-commerce:v0.2",
+  "hashAlgorithm": "SHA-256",
+  "files": [
+    {
+      "path": "integration-profile.v0.2.json",
+      "sha256": "93a8dc010cdfd609b953e5ed404c72308a9616cbfcdd417267c0a57c4c104525"
+    },
+    {
+      "path": "profile-schema.v0.2.json",
+      "sha256": "a08d2c6e92221ca3b8060647f18b1bea8d7a3d41600669030f2075875a8269fd"
+    },
+    {
+      "path": "schemas.v0.2.json",
+      "sha256": "faf05a4939272732e546ab71170a59655f4601fcb505fc09f06a8fb4520bb45d"
+    },
+    {
+      "path": "fixtures.v0.2.json",
+      "sha256": "fa2ea78c3a6f85930e7f9bbc04e69fa392bb988da791fc3a4acc888cdb7f87f9"
+    },
+    {
+      "path": "fixtures-schema.v0.2.json",
+      "sha256": "4705453a7ebcbd8142bc4e683f46a8acac75546275d0419de1ce10e0aa23e850"
+    }
+  ]
+}

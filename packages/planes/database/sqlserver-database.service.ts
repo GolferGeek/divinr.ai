@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import * as mssql from 'mssql';
 import {
   DatabaseService,
+  DatabaseTransaction,
+  TransactionIsolationLevel,
   QueryBuilder,
   QueryResult,
 } from './database.interface';
@@ -86,49 +88,37 @@ export class SqlServerDatabaseService implements DatabaseService {
   }
 
   async rawQuery(sql: string, params?: unknown[]): Promise<QueryResult> {
+    const pool = await this.getPool();
+    return this.rawQueryWithRequest(pool.request(), sql, params);
+  }
+
+  async withTransaction<T>(
+    work: (transaction: DatabaseTransaction) => Promise<T>,
+    options?: { isolationLevel?: TransactionIsolationLevel },
+  ): Promise<T> {
+    const pool = await this.getPool();
+    const transaction = new mssql.Transaction(pool);
+    const isolation = options?.isolationLevel ?? 'read committed';
+    const levels: Record<TransactionIsolationLevel, number> = {
+      serializable: mssql.ISOLATION_LEVEL.SERIALIZABLE,
+      'repeatable read': mssql.ISOLATION_LEVEL.REPEATABLE_READ,
+      'read committed': mssql.ISOLATION_LEVEL.READ_COMMITTED,
+    };
+    await transaction.begin(levels[isolation]);
     try {
-      const pool = await this.getPool();
-      const request = pool.request();
-      if (params) {
-        for (let i = 0; i < params.length; i++) {
-          const value = params[i];
-          if (value === null || value === undefined) {
-            request.input(`p${i}`, null);
-          } else if (typeof value === 'number') {
-            if (Number.isInteger(value)) {
-              request.input(`p${i}`, mssql.BigInt, value);
-            } else {
-              request.input(`p${i}`, mssql.Float, value);
-            }
-          } else if (typeof value === 'boolean') {
-            request.input(`p${i}`, mssql.Bit, value);
-          } else if (typeof value === 'string') {
-            request.input(`p${i}`, mssql.NVarChar(mssql.MAX), value);
-          } else if (value instanceof Date) {
-            request.input(`p${i}`, mssql.DateTime2, value);
-          } else {
-            request.input(
-              `p${i}`,
-              mssql.NVarChar(mssql.MAX),
-              JSON.stringify(value),
-            );
-          }
-        }
+      const result = await work({
+        rawQuery: (sql, params) =>
+          this.rawQueryWithRequest(new mssql.Request(transaction), sql, params),
+      });
+      await transaction.commit();
+      return result;
+    } catch (error) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        this.logger.error('SQL Server transaction rollback failed', rollbackError);
       }
-      // Replace $1, $2, ... PostgreSQL-style params with @p0, @p1, ...
-      const adaptedSql = sql.replace(
-        /\$(\d+)/g,
-        (_match: string, num: string) => `@p${parseInt(num, 10) - 1}`,
-      );
-      const result = await request.query(adaptedSql);
-      return {
-        data: result.recordset ?? [],
-        error: null,
-        count: result.recordset?.length ?? null,
-      };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { data: null, error: { message } };
+      throw error;
     }
   }
 
@@ -178,6 +168,52 @@ export class SqlServerDatabaseService implements DatabaseService {
     }).connect();
 
     return this.pool;
+  }
+
+  private async rawQueryWithRequest(
+    request: mssql.Request,
+    sql: string,
+    params?: unknown[],
+  ): Promise<QueryResult> {
+    try {
+      for (let index = 0; index < (params?.length ?? 0); index += 1) {
+        const value = params![index];
+        if (value === null || value === undefined) {
+          request.input(`p${index}`, null);
+        } else if (typeof value === 'number') {
+          request.input(
+            `p${index}`,
+            Number.isInteger(value) ? mssql.BigInt : mssql.Float,
+            value,
+          );
+        } else if (typeof value === 'boolean') {
+          request.input(`p${index}`, mssql.Bit, value);
+        } else if (typeof value === 'string') {
+          request.input(`p${index}`, mssql.NVarChar(mssql.MAX), value);
+        } else if (value instanceof Date) {
+          request.input(`p${index}`, mssql.DateTime2, value);
+        } else {
+          request.input(
+            `p${index}`,
+            mssql.NVarChar(mssql.MAX),
+            JSON.stringify(value),
+          );
+        }
+      }
+      const adaptedSql = sql.replace(
+        /\$(\d+)/g,
+        (_match: string, number: string) => `@p${parseInt(number, 10) - 1}`,
+      );
+      const result = await request.query(adaptedSql);
+      return {
+        data: result.recordset ?? [],
+        error: null,
+        count: result.recordset?.length ?? null,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { data: null, error: { message } };
+    }
   }
 }
 

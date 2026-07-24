@@ -76,6 +76,15 @@ export interface QueryBuilder extends PromiseLike<QueryResult> {
   maybeSingle(): QueryBuilder;
 }
 
+export type TransactionIsolationLevel =
+  | 'serializable'
+  | 'repeatable read'
+  | 'read committed';
+
+export interface DatabaseTransaction {
+  rawQuery(sql: string, params?: unknown[]): Promise<QueryResult>;
+}
+
 export interface DatabaseService {
   /**
    * Start building a query against a table.
@@ -98,6 +107,15 @@ export interface DatabaseService {
 
   /** Execute a raw SQL query with parameterized inputs. */
   rawQuery(sql: string, params?: unknown[]): Promise<QueryResult>;
+
+  /**
+   * Execute a callback on one reserved connection, committing on resolution
+   * and rolling back when the callback throws.
+   */
+  withTransaction<T>(
+    work: (transaction: DatabaseTransaction) => Promise<T>,
+    options?: { isolationLevel?: TransactionIsolationLevel },
+  ): Promise<T>;
 
   /** Health check */
   checkConnection(): Promise<{ status: string; message: string }>;

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:golfergeek:schema:apple-divinr-integration-profile:v0.2",
+  "title": "Apple Assistant to Divinr integration profile v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "profileId", "status", "upstream", "identifiers", "publicEndpoints", "privateEndpoints", "interfaces", "appleIngress", "a2a", "oauth", "crypto", "hashing", "ap2", "products", "payment", "chargePolicy", "divinrIngress", "tournamentActionPolicy", "taskPolicy", "pushPolicy", "refundPolicy"],
+  "properties": {
+    "$schema": {"const": "urn:golfergeek:schema:apple-divinr-integration-profile:v0.2"},
+    "profileId": {"const": "urn:golfergeek:profile:apple-divinr-commerce:v0.2"},
+    "status": {"const": "frozen-v0.2"},
+    "upstream": {
+      "type": "object", "additionalProperties": false, "required": ["a2a", "ap2", "x402"],
+      "properties": {
+        "a2a": {"type": "object", "required": ["version", "git", "commit"], "properties": {"version": {"const": "1.0.0"}, "git": {"const": "https://github.com/a2aproject/A2A.git"}, "commit": {"const": "173695755607e884aa9acf8ce4feed90e32727a1"}}},
+        "ap2": {"type": "object", "required": ["version", "git", "commit", "schemaAliases"], "properties": {"version": {"const": "0.2.0"}, "git": {"const": "https://github.com/google-agentic-commerce/AP2.git"}, "commit": {"const": "b4587ac1d055888a73b4b21750973cffba961793"}, "schemaAliases": {"type": "object"}}},
+        "x402": {"type": "object", "required": ["coreVersion", "git", "commit", "conformanceClaim"], "properties": {"coreVersion": {"const": 2}, "git": {"const": "https://github.com/x402-foundation/x402.git"}, "commit": {"const": "21a2e489c7ba17c2b04e4cd9ea7015da1cb4aa99"}, "conformanceClaim": {"const": "x402-v2-object-semantics-with-project-owned-a2a-lightning-binding"}}}
+      }
+    },
+    "identifiers": {"type": "object", "required": ["merchantId", "oauthClientId", "a2aExtensionUri", "constraintNamespace", "productCatalogId", "paymentNetwork", "paymentAsset", "paymentUnit", "paymentMethod"]},
+    "publicEndpoints": {"type": "object", "minProperties": 10},
+    "privateEndpoints": {"type": "object", "minProperties": 9},
+    "interfaces": {"type": "object", "additionalProperties": false, "required": ["divinrPublic", "appleIngress", "sparkPayer", "sparkPayerDivinrVerifier", "sparkMerchant"], "properties": {"divinrPublic": {"$ref": "#/$defs/interfaceMap"}, "appleIngress": {"$ref": "#/$defs/interfaceMap"}, "sparkPayer": {"$ref": "#/$defs/interfaceMap"}, "sparkPayerDivinrVerifier": {"$ref": "#/$defs/interfaceMap"}, "sparkMerchant": {"$ref": "#/$defs/interfaceMap"}}},
+    "appleIngress": {"type": "object", "required": ["cloudflareRoutes", "cloudflareCatchAll", "public", "trusted", "owner"]},
+    "a2a": {"type": "object", "required": ["protocolBinding", "protocolVersionHeader", "endpoint", "contentType", "extensionHeader", "agentCardExtensionRequired", "agentCardExtensionParams", "extensionRequiredForPaidSkills", "methods", "initialTaskDelivery", "streamingRequired"]},
+    "oauth": {"type": "object", "required": ["issuer", "resourceAudience", "grantType", "tokenType", "accessTokenFormat", "accessTokenAlgorithm", "accessTokenLifetimeSeconds", "refreshTokenFamilyLifetimeSeconds", "deviceCodeLifetimeSeconds", "devicePollIntervalSeconds", "dpopAlgorithm", "dpopNonceRequired", "dpopNonceLifetimeSeconds", "maximumConcurrentDpopNoncesPerInstallation", "dpopProofMaximumAgeSeconds", "dpopReplayRetentionSeconds", "scopes"]},
+    "crypto": {"type": "object", "minProperties": 10},
+    "hashing": {"type": "object", "required": ["digest", "digestEncoding", "jsonCanonicalization", "jsonHashRule", "compactTokenHashRule", "checkoutHashRule", "ap2ReceiptReferenceRule", "bolt11InvoiceHashRule", "agentCardHashRule", "quoteSignatureRule", "quoteHashRule", "businessInputProjectionRule", "businessInputProjections", "intentRule"]},
+    "ap2": {"type": "object", "required": ["openCheckoutVct", "closedCheckoutVct", "openPaymentVct", "closedPaymentVct", "priceCurrency", "minimumPriceMinorUnits", "maximumPriceMinorUnits", "maximumCumulativePriceMinorUnits", "paymentInstrumentId", "paymentInstrumentType", "checkoutAudience", "paymentAudience", "openMandateLifetimeSeconds", "closedMandateLifetimeSeconds"]},
+    "products": {
+      "type": "object", "additionalProperties": false,
+      "required": ["divinr.general-updates.demo.v2", "divinr.personal-updates.demo.v2", "divinr.tournaments-list.demo.v2", "divinr.tournament-context.demo.v2", "divinr.analysis.demo.v2", "divinr.tournament-join.demo.v2", "divinr.tournament-trade.demo.v2"],
+      "properties": {
+        "divinr.general-updates.demo.v2": {"const": {"skillId": "general_updates", "priceMinorUnits": 1, "atomicAmount": "10000", "displayPrice": "$0.01 demo price"}},
+        "divinr.personal-updates.demo.v2": {"const": {"skillId": "personal_updates", "priceMinorUnits": 2, "atomicAmount": "20000", "displayPrice": "$0.02 demo price"}},
+        "divinr.tournaments-list.demo.v2": {"const": {"skillId": "tournaments_list", "priceMinorUnits": 1, "atomicAmount": "10000", "displayPrice": "$0.01 demo price"}},
+        "divinr.tournament-context.demo.v2": {"const": {"skillId": "tournament_context", "priceMinorUnits": 2, "atomicAmount": "20000", "displayPrice": "$0.02 demo price"}},
+        "divinr.analysis.demo.v2": {"const": {"skillId": "analysis_request", "priceMinorUnits": 5, "atomicAmount": "50000", "displayPrice": "$0.05 demo price"}},
+        "divinr.tournament-join.demo.v2": {"const": {"skillId": "tournament_join", "priceMinorUnits": 3, "atomicAmount": "30000", "displayPrice": "$0.03 demo price"}},
+        "divinr.tournament-trade.demo.v2": {"const": {"skillId": "tournament_trade", "priceMinorUnits": 4, "atomicAmount": "40000", "displayPrice": "$0.04 demo price"}}
+      }
+    },
+    "payment": {"type": "object", "required": ["minimumAtomicAmount", "maximumAtomicAmount", "maximumCumulativeAtomicAmount", "maximumCumulativeCount", "asset", "unit", "network", "scheme", "quoteLifetimeSeconds", "invoiceLifetimeSeconds", "maxSettlementTimeoutSeconds", "displayPriceRange", "displayPriceHasNoRegtestExchangeRate"]},
+    "chargePolicy": {"type": "object", "required": ["chargedOperations", "unchargedOperations", "chargePoint", "settledServiceFailureRequiresRefund", "idempotentReplayChargedAgain", "failedOrCanceledBeforeSettlementCharged"]},
+    "divinrIngress": {"type": "object", "required": ["maximumBodyBytes", "maximumResponseBytes", "maximumRequestsPerMinutePerInstallation", "maximumRequestsPerMinutePerSource", "maximumRequestsPerMinuteGlobal", "maximumConcurrentTasksPerInstallation", "maximumOutstandingPaidTasksPerInstallation", "taskAccessBinding", "listTasksMaximumPageSize"]},
+    "tournamentActionPolicy": {"type": "object", "required": ["maximumStateChangingActionsPerAuthorityWindow", "authorityWindowSeconds", "joinRequiresFreshOwnerApproval", "tradeRequiresFreshOwnerApproval", "paymentApprovalDoesNotAuthorizeAction"]},
+    "taskPolicy": {"type": "object", "minProperties": 6},
+    "pushPolicy": {"type": "object", "minProperties": 8},
+    "refundPolicy": {"type": "object", "required": ["automaticReasons", "notRefundableReasons", "principalAtomicAmountRule", "routingFeesRefunded", "targetCompletionSeconds", "refundInvoiceLifetimeSeconds", "payerEndpoints", "merchantEndpoint", "a2aStates", "mechanism"]}
+  },
+  "$defs": {
+    "interfaceMap": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["request", "response"], "properties": {"request": {"oneOf": [{"type": "string"}, {"type": "null"}]}, "response": {"oneOf": [{"type": "string"}, {"type": "null"}]}, "charged": {"oneOf": [{"type": "boolean"}, {"type": "string"}]}}}},
+    "product": {"type": "object", "additionalProperties": false, "required": ["skillId", "priceMinorUnits", "atomicAmount", "displayPrice"], "properties": {"skillId": {"enum": ["general_updates", "personal_updates", "tournaments_list", "tournament_context", "analysis_request", "tournament_join", "tournament_trade"]}, "priceMinorUnits": {"type": "integer", "minimum": 1, "maximum": 5}, "atomicAmount": {"enum": ["10000", "20000", "30000", "40000", "50000"]}, "displayPrice": {"enum": ["$0.01 demo price", "$0.02 demo price", "$0.03 demo price", "$0.04 demo price", "$0.05 demo price"]}}}
+  }
+}

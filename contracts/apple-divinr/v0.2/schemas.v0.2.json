@@ -1,0 +1,1360 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:golfergeek:schema:apple-divinr-integration:v0.2",
+  "title": "Apple Assistant to Divinr integration schemas v0.2",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "sha256Base64Url": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "atomicAmount": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,18})$"
+    },
+    "skillId": {
+      "enum": ["general_updates", "personal_updates", "tournaments_list", "tournament_context", "analysis_request", "tournament_join", "tournament_trade"]
+    },
+    "productId": {
+      "enum": ["divinr.general-updates.demo.v2", "divinr.personal-updates.demo.v2", "divinr.tournaments-list.demo.v2", "divinr.tournament-context.demo.v2", "divinr.analysis.demo.v2", "divinr.tournament-join.demo.v2", "divinr.tournament-trade.demo.v2"]
+    },
+    "productAtomicAmount": {
+      "enum": ["10000", "20000", "30000", "40000", "50000"]
+    },
+    "priceMinorUnits": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "instrumentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "symbol": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9.-]{0,14}$"
+    },
+    "productBinding": {
+      "oneOf": [
+        {"type": "object", "required": ["skillId", "productId", "priceMinorUnits", "atomicAmount"], "properties": {"skillId": {"const": "general_updates"}, "productId": {"const": "divinr.general-updates.demo.v2"}, "priceMinorUnits": {"const": 1}, "atomicAmount": {"const": "10000"}}},
+        {"type": "object", "required": ["skillId", "productId", "priceMinorUnits", "atomicAmount"], "properties": {"skillId": {"const": "personal_updates"}, "productId": {"const": "divinr.personal-updates.demo.v2"}, "priceMinorUnits": {"const": 2}, "atomicAmount": {"const": "20000"}}},
+        {"type": "object", "required": ["skillId", "productId", "priceMinorUnits", "atomicAmount"], "properties": {"skillId": {"const": "tournaments_list"}, "productId": {"const": "divinr.tournaments-list.demo.v2"}, "priceMinorUnits": {"const": 1}, "atomicAmount": {"const": "10000"}}},
+        {"type": "object", "required": ["skillId", "productId", "priceMinorUnits", "atomicAmount"], "properties": {"skillId": {"const": "tournament_context"}, "productId": {"const": "divinr.tournament-context.demo.v2"}, "priceMinorUnits": {"const": 2}, "atomicAmount": {"const": "20000"}}},
+        {"type": "object", "required": ["skillId", "productId", "priceMinorUnits", "atomicAmount"], "properties": {"skillId": {"const": "analysis_request"}, "productId": {"const": "divinr.analysis.demo.v2"}, "priceMinorUnits": {"const": 5}, "atomicAmount": {"const": "50000"}}},
+        {"type": "object", "required": ["skillId", "productId", "priceMinorUnits", "atomicAmount"], "properties": {"skillId": {"const": "tournament_join"}, "productId": {"const": "divinr.tournament-join.demo.v2"}, "priceMinorUnits": {"const": 3}, "atomicAmount": {"const": "30000"}}},
+        {"type": "object", "required": ["skillId", "productId", "priceMinorUnits", "atomicAmount"], "properties": {"skillId": {"const": "tournament_trade"}, "productId": {"const": "divinr.tournament-trade.demo.v2"}, "priceMinorUnits": {"const": 4}, "atomicAmount": {"const": "40000"}}}
+      ]
+    },
+    "skillProductBinding": {
+      "oneOf": [
+        {"type": "object", "required": ["skillId", "productId"], "properties": {"skillId": {"const": "general_updates"}, "productId": {"const": "divinr.general-updates.demo.v2"}}},
+        {"type": "object", "required": ["skillId", "productId"], "properties": {"skillId": {"const": "personal_updates"}, "productId": {"const": "divinr.personal-updates.demo.v2"}}},
+        {"type": "object", "required": ["skillId", "productId"], "properties": {"skillId": {"const": "tournaments_list"}, "productId": {"const": "divinr.tournaments-list.demo.v2"}}},
+        {"type": "object", "required": ["skillId", "productId"], "properties": {"skillId": {"const": "tournament_context"}, "productId": {"const": "divinr.tournament-context.demo.v2"}}},
+        {"type": "object", "required": ["skillId", "productId"], "properties": {"skillId": {"const": "analysis_request"}, "productId": {"const": "divinr.analysis.demo.v2"}}},
+        {"type": "object", "required": ["skillId", "productId"], "properties": {"skillId": {"const": "tournament_join"}, "productId": {"const": "divinr.tournament-join.demo.v2"}}},
+        {"type": "object", "required": ["skillId", "productId"], "properties": {"skillId": {"const": "tournament_trade"}, "productId": {"const": "divinr.tournament-trade.demo.v2"}}}
+      ]
+    },
+    "canonicalIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "intentPhase",
+        "installationId",
+        "originClass",
+        "profileId",
+        "destinationId",
+        "a2aUrl",
+        "agentCardVersion",
+        "agentCardHash",
+        "skillId",
+        "productId",
+        "businessInputHash",
+        "openAuthorityId",
+        "openAuthorityVersion",
+        "constraintHashes"
+      ],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "intentPhase": {"enum": ["base", "quoted", "checkout_submitted", "checkout_approved", "payment_authorized"]},
+        "installationId": {"$ref": "#/$defs/id"},
+        "originClass": {"enum": ["owner_private", "scheduled_local", "trusted_agent", "public_agent"]},
+        "profileId": {"$ref": "#/$defs/id"},
+        "destinationId": {"const": "divinr"},
+        "a2aUrl": {"const": "https://divinr.ai/a2a"},
+        "agentCardVersion": {"const": "1.0"},
+        "agentCardHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "skillId": {"$ref": "#/$defs/skillId"},
+        "productId": {"$ref": "#/$defs/productId"},
+        "businessInputHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "openAuthorityId": {"$ref": "#/$defs/id"},
+        "openAuthorityVersion": {"type": "integer", "minimum": 1},
+        "constraintHashes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sha256Base64Url"}
+        },
+        "quoteId": {"$ref": "#/$defs/id"},
+        "quoteHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "checkoutMandateHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "checkoutReceiptHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "paymentMandateHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "paymentRequirementHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "approvalId": {"$ref": "#/$defs/id"},
+        "approvalIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      },
+      "allOf": [
+        {"$ref": "#/$defs/skillProductBinding"},
+        {
+          "if": {"type": "object", "properties": {"intentPhase": {"const": "base"}}},
+          "then": {"type": "object", "properties": {"quoteId": false, "quoteHash": false, "checkoutMandateHash": false, "checkoutReceiptHash": false, "paymentMandateHash": false, "paymentRequirementHash": false}}
+        },
+        {
+          "if": {"type": "object", "properties": {"intentPhase": {"const": "quoted"}}},
+          "then": {
+            "type": "object",
+            "required": ["quoteId", "quoteHash", "paymentRequirementHash"],
+            "properties": {"quoteId": true, "quoteHash": true, "paymentRequirementHash": true, "checkoutMandateHash": false, "checkoutReceiptHash": false, "paymentMandateHash": false}
+          }
+        },
+        {
+          "if": {"type": "object", "properties": {"intentPhase": {"const": "checkout_submitted"}}},
+          "then": {
+            "type": "object",
+            "required": ["quoteId", "quoteHash", "paymentRequirementHash", "checkoutMandateHash"],
+            "properties": {"quoteId": true, "quoteHash": true, "paymentRequirementHash": true, "checkoutMandateHash": true, "checkoutReceiptHash": false, "paymentMandateHash": false}
+          }
+        },
+        {
+          "if": {"type": "object", "properties": {"intentPhase": {"const": "checkout_approved"}}},
+          "then": {
+            "type": "object",
+            "required": ["quoteId", "quoteHash", "paymentRequirementHash", "checkoutMandateHash", "checkoutReceiptHash"],
+            "properties": {"quoteId": true, "quoteHash": true, "paymentRequirementHash": true, "checkoutMandateHash": true, "checkoutReceiptHash": true, "paymentMandateHash": false}
+          }
+        },
+        {
+          "if": {"type": "object", "properties": {"intentPhase": {"const": "payment_authorized"}}},
+          "then": {"type": "object", "required": ["quoteId", "quoteHash", "paymentRequirementHash", "checkoutMandateHash", "checkoutReceiptHash", "paymentMandateHash"], "properties": {"quoteId": true, "quoteHash": true, "paymentRequirementHash": true, "checkoutMandateHash": true, "checkoutReceiptHash": true, "paymentMandateHash": true}}
+        },
+        {
+          "if": {"type": "object", "properties": {"skillId": {"enum": ["tournament_join", "tournament_trade"]}}},
+          "then": {"type": "object", "required": ["approvalId", "approvalIntentHash"], "properties": {"approvalId": true, "approvalIntentHash": true}}
+        }
+      ]
+    },
+    "a2aRequestMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["golfergeek.requestId", "golfergeek.idempotencyKey", "golfergeek.skillId", "golfergeek.inputSchema", "golfergeek.intent", "golfergeek.baseIntentHash", "golfergeek.currentIntentHash"],
+      "properties": {
+        "golfergeek.requestId": {"$ref": "#/$defs/id"},
+        "golfergeek.idempotencyKey": {"$ref": "#/$defs/id"},
+        "golfergeek.skillId": {"$ref": "#/$defs/skillId"},
+        "golfergeek.inputSchema": {"enum": [
+          "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesRequest",
+          "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentsListRequest",
+          "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentContextRequest",
+          "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/analysisRequest",
+          "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentJoinRequest",
+          "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentTradeRequest"
+        ]},
+        "golfergeek.intent": {"$ref": "#/$defs/baseCanonicalIntent"},
+        "golfergeek.baseIntentHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.currentIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "baseCanonicalIntent": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/canonicalIntent"},
+        {"type": "object", "properties": {"intentPhase": {"const": "base"}}}
+      ]
+    },
+    "quotedCanonicalIntent": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/canonicalIntent"},
+        {"type": "object", "properties": {"intentPhase": {"const": "quoted"}}}
+      ]
+    },
+    "checkoutSubmittedCanonicalIntent": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/canonicalIntent"},
+        {"type": "object", "properties": {"intentPhase": {"const": "checkout_submitted"}}}
+      ]
+    },
+    "checkoutApprovedCanonicalIntent": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/canonicalIntent"},
+        {"type": "object", "properties": {"intentPhase": {"const": "checkout_approved"}}}
+      ]
+    },
+    "paymentAuthorizedCanonicalIntent": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/canonicalIntent"},
+        {"type": "object", "properties": {"intentPhase": {"const": "payment_authorized"}}}
+      ]
+    },
+    "updatesRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "since": {"type": "string", "format": "date-time"},
+        "categories": {"type": "array", "maxItems": 8, "uniqueItems": true, "items": {"enum": ["platform", "market", "analysis", "portfolio", "tournament"]}},
+        "pageSize": {"type": "integer", "minimum": 1, "maximum": 50},
+        "pageToken": {"type": "string", "maxLength": 1024}
+      }
+    },
+    "updatesResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "updates"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "updates": {"type": "array", "maxItems": 50, "items": {"type": "object", "additionalProperties": false, "required": ["updateId", "category", "title", "summary", "occurredAt"], "properties": {"updateId": {"$ref": "#/$defs/id"}, "category": {"enum": ["platform", "market", "analysis", "portfolio", "tournament"]}, "title": {"type": "string", "minLength": 1, "maxLength": 300}, "summary": {"type": "string", "minLength": 1, "maxLength": 2000}, "occurredAt": {"type": "string", "format": "date-time"}, "subjectId": {"$ref": "#/$defs/id"}}}},
+        "nextPageToken": {"type": "string", "maxLength": 1024}
+      }
+    },
+    "tournamentsListRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "status"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "status": {"enum": ["open", "active", "completed", "all"]},
+        "pageSize": {"type": "integer", "minimum": 1, "maximum": 50},
+        "pageToken": {"type": "string", "maxLength": 1024}
+      }
+    },
+    "tournamentsListResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "tournaments"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "tournaments": {"type": "array", "maxItems": 50, "items": {"type": "object", "additionalProperties": false, "required": ["tournamentId", "name", "state", "opensAt", "closesAt", "simulated"], "properties": {"tournamentId": {"$ref": "#/$defs/id"}, "name": {"type": "string", "minLength": 1, "maxLength": 300}, "state": {"enum": ["open", "active", "completed"]}, "opensAt": {"type": "string", "format": "date-time"}, "closesAt": {"type": "string", "format": "date-time"}, "simulated": {"const": true}}}},
+        "nextPageToken": {"type": "string", "maxLength": 1024}
+      }
+    },
+    "tournamentContextRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "tournamentId"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "tournamentId": {"$ref": "#/$defs/id"}
+      }
+    },
+    "tournamentRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startingBalanceMinor", "currency", "allowedSymbols", "minimumQuantity", "maximumQuantity", "shortSellingAllowed", "opensAt", "closesAt"],
+      "properties": {
+        "startingBalanceMinor": {"type": "integer", "minimum": 0},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "allowedSymbols": {"type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": {"$ref": "#/$defs/symbol"}},
+        "minimumQuantity": {"type": "integer", "minimum": 1},
+        "maximumQuantity": {"type": "integer", "minimum": 1, "maximum": 100},
+        "shortSellingAllowed": {"type": "boolean"},
+        "opensAt": {"type": "string", "format": "date-time"},
+        "closesAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "tournamentContextResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "tournamentId", "state", "rules", "eligible", "simulated"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "tournamentId": {"$ref": "#/$defs/id"},
+        "state": {"enum": ["open", "active", "completed"]},
+        "rules": {"$ref": "#/$defs/tournamentRules"},
+        "eligible": {"type": "boolean"},
+        "ineligibilityCode": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,63}$"},
+        "simulated": {"const": true}
+      }
+    },
+    "analysisRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "instrumentId", "asOf", "horizon", "analysisTypes"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "instrumentId": {"$ref": "#/$defs/instrumentId"},
+        "asOf": {"type": "string", "format": "date-time"},
+        "horizon": {"enum": ["1d", "1w", "1m"]},
+        "analysisTypes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"enum": ["direction", "risk", "catalyst", "tournament_signal"]}
+        },
+        "tournamentId": {"$ref": "#/$defs/id"},
+        "contextArtifactIds": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"}
+        }
+      }
+    },
+    "analysisResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "artifactId", "taskId", "productId", "instrumentId", "asOf", "generatedAt", "horizon", "summary", "signals", "evidence", "contentHash"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "artifactId": {"$ref": "#/$defs/id"},
+        "taskId": {"$ref": "#/$defs/id"},
+        "productId": {"const": "divinr.analysis.demo.v2"},
+        "instrumentId": {"$ref": "#/$defs/instrumentId"},
+        "asOf": {"type": "string", "format": "date-time"},
+        "generatedAt": {"type": "string", "format": "date-time"},
+        "horizon": {"enum": ["1d", "1w", "1m"]},
+        "summary": {"type": "string", "minLength": 1, "maxLength": 8000},
+        "signals": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "direction", "confidenceBps", "rationale"],
+            "properties": {
+              "type": {"enum": ["direction", "risk", "catalyst", "tournament_signal"]},
+              "direction": {"enum": ["up", "down", "neutral", "not_applicable"]},
+              "confidenceBps": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "rationale": {"type": "string", "minLength": 1, "maxLength": 2000}
+            }
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["evidenceId", "title", "sourceType", "observedAt"],
+            "properties": {
+              "evidenceId": {"$ref": "#/$defs/id"},
+              "title": {"type": "string", "minLength": 1, "maxLength": 500},
+              "sourceType": {"enum": ["article", "market_data", "analysis", "risk_assessment", "tournament"]},
+              "observedAt": {"type": "string", "format": "date-time"},
+              "url": {"type": "string", "format": "uri", "maxLength": 2048}
+            }
+          }
+        },
+        "contentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "tournamentJoinRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "tournamentId", "ownerApprovalId"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "tournamentId": {"$ref": "#/$defs/id"},
+        "ownerApprovalId": {"$ref": "#/$defs/id"}
+      }
+    },
+    "tournamentJoinResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "entryId", "tournamentId", "state", "simulated", "occurredAt", "receiptJws"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "entryId": {"$ref": "#/$defs/id"},
+        "tournamentId": {"$ref": "#/$defs/id"},
+        "state": {"enum": ["accepted", "rejected", "expired"]},
+        "simulated": {"const": true},
+        "occurredAt": {"type": "string", "format": "date-time"},
+        "receiptJws": {"type": "string", "minLength": 32, "maxLength": 16384}
+      }
+    },
+    "tournamentTradeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "tournamentId", "instrumentId", "symbol", "direction", "quantity", "analysisArtifactId", "analysisArtifactHash", "ownerApprovalId"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "tournamentId": {"$ref": "#/$defs/id"},
+        "instrumentId": {"$ref": "#/$defs/instrumentId"},
+        "symbol": {"$ref": "#/$defs/symbol"},
+        "direction": {"enum": ["long", "short"]},
+        "quantity": {"type": "integer", "minimum": 1, "maximum": 100},
+        "analysisArtifactId": {"$ref": "#/$defs/id"},
+        "analysisArtifactHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "ownerApprovalId": {"$ref": "#/$defs/id"}
+      }
+    },
+    "tournamentTradeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "queueTradeId", "tournamentId", "instrumentId", "symbol", "state", "simulated", "occurredAt", "receiptJws"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "queueTradeId": {"$ref": "#/$defs/id"},
+        "tournamentId": {"$ref": "#/$defs/id"},
+        "instrumentId": {"$ref": "#/$defs/instrumentId"},
+        "symbol": {"$ref": "#/$defs/symbol"},
+        "state": {"enum": ["queued", "rejected", "expired"]},
+        "simulated": {"const": true},
+        "occurredAt": {"type": "string", "format": "date-time"},
+        "receiptJws": {"type": "string", "minLength": 32, "maxLength": 16384}
+      }
+    },
+    "constraintBase": {
+      "type": "object",
+      "required": ["namespace", "constraint_id", "type", "version", "scope", "critical", "value", "issuer", "subject"],
+      "properties": {
+        "namespace": {"const": "urn:golfergeek:agent-commerce:constraints:v0.2"},
+        "constraint_id": {"$ref": "#/$defs/id"},
+        "type": {"type": "string"},
+        "version": {"const": 1},
+        "scope": {"enum": ["checkout", "payment", "checkout/payment"]},
+        "critical": {"const": true},
+        "value": {"type": "object"},
+        "issuer": {"enum": ["owner", "apple_assistant", "divinr", "payment_authority"]},
+        "subject": {"$ref": "#/$defs/id"}
+      }
+    },
+    "stringSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/id"}
+    },
+    "amountLimitValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["atomic_amount", "asset", "unit"],
+      "properties": {
+        "atomic_amount": {"$ref": "#/$defs/atomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"}
+      }
+    },
+    "merchantAllowConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "merchant.allow"}, "scope": {"const": "checkout"}, "value": {"type": "object", "additionalProperties": false, "required": ["merchant_ids"], "properties": {"merchant_ids": {"$ref": "#/$defs/stringSet"}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "agentBindConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "agent.bind"}, "value": {"type": "object", "additionalProperties": false, "required": ["installation_id", "dpop_jkt"], "properties": {"installation_id": {"$ref": "#/$defs/id"}, "dpop_jkt": {"$ref": "#/$defs/sha256Base64Url"}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "skillAllowConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "skill.allow"}, "scope": {"const": "checkout"}, "value": {"type": "object", "additionalProperties": false, "required": ["skill_ids"], "properties": {"skill_ids": {"$ref": "#/$defs/stringSet"}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "productAllowConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "product.allow"}, "scope": {"const": "checkout"}, "value": {"type": "object", "additionalProperties": false, "required": ["product_ids"], "properties": {"product_ids": {"$ref": "#/$defs/stringSet"}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "assetAllowConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "payment.asset.allow"}, "scope": {"const": "payment"}, "value": {"type": "object", "additionalProperties": false, "required": ["assets"], "properties": {"assets": {"type": "array", "const": ["BTC-REGTEST"]}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "networkAllowConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "payment.network.allow"}, "scope": {"const": "payment"}, "value": {"type": "object", "additionalProperties": false, "required": ["networks"], "properties": {"networks": {"type": "array", "const": ["urn:golfergeek:x402:lightning-regtest:v0.2"]}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "methodAllowConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "payment.method.allow"}, "scope": {"const": "payment"}, "value": {"type": "object", "additionalProperties": false, "required": ["methods"], "properties": {"methods": {"type": "array", "const": ["exact"]}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "amountPerTransactionConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "amount.max_per_transaction"}, "value": {"$ref": "#/$defs/amountLimitValue"}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "cumulativeValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["atomic_amount", "asset", "unit", "window_start", "window_end", "counter_id"],
+      "properties": {
+        "atomic_amount": {"$ref": "#/$defs/atomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "window_start": {"type": "string", "format": "date-time"},
+        "window_end": {"type": "string", "format": "date-time"},
+        "counter_id": {"$ref": "#/$defs/id"}
+      }
+    },
+    "amountCumulativeConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "amount.max_cumulative"}, "value": {"$ref": "#/$defs/cumulativeValue"}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "countCumulativeConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "count.max_cumulative"}, "value": {"type": "object", "additionalProperties": false, "required": ["max_count", "window_start", "window_end", "counter_id"], "properties": {"max_count": {"type": "integer", "minimum": 0}, "window_start": {"type": "string", "format": "date-time"}, "window_end": {"type": "string", "format": "date-time"}, "counter_id": {"$ref": "#/$defs/id"}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "mandateValidityConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "mandate.validity"}, "value": {"type": "object", "additionalProperties": false, "required": ["not_before", "not_after"], "properties": {"not_before": {"type": "string", "format": "date-time"}, "not_after": {"type": "string", "format": "date-time"}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "quoteMaxAgeConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "quote.max_age"}, "scope": {"const": "checkout"}, "value": {"type": "object", "additionalProperties": false, "required": ["max_seconds"], "properties": {"max_seconds": {"type": "integer", "minimum": 1, "maximum": 120}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "receiptRequireConstraint": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "#/$defs/constraintBase"},
+        {"type": "object", "properties": {"type": {"const": "receipt.require"}, "value": {"type": "object", "additionalProperties": false, "required": ["types"], "properties": {"types": {"type": "array", "const": ["checkout", "payment", "service"]}}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "constraint": {
+      "oneOf": [
+        {"$ref": "#/$defs/merchantAllowConstraint"},
+        {"$ref": "#/$defs/agentBindConstraint"},
+        {"$ref": "#/$defs/skillAllowConstraint"},
+        {"$ref": "#/$defs/productAllowConstraint"},
+        {"$ref": "#/$defs/assetAllowConstraint"},
+        {"$ref": "#/$defs/networkAllowConstraint"},
+        {"$ref": "#/$defs/methodAllowConstraint"},
+        {"$ref": "#/$defs/amountPerTransactionConstraint"},
+        {"$ref": "#/$defs/amountCumulativeConstraint"},
+        {"$ref": "#/$defs/countCumulativeConstraint"},
+        {"$ref": "#/$defs/mandateValidityConstraint"},
+        {"$ref": "#/$defs/quoteMaxAgeConstraint"},
+        {"$ref": "#/$defs/receiptRequireConstraint"}
+      ]
+    },
+    "ap2ConstraintSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "constraints"],
+      "properties": {
+        "profile": {"const": "urn:golfergeek:profile:apple-divinr-commerce:v0.2"},
+        "constraints": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {"$ref": "#/$defs/constraint"}
+        }
+      }
+    },
+    "ap2OpenExtensionClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gg_profile", "gg_constraint_set", "gg_constraint_set_hash"],
+      "properties": {
+        "gg_profile": {"const": "urn:golfergeek:profile:apple-divinr-commerce:v0.2"},
+        "gg_constraint_set": {"$ref": "#/$defs/ap2ConstraintSet"},
+        "gg_constraint_set_hash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "ap2ClosedExtensionClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gg_profile", "gg_constraint_set_hash"],
+      "properties": {
+        "gg_profile": {"const": "urn:golfergeek:profile:apple-divinr-commerce:v0.2"},
+        "gg_constraint_set_hash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "signedQuote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "quoteId", "taskId", "merchantId", "skillId", "productId", "inputHash", "price", "settlement", "checkoutJwt", "checkoutNonce", "paymentNonce", "createdAt", "expiresAt", "keyId", "signature"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "quoteId": {"$ref": "#/$defs/id"},
+        "taskId": {"$ref": "#/$defs/id"},
+        "merchantId": {"const": "divinr"},
+        "skillId": {"$ref": "#/$defs/skillId"},
+        "productId": {"$ref": "#/$defs/productId"},
+        "inputHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "price": {"type": "object", "additionalProperties": false, "required": ["currency", "minorUnits", "display"], "properties": {"currency": {"const": "USD"}, "minorUnits": {"$ref": "#/$defs/priceMinorUnits"}, "display": {"enum": ["$0.01 demo price", "$0.02 demo price", "$0.03 demo price", "$0.04 demo price", "$0.05 demo price"]}}},
+        "settlement": {"type": "object", "additionalProperties": false, "required": ["amount", "asset", "unit", "network", "scheme", "invoice", "paymentHash"], "properties": {"amount": {"$ref": "#/$defs/productAtomicAmount"}, "asset": {"const": "BTC-REGTEST"}, "unit": {"const": "msat"}, "network": {"const": "urn:golfergeek:x402:lightning-regtest:v0.2"}, "scheme": {"const": "exact"}, "invoice": {"type": "string", "minLength": 16, "maxLength": 4096}, "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}}},
+        "checkoutJwt": {"type": "string", "minLength": 32, "maxLength": 32768},
+        "checkoutNonce": {"$ref": "#/$defs/id"},
+        "paymentNonce": {"$ref": "#/$defs/id"},
+        "createdAt": {"type": "string", "format": "date-time"},
+        "expiresAt": {"type": "string", "format": "date-time"},
+        "keyId": {"$ref": "#/$defs/id"},
+        "signature": {"type": "string", "pattern": "^[A-Za-z0-9_-]{86}$"}
+      },
+      "oneOf": [
+        {"properties": {"skillId": {"const": "general_updates"}, "productId": {"const": "divinr.general-updates.demo.v2"}, "price": {"type": "object", "properties": {"minorUnits": {"const": 1}, "display": {"const": "$0.01 demo price"}}}, "settlement": {"type": "object", "properties": {"amount": {"const": "10000"}}}}},
+        {"properties": {"skillId": {"const": "personal_updates"}, "productId": {"const": "divinr.personal-updates.demo.v2"}, "price": {"type": "object", "properties": {"minorUnits": {"const": 2}, "display": {"const": "$0.02 demo price"}}}, "settlement": {"type": "object", "properties": {"amount": {"const": "20000"}}}}},
+        {"properties": {"skillId": {"const": "tournaments_list"}, "productId": {"const": "divinr.tournaments-list.demo.v2"}, "price": {"type": "object", "properties": {"minorUnits": {"const": 1}, "display": {"const": "$0.01 demo price"}}}, "settlement": {"type": "object", "properties": {"amount": {"const": "10000"}}}}},
+        {"properties": {"skillId": {"const": "tournament_context"}, "productId": {"const": "divinr.tournament-context.demo.v2"}, "price": {"type": "object", "properties": {"minorUnits": {"const": 2}, "display": {"const": "$0.02 demo price"}}}, "settlement": {"type": "object", "properties": {"amount": {"const": "20000"}}}}},
+        {"properties": {"skillId": {"const": "analysis_request"}, "productId": {"const": "divinr.analysis.demo.v2"}, "price": {"type": "object", "properties": {"minorUnits": {"const": 5}, "display": {"const": "$0.05 demo price"}}}, "settlement": {"type": "object", "properties": {"amount": {"const": "50000"}}}}},
+        {"properties": {"skillId": {"const": "tournament_join"}, "productId": {"const": "divinr.tournament-join.demo.v2"}, "price": {"type": "object", "properties": {"minorUnits": {"const": 3}, "display": {"const": "$0.03 demo price"}}}, "settlement": {"type": "object", "properties": {"amount": {"const": "30000"}}}}},
+        {"properties": {"skillId": {"const": "tournament_trade"}, "productId": {"const": "divinr.tournament-trade.demo.v2"}, "price": {"type": "object", "properties": {"minorUnits": {"const": 4}, "display": {"const": "$0.04 demo price"}}}, "settlement": {"type": "object", "properties": {"amount": {"const": "40000"}}}}}
+      ]
+    },
+    "x402Accepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "network", "amount", "asset", "payTo", "maxTimeoutSeconds", "extra"],
+      "properties": {
+        "scheme": {"const": "exact"},
+        "network": {"const": "urn:golfergeek:x402:lightning-regtest:v0.2"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "payTo": {"const": "divinr"},
+        "maxTimeoutSeconds": {"const": 60},
+        "extra": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["unit", "invoice", "paymentHash", "quoteId", "quoteHash", "checkoutMandateHash", "paymentNonce"],
+          "properties": {
+            "unit": {"const": "msat"},
+            "invoice": {"type": "string", "minLength": 16, "maxLength": 4096},
+            "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+            "quoteId": {"$ref": "#/$defs/id"},
+            "quoteHash": {"$ref": "#/$defs/sha256Base64Url"},
+            "checkoutMandateHash": {"$ref": "#/$defs/sha256Base64Url"},
+            "paymentNonce": {"$ref": "#/$defs/id"}
+          }
+        }
+      }
+    },
+    "paymentRequired": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x402Version", "error", "resource", "accepts"],
+      "properties": {
+        "x402Version": {"const": 2},
+        "error": {"const": "PAYMENT_REQUIRED"},
+        "resource": {"type": "object", "additionalProperties": false, "required": ["url", "description", "mimeType"], "properties": {"url": {"const": "https://divinr.ai/a2a"}, "description": {"const": "Divinr paid business skill"}, "mimeType": {"const": "application/json"}}},
+        "accepts": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/x402Accepted"}}
+      }
+    },
+    "paymentPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x402Version", "resource", "accepted", "payload"],
+      "properties": {
+        "x402Version": {"const": 2},
+        "resource": {"type": "object", "additionalProperties": false, "required": ["url"], "properties": {"url": {"const": "https://divinr.ai/a2a"}}},
+        "accepted": {"$ref": "#/$defs/x402Accepted"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["paymentId", "paymentHash", "payerReceiptJws", "paymentMandateSdJwt"],
+          "properties": {
+            "paymentId": {"$ref": "#/$defs/id"},
+            "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+            "payerReceiptJws": {"type": "string", "minLength": 32, "maxLength": 32768},
+            "paymentMandateSdJwt": {"type": "string", "minLength": 32, "maxLength": 65536}
+          }
+        }
+      }
+    },
+    "settlementResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["success", "transaction", "network", "payer", "amount", "unit", "receiptJws"],
+      "properties": {
+        "success": {"const": true},
+        "transaction": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "network": {"const": "urn:golfergeek:x402:lightning-regtest:v0.2"},
+        "payer": {"const": "apple-assistant"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "unit": {"const": "msat"},
+        "receiptJws": {"type": "string", "minLength": 32, "maxLength": 32768}
+      }
+    },
+    "paymentRequiredMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x402.payment.status", "x402.payment.required", "golfergeek.quote", "golfergeek.intent", "golfergeek.baseIntentHash", "golfergeek.currentIntentHash"],
+      "properties": {
+        "x402.payment.status": {"const": "payment-required"},
+        "x402.payment.required": {"$ref": "#/$defs/paymentRequired"},
+        "golfergeek.quote": {"$ref": "#/$defs/signedQuote"},
+        "golfergeek.intent": {"$ref": "#/$defs/quotedCanonicalIntent"},
+        "golfergeek.baseIntentHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.currentIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "checkoutSubmittedMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["golfergeek.ap2.status", "golfergeek.checkoutMandateSdJwt", "golfergeek.checkoutMandateHash", "golfergeek.quoteHash", "golfergeek.intent", "golfergeek.baseIntentHash", "golfergeek.currentIntentHash"],
+      "properties": {
+        "golfergeek.ap2.status": {"const": "checkout-submitted"},
+        "golfergeek.checkoutMandateSdJwt": {"type": "string", "minLength": 32, "maxLength": 65536},
+        "golfergeek.checkoutMandateHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.quoteHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.intent": {"$ref": "#/$defs/checkoutSubmittedCanonicalIntent"},
+        "golfergeek.baseIntentHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.currentIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "checkoutApprovedMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["golfergeek.ap2.status", "golfergeek.checkoutReceiptJws", "golfergeek.checkoutReceiptHash", "x402.payment.status", "x402.payment.required", "golfergeek.intent", "golfergeek.baseIntentHash", "golfergeek.currentIntentHash"],
+      "properties": {
+        "golfergeek.ap2.status": {"const": "checkout-approved"},
+        "golfergeek.checkoutReceiptJws": {"type": "string", "minLength": 32, "maxLength": 32768},
+        "golfergeek.checkoutReceiptHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "x402.payment.status": {"const": "payment-required"},
+        "x402.payment.required": {"$ref": "#/$defs/paymentRequired"},
+        "golfergeek.intent": {"$ref": "#/$defs/checkoutApprovedCanonicalIntent"},
+        "golfergeek.baseIntentHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.currentIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "paymentSubmittedMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x402.payment.status", "x402.payment.payload", "golfergeek.checkoutMandateSdJwt", "golfergeek.checkoutReceiptJws", "golfergeek.checkoutReceiptHash", "golfergeek.intent", "golfergeek.baseIntentHash", "golfergeek.currentIntentHash"],
+      "properties": {
+        "x402.payment.status": {"const": "payment-submitted"},
+        "x402.payment.payload": {"$ref": "#/$defs/paymentPayload"},
+        "golfergeek.checkoutMandateSdJwt": {"type": "string", "minLength": 32, "maxLength": 65536},
+        "golfergeek.checkoutReceiptJws": {"type": "string", "minLength": 32, "maxLength": 32768},
+        "golfergeek.checkoutReceiptHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.intent": {"$ref": "#/$defs/paymentAuthorizedCanonicalIntent"},
+        "golfergeek.baseIntentHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.currentIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "paymentCompletedMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x402.payment.status", "x402.payment.receipts", "golfergeek.checkoutReceiptJws", "golfergeek.serviceReceiptJws", "golfergeek.intent", "golfergeek.baseIntentHash", "golfergeek.currentIntentHash"],
+      "properties": {
+        "x402.payment.status": {"const": "payment-completed"},
+        "x402.payment.receipts": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/settlementResponse"}},
+        "golfergeek.checkoutReceiptJws": {"type": "string", "minLength": 32, "maxLength": 32768},
+        "golfergeek.serviceReceiptJws": {"type": "string", "minLength": 32, "maxLength": 32768},
+        "golfergeek.intent": {"$ref": "#/$defs/paymentAuthorizedCanonicalIntent"},
+        "golfergeek.baseIntentHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.currentIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "checkoutClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["iss", "aud", "iat", "exp", "jti", "order_id", "merchant", "line_items", "total_price_minor", "currency", "quote_id", "input_hash"],
+      "properties": {
+        "iss": {"const": "https://divinr.ai"},
+        "aud": {"const": "https://divinr.ai/a2a"},
+        "iat": {"type": "integer", "minimum": 0},
+        "exp": {"type": "integer", "minimum": 0},
+        "jti": {"$ref": "#/$defs/id"},
+        "order_id": {"$ref": "#/$defs/id"},
+        "merchant": {"type": "object", "additionalProperties": false, "required": ["id", "name", "website"], "properties": {"id": {"const": "divinr"}, "name": {"const": "Divinr"}, "website": {"const": "https://divinr.ai"}}},
+        "line_items": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["id", "product_id", "title", "quantity", "unit_price_minor", "currency"], "properties": {"id": {"$ref": "#/$defs/id"}, "product_id": {"$ref": "#/$defs/productId"}, "title": {"enum": ["Divinr general updates", "Divinr personal updates", "Divinr tournament listing", "Divinr tournament context", "Divinr analysis", "Divinr tournament join", "Divinr simulated tournament trade"]}, "quantity": {"const": 1}, "unit_price_minor": {"$ref": "#/$defs/priceMinorUnits"}, "currency": {"const": "USD"}}}},
+        "total_price_minor": {"$ref": "#/$defs/priceMinorUnits"},
+        "currency": {"const": "USD"},
+        "quote_id": {"$ref": "#/$defs/id"},
+        "input_hash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "checkoutReceiptClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "iss", "aud", "iat", "jti", "reference", "order_id", "taskId", "quoteHash", "productId"],
+      "properties": {
+        "status": {"const": "Success"},
+        "iss": {"const": "https://divinr.ai"},
+        "aud": {"const": "apple-assistant-native-v1"},
+        "iat": {"type": "integer", "minimum": 0},
+        "jti": {"$ref": "#/$defs/id"},
+        "reference": {"$ref": "#/$defs/sha256Base64Url"},
+        "order_id": {"$ref": "#/$defs/id"},
+        "taskId": {"$ref": "#/$defs/id"},
+        "quoteHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "productId": {"$ref": "#/$defs/productId"}
+      }
+    },
+    "paymentReceiptClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "iss", "aud", "iat", "jti", "reference", "payment_id", "psp_confirmation_id", "network_confirmation_id", "invoiceHash", "amount", "asset", "unit", "network"],
+      "properties": {
+        "status": {"const": "Success"},
+        "iss": {"const": "urn:golfergeek:spark:payer"},
+        "aud": {"const": "apple-assistant-native-v1"},
+        "iat": {"type": "integer", "minimum": 0},
+        "jti": {"$ref": "#/$defs/id"},
+        "reference": {"$ref": "#/$defs/sha256Base64Url"},
+        "payment_id": {"$ref": "#/$defs/id"},
+        "psp_confirmation_id": {"$ref": "#/$defs/id"},
+        "network_confirmation_id": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "invoiceHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "network": {"const": "urn:golfergeek:x402:lightning-regtest:v0.2"}
+      }
+    },
+    "serviceReceiptClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "iss", "aud", "iat", "exp", "jti", "taskId", "requestId", "productId", "amount", "quoteHash", "checkoutMandateHash", "paymentReceiptHash", "settlementId", "artifactId", "artifactHash", "status"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "iss": {"const": "https://divinr.ai"},
+        "aud": {"const": "apple-assistant-native-v1"},
+        "iat": {"type": "integer", "minimum": 0},
+        "exp": {"type": "integer", "minimum": 0},
+        "jti": {"$ref": "#/$defs/id"},
+        "taskId": {"$ref": "#/$defs/id"},
+        "requestId": {"$ref": "#/$defs/id"},
+        "productId": {"$ref": "#/$defs/productId"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "quoteHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "checkoutMandateHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "paymentReceiptHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "settlementId": {"$ref": "#/$defs/id"},
+        "artifactId": {"$ref": "#/$defs/id"},
+        "artifactHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "status": {"const": "Success"}
+      }
+    },
+    "refundReceiptClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "iss", "aud", "iat", "jti", "originalPaymentId", "originalPaymentHash", "refundPaymentHash", "amount", "asset", "unit", "reason", "status"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "iss": {"const": "https://divinr.ai"},
+        "aud": {"const": "apple-assistant-native-v1"},
+        "iat": {"type": "integer", "minimum": 0},
+        "jti": {"$ref": "#/$defs/id"},
+        "originalPaymentId": {"$ref": "#/$defs/id"},
+        "originalPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "refundPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "reason": {"enum": ["DUPLICATE_CHARGE", "SERVICE_NOT_DELIVERED", "PRODUCT_MISMATCH", "AMOUNT_MISMATCH"]},
+        "status": {"const": "Success"}
+      }
+    },
+    "errorEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "errorId", "code", "message", "retryable", "occurredAt"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "errorId": {"$ref": "#/$defs/id"},
+        "code": {"enum": ["AUTH_REQUIRED", "AUTH_SIGNATURE_REQUIRED", "AUTH_SIGNATURE_INVALID", "APPROVAL_REQUIRED", "APPROVAL_INVALID", "MANDATE_REQUIRED", "TOKEN_EXPIRED", "TOKEN_INVALID", "CREDENTIAL_REVOKED", "CREDENTIAL_RECOVERY_REQUIRED", "REQUEST_REPLAY", "DPOP_KEY_MISMATCH", "DPOP_NONCE_REQUIRED", "DPOP_PROOF_REQUIRED", "DPOP_PROOF_INVALID", "DPOP_REPLAY", "SCOPE_INSUFFICIENT", "ORIGIN_NOT_ALLOWED", "CAPABILITY_NOT_ALLOWED", "DESTINATION_NOT_ALLOWED", "DESTINATION_TIMEOUT", "SKILL_NOT_FOUND", "SKILL_NOT_ALLOWED", "RESOURCE_NOT_FOUND", "RESOURCE_NOT_ALLOWED", "POLICY_NOT_FOUND", "BODY_TOO_LARGE", "RATE_LIMIT_EXCEEDED", "SCHEMA_INVALID", "MANDATE_INVALID", "MANDATE_EXPIRED", "MANDATE_CONSTRAINT_UNKNOWN", "MANDATE_CONSTRAINT_VIOLATION", "CALL_LIMIT_EXCEEDED", "COUNT_LIMIT_EXCEEDED", "BUDGET_EXCEEDED", "PRICE_LIMIT_EXCEEDED", "INSUFFICIENT_BALANCE", "PAYMENT_AUTHORITY_UNAVAILABLE", "DESTINATION_UNHEALTHY", "CIRCUIT_BREAKER_OPEN", "QUOTE_EXPIRED", "APPROVAL_EXPIRED", "RETRY_SUPPRESSED", "IDEMPOTENCY_CONFLICT", "TOURNAMENT_WINDOW_EXPIRED", "ACTION_CONSTRAINT_VIOLATION", "PAYMENT_REQUIRED", "PAYMENT_INVALID", "PAYMENT_ASSET_DENIED", "PAYMENT_NETWORK_DENIED", "PAYMENT_PENDING", "PAYMENT_OUTCOME_UNKNOWN", "PAYMENT_ALREADY_SETTLED", "SERVICE_NOT_DELIVERED", "PRODUCT_MISMATCH", "AMOUNT_MISMATCH", "DUPLICATE_CHARGE", "REFUND_PENDING", "PUSH_DUPLICATE"]},
+        "message": {"type": "string", "minLength": 1, "maxLength": 500},
+        "retryable": {"type": "boolean"},
+        "retryAfterSeconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+        "doNotRetryBefore": {"type": "string", "format": "date-time"},
+        "requestId": {"$ref": "#/$defs/id"},
+        "taskId": {"$ref": "#/$defs/id"},
+        "paymentState": {"enum": ["not_requested", "not_settled", "unknown", "settled", "refunded"]},
+        "occurredAt": {"type": "string", "format": "date-time"}
+      },
+      "allOf": [
+        {"if": {"type": "object", "required": ["retryable"], "properties": {"retryable": {"const": true}}}, "then": {"type": "object", "required": ["doNotRetryBefore"], "properties": {"doNotRetryBefore": true}}},
+        {"if": {"type": "object", "required": ["paymentState"], "properties": {"paymentState": {"const": "unknown"}}}, "then": {"type": "object", "properties": {"retryable": {"const": false}}}}
+      ]
+    },
+    "taskUpdatedPushData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["taskId", "taskState", "paymentState", "updatedAt"],
+      "properties": {"taskId": {"$ref": "#/$defs/id"}, "taskState": {"enum": ["submitted", "working", "input_required", "completed", "failed", "canceled", "rejected"]}, "paymentState": {"enum": ["not_requested", "required", "submitted", "settled", "failed", "unknown", "refunded"]}, "updatedAt": {"type": "string", "format": "date-time"}}
+    },
+    "resultReadyPushData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["taskId", "artifactId", "artifactHash", "productId"],
+      "properties": {"taskId": {"$ref": "#/$defs/id"}, "artifactId": {"$ref": "#/$defs/id"}, "artifactHash": {"$ref": "#/$defs/sha256Base64Url"}, "productId": {"$ref": "#/$defs/productId"}}
+    },
+    "tournamentUpdatedPushData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tournamentId", "state", "updatedAt"],
+      "properties": {"tournamentId": {"$ref": "#/$defs/id"}, "state": {"enum": ["open", "active", "completed", "archived"]}, "updatedAt": {"type": "string", "format": "date-time"}}
+    },
+    "paymentActionRequiredPushData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["taskId", "action", "expiresAt"],
+      "properties": {"taskId": {"$ref": "#/$defs/id"}, "action": {"enum": ["checkout_authorization", "payment_authorization", "refund_invoice"]}, "quoteId": {"$ref": "#/$defs/id"}, "expiresAt": {"type": "string", "format": "date-time"}}
+    },
+    "paymentSettledPushData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["paymentId", "paymentHash", "amount", "asset", "unit", "settledAt"],
+      "properties": {"paymentId": {"$ref": "#/$defs/id"}, "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}, "amount": {"$ref": "#/$defs/productAtomicAmount"}, "asset": {"const": "BTC-REGTEST"}, "unit": {"const": "msat"}, "settledAt": {"type": "string", "format": "date-time"}}
+    },
+    "paymentFailedPushData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["paymentId", "code", "paymentState", "occurredAt"],
+      "properties": {"paymentId": {"$ref": "#/$defs/id"}, "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,63}$"}, "paymentState": {"enum": ["failed", "unknown"]}, "occurredAt": {"type": "string", "format": "date-time"}}
+    },
+    "receiptReadyPushData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["receiptId", "receiptType", "receiptHash"],
+      "properties": {"receiptId": {"$ref": "#/$defs/id"}, "receiptType": {"enum": ["checkout", "payment", "service", "refund"]}, "receiptHash": {"$ref": "#/$defs/sha256Base64Url"}}
+    },
+    "retryChangedPushData": {
+      "type": "object", "additionalProperties": false,
+      "required": ["taskId", "retryable"],
+      "properties": {"taskId": {"$ref": "#/$defs/id"}, "retryable": {"type": "boolean"}, "doNotRetryBefore": {"type": "string", "format": "date-time"}}
+    },
+    "pushEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "eventId", "issuer", "audience", "eventType", "subject", "issuedAt", "expiresAt", "nonce", "dataHash", "data"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "eventId": {"$ref": "#/$defs/id"},
+        "issuer": {"const": "https://divinr.ai"},
+        "audience": {"const": "apple-assistant"},
+        "eventType": {"enum": ["task.updated", "result.ready", "tournament.updated", "payment.action_required", "payment.settled", "payment.failed", "receipt.ready", "retry.changed"]},
+        "subject": {"type": "object", "additionalProperties": false, "required": ["type", "id"], "properties": {"type": {"enum": ["task", "result", "tournament", "payment", "receipt"]}, "id": {"$ref": "#/$defs/id"}}},
+        "issuedAt": {"type": "string", "format": "date-time"},
+        "expiresAt": {"type": "string", "format": "date-time"},
+        "nonce": {"$ref": "#/$defs/id"},
+        "dataHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "data": {"oneOf": [{"$ref": "#/$defs/taskUpdatedPushData"}, {"$ref": "#/$defs/resultReadyPushData"}, {"$ref": "#/$defs/tournamentUpdatedPushData"}, {"$ref": "#/$defs/paymentActionRequiredPushData"}, {"$ref": "#/$defs/paymentSettledPushData"}, {"$ref": "#/$defs/paymentFailedPushData"}, {"$ref": "#/$defs/receiptReadyPushData"}, {"$ref": "#/$defs/retryChangedPushData"}]}
+      },
+      "oneOf": [
+        {"properties": {"eventType": {"const": "task.updated"}, "subject": {"type": "object", "properties": {"type": {"const": "task"}}}, "data": {"$ref": "#/$defs/taskUpdatedPushData"}}},
+        {"properties": {"eventType": {"const": "result.ready"}, "subject": {"type": "object", "properties": {"type": {"const": "result"}}}, "data": {"$ref": "#/$defs/resultReadyPushData"}}},
+        {"properties": {"eventType": {"const": "tournament.updated"}, "subject": {"type": "object", "properties": {"type": {"const": "tournament"}}}, "data": {"$ref": "#/$defs/tournamentUpdatedPushData"}}},
+        {"properties": {"eventType": {"const": "payment.action_required"}, "subject": {"type": "object", "properties": {"type": {"const": "payment"}}}, "data": {"$ref": "#/$defs/paymentActionRequiredPushData"}}},
+        {"properties": {"eventType": {"const": "payment.settled"}, "subject": {"type": "object", "properties": {"type": {"const": "payment"}}}, "data": {"$ref": "#/$defs/paymentSettledPushData"}}},
+        {"properties": {"eventType": {"const": "payment.failed"}, "subject": {"type": "object", "properties": {"type": {"const": "payment"}}}, "data": {"$ref": "#/$defs/paymentFailedPushData"}}},
+        {"properties": {"eventType": {"const": "receipt.ready"}, "subject": {"type": "object", "properties": {"type": {"const": "receipt"}}}, "data": {"$ref": "#/$defs/receiptReadyPushData"}}},
+        {"properties": {"eventType": {"const": "retry.changed"}, "subject": {"type": "object", "properties": {"type": {"const": "task"}}}, "data": {"$ref": "#/$defs/retryChangedPushData"}}}
+      ]
+    },
+    "inboundAgentMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "capability", "message", "sentAt"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "capability": {"enum": ["message", "contact_request", "task_proposal"]},
+        "conversationId": {"$ref": "#/$defs/id"},
+        "message": {"type": "string", "minLength": 1, "maxLength": 32768},
+        "sentAt": {"type": "string", "format": "date-time"},
+        "replyContext": {"type": "object", "additionalProperties": false, "required": ["inReplyTo"], "properties": {"inReplyTo": {"$ref": "#/$defs/id"}}}
+      }
+    },
+    "ingressAcknowledgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "ackId", "requestId", "status", "receivedAt"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "ackId": {"$ref": "#/$defs/id"},
+        "requestId": {"$ref": "#/$defs/id"},
+        "status": {"enum": ["accepted", "duplicate"]},
+        "receivedAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "payerPrepareRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "installationId", "quoteHash", "checkoutReceiptJws", "checkoutReceiptHash", "invoice", "paymentHash", "amount", "asset", "unit", "network", "paymentMandateSdJwt", "paymentMandateHash"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "installationId": {"$ref": "#/$defs/id"},
+        "quoteHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "checkoutReceiptJws": {"type": "string", "minLength": 32, "maxLength": 32768},
+        "checkoutReceiptHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "invoice": {"type": "string", "minLength": 16, "maxLength": 4096},
+        "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "network": {"const": "urn:golfergeek:x402:lightning-regtest:v0.2"},
+        "paymentMandateSdJwt": {"type": "string", "minLength": 32, "maxLength": 65536},
+        "paymentMandateHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "payerExecuteRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "paymentRequestId", "expectedLockVersion"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "paymentRequestId": {"$ref": "#/$defs/id"},
+        "expectedLockVersion": {"type": "integer", "minimum": 1}
+      }
+    },
+    "payerPrepareResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "paymentRequestId", "state", "lockVersion", "reservationIds", "expiresAt"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "paymentRequestId": {"$ref": "#/$defs/id"},
+        "state": {"const": "prepared"},
+        "lockVersion": {"type": "integer", "minimum": 1},
+        "reservationIds": {"type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "expiresAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "payerPaymentStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "paymentRequestId", "state", "paymentHash", "amount", "asset", "unit", "updatedAt", "lockVersion"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "paymentRequestId": {"$ref": "#/$defs/id"},
+        "state": {"enum": ["prepared", "paying", "settled", "failed", "unknown", "reconciled", "refunded"]},
+        "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "routingFeeMsat": {"$ref": "#/$defs/atomicAmount"},
+        "safeFailureCode": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,63}$"},
+        "receiptJws": {"type": "string", "minLength": 32, "maxLength": 32768},
+        "updatedAt": {"type": "string", "format": "date-time"},
+        "lockVersion": {"type": "integer", "minimum": 1}
+      }
+    },
+    "balanceResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "nodeId", "network", "blockHeight", "synchronized", "channels", "observedAt", "evidenceHash"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "nodeId": {"$ref": "#/$defs/id"},
+        "network": {"const": "urn:golfergeek:x402:lightning-regtest:v0.2"},
+        "blockHeight": {"type": "integer", "minimum": 0},
+        "synchronized": {"type": "boolean"},
+        "channels": {"type": "array", "maxItems": 100, "items": {"type": "object", "additionalProperties": false, "required": ["channelId", "localMsat", "remoteMsat", "pendingMsat", "active"], "properties": {"channelId": {"$ref": "#/$defs/id"}, "localMsat": {"$ref": "#/$defs/atomicAmount"}, "remoteMsat": {"$ref": "#/$defs/atomicAmount"}, "pendingMsat": {"$ref": "#/$defs/atomicAmount"}, "active": {"type": "boolean"}}}},
+        "observedAt": {"type": "string", "format": "date-time"},
+        "evidenceHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "merchantInvoiceRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "taskId", "quoteId", "productId", "amount", "asset", "unit", "expiresAt"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "taskId": {"$ref": "#/$defs/id"},
+        "quoteId": {"$ref": "#/$defs/id"},
+        "productId": {"$ref": "#/$defs/productId"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "expiresAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "merchantInvoiceResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "invoiceId", "invoice", "paymentHash", "amount", "asset", "unit", "expiresAt"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "invoiceId": {"$ref": "#/$defs/id"},
+        "invoice": {"type": "string", "minLength": 16, "maxLength": 4096},
+        "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "expiresAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "refundRequiredMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["golfergeek.refund.status", "golfergeek.refund.reason", "golfergeek.originalPaymentId", "golfergeek.originalPaymentHash", "golfergeek.intent", "golfergeek.baseIntentHash", "golfergeek.currentIntentHash"],
+      "properties": {
+        "golfergeek.refund.status": {"const": "refund-required"},
+        "golfergeek.refund.reason": {"enum": ["DUPLICATE_CHARGE", "SERVICE_NOT_DELIVERED", "PRODUCT_MISMATCH", "AMOUNT_MISMATCH"]},
+        "golfergeek.originalPaymentId": {"$ref": "#/$defs/id"},
+        "golfergeek.originalPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "golfergeek.intent": {"$ref": "#/$defs/paymentAuthorizedCanonicalIntent"},
+        "golfergeek.baseIntentHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.currentIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "refundInvoiceRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "originalPaymentId", "originalPaymentHash", "amount", "asset", "unit", "expiresAt", "reason"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "originalPaymentId": {"$ref": "#/$defs/id"},
+        "originalPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "expiresAt": {"type": "string", "format": "date-time"},
+        "reason": {"enum": ["DUPLICATE_CHARGE", "SERVICE_NOT_DELIVERED", "PRODUCT_MISMATCH", "AMOUNT_MISMATCH"]}
+      }
+    },
+    "refundInvoiceResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "refundId", "originalPaymentId", "invoice", "refundPaymentHash", "amount", "asset", "unit", "expiresAt", "state"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "refundId": {"$ref": "#/$defs/id"},
+        "originalPaymentId": {"$ref": "#/$defs/id"},
+        "invoice": {"type": "string", "minLength": 16, "maxLength": 4096},
+        "refundPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "expiresAt": {"type": "string", "format": "date-time"},
+        "state": {"const": "invoice_created"}
+      }
+    },
+    "refundSubmittedMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["golfergeek.refund.status", "golfergeek.refundId", "golfergeek.refund.reason", "golfergeek.originalPaymentId", "golfergeek.originalPaymentHash", "golfergeek.refundInvoice", "golfergeek.refundPaymentHash", "golfergeek.amount", "golfergeek.asset", "golfergeek.unit", "golfergeek.expiresAt", "golfergeek.intent", "golfergeek.baseIntentHash", "golfergeek.currentIntentHash"],
+      "properties": {
+        "golfergeek.refund.status": {"const": "refund-submitted"},
+        "golfergeek.refundId": {"$ref": "#/$defs/id"},
+        "golfergeek.refund.reason": {"enum": ["DUPLICATE_CHARGE", "SERVICE_NOT_DELIVERED", "PRODUCT_MISMATCH", "AMOUNT_MISMATCH"]},
+        "golfergeek.originalPaymentId": {"$ref": "#/$defs/id"},
+        "golfergeek.originalPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "golfergeek.refundInvoice": {"type": "string", "minLength": 16, "maxLength": 4096},
+        "golfergeek.refundPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "golfergeek.amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "golfergeek.asset": {"const": "BTC-REGTEST"},
+        "golfergeek.unit": {"const": "msat"},
+        "golfergeek.expiresAt": {"type": "string", "format": "date-time"},
+        "golfergeek.intent": {"$ref": "#/$defs/paymentAuthorizedCanonicalIntent"},
+        "golfergeek.baseIntentHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.currentIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "refundCompletedMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["golfergeek.refund.status", "golfergeek.originalPaymentHash", "golfergeek.refundPaymentHash", "golfergeek.refundReceiptJws", "golfergeek.refundReceiptHash", "golfergeek.intent", "golfergeek.baseIntentHash", "golfergeek.currentIntentHash"],
+      "properties": {
+        "golfergeek.refund.status": {"const": "refund-completed"},
+        "golfergeek.originalPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "golfergeek.refundPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "golfergeek.refundReceiptJws": {"type": "string", "minLength": 32, "maxLength": 32768},
+        "golfergeek.refundReceiptHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.intent": {"$ref": "#/$defs/paymentAuthorizedCanonicalIntent"},
+        "golfergeek.baseIntentHash": {"$ref": "#/$defs/sha256Base64Url"},
+        "golfergeek.currentIntentHash": {"$ref": "#/$defs/sha256Base64Url"}
+      }
+    },
+    "refundPayRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "idempotencyKey", "refundId", "originalPaymentId", "originalPaymentHash", "refundInvoice", "refundPaymentHash", "amount", "asset", "unit", "reason"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "requestId": {"$ref": "#/$defs/id"},
+        "idempotencyKey": {"$ref": "#/$defs/id"},
+        "refundId": {"$ref": "#/$defs/id"},
+        "originalPaymentId": {"$ref": "#/$defs/id"},
+        "originalPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "refundInvoice": {"type": "string", "minLength": 16, "maxLength": 4096},
+        "refundPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+        "amount": {"$ref": "#/$defs/productAtomicAmount"},
+        "asset": {"const": "BTC-REGTEST"},
+        "unit": {"const": "msat"},
+        "reason": {"enum": ["DUPLICATE_CHARGE", "SERVICE_NOT_DELIVERED", "PRODUCT_MISMATCH", "AMOUNT_MISMATCH"]}
+      }
+    },
+    "agentCardSkill": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "description", "tags", "inputModes", "outputModes", "securityRequirements"],
+      "properties": {"id": {"$ref": "#/$defs/skillId"}, "name": {"type": "string", "minLength": 1, "maxLength": 120}, "description": {"type": "string", "minLength": 1, "maxLength": 1000}, "tags": {"type": "array", "minItems": 1, "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 40}}, "examples": {"type": "array", "maxItems": 5, "items": {"type": "string", "minLength": 1, "maxLength": 500}}, "inputModes": {"type": "array", "const": ["application/json"]}, "outputModes": {"type": "array", "const": ["application/json"]}, "securityRequirements": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["schemes"], "properties": {"schemes": {"type": "object", "additionalProperties": false, "required": ["oauth-dpop"], "properties": {"oauth-dpop": {"type": "object", "additionalProperties": false, "required": ["list"], "properties": {"list": {"type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": {"type": "string"}}}}}}}}}},
+      "allOf": [
+        {"if": {"properties": {"id": {"enum": ["general_updates", "personal_updates"]}}}, "then": {"properties": {"securityRequirements": {"const": [{"schemes": {"oauth-dpop": {"list": ["updates:read", "commerce:purchase", "receipts:read"]}}}]}}}},
+        {"if": {"properties": {"id": {"enum": ["tournaments_list", "tournament_context"]}}}, "then": {"properties": {"securityRequirements": {"const": [{"schemes": {"oauth-dpop": {"list": ["tournaments:read", "commerce:purchase", "receipts:read"]}}}]}}}},
+        {"if": {"properties": {"id": {"const": "analysis_request"}}}, "then": {"properties": {"securityRequirements": {"const": [{"schemes": {"oauth-dpop": {"list": ["analysis:purchase", "commerce:purchase", "receipts:read"]}}}]}}}},
+        {"if": {"properties": {"id": {"const": "tournament_join"}}}, "then": {"properties": {"securityRequirements": {"const": [{"schemes": {"oauth-dpop": {"list": ["tournaments:join", "commerce:purchase", "receipts:read"]}}}]}}}},
+        {"if": {"properties": {"id": {"const": "tournament_trade"}}}, "then": {"properties": {"securityRequirements": {"const": [{"schemes": {"oauth-dpop": {"list": ["tournaments:trade", "commerce:purchase", "receipts:read"]}}}]}}}}
+      ]
+    },
+    "agentCardResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "supportedInterfaces", "provider", "version", "capabilities", "securitySchemes", "securityRequirements", "defaultInputModes", "defaultOutputModes", "skills", "signatures"],
+      "properties": {
+        "name": {"const": "Divinr"},
+        "description": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "supportedInterfaces": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["url", "protocolBinding", "protocolVersion"], "properties": {"url": {"const": "https://divinr.ai/a2a"}, "protocolBinding": {"const": "JSONRPC"}, "protocolVersion": {"const": "1.0"}}}},
+        "provider": {"type": "object", "additionalProperties": false, "required": ["url", "organization"], "properties": {"url": {"const": "https://divinr.ai"}, "organization": {"const": "Divinr"}}},
+        "version": {"const": "0.2.0"},
+        "documentationUrl": {"type": "string", "format": "uri", "maxLength": 2048},
+        "capabilities": {"type": "object", "additionalProperties": false, "required": ["streaming", "pushNotifications", "extendedAgentCard", "extensions"], "properties": {"streaming": {"const": false}, "pushNotifications": {"const": false}, "extendedAgentCard": {"const": false}, "extensions": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["uri", "description", "required", "params"], "properties": {"uri": {"const": "urn:golfergeek:a2a:x402-lightning-regtest:v0.2"}, "description": {"type": "string", "minLength": 1, "maxLength": 500}, "required": {"const": false}, "params": {"const": {"profile": "urn:golfergeek:profile:apple-divinr-commerce:v0.2", "requiredForSkills": ["general_updates", "personal_updates", "tournaments_list", "tournament_context", "analysis_request", "tournament_join", "tournament_trade"], "skillSchemas": {"general_updates": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesResult"}, "personal_updates": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesResult"}, "tournaments_list": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentsListRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentsListResult"}, "tournament_context": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentContextRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentContextResult"}, "analysis_request": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/analysisRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/analysisResult"}, "tournament_join": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentJoinRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentJoinResult"}, "tournament_trade": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentTradeRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentTradeResult"}}}}}}}}},
+        "securitySchemes": {"type": "object", "additionalProperties": false, "required": ["oauth-dpop"], "properties": {"oauth-dpop": {"type": "object", "additionalProperties": false, "required": ["oauth2SecurityScheme"], "properties": {"oauth2SecurityScheme": {"type": "object", "additionalProperties": false, "required": ["description", "flows", "oauth2MetadataUrl"], "properties": {"description": {"type": "string", "minLength": 1, "maxLength": 500}, "oauth2MetadataUrl": {"const": "https://divinr.ai/.well-known/oauth-authorization-server"}, "flows": {"type": "object", "additionalProperties": false, "required": ["deviceCode"], "properties": {"deviceCode": {"type": "object", "additionalProperties": false, "required": ["deviceAuthorizationUrl", "tokenUrl", "refreshUrl", "scopes"], "properties": {"deviceAuthorizationUrl": {"const": "https://divinr.ai/oauth/device_authorization"}, "tokenUrl": {"const": "https://divinr.ai/oauth/token"}, "refreshUrl": {"const": "https://divinr.ai/oauth/token"}, "scopes": {"type": "object", "additionalProperties": false, "required": ["analysis:purchase", "commerce:purchase", "receipts:read", "tournaments:join", "tournaments:read", "tournaments:trade", "updates:read"], "properties": {"analysis:purchase": {"type": "string"}, "commerce:purchase": {"type": "string"}, "receipts:read": {"type": "string"}, "tournaments:join": {"type": "string"}, "tournaments:read": {"type": "string"}, "tournaments:trade": {"type": "string"}, "updates:read": {"type": "string"}}}}}}}}}}}}},
+        "securityRequirements": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["schemes"], "properties": {"schemes": {"type": "object", "additionalProperties": false, "required": ["oauth-dpop"], "properties": {"oauth-dpop": {"type": "object", "additionalProperties": false, "required": ["list"], "properties": {"list": {"type": "array", "const": []}}}}}}}},
+        "defaultInputModes": {"type": "array", "const": ["application/json"]},
+        "defaultOutputModes": {"type": "array", "const": ["application/json"]},
+        "skills": {"type": "array", "minItems": 7, "maxItems": 7, "items": {"$ref": "#/$defs/agentCardSkill"}, "allOf": [{"contains": {"properties": {"id": {"const": "general_updates"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"id": {"const": "personal_updates"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"id": {"const": "tournaments_list"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"id": {"const": "tournament_context"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"id": {"const": "analysis_request"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"id": {"const": "tournament_join"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"id": {"const": "tournament_trade"}}}, "minContains": 1, "maxContains": 1}]},
+        "signatures": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["protected", "signature"], "properties": {"protected": {"type": "string", "minLength": 16, "maxLength": 1024}, "signature": {"type": "string", "pattern": "^[A-Za-z0-9_-]{86}$"}}}}
+      }
+    },
+    "emptyResponse": {"type": "null"},
+    "healthResponse": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schemaVersion", "service", "status", "network", "observedAt"],
+      "properties": {"schemaVersion": {"const": 2}, "service": {"enum": ["spark-payer", "spark-payer-verifier", "spark-merchant"]}, "status": {"enum": ["ready", "degraded", "unavailable"]}, "network": {"const": "urn:golfergeek:x402:lightning-regtest:v0.2"}, "observedAt": {"type": "string", "format": "date-time"}}
+    },
+    "jwksResponse": {
+      "type": "object", "additionalProperties": false, "required": ["keys"],
+      "properties": {"keys": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"type": "object", "additionalProperties": false, "required": ["kty", "crv", "x", "y", "use", "alg", "kid", "gg_role"], "properties": {"kty": {"const": "EC"}, "crv": {"const": "P-256"}, "x": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "y": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "use": {"const": "sig"}, "alg": {"const": "ES256"}, "kid": {"$ref": "#/$defs/id"}, "gg_role": {"enum": ["agent-card", "oauth-access-token", "checkout", "quote", "checkout-receipt", "payment-receipt", "service-receipt", "refund-receipt", "push", "settlement"]}}}}}
+    },
+    "oauthAuthorizationServerMetadata": {
+      "type": "object", "additionalProperties": false,
+      "required": ["issuer", "device_authorization_endpoint", "token_endpoint", "revocation_endpoint", "jwks_uri", "grant_types_supported", "token_endpoint_auth_methods_supported", "dpop_signing_alg_values_supported", "scopes_supported"],
+      "properties": {"issuer": {"const": "https://divinr.ai"}, "device_authorization_endpoint": {"const": "https://divinr.ai/oauth/device_authorization"}, "token_endpoint": {"const": "https://divinr.ai/oauth/token"}, "revocation_endpoint": {"const": "https://divinr.ai/oauth/revoke"}, "jwks_uri": {"const": "https://divinr.ai/.well-known/jwks.json"}, "grant_types_supported": {"type": "array", "const": ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"]}, "token_endpoint_auth_methods_supported": {"type": "array", "const": ["none"]}, "dpop_signing_alg_values_supported": {"type": "array", "const": ["ES256"]}, "scopes_supported": {"type": "array", "const": ["analysis:purchase", "commerce:purchase", "receipts:read", "tournaments:join", "tournaments:read", "tournaments:trade", "updates:read"]}}
+    },
+    "oauthProtectedResourceMetadata": {
+      "type": "object", "additionalProperties": false,
+      "required": ["resource", "authorization_servers", "scopes_supported", "bearer_methods_supported", "dpop_bound_access_tokens_required"],
+      "properties": {"resource": {"const": "https://divinr.ai/a2a"}, "authorization_servers": {"type": "array", "const": ["https://divinr.ai"]}, "scopes_supported": {"type": "array", "const": ["analysis:purchase", "commerce:purchase", "receipts:read", "tournaments:join", "tournaments:read", "tournaments:trade", "updates:read"]}, "bearer_methods_supported": {"type": "array", "const": ["header"]}, "dpop_bound_access_tokens_required": {"const": true}}
+    },
+    "deviceAuthorizationRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["client_id", "scope", "resource", "installation_id", "installation_name"],
+      "properties": {"client_id": {"const": "apple-assistant-native-v1"}, "scope": {"type": "string", "minLength": 1, "maxLength": 512}, "resource": {"const": "https://divinr.ai/a2a"}, "installation_id": {"$ref": "#/$defs/id"}, "installation_name": {"type": "string", "minLength": 1, "maxLength": 120}}
+    },
+    "deviceAuthorizationResponse": {
+      "type": "object", "additionalProperties": false,
+      "required": ["device_code", "user_code", "verification_uri", "verification_uri_complete", "expires_in", "interval"],
+      "properties": {"device_code": {"type": "string", "minLength": 32, "maxLength": 256}, "user_code": {"type": "string", "pattern": "^[A-Z0-9]{4}-[A-Z0-9]{4}$"}, "verification_uri": {"const": "https://divinr.ai/connect/device"}, "verification_uri_complete": {"type": "string", "format": "uri", "pattern": "^https://divinr\\.ai/connect/device\\?user_code=[A-Z0-9-]+$", "maxLength": 2048}, "expires_in": {"const": 600}, "interval": {"const": 5}}
+    },
+    "tokenRequest": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["grant_type", "device_code", "client_id"], "properties": {"grant_type": {"const": "urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {"type": "string", "minLength": 32, "maxLength": 256}, "client_id": {"const": "apple-assistant-native-v1"}}},
+        {"type": "object", "additionalProperties": false, "required": ["grant_type", "refresh_token", "client_id"], "properties": {"grant_type": {"const": "refresh_token"}, "refresh_token": {"type": "string", "minLength": 32, "maxLength": 512}, "client_id": {"const": "apple-assistant-native-v1"}}}
+      ]
+    },
+    "tokenResponse": {
+      "type": "object", "additionalProperties": false,
+      "required": ["access_token", "token_type", "expires_in", "refresh_token", "scope"],
+      "properties": {"access_token": {"type": "string", "minLength": 64, "maxLength": 8192}, "token_type": {"const": "DPoP"}, "expires_in": {"const": 600}, "refresh_token": {"type": "string", "minLength": 32, "maxLength": 512}, "scope": {"type": "string", "minLength": 1, "maxLength": 512}}
+    },
+    "revocationRequest": {
+      "type": "object", "additionalProperties": false, "required": ["token", "client_id"],
+      "properties": {"token": {"type": "string", "minLength": 32, "maxLength": 8192}, "token_type_hint": {"enum": ["access_token", "refresh_token"]}, "client_id": {"const": "apple-assistant-native-v1"}}
+    },
+    "signedReceiptResponse": {
+      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "receiptType", "receiptJws", "receiptHash"],
+      "properties": {"schemaVersion": {"const": 2}, "receiptType": {"enum": ["checkout", "payment", "service", "refund"]}, "receiptJws": {"type": "string", "minLength": 32, "maxLength": 32768}, "receiptHash": {"$ref": "#/$defs/sha256Base64Url"}}
+    },
+    "payerReconcileRequest": {
+      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "requestId", "idempotencyKey", "expectedPaymentHash"],
+      "properties": {"schemaVersion": {"const": 2}, "requestId": {"$ref": "#/$defs/id"}, "idempotencyKey": {"$ref": "#/$defs/id"}, "expectedPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}}
+    },
+    "refundStatusResponse": {
+      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "refundId", "originalPaymentId", "refundPaymentHash", "amount", "asset", "unit", "state", "updatedAt"],
+      "properties": {"schemaVersion": {"const": 2}, "refundId": {"$ref": "#/$defs/id"}, "originalPaymentId": {"$ref": "#/$defs/id"}, "refundPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}, "amount": {"$ref": "#/$defs/productAtomicAmount"}, "asset": {"const": "BTC-REGTEST"}, "unit": {"const": "msat"}, "state": {"enum": ["invoice_created", "paying", "settled", "failed", "unknown", "reconciled"]}, "updatedAt": {"type": "string", "format": "date-time"}}
+    },
+    "merchantInvoiceStatus": {
+      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "invoiceId", "paymentHash", "amount", "asset", "unit", "state", "expiresAt", "updatedAt"],
+      "properties": {"schemaVersion": {"const": 2}, "invoiceId": {"$ref": "#/$defs/id"}, "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}, "amount": {"$ref": "#/$defs/productAtomicAmount"}, "asset": {"const": "BTC-REGTEST"}, "unit": {"const": "msat"}, "state": {"enum": ["open", "accepted", "settled", "expired", "canceled"]}, "expiresAt": {"type": "string", "format": "date-time"}, "updatedAt": {"type": "string", "format": "date-time"}}
+    },
+    "merchantSettlementStatus": {
+      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "paymentHash", "amount", "asset", "unit", "state", "observedAt"],
+      "properties": {"schemaVersion": {"const": 2}, "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}, "amount": {"$ref": "#/$defs/productAtomicAmount"}, "asset": {"const": "BTC-REGTEST"}, "unit": {"const": "msat"}, "state": {"enum": ["not_found", "pending", "settled", "failed"]}, "settlementId": {"$ref": "#/$defs/id"}, "observedAt": {"type": "string", "format": "date-time"}}
+    },
+    "merchantRefundPaymentStatus": {
+      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "refundId", "refundPaymentHash", "state", "updatedAt"],
+      "properties": {"schemaVersion": {"const": 2}, "refundId": {"$ref": "#/$defs/id"}, "refundPaymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}, "state": {"enum": ["paying", "settled", "failed", "unknown"]}, "updatedAt": {"type": "string", "format": "date-time"}}
+    },
+    "releaseAuthorizationConsumeRequest": {
+      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "requestId", "idempotencyKey", "taskId", "paymentHash", "artifactHash"],
+      "properties": {"schemaVersion": {"const": 2}, "requestId": {"$ref": "#/$defs/id"}, "idempotencyKey": {"$ref": "#/$defs/id"}, "taskId": {"$ref": "#/$defs/id"}, "paymentHash": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}, "artifactHash": {"$ref": "#/$defs/sha256Base64Url"}}
+    },
+    "releaseAuthorizationConsumeResponse": {
+      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "authorizationId", "state", "consumedAt"],
+      "properties": {"schemaVersion": {"const": 2}, "authorizationId": {"$ref": "#/$defs/id"}, "state": {"const": "consumed"}, "consumedAt": {"type": "string", "format": "date-time"}}
+    },
+    "pushAcknowledgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ackId", "eventId", "status"],
+      "properties": {
+        "ackId": {"$ref": "#/$defs/id"},
+        "eventId": {"$ref": "#/$defs/id"},
+        "status": {"enum": ["accepted", "duplicate"]}
+      }
+    }
+  }
+}

@@ -1,0 +1,417 @@
+{
+  "$schema": "urn:golfergeek:schema:apple-divinr-fixtures:v0.2",
+  "schemaVersion": 2,
+  "canonicalization": "RFC8785",
+  "hash": "SHA-256 base64url without padding",
+  "positive": [
+    {
+      "fixtureId": "analysis-request-positive-v1",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/analysisRequest",
+      "value": {
+        "analysisTypes": ["direction", "risk"],
+        "asOf": "2026-07-22T18:00:00Z",
+        "horizon": "1w",
+        "idempotencyKey": "idem-analysis-demo-001",
+        "instrumentId": "340d4312-0000-4000-8000-000000000001",
+        "requestId": "req-analysis-demo-001",
+        "schemaVersion": 2
+      },
+      "canonicalSha256": "mVQ9siBjfTYkflYNfKoyDmkXUMwLd3TXM_CrofLiEj4"
+    },
+    {
+      "fixtureId": "general-updates-request-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesRequest",
+      "value": {"categories": ["platform", "analysis"], "idempotencyKey": "idem-general-updates-001", "pageSize": 10, "requestId": "req-general-updates-001", "schemaVersion": 2},
+      "canonicalSha256": "W-zpfBRQmzgMXuANcqM4CTqC1mVE5LCTMAc9YO1bWLg"
+    },
+    {
+      "fixtureId": "personal-updates-request-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesRequest",
+      "value": {"categories": ["portfolio", "tournament"], "idempotencyKey": "idem-personal-updates-001", "pageSize": 10, "requestId": "req-personal-updates-001", "schemaVersion": 2, "since": "2026-07-22T18:00:00Z"},
+      "canonicalSha256": "T3IunUN-ytmi1NruNvkO-yOJcp0feb0AWkphutEQIPY"
+    },
+    {
+      "fixtureId": "tournaments-list-request-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentsListRequest",
+      "value": {"idempotencyKey": "idem-tournaments-list-001", "pageSize": 10, "requestId": "req-tournaments-list-001", "schemaVersion": 2, "status": "all"},
+      "canonicalSha256": "k_IxquzYfP-URb9CLFMKCwHkerL6LwHwBG-ayIBaro4"
+    },
+    {
+      "fixtureId": "tournament-context-request-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentContextRequest",
+      "value": {"idempotencyKey": "idem-tournament-context-001", "requestId": "req-tournament-context-001", "schemaVersion": 2, "tournamentId": "tournament-demo-001"},
+      "canonicalSha256": "B_Fu9HTlm0BiM5SvuO82hO6QQf4u4qFRdZEXcs2hVwA"
+    },
+    {
+      "fixtureId": "tournament-join-request-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentJoinRequest",
+      "value": {"idempotencyKey": "idem-tournament-join-001", "ownerApprovalId": "approval-tournament-join-001", "requestId": "req-tournament-join-001", "schemaVersion": 2, "tournamentId": "tournament-demo-001"},
+      "canonicalSha256": "cAN8uYeuFjz2zPBSzeqH-7JcKJkww-MsWpn66OoiAVw"
+    },
+    {
+      "fixtureId": "product-general-updates-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productBinding",
+      "value": {"atomicAmount": "10000", "priceMinorUnits": 1, "productId": "divinr.general-updates.demo.v2", "skillId": "general_updates"},
+      "canonicalSha256": "n2Qa5zj9-TPCKu2TXlP17W3hREjeMDf-Y5WTurIEaug"
+    },
+    {
+      "fixtureId": "product-personal-updates-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productBinding",
+      "value": {"atomicAmount": "20000", "priceMinorUnits": 2, "productId": "divinr.personal-updates.demo.v2", "skillId": "personal_updates"},
+      "canonicalSha256": "UtxhzuuptRBpkakKKN83_DRYmemfDwupjoJUpvkaNws"
+    },
+    {
+      "fixtureId": "product-tournaments-list-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productBinding",
+      "value": {"atomicAmount": "10000", "priceMinorUnits": 1, "productId": "divinr.tournaments-list.demo.v2", "skillId": "tournaments_list"},
+      "canonicalSha256": "zQTyHCOEqeVpBSU2F0KAyV_OMOR0BjxZxOGiS2_eOhQ"
+    },
+    {
+      "fixtureId": "product-tournament-context-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productBinding",
+      "value": {"atomicAmount": "20000", "priceMinorUnits": 2, "productId": "divinr.tournament-context.demo.v2", "skillId": "tournament_context"},
+      "canonicalSha256": "5IGHGR2BrIj0ogNOzADzhxWW7ZsCYRDUCIYRferJsyQ"
+    },
+    {
+      "fixtureId": "product-analysis-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productBinding",
+      "value": {"atomicAmount": "50000", "priceMinorUnits": 5, "productId": "divinr.analysis.demo.v2", "skillId": "analysis_request"},
+      "canonicalSha256": "kqR2w5CL48jHX_INpYm3Bkx_SfQgxXnEnIVk1jSlDTk"
+    },
+    {
+      "fixtureId": "product-tournament-join-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productBinding",
+      "value": {"atomicAmount": "30000", "priceMinorUnits": 3, "productId": "divinr.tournament-join.demo.v2", "skillId": "tournament_join"},
+      "canonicalSha256": "uRwtxUayl2BoouOIM7yyFvYGOQCiG2-uciiGxrIMnWQ"
+    },
+    {
+      "fixtureId": "product-tournament-trade-positive-v2",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/productBinding",
+      "value": {"atomicAmount": "40000", "priceMinorUnits": 4, "productId": "divinr.tournament-trade.demo.v2", "skillId": "tournament_trade"},
+      "canonicalSha256": "E4CAf5l8fq7VZzCYfDLRMLW-hxruL9MvpMLwTyzHw5w"
+    },
+    {
+      "fixtureId": "merchant-constraint-positive-v1",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/constraint",
+      "value": {
+        "constraint_id": "con-merchant-demo-001",
+        "critical": true,
+        "issuer": "owner",
+        "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+        "scope": "checkout",
+        "subject": "apple-installation-demo-001",
+        "type": "merchant.allow",
+        "value": {
+          "merchant_ids": ["divinr"]
+        },
+        "version": 1
+      },
+      "canonicalSha256": "nJw5aPeecX-gQQ6isMY9TN0rKC4jKw148vvq47tfkGc"
+    },
+    {
+      "fixtureId": "payment-limit-positive-v1",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/constraint",
+      "value": {
+        "constraint_id": "con-payment-limit-demo-001",
+        "critical": true,
+        "issuer": "owner",
+        "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+        "scope": "payment",
+        "subject": "apple-installation-demo-001",
+        "type": "amount.max_per_transaction",
+        "value": {
+          "asset": "BTC-REGTEST",
+          "atomic_amount": "50000",
+          "unit": "msat"
+        },
+        "version": 1
+      },
+      "canonicalSha256": "RCWURR4T4KvzmTn4r3O1KDFj1V87Z_AdFTxJQs4k2lM"
+    },
+    {
+      "fixtureId": "tournament-trade-positive-v1",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentTradeRequest",
+      "value": {
+        "analysisArtifactId": "artifact-analysis-demo-001",
+        "analysisArtifactHash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "direction": "long",
+        "idempotencyKey": "idem-tournament-demo-001",
+        "instrumentId": "340d4312-0000-4000-8000-000000000001",
+        "symbol": "AAPL",
+        "ownerApprovalId": "approval-tournament-demo-001",
+        "requestId": "req-tournament-demo-001",
+        "schemaVersion": 2,
+        "tournamentId": "tournament-demo-001",
+        "quantity": 1
+      },
+      "canonicalSha256": "8SZ1Hvz9q5oow7zLelKkBL0KED8ARUFKpHa03VwXB3U"
+    },
+    {
+      "fixtureId": "ap2-constraint-set-positive-v1",
+      "schemaRef": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/ap2ConstraintSet",
+      "value": {
+        "constraints": [
+          {
+            "constraint_id": "con-agent-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "checkout/payment",
+            "subject": "apple-installation-demo-001",
+            "type": "agent.bind",
+            "value": {"dpop_jkt": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "installation_id": "apple-installation-demo-001"},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-amount-cumulative-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "checkout/payment",
+            "subject": "apple-installation-demo-001",
+            "type": "amount.max_cumulative",
+            "value": {"asset": "BTC-REGTEST", "atomic_amount": "250000", "counter_id": "counter-amount-demo-001", "unit": "msat", "window_end": "2026-07-22T19:00:00Z", "window_start": "2026-07-22T18:00:00Z"},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-asset-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "payment",
+            "subject": "apple-installation-demo-001",
+            "type": "payment.asset.allow",
+            "value": {"assets": ["BTC-REGTEST"]},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-count-cumulative-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "checkout/payment",
+            "subject": "apple-installation-demo-001",
+            "type": "count.max_cumulative",
+            "value": {"counter_id": "counter-count-demo-001", "max_count": 10, "window_end": "2026-07-22T19:00:00Z", "window_start": "2026-07-22T18:00:00Z"},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-merchant-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "checkout",
+            "subject": "apple-installation-demo-001",
+            "type": "merchant.allow",
+            "value": {"merchant_ids": ["divinr"]},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-method-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "payment",
+            "subject": "apple-installation-demo-001",
+            "type": "payment.method.allow",
+            "value": {"methods": ["exact"]},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-network-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "payment",
+            "subject": "apple-installation-demo-001",
+            "type": "payment.network.allow",
+            "value": {"networks": ["urn:golfergeek:x402:lightning-regtest:v0.2"]},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-payment-limit-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "payment",
+            "subject": "apple-installation-demo-001",
+            "type": "amount.max_per_transaction",
+            "value": {"asset": "BTC-REGTEST", "atomic_amount": "50000", "unit": "msat"},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-product-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "checkout",
+            "subject": "apple-installation-demo-001",
+            "type": "product.allow",
+            "value": {"product_ids": ["divinr.analysis.demo.v2", "divinr.general-updates.demo.v2", "divinr.personal-updates.demo.v2", "divinr.tournament-context.demo.v2", "divinr.tournament-join.demo.v2", "divinr.tournament-trade.demo.v2", "divinr.tournaments-list.demo.v2"]},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-quote-age-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "checkout",
+            "subject": "apple-installation-demo-001",
+            "type": "quote.max_age",
+            "value": {"max_seconds": 120},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-receipt-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "checkout/payment",
+            "subject": "apple-installation-demo-001",
+            "type": "receipt.require",
+            "value": {"types": ["checkout", "payment", "service"]},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-skill-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "checkout",
+            "subject": "apple-installation-demo-001",
+            "type": "skill.allow",
+            "value": {"skill_ids": ["analysis_request", "general_updates", "personal_updates", "tournament_context", "tournament_join", "tournament_trade", "tournaments_list"]},
+            "version": 1
+          },
+          {
+            "constraint_id": "con-validity-demo-001",
+            "critical": true,
+            "issuer": "owner",
+            "namespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+            "scope": "checkout/payment",
+            "subject": "apple-installation-demo-001",
+            "type": "mandate.validity",
+            "value": {"not_after": "2026-07-22T19:00:00Z", "not_before": "2026-07-22T18:00:00Z"},
+            "version": 1
+          }
+        ],
+        "profile": "urn:golfergeek:profile:apple-divinr-commerce:v0.2"
+      },
+      "canonicalSha256": "2eUSj9RGPTPT_tWumnbZRVtpq7wx-kVcoMsqUFp40WE"
+    }
+  ],
+  "protocolFixtures": {
+    "dpop": {
+      "htu": "https://divinr.ai/a2a",
+      "htm": "POST",
+      "iat": 1784743200,
+      "jti": "dpop-proof-demo-001",
+      "nonce": "dpop-nonce-demo-001",
+      "ath": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "proofJkt": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+      "tokenCnfJkt": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+    },
+    "quote": {
+      "quoteId": "quote-demo-001",
+      "taskId": "task-demo-001",
+      "skillId": "analysis_request",
+      "productId": "divinr.analysis.demo.v2",
+      "priceMinorUnits": 5,
+      "atomicAmount": "50000",
+      "createdAt": "2026-07-22T18:00:00Z",
+      "expiresAt": "2026-07-22T18:02:00Z"
+    },
+    "budget": {
+      "authorityId": "authority-demo-001",
+      "windowStart": "2026-07-22T18:00:00Z",
+      "windowEnd": "2026-07-22T19:00:00Z",
+      "maximumCount": 10,
+      "reservedCount": 0,
+      "committedCount": 9,
+      "maximumPriceMinorUnits": 25,
+      "reservedPriceMinorUnits": 0,
+      "committedPriceMinorUnits": 20,
+      "maximumAtomicAmount": "250000",
+      "reservedAtomicAmount": "0",
+      "committedAtomicAmount": "200000",
+      "lockVersion": 9
+    },
+    "payment": {
+      "paymentRequestId": "payment-request-demo-001",
+      "paymentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "invoice": "lnbcrt500n1pdemoinvoice000000000000000000000000000000000000000000000000",
+      "productId": "divinr.analysis.demo.v2",
+      "amount": "50000",
+      "asset": "BTC-REGTEST",
+      "unit": "msat",
+      "state": "paying",
+      "retryAllowed": false
+    },
+    "refund": {
+      "refundId": "refund-demo-001",
+      "originalPaymentId": "payment-request-demo-001",
+      "originalPaymentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "refundPaymentHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "amount": "50000",
+      "asset": "BTC-REGTEST",
+      "unit": "msat",
+      "reason": "SERVICE_NOT_DELIVERED",
+      "state": "invoice_created"
+    },
+    "push": {
+      "schemaVersion": 2,
+      "eventId": "event-demo-001",
+      "issuer": "https://divinr.ai",
+      "audience": "apple-assistant",
+      "eventType": "task.updated",
+      "subject": {"type": "task", "id": "task-demo-001"},
+      "issuedAt": "2026-07-22T18:00:00Z",
+      "expiresAt": "2026-07-22T18:05:00Z",
+      "nonce": "push-nonce-demo-001",
+      "dataHash": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+      "data": {"taskId": "task-demo-001", "taskState": "working", "paymentState": "submitted", "updatedAt": "2026-07-22T18:00:00Z"}
+    }
+  },
+  "negativeMutations": [
+    {"fixtureId": "wrong-agent-binding", "base": "ap2-constraint-set-positive-v1", "pointer": "/constraints/0/value/dpop_jkt", "replacement": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "expectedCode": "MANDATE_CONSTRAINT_VIOLATION"},
+    {"fixtureId": "wrong-merchant", "base": "merchant-constraint-positive-v1", "pointer": "/value/merchant_ids/0", "replacement": "attacker", "expectedCode": "MANDATE_CONSTRAINT_VIOLATION"},
+    {"fixtureId": "wrong-skill", "base": "ap2-constraint-set-positive-v1", "pointer": "/constraints/11/value/skill_ids/0", "replacement": "club_join", "expectedCode": "SKILL_NOT_ALLOWED"},
+    {"fixtureId": "wrong-product", "base": "ap2-constraint-set-positive-v1", "pointer": "/constraints/8/value/product_ids/0", "replacement": "divinr.analysis.other.v1", "expectedCode": "PRODUCT_MISMATCH"},
+    {"fixtureId": "wrong-method", "base": "ap2-constraint-set-positive-v1", "pointer": "/constraints/5/value/methods/0", "replacement": "upto", "expectedCode": "PAYMENT_INVALID"},
+    {"fixtureId": "missing-required-receipt", "base": "ap2-constraint-set-positive-v1", "pointer": "/constraints/10/value/types/2", "operation": "remove", "expectedCode": "MANDATE_CONSTRAINT_VIOLATION"},
+    {"fixtureId": "authority-not-yet-valid", "base": "ap2-constraint-set-positive-v1", "operation": "set-verification-clock-before-validity-window", "expectedCode": "MANDATE_INVALID"},
+    {"fixtureId": "authority-expired", "base": "ap2-constraint-set-positive-v1", "operation": "set-verification-clock-at-window-end", "expectedCode": "MANDATE_EXPIRED"},
+    {"fixtureId": "eleventh-authorized-call", "base": "ap2-constraint-set-positive-v1", "operation": "reserve-after-ten-committed-counts", "expectedCode": "COUNT_LIMIT_EXCEEDED"},
+    {"fixtureId": "cumulative-amount-exhausted", "base": "ap2-constraint-set-positive-v1", "operation": "reserve-after-250000-msat-reserved-or-committed", "expectedCode": "BUDGET_EXCEEDED"},
+    {"fixtureId": "unknown-critical-constraint", "base": "merchant-constraint-positive-v1", "pointer": "/type", "replacement": "merchant.wildcard", "expectedCode": "MANDATE_CONSTRAINT_UNKNOWN"},
+    {"fixtureId": "amount-one-too-high", "base": "payment-limit-positive-v1", "pointer": "/value/atomic_amount", "replacement": "50001", "expectedCode": "BUDGET_EXCEEDED"},
+    {"fixtureId": "wrong-asset", "base": "payment-limit-positive-v1", "pointer": "/value/asset", "replacement": "BTC", "expectedCode": "PAYMENT_ASSET_DENIED"},
+    {"fixtureId": "wrong-network", "base": "payment-limit-positive-v1", "pointer": "/type", "replacement": "payment.network.allow", "additionalReplacement": {"pointer": "/value", "value": {"networks": ["lightning:mainnet"]}}, "expectedCode": "PAYMENT_NETWORK_DENIED"},
+    {"fixtureId": "ap2-constraint-set-unsorted", "base": "ap2-constraint-set-positive-v1", "operation": "reverse-constraints-array", "expectedCode": "MANDATE_CONSTRAINT_VIOLATION"},
+    {"fixtureId": "ap2-constraint-id-duplicate", "base": "ap2-constraint-set-positive-v1", "pointer": "/constraints/1/constraint_id", "replacement": "con-merchant-demo-001", "expectedCode": "MANDATE_CONSTRAINT_VIOLATION"},
+    {"fixtureId": "ap2-constraint-hash-mismatch", "base": "ap2-constraint-set-positive-v1", "operation": "present-original-hash-after-value-mutation", "expectedCode": "MANDATE_INVALID"},
+    {"fixtureId": "changed-idempotent-input", "base": "analysis-request-positive-v1", "pointer": "/horizon", "replacement": "1m", "reuseIdempotencyKey": true, "expectedCode": "IDEMPOTENCY_CONFLICT"},
+    {"fixtureId": "missing-owner-approval", "base": "tournament-trade-positive-v1", "pointer": "/ownerApprovalId", "operation": "remove", "expectedCode": "APPROVAL_REQUIRED"},
+    {"fixtureId": "tournament-quantity-over-limit", "base": "tournament-trade-positive-v1", "pointer": "/quantity", "replacement": 101, "expectedCode": "ACTION_CONSTRAINT_VIOLATION"},
+    {"fixtureId": "analysis-context-changed-idempotent-input", "base": "analysis-request-positive-v1", "pointer": "/contextArtifactIds", "operation": "add", "replacement": ["artifact-context-001"], "reuseIdempotencyKey": true, "expectedCode": "IDEMPOTENCY_CONFLICT"},
+    {"fixtureId": "price-six-cents", "base": "product-analysis-positive-v2", "pointer": "/priceMinorUnits", "replacement": 6, "expectedCode": "PRICE_LIMIT_EXCEEDED"},
+    {"fixtureId": "product-price-mismatch", "base": "product-analysis-positive-v2", "pointer": "/priceMinorUnits", "replacement": 4, "expectedCode": "PRODUCT_MISMATCH"},
+    {"fixtureId": "product-msat-mismatch", "base": "product-analysis-positive-v2", "pointer": "/atomicAmount", "replacement": "40000", "expectedCode": "AMOUNT_MISMATCH"},
+    {"fixtureId": "general-updates-overcharge", "base": "product-general-updates-positive-v2", "pointer": "/priceMinorUnits", "replacement": 2, "additionalReplacement": {"pointer": "/atomicAmount", "value": "20000"}, "expectedCode": "PRODUCT_MISMATCH"},
+    {"fixtureId": "cumulative-usd-exhausted", "protocolFixture": "budget", "operation": "reserve-after-25-minor-units-reserved-or-committed", "expectedCode": "BUDGET_EXCEEDED"},
+    {"fixtureId": "sixth-tournament-action", "base": "tournament-trade-positive-v1", "operation": "reserve-after-five-state-changing-tournament-actions", "expectedCode": "ACTION_CONSTRAINT_VIOLATION"},
+    {"fixtureId": "replayed-tournament-action-approval", "base": "tournament-trade-positive-v1", "operation": "reuse-consumed-owner-action-approval", "expectedCode": "APPROVAL_INVALID"},
+    {"fixtureId": "payment-approval-is-not-action-approval", "base": "tournament-trade-positive-v1", "operation": "substitute-payment-approval-for-owner-action-approval", "expectedCode": "APPROVAL_INVALID"},
+    {"fixtureId": "failure-before-settlement-is-uncharged", "protocolFixture": "quote", "operation": "cancel-before-settlement", "expectedCharges": 0, "expectedState": "canceled"},
+    {"fixtureId": "replayed-dpop-jti", "protocolFixture": "dpop", "operation": "replay-identical-proof", "expectedCode": "DPOP_REPLAY"},
+    {"fixtureId": "copied-token-new-key", "protocolFixture": "dpop", "operation": "use-token-with-different-proof-key", "expectedCode": "DPOP_KEY_MISMATCH"},
+    {"fixtureId": "stale-quote", "protocolFixture": "quote", "operation": "advance-clock-past-expiry", "expectedCode": "QUOTE_EXPIRED"},
+    {"fixtureId": "second-concurrent-last-reservation", "protocolFixture": "budget", "operation": "race-two-reservations-for-one-remaining-count", "expectedAccepted": 1, "expectedRejected": 1, "expectedCode": "COUNT_LIMIT_EXCEEDED"},
+    {"fixtureId": "payment-timeout", "protocolFixture": "payment", "operation": "drop-response-after-lnd-acceptance", "expectedState": "unknown", "expectedRetryAllowed": false},
+    {"fixtureId": "settled-service-failure", "protocolFixture": "refund", "operation": "fail-service-after-verified-settlement", "expectedCode": "REFUND_PENDING", "expectedNextState": "refund-required"},
+    {"fixtureId": "refund-invoice-wrong-original", "protocolFixture": "refund", "operation": "submit-invoice-bound-to-different-original-payment", "expectedCode": "PAYMENT_INVALID"},
+    {"fixtureId": "duplicate-refund-submission", "protocolFixture": "refund", "operation": "repeat-refund-submitted-with-same-idempotency-key", "expectedMerchantPayments": 1},
+    {"fixtureId": "refund-timeout-after-merchant-acceptance", "protocolFixture": "refund", "operation": "drop-response-after-refund-payment-acceptance", "expectedState": "REFUND_PENDING", "expectedRetryAllowed": false},
+    {"fixtureId": "push-replay", "protocolFixture": "push", "operation": "repeat-event-id-and-signature", "expectedCode": "PUSH_DUPLICATE", "expectedSideEffects": 1}
+  ]
+}

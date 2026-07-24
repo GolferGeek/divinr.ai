@@ -1,0 +1,356 @@
+{
+  "$schema": "urn:golfergeek:schema:apple-divinr-integration-profile:v0.2",
+  "profileId": "urn:golfergeek:profile:apple-divinr-commerce:v0.2",
+  "status": "frozen-v0.2",
+  "upstream": {
+    "a2a": {
+      "version": "1.0.0",
+      "git": "https://github.com/a2aproject/A2A.git",
+      "commit": "173695755607e884aa9acf8ce4feed90e32727a1"
+    },
+    "ap2": {
+      "version": "0.2.0",
+      "git": "https://github.com/google-agentic-commerce/AP2.git",
+      "commit": "b4587ac1d055888a73b4b21750973cffba961793",
+      "schemaAliases": {
+        "https://ap2-protocol.org/schemas/types/receipt_status.json": "https://ap2-protocol.org/schemas/receipt-status.json"
+      }
+    },
+    "x402": {
+      "coreVersion": 2,
+      "git": "https://github.com/x402-foundation/x402.git",
+      "commit": "21a2e489c7ba17c2b04e4cd9ea7015da1cb4aa99",
+      "conformanceClaim": "x402-v2-object-semantics-with-project-owned-a2a-lightning-binding"
+    }
+  },
+  "identifiers": {
+    "merchantId": "divinr",
+    "oauthClientId": "apple-assistant-native-v1",
+    "a2aExtensionUri": "urn:golfergeek:a2a:x402-lightning-regtest:v0.2",
+    "constraintNamespace": "urn:golfergeek:agent-commerce:constraints:v0.2",
+    "productCatalogId": "divinr.agent-services.demo.v2",
+    "paymentNetwork": "urn:golfergeek:x402:lightning-regtest:v0.2",
+    "paymentAsset": "BTC-REGTEST",
+    "paymentUnit": "msat",
+    "paymentMethod": "exact"
+  },
+  "publicEndpoints": {
+    "origin": "https://divinr.ai",
+    "agentCard": "https://divinr.ai/.well-known/agent-card.json",
+    "oauthAuthorizationServerMetadata": "https://divinr.ai/.well-known/oauth-authorization-server",
+    "oauthProtectedResourceMetadata": "https://divinr.ai/.well-known/oauth-protected-resource",
+    "jwks": "https://divinr.ai/.well-known/jwks.json",
+    "deviceAuthorization": "https://divinr.ai/oauth/device_authorization",
+    "deviceVerification": "https://divinr.ai/connect/device",
+    "token": "https://divinr.ai/oauth/token",
+    "revocation": "https://divinr.ai/oauth/revoke",
+    "a2a": "https://divinr.ai/a2a",
+    "applePublicAgent": "https://agent.golfergeek.com/v1/public/messages",
+    "appleTrustedAgent": "https://agent.golfergeek.com/v1/trusted/messages",
+    "appleTrustedPush": "https://agent.golfergeek.com/v1/trusted/divinr/events"
+  },
+  "privateEndpoints": {
+    "appleMacStudioTailscaleIpv4": "100.90.49.63",
+    "appleMacStudioTailscaleHost": "gg-macstudio.tail126196.ts.net",
+    "sparkTailscaleIpv4": "100.120.203.62",
+    "sparkHost": "spark-51e5.tail126196.ts.net",
+    "appleOwnerBaseUrl": "https://gg-macstudio.tail126196.ts.net:7445/v1",
+    "cloudflareOriginSocket": "unix:///var/run/apple-assistant/agent-ingress.sock",
+    "payerBaseUrl": "https://spark-51e5.tail126196.ts.net:7443/v1",
+    "payerDivinrVerifierBaseUrl": "https://127.0.0.1:7443/v1",
+    "merchantBaseUrl": "https://127.0.0.1:7444/v1"
+  },
+  "interfaces": {
+    "divinrPublic": {
+      "GET /.well-known/agent-card.json": {"request": null, "response": "agentCardResponse", "charged": false},
+      "GET /.well-known/oauth-authorization-server": {"request": null, "response": "oauthAuthorizationServerMetadata", "charged": false},
+      "GET /.well-known/oauth-protected-resource": {"request": null, "response": "oauthProtectedResourceMetadata", "charged": false},
+      "GET /.well-known/jwks.json": {"request": null, "response": "jwksResponse", "charged": false},
+      "POST /oauth/device_authorization": {"request": "deviceAuthorizationRequest", "response": "deviceAuthorizationResponse", "charged": false},
+      "POST /oauth/token": {"request": "tokenRequest", "response": "tokenResponse", "charged": false},
+      "POST /oauth/revoke": {"request": "revocationRequest", "response": "emptyResponse", "charged": false},
+      "POST /a2a": {"request": "A2A-1.0 JSON-RPC request plus project metadata", "response": "A2A-1.0 JSON-RPC response plus project metadata", "charged": "SendMessage business payment saga only; charge commits at independently verified settlement before service release"}
+    },
+    "appleIngress": {
+      "POST /v1/public/messages": {"request": "inboundAgentMessage", "response": "ingressAcknowledgment"},
+      "POST /v1/trusted/messages": {"request": "inboundAgentMessage", "response": "ingressAcknowledgment"},
+      "POST /v1/trusted/divinr/events": {"request": "pushEvent", "response": "pushAcknowledgment"}
+    },
+    "sparkPayer": {
+      "GET /health": {"request": null, "response": "healthResponse"},
+      "GET /balance": {"request": null, "response": "balanceResponse"},
+      "GET /jwks": {"request": null, "response": "jwksResponse"},
+      "POST /payments/prepare": {"request": "payerPrepareRequest", "response": "payerPrepareResponse"},
+      "POST /payments/{id}/execute": {"request": "payerExecuteRequest", "response": "payerPaymentStatus"},
+      "GET /payments/{id}": {"request": null, "response": "payerPaymentStatus"},
+      "GET /payments/{id}/receipt": {"request": null, "response": "signedReceiptResponse"},
+      "POST /payments/{id}/reconcile": {"request": "payerReconcileRequest", "response": "payerPaymentStatus"},
+      "POST /refunds/invoices": {"request": "refundInvoiceRequest", "response": "refundInvoiceResponse"},
+      "GET /refunds/{refundId}": {"request": null, "response": "refundStatusResponse"}
+    },
+    "sparkPayerDivinrVerifier": {
+      "GET /jwks": {"request": null, "response": "jwksResponse"},
+      "GET /payments/{id}": {"request": null, "response": "payerPaymentStatus"},
+      "GET /payments/{id}/receipt": {"request": null, "response": "signedReceiptResponse"}
+    },
+    "sparkMerchant": {
+      "GET /health": {"request": null, "response": "healthResponse"},
+      "GET /jwks": {"request": null, "response": "jwksResponse"},
+      "POST /invoices": {"request": "merchantInvoiceRequest", "response": "merchantInvoiceResponse"},
+      "GET /invoices/{id}": {"request": null, "response": "merchantInvoiceStatus"},
+      "GET /settlements/{paymentHash}": {"request": null, "response": "merchantSettlementStatus"},
+      "POST /refund-invoices/{originalPaymentId}/pay": {"request": "refundPayRequest", "response": "merchantRefundPaymentStatus"},
+      "POST /release-authorizations/{id}/consume": {"request": "releaseAuthorizationConsumeRequest", "response": "releaseAuthorizationConsumeResponse"}
+    }
+  },
+  "appleIngress": {
+    "cloudflareRoutes": [
+      "/v1/public/messages",
+      "/v1/trusted/messages",
+      "/v1/trusted/divinr/events"
+    ],
+    "cloudflareCatchAll": "http_status:404",
+    "public": {
+      "authentication": "none",
+      "maximumBodyBytes": 65536,
+      "maximumRequestsPerMinutePerSource": 10,
+      "maximumRequestsPerMinuteGlobal": 600,
+      "allowedCapabilities": ["message", "contact_request"],
+      "hermesProfile": "external-public-restricted"
+    },
+    "trusted": {
+      "authentication": "RFC9421-registered-principal-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "signatureComponents": ["@method", "@target-uri", "content-digest", "content-type", "x-agent-id", "x-request-id", "x-issued-at"],
+      "maximumBodyBytes": 262144,
+      "maximumRequestsPerMinutePerPrincipal": 60,
+      "maximumRequestsPerMinuteGlobal": 600,
+      "maximumClockSkewSeconds": 60,
+      "replayLifetimeSeconds": 300,
+      "allowedCapabilities": ["message", "contact_request", "task_proposal"],
+      "hermesProfile": "external-trusted-restricted"
+    },
+    "owner": {
+      "authentication": "tailscale-acl-plus-mtls",
+      "port": 7445,
+      "serverSpiffeId": "spiffe://golfergeek.local/apple-assistant/owner-control",
+      "clientSpiffePrefix": "spiffe://golfergeek.local/apple-assistant/owner-device/",
+      "maximumBodyBytes": 1048576,
+      "maximumRequestsPerMinutePerDevice": 120,
+      "routes": [
+        "POST /assistant/messages",
+        "POST /interactions/{interactionId}/responses",
+        "GET /conversations/{conversationId}/events"
+      ],
+      "hermesProfile": "owner"
+    }
+  },
+  "a2a": {
+    "protocolBinding": "JSONRPC",
+    "protocolVersionHeader": "1.0",
+    "endpoint": "/a2a",
+    "contentType": "application/json",
+    "extensionHeader": "A2A-Extensions",
+    "agentCardExtensionRequired": false,
+    "agentCardExtensionParams": {
+      "profile": "urn:golfergeek:profile:apple-divinr-commerce:v0.2",
+      "requiredForSkills": ["general_updates", "personal_updates", "tournaments_list", "tournament_context", "analysis_request", "tournament_join", "tournament_trade"],
+      "skillSchemas": {
+        "general_updates": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesResult"},
+        "personal_updates": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/updatesResult"},
+        "tournaments_list": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentsListRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentsListResult"},
+        "tournament_context": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentContextRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentContextResult"},
+        "analysis_request": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/analysisRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/analysisResult"},
+        "tournament_join": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentJoinRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentJoinResult"},
+        "tournament_trade": {"input": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentTradeRequest", "output": "urn:golfergeek:schema:apple-divinr-integration:v0.2#/$defs/tournamentTradeResult"}
+      }
+    },
+    "extensionRequiredForPaidSkills": true,
+    "methods": [
+      "SendMessage",
+      "GetTask",
+      "ListTasks",
+      "CancelTask"
+    ],
+    "initialTaskDelivery": "polling",
+    "streamingRequired": false
+  },
+  "oauth": {
+    "issuer": "https://divinr.ai",
+    "resourceAudience": "https://divinr.ai/a2a",
+    "grantType": "urn:ietf:params:oauth:grant-type:device_code",
+    "tokenType": "DPoP",
+    "accessTokenFormat": "JWT",
+    "accessTokenAlgorithm": "ES256",
+    "accessTokenLifetimeSeconds": 600,
+    "refreshTokenFamilyLifetimeSeconds": 2592000,
+    "deviceCodeLifetimeSeconds": 600,
+    "devicePollIntervalSeconds": 5,
+    "dpopAlgorithm": "ES256",
+    "dpopNonceRequired": true,
+    "dpopNonceLifetimeSeconds": 300,
+    "maximumConcurrentDpopNoncesPerInstallation": 4,
+    "dpopProofMaximumAgeSeconds": 60,
+    "dpopReplayRetentionSeconds": 600,
+    "scopes": {
+      "general_updates": ["updates:read", "commerce:purchase", "receipts:read"],
+      "personal_updates": ["updates:read", "commerce:purchase", "receipts:read"],
+      "tournaments_list": ["tournaments:read", "commerce:purchase", "receipts:read"],
+      "tournament_context": ["tournaments:read", "commerce:purchase", "receipts:read"],
+      "analysis_request": ["analysis:purchase", "commerce:purchase", "receipts:read"],
+      "tournament_join": ["tournaments:join", "commerce:purchase", "receipts:read"],
+      "tournament_trade": ["tournaments:trade", "commerce:purchase", "receipts:read"]
+    }
+  },
+  "crypto": {
+    "jwsAlgorithm": "ES256",
+    "curve": "P-256",
+    "hash": "SHA-256",
+    "jsonCanonicalization": "RFC8785",
+    "sdJwtHash": "sha-256",
+    "httpMessageSignatureAlgorithm": "ecdsa-p256-sha256",
+    "keyRolesMustBeDistinct": true,
+    "tlsServerSans": {
+      "appleOwnerControl": ["DNS:gg-macstudio.tail126196.ts.net", "IP:100.90.49.63", "URI:spiffe://golfergeek.local/apple-assistant/owner-control"],
+      "sparkPayer": ["DNS:spark-51e5.tail126196.ts.net", "IP:100.120.203.62", "IP:127.0.0.1", "URI:spiffe://golfergeek.local/spark/payer"],
+      "sparkMerchant": ["IP:127.0.0.1", "URI:spiffe://golfergeek.local/spark/merchant"]
+    },
+    "divinrJwksRoles": ["agent-card", "oauth-access-token", "checkout", "quote", "checkout-receipt", "service-receipt", "refund-receipt", "push"],
+    "kidPattern": "^(divinr|spark-payer|spark-merchant)-[a-z0-9-]+-v[1-9][0-9]*$"
+  },
+  "hashing": {
+    "digest": "SHA-256",
+    "digestEncoding": "base64url-without-padding",
+    "jsonCanonicalization": "RFC8785",
+    "jsonHashRule": "SHA-256 of UTF-8 RFC8785 bytes of the validated named object; an embedded hash field is omitted from its own preimage",
+    "compactTokenHashRule": "SHA-256 of the exact ASCII compact JWS or SD-JWT serialization",
+    "checkoutHashRule": "AP2 checkout_hash is SHA-256 base64url without padding of the exact ASCII checkout_jwt field value",
+    "ap2ReceiptReferenceRule": "SHA-256 base64url without padding of the closed mandate leaf JWT, the last ~~ segment before any ~ disclosures or key-binding JWT",
+    "bolt11InvoiceHashRule": "SHA-256 base64url without padding of the exact lowercase ASCII BOLT11 invoice accepted by both facades",
+    "agentCardHashRule": "SHA-256 of the RFC8785 A2A Agent Card signing payload after protobuf presence/default normalization and removal of signatures",
+    "quoteSignatureRule": "ES256 IEEE-P1363 over RFC8785 quote bytes with only signature omitted",
+    "quoteHashRule": "SHA-256 of RFC8785 bytes of the complete signed quote including keyId and signature",
+    "businessInputProjectionRule": "include schemaVersion and every present skill business field; omit only requestId, idempotencyKey, and ownerApprovalId",
+    "businessInputProjections": {
+      "general_updates": ["schemaVersion", "since", "categories", "pageSize", "pageToken"],
+      "personal_updates": ["schemaVersion", "since", "categories", "pageSize", "pageToken"],
+      "tournaments_list": ["schemaVersion", "status", "pageSize", "pageToken"],
+      "tournament_context": ["schemaVersion", "tournamentId"],
+      "analysis_request": ["schemaVersion", "instrumentId", "asOf", "horizon", "analysisTypes", "tournamentId", "contextArtifactIds"],
+      "tournament_join": ["schemaVersion", "tournamentId"],
+      "tournament_trade": ["schemaVersion", "tournamentId", "instrumentId", "symbol", "direction", "quantity", "analysisArtifactId", "analysisArtifactHash"]
+    },
+    "intentRule": "baseIntentHash hashes required canonicalIntent fields; later phase hashes add only the bindings required by intentPhase; existing fields are immutable"
+  },
+  "ap2": {
+    "openCheckoutVct": "mandate.checkout.open.1",
+    "closedCheckoutVct": "mandate.checkout.1",
+    "openPaymentVct": "mandate.payment.open.1",
+    "closedPaymentVct": "mandate.payment.1",
+    "priceCurrency": "USD",
+    "minimumPriceMinorUnits": 1,
+    "maximumPriceMinorUnits": 5,
+    "maximumCumulativePriceMinorUnits": 25,
+    "paymentInstrumentId": "apple-agent-lightning-regtest-v1",
+    "paymentInstrumentType": "urn:golfergeek:payment-instrument:lightning-regtest:v0.2",
+    "checkoutAudience": "https://divinr.ai/a2a",
+    "paymentAudience": "https://spark-51e5.tail126196.ts.net:7443",
+    "openMandateLifetimeSeconds": 3600,
+    "closedMandateLifetimeSeconds": 120
+  },
+  "products": {
+    "divinr.general-updates.demo.v2": {"skillId": "general_updates", "priceMinorUnits": 1, "atomicAmount": "10000", "displayPrice": "$0.01 demo price"},
+    "divinr.personal-updates.demo.v2": {"skillId": "personal_updates", "priceMinorUnits": 2, "atomicAmount": "20000", "displayPrice": "$0.02 demo price"},
+    "divinr.tournaments-list.demo.v2": {"skillId": "tournaments_list", "priceMinorUnits": 1, "atomicAmount": "10000", "displayPrice": "$0.01 demo price"},
+    "divinr.tournament-context.demo.v2": {"skillId": "tournament_context", "priceMinorUnits": 2, "atomicAmount": "20000", "displayPrice": "$0.02 demo price"},
+    "divinr.analysis.demo.v2": {"skillId": "analysis_request", "priceMinorUnits": 5, "atomicAmount": "50000", "displayPrice": "$0.05 demo price"},
+    "divinr.tournament-join.demo.v2": {"skillId": "tournament_join", "priceMinorUnits": 3, "atomicAmount": "30000", "displayPrice": "$0.03 demo price"},
+    "divinr.tournament-trade.demo.v2": {"skillId": "tournament_trade", "priceMinorUnits": 4, "atomicAmount": "40000", "displayPrice": "$0.04 demo price"}
+  },
+  "payment": {
+    "minimumAtomicAmount": "10000",
+    "maximumAtomicAmount": "50000",
+    "maximumCumulativeAtomicAmount": "250000",
+    "maximumCumulativeCount": 10,
+    "asset": "BTC-REGTEST",
+    "unit": "msat",
+    "network": "urn:golfergeek:x402:lightning-regtest:v0.2",
+    "scheme": "exact",
+    "quoteLifetimeSeconds": 120,
+    "invoiceLifetimeSeconds": 120,
+    "maxSettlementTimeoutSeconds": 60,
+    "displayPriceRange": "$0.01-$0.05 demo prices",
+    "displayPriceHasNoRegtestExchangeRate": true
+  },
+  "chargePolicy": {
+    "chargedOperations": ["general_updates", "personal_updates", "tournaments_list", "tournament_context", "analysis_request", "tournament_join", "tournament_trade"],
+    "unchargedOperations": ["agent_card", "oauth_metadata", "oauth_device_authorization", "oauth_token", "oauth_refresh", "oauth_revoke", "jwks", "GetTask", "ListTasks", "CancelTask", "error_response", "receipt_retrieval", "refund", "reconciliation", "balance"],
+    "chargePoint": "charge commits exactly once when settlement is independently verified; service release occurs only afterward",
+    "settledServiceFailureRequiresRefund": true,
+    "idempotentReplayChargedAgain": false,
+    "failedOrCanceledBeforeSettlementCharged": false
+  },
+  "divinrIngress": {
+    "maximumBodyBytes": 262144,
+    "maximumResponseBytes": 1048576,
+    "maximumRequestsPerMinutePerInstallation": 60,
+    "maximumRequestsPerMinutePerSource": 30,
+    "maximumRequestsPerMinuteGlobal": 1200,
+    "maximumConcurrentTasksPerInstallation": 4,
+    "maximumOutstandingPaidTasksPerInstallation": 2,
+    "taskAccessBinding": ["effectiveUserId", "installationId", "grantId", "originalSkillScope"],
+    "listTasksMaximumPageSize": 50
+  },
+  "tournamentActionPolicy": {
+    "maximumStateChangingActionsPerAuthorityWindow": 5,
+    "authorityWindowSeconds": 3600,
+    "joinRequiresFreshOwnerApproval": true,
+    "tradeRequiresFreshOwnerApproval": true,
+    "paymentApprovalDoesNotAuthorizeAction": true
+  },
+  "taskPolicy": {
+    "initialPollSeconds": 2,
+    "pollBackoffSeconds": [2, 5, 10, 30],
+    "maximumPollSeconds": 30,
+    "maximumTaskRuntimeSeconds": 900,
+    "idempotencyRetentionSeconds": 7776000,
+    "evidenceRetentionSeconds": 7776000
+  },
+  "pushPolicy": {
+    "authentication": "RFC9421",
+    "contentDigest": "RFC9530",
+    "signatureComponents": [
+      "@method",
+      "@target-uri",
+      "content-digest",
+      "content-type",
+      "x-divinr-event-id",
+      "x-divinr-issued-at"
+    ],
+    "maximumClockSkewSeconds": 60,
+    "eventLifetimeSeconds": 300,
+    "deduplicationRetentionSeconds": 7776000,
+    "maximumAttempts": 8,
+    "retryBackoffSeconds": [5, 30, 120, 600, 1800, 7200, 21600, 86400]
+  },
+  "refundPolicy": {
+    "automaticReasons": [
+      "DUPLICATE_CHARGE",
+      "SERVICE_NOT_DELIVERED",
+      "PRODUCT_MISMATCH",
+      "AMOUNT_MISMATCH"
+    ],
+    "notRefundableReasons": [
+      "OWNER_CANCELED_AFTER_RELEASE",
+      "OWNER_DISLIKED_VALID_RESULT"
+    ],
+    "principalAtomicAmountRule": "exact original product atomicAmount from the verified settled payment",
+    "routingFeesRefunded": false,
+    "targetCompletionSeconds": 600,
+    "refundInvoiceLifetimeSeconds": 600,
+    "payerEndpoints": ["POST /refunds/invoices", "GET /refunds/{refundId}"],
+    "merchantEndpoint": "POST /refund-invoices/{originalPaymentId}/pay",
+    "a2aStates": ["refund-required", "refund-submitted", "refund-completed"],
+    "mechanism": "payer-generated-bolt11-invoice-paid-by-divinr-merchant-node"
+  }
+}

@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Pool, PoolClient } from 'pg';
 import {
   DatabaseService,
+  DatabaseTransaction,
+  TransactionIsolationLevel,
   QueryBuilder,
   QueryResult,
 } from './database.interface';
@@ -106,6 +108,32 @@ export class PostgresqlDatabaseService implements DatabaseService, OnModuleDestr
     }
   }
 
+  async withTransaction<T>(
+    work: (transaction: DatabaseTransaction) => Promise<T>,
+    options?: { isolationLevel?: TransactionIsolationLevel },
+  ): Promise<T> {
+    const client = await (await this.getPool()).connect();
+    const isolation = (options?.isolationLevel ?? 'read committed').toUpperCase();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET TRANSACTION ISOLATION LEVEL ${isolation}`);
+      const result = await work({
+        rawQuery: (sql, params) => this.rawQueryWithClient(client, sql, params),
+      });
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        this.logger.error('PostgreSQL transaction rollback failed', rollbackError);
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   getConfig() {
     const url = this.resolveConnectionString();
     return {
@@ -149,6 +177,20 @@ export class PostgresqlDatabaseService implements DatabaseService, OnModuleDestr
     });
 
     return Promise.resolve(this.pool);
+  }
+
+  private async rawQueryWithClient(
+    client: PoolClient,
+    sql: string,
+    params?: unknown[],
+  ): Promise<QueryResult> {
+    try {
+      const result = await client.query(sql, params ?? []);
+      return { data: result.rows, error: null, count: result.rowCount ?? null };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { data: null, error: { message } };
+    }
   }
 }
 
