@@ -1,6 +1,6 @@
 # Divinr.ai — Efforts Roadmap
 
-**Last updated:** 2026-04-27 (merged and archived ethan-feedback follow-up)
+**Last updated:** 2026-07-24 (dashboard attention effort verified and archived; secure Apple A2A is next)
 **Maintained by:** `/roadmap` skill
 
 > **Canonical vision:** [master-intention.md](master-intention.md) is the single source of truth for product shape, business model, and architecture. This roadmap is a status snapshot of efforts; when they diverge, master-intention wins.
@@ -48,6 +48,7 @@ Divinr's core promise is **explainability over black-box trading bots**. LLM-pow
 
 ## Recently Shipped
 
+- **[dashboard-attention-and-signal-relevance](dashboard-attention-and-signal-relevance/intention.md)** (2026-07-24) — verified and closed the portfolio/tournament-first dashboard, explicit analysis preferences, deterministic relevance scoring, compact relevance reasons, first-touch coverage, and cross-facet browser tests. Closure gates passed API/web lint, typecheck, build, focused unit/regression coverage, and 4/4 production-facing Playwright specs.
 - **[ethan-feedback-followup-2026-04-27](archive/ethan-feedback-followup-2026-04-27/intention.md)** (2026-04-27) — shipped Ethan’s second beta polish pass: Research now reads by analyst with simpler buy/sell/hold framing, Article Relevance grouping/selection is clearer, tournament trade submission shows explicit success plus recent queued activity, dashboard `View` now routes into instrument detail correctly, and the Learning Panel has a persistent shell launcher with page/instrument context.
 
 - **[mastery-levels-learning-profile](archive/mastery-levels-learning-profile/intention.md)** (2026-04-27) — shipped the familiarity-based shell: Level 1 now hides most of the left nav, the Learning Panel is level-aware from the start, hidden routes fall back coherently, existing users seed conservatively, manual complexity opt-up is available, and browser coverage now proves both mastery progression and Learning Panel integration.
@@ -114,7 +115,7 @@ Preserved from prior planning because the concepts remain pertinent, but deferre
 
 ---
 
-## Completed Efforts (37)
+## Completed Efforts (38)
 
 ### Core Engine
 | Effort | What it did |
@@ -165,6 +166,7 @@ Preserved from prior planning because the concepts remain pertinent, but deferre
 ### Experience & Marketing
 | Effort | What it did |
 |---|---|
+| `dashboard-attention-and-signal-relevance` | Portfolio/tournament-first dashboard with explicit analysis preferences and deterministic relevance reasons |
 | 14 test efforts | API + Chrome verification of every feature area |
 | Marketing compilation | Landing page copy, 15-feature inventory, 4 personas |
 | Nav redesign | Grouped sidebar, admin-only sections, notification cleanup |
