@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { SchemaBootstrapService } from '../../src/bootstrap/schema-bootstrap.service';
 import { SchemaReadinessService } from '../../src/bootstrap/schema-readiness.service';
+import { AGENT_COMMERCE_REQUIRED_RELATIONS } from '../../src/agent-commerce/agent-commerce-schema.constants';
 
 let passed = 0;
 let failed = 0;
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
       makeTask('onboarding') as never,
       makeTask('service-api-keys') as never,
       makeTask('tournaments') as never,
+      makeTask('agent-commerce', 'bootstrap') as never,
     );
 
     const results = await service.runAll();
@@ -74,6 +76,7 @@ async function main(): Promise<void> {
       'learning-panel',
       'mastery',
       'service-api-keys',
+      'agent-commerce',
     ]);
     assert.deepEqual(results.map((result) => result.key), calls);
     assert(results.every((result) => result.status === 'ok'));
@@ -104,6 +107,35 @@ async function main(): Promise<void> {
     };
     const service = new SchemaReadinessService(db as never);
     await assert.rejects(() => service.assertReady(), /missing relations: prediction.learning_panel_threads/);
+  });
+
+  await test('readiness requires the immutable OAuth client and seven-product catalog', async () => {
+    let call = 0;
+    const db = {
+      rawQuery: async () => {
+        call += 1;
+        if (call === 1) {
+          return {
+            data: AGENT_COMMERCE_REQUIRED_RELATIONS.map((key) => ({
+              key,
+              present: true,
+            })),
+            error: null,
+          };
+        }
+        return {
+          data: [{ oauth_client_present: false, active_product_count: 6 }],
+          error: null,
+        };
+      },
+    };
+    const service = new SchemaReadinessService(db as never);
+    const state = await service.check();
+    assert.equal(state.ok, false);
+    assert.deepEqual(state.missing, [
+      'seed:apple-assistant-native-v1',
+      'seed:agent_commerce.a2a_products:v0.2',
+    ]);
   });
 
   console.log(`\nPassed: ${passed}, Failed: ${failed}`);

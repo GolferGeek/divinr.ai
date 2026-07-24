@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { A2AModule } from '../a2a/a2a.module';
+import { AgentCommerceModule } from '../agent-commerce/agent-commerce.module';
 import { InviteSchemaService } from '../auth/invite-schema.service';
 import { BillingModule } from '../billing/billing.module';
 import { ClubModule } from '../clubs/club.module';
@@ -17,6 +18,7 @@ import { SchemaReadinessService } from './schema-readiness.service';
 @Module({
   imports: [
     A2AModule,
+    AgentCommerceModule,
     BillingModule,
     ClubModule,
     CredentialsModule,

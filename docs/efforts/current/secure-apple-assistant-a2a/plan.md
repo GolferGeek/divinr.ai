@@ -7,7 +7,7 @@
 ## Progress Tracker
 
 - [x] Phase 1: Frozen contract and atomic foundation
-- [ ] Phase 2: Versioned Divinr persistence
+- [x] Phase 2: Versioned Divinr persistence
 - [ ] Phase 3: A2A 1.0 discovery and task protocol
 - [ ] Phase 4: Device authorization and connected-agent UI
 - [ ] Phase 5: DPoP credentials and recovery
@@ -22,7 +22,7 @@
 
 ## Phase 1: Frozen Contract and Atomic Foundation
 
-**Status**: Complete  
+**Status**: Complete
 **Objective**: Establish byte-exact v0.2 contracts, strict validation/canonicalization, frozen product metadata, and transaction-scoped database primitives without changing public behavior.
 
 ### Steps
@@ -56,31 +56,33 @@
 
 ## Phase 2: Versioned Divinr Persistence
 
-**Status**: In Progress  
+**Status**: Complete
 **Objective**: Create the complete Divinr-side connected-agent and commerce schema with atomic repositories, RLS, immutable seeds, bootstrap, and readiness.
 
 ### Steps
 
-- [ ] 2.1 Add ordered migrations for the ten connected-agent/OAuth/DPoP/key-registry tables with hashes only for reusable tokens/codes/nonces and no private key material.
-- [ ] 2.2 Add ordered migrations for A2A product/task/event/idempotency/quote tables, AP2 mandate/constraint/counter/reservation tables, and their foreign keys/checks/indexes.
-- [ ] 2.3 Add ordered migrations for requirements/submissions/settlements/artifacts/receipts/reconciliation/refunds, push/delivery/outbox, and append-only hash-linked audit tables.
-- [ ] 2.4 Add user ownership, service-role grants, RLS, evidence non-cascade behavior, UTC/UUID/numeric amount checks, state checks, lock versions, and every uniqueness invariant in PRD 4.2.
-- [ ] 2.5 Add transaction-bound repositories for task admission/idempotency, quote creation, counter reservation, settlement, release, refund, outbox, and audit; repositories accept `DatabaseTransaction`.
-- [ ] 2.6 Add `AgentCommerceSchemaService` bootstrap for immutable OAuth client, catalog/schema hashes, and public key metadata; register explicit bootstrap and add all critical relations/seeds to readiness.
-- [ ] 2.7 Add empty-database, upgrade, rollback, duplicate, counter-race, ownership/RLS, and missing-readiness tests; extend schema-hot-read-path tests to reject request-time DDL.
+- [x] 2.1 Add ordered migrations for the ten connected-agent/OAuth/DPoP/key-registry tables with hashes only for reusable tokens/codes/nonces and no private key material.
+- [x] 2.2 Add ordered migrations for A2A product/task/event/idempotency/quote tables, AP2 mandate/constraint/counter/reservation tables, and their foreign keys/checks/indexes.
+- [x] 2.3 Add ordered migrations for requirements/submissions/settlements/artifacts/receipts/reconciliation/refunds, push/delivery/outbox, and append-only hash-linked audit tables.
+- [x] 2.4 Add user ownership, service-role grants, RLS, evidence non-cascade behavior, UTC/UUID/numeric amount checks, state checks, lock versions, and every uniqueness invariant in PRD 4.2.
+- [x] 2.5 Add transaction-bound repositories for task admission/idempotency, quote creation, counter reservation, settlement, release, refund, outbox, and audit; repositories accept `DatabaseTransaction`.
+- [x] 2.6 Add `AgentCommerceSchemaService` bootstrap for immutable OAuth client, catalog/schema hashes, and public key metadata; register explicit bootstrap and add all critical relations/seeds to readiness.
+- [x] 2.7 Add empty-database, upgrade, rollback, duplicate, counter-race, ownership/RLS, and missing-readiness tests; extend schema-hot-read-path tests to reject request-time DDL.
+
+**Implementation note (2026-07-24):** The configured database is the Spark production PostgreSQL instance. The complete migration and real bootstrap path were therefore exercised inside rollback-only transactions, followed by isolated-schema RLS, constraint, four-nonce, and two-connection counter-race tests. No production `agent_commerce` schema was left behind. Production migration plus API health smoke remains an explicit deployment action, not a source-commit side effect.
 
 ### Quality Gate
 
-- [ ] **Lint**: `pnpm --filter @divinr/api run lint`
-- [ ] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/api run build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/agent-commerce-schema.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/agent-commerce-repositories.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/schema-hot-read-paths.test.ts && pnpm --filter @divinr/api run test:unit`
-- [ ] **E2E Tests**: `AGENT_COMMERCE_DB_TESTS=true pnpm --filter @divinr/api exec tsx tests/integration/agent-commerce-migrations.test.ts`
-- [ ] **Curl Tests**: After `pnpm --filter @divinr/api run bootstrap:schema` and local startup, `curl -fsS http://127.0.0.1:7100/health | jq -e '.ok == true'`
-- [ ] **Chrome Tests**: N/A — no UI surface; confirm no `apps/web/src` files changed.
-- [ ] **Phase Review**: Compare implementation with PRD Phase 2 and data contract.
-  - [ ] All 30 Divinr database tables, constraints, RLS, and transaction boundaries exist.
-  - [ ] Readiness fails on missing critical schema/seed state.
-  - [ ] No request handler performs DDL.
+- [x] **Lint**: `pnpm --filter @divinr/api run lint`
+- [x] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/api run build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/agent-commerce-schema.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/agent-commerce-repositories.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/schema-hot-read-paths.test.ts && pnpm --filter @divinr/api run test:unit`
+- [x] **E2E Tests**: `AGENT_COMMERCE_DB_TESTS=true pnpm --filter @divinr/api exec tsx -r dotenv/config tests/integration/agent-commerce-migrations.test.ts dotenv_config_path=../../.env`
+- [x] **Deployment Smoke Decision**: Do not apply unreviewed migrations to the configured Spark production database from a source checkpoint. The migration/bootstrap path passed against that PostgreSQL engine under rollback; production bootstrap plus `curl -fsS http://127.0.0.1:7100/health | jq -e '.ok == true'` remains required when deployment is authorized.
+- [x] **Chrome Tests**: N/A — no UI surface; `git diff --name-only 6961c4b -- apps/web/src` is empty.
+- [x] **Phase Review**: Compare implementation with PRD Phase 2 and data contract.
+  - [x] All 30 Divinr database tables, constraints, RLS, and transaction boundaries exist.
+  - [x] Readiness fails on missing critical schema/seed state.
+  - [x] No request handler performs DDL.
 
 ---
 

@@ -1,5 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DATABASE_SERVICE, type DatabaseService } from '@orchestratorai/planes/database';
+import {
+  AGENT_COMMERCE_REQUIRED_RELATIONS,
+  APPLE_ASSISTANT_OAUTH_CLIENT_ID,
+} from '../agent-commerce/agent-commerce-schema.constants';
 
 export interface SchemaReadinessCheck {
   ok: boolean;
@@ -27,6 +31,7 @@ export class SchemaReadinessService {
     'prediction.service_api_keys',
     'prediction.tournaments',
     'prediction.user_surface_touches',
+    ...AGENT_COMMERCE_REQUIRED_RELATIONS,
   ] as const;
 
   constructor(
@@ -46,6 +51,42 @@ export class SchemaReadinessService {
 
     const rows = (result.data as Array<{ key: string; present: boolean }> | null) ?? [];
     const missing = rows.filter((row) => !row.present).map((row) => row.key);
+    const agentCommerceRelationsPresent = AGENT_COMMERCE_REQUIRED_RELATIONS.every(
+      (key) => rows.some((row) => row.key === key && row.present),
+    );
+    if (agentCommerceRelationsPresent) {
+      const seedResult = await this.db.rawQuery(
+        `SELECT
+           EXISTS (
+             SELECT 1 FROM agent_commerce.oauth_clients
+              WHERE client_id = $1
+                AND client_type = 'public'
+                AND client_secret_hash IS NULL
+                AND status = 'active'
+           ) AS oauth_client_present,
+           (
+             SELECT count(*)::integer
+               FROM agent_commerce.a2a_products
+              WHERE product_version = 2 AND status = 'active'
+           ) AS active_product_count`,
+        [APPLE_ASSISTANT_OAUTH_CLIENT_ID],
+      );
+      if (seedResult.error) {
+        throw new Error(`Schema seed readiness query failed: ${seedResult.error.message}`);
+      }
+      const seed = (
+        seedResult.data as Array<{
+          oauth_client_present: boolean;
+          active_product_count: number;
+        }> | null
+      )?.[0];
+      if (!seed?.oauth_client_present) {
+        missing.push(`seed:${APPLE_ASSISTANT_OAUTH_CLIENT_ID}`);
+      }
+      if (seed?.active_product_count !== 7) {
+        missing.push('seed:agent_commerce.a2a_products:v0.2');
+      }
+    }
     return {
       ok: missing.length === 0,
       missing,

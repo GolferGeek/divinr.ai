@@ -12,6 +12,7 @@ import { MessagingSchemaService } from '../messaging/messaging-schema.service';
 import { OnboardingSchemaService } from '../onboarding/onboarding-schema.service';
 import { ServiceApiKeyService } from '../auth/service-api-key.service';
 import { TournamentSchemaService } from '../tournaments/tournament-schema.service';
+import { AgentCommerceSchemaService } from '../agent-commerce/agent-commerce-schema.service';
 
 export interface SchemaBootstrapTaskResult {
   key: string;
@@ -37,6 +38,7 @@ export class SchemaBootstrapService {
     @Inject(OnboardingSchemaService) private readonly onboardingSchema: OnboardingSchemaService,
     @Inject(ServiceApiKeyService) private readonly serviceApiKeyService: ServiceApiKeyService,
     @Inject(TournamentSchemaService) private readonly tournamentSchema: TournamentSchemaService,
+    @Inject(AgentCommerceSchemaService) private readonly agentCommerceSchema: AgentCommerceSchemaService,
   ) {}
 
   async runAll(): Promise<SchemaBootstrapTaskResult[]> {
@@ -67,6 +69,7 @@ export class SchemaBootstrapService {
       { key: 'learning-panel', run: () => this.learningPanelSchema.ensureSchema() },
       { key: 'mastery', run: () => this.masterySchema.ensureSchema() },
       { key: 'service-api-keys', run: () => this.serviceApiKeyService.ensureSchema() },
+      { key: 'agent-commerce', run: () => this.agentCommerceSchema.bootstrap() },
     ];
   }
 }
