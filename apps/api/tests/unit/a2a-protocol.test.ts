@@ -19,44 +19,53 @@ function request(method = 'GetTask') {
 }
 
 async function main(): Promise<void> {
-  const controller = new A2AInvokeController();
-  assert.equal(controller.invoke(
+  const controller = new A2AInvokeController({
+    execute: async () => ({ id: 'task-1' }),
+  } as never);
+  assert.equal((await controller.invoke(
     { jsonrpc: '1.0', id: 'rpc-1', method: 'GetTask', params: {} },
     '1.0',
     undefined,
-  ).error.code, -32600);
-  assert.equal(controller.invoke(
+    {},
+  )).error.code, -32600);
+  assert.equal((await controller.invoke(
     request('invoke'),
     '1.0',
     undefined,
-  ).error.code, -32601);
-  assert.equal(controller.invoke(
+    {},
+  )).error.code, -32601);
+  assert.equal((await controller.invoke(
     request(),
     '0.3',
     undefined,
-  ).error.code, -32600);
-  assert.equal(controller.invoke(
+    {},
+  )).error.code, -32600);
+  assert.equal((await controller.invoke(
     { ...request(), params: null },
     '1.0',
     undefined,
-  ).error.code, -32602);
-  assert.equal(controller.invoke(
+    {},
+  )).error.code, -32602);
+  assert.equal((await controller.invoke(
     request('SendMessage'),
     '1.0',
     undefined,
-  ).error.code, -32602);
-  const disabled = controller.invoke(
+    {},
+  )).error.code, -32602);
+  const disabled = await controller.invoke(
     request('SendMessage'),
     '1.0',
     'urn:golfergeek:a2a:x402-lightning-regtest:v0.2',
+    {},
   );
   assert.equal(disabled.error.code, -32602);
-  assert.equal(controller.invoke(
+  assert.equal((await controller.invoke(
     { ...request(), unexpected: true },
     '1.0',
     undefined,
-  ).error.code, -32600);
-  assert.equal(controller.invoke(
+    {},
+  )).error.code, -32600);
+  assert.equal((await controller.invoke(
     {
       jsonrpc: '2.0',
       id: 'rpc-1',
@@ -65,8 +74,9 @@ async function main(): Promise<void> {
     },
     '1.0',
     undefined,
-  ).error.code, -32602);
-  assert.equal(controller.invoke(
+    {},
+  )).error.code, -32602);
+  assert.equal((await controller.invoke(
     {
       jsonrpc: '2.0',
       id: 'rpc-1',
@@ -75,11 +85,13 @@ async function main(): Promise<void> {
     },
     '1.0',
     undefined,
-  ).error.code, -32602);
-  const protectedMethod = controller.invoke(
+    {},
+  )).error.code, -32602);
+  const protectedMethod = await controller.invoke(
     request('GetTask'),
     '1.0',
     undefined,
+    {},
   );
   assert.equal(protectedMethod.error.code, -32050);
   assert.equal(protectedMethod.error.data?.code, 'AUTH_REQUIRED');
@@ -111,7 +123,7 @@ async function main(): Promise<void> {
     PayloadTooLargeException,
   );
   const rateGuard = new A2APhaseGateGuard(deniedDpop as never);
-  for (let index = 0; index < 60; index += 1) {
+  for (let index = 0; index < 30; index += 1) {
     await assert.rejects(
       () => rateGuard.canActivate(context(1) as never),
       UnauthorizedException,
@@ -119,6 +131,63 @@ async function main(): Promise<void> {
   }
   await assert.rejects(
     () => rateGuard.canActivate(context(1) as never),
+    (error: unknown) =>
+      error instanceof HttpException && error.getStatus() === 429,
+  );
+  const allowedDpop = {
+    authenticate: async () => ({
+      installationInternalId: 'installation-internal-1',
+    }),
+  };
+  const allowedContext = (ip: string) => ({
+    switchToHttp: () => ({
+      getRequest: () => ({
+        headers: {
+          'content-length': '1',
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+        ip,
+      }),
+      getResponse: () => ({ setHeader: () => undefined }),
+    }),
+  });
+  const installationRateGuard = new A2APhaseGateGuard(allowedDpop as never);
+  for (let index = 0; index < 60; index += 1) {
+    assert.equal(
+      await installationRateGuard.canActivate(
+        allowedContext(`192.0.2.${index}`) as never,
+      ),
+      true,
+    );
+  }
+  await assert.rejects(
+    () => installationRateGuard.canActivate(
+      allowedContext('198.51.100.61') as never,
+    ),
+    (error: unknown) =>
+      error instanceof HttpException && error.getStatus() === 429,
+  );
+
+  let globalInstallation = 0;
+  const globalDpop = {
+    authenticate: async () => ({
+      installationInternalId: `installation-${globalInstallation += 1}`,
+    }),
+  };
+  const globalRateGuard = new A2APhaseGateGuard(globalDpop as never);
+  for (let index = 0; index < 1_200; index += 1) {
+    assert.equal(
+      await globalRateGuard.canActivate(
+        allowedContext(`2001:db8::${index}`) as never,
+      ),
+      true,
+    );
+  }
+  await assert.rejects(
+    () => globalRateGuard.canActivate(
+      allowedContext('2001:db8::overflow') as never,
+    ),
     (error: unknown) =>
       error instanceof HttpException && error.getStatus() === 429,
   );

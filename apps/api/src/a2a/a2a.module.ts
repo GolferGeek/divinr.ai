@@ -8,6 +8,8 @@ import { AgentCardService } from './agent-card.service';
 import { A2APhaseGateGuard } from './a2a-phase-gate.guard';
 import { A2ATaskAccessPolicy } from './a2a-task-access.policy';
 import { OAuthModule } from '../oauth/oauth.module';
+import { A2AAdmissionService } from './a2a-admission.service';
+import { A2AUpdateSkillsService } from './a2a-update-skills.service';
 
 @Module({
   imports: [AgentCommerceModule, OAuthModule],
@@ -17,6 +19,8 @@ import { OAuthModule } from '../oauth/oauth.module';
     AgentCardService,
     A2APhaseGateGuard,
     A2ATaskAccessPolicy,
+    A2AAdmissionService,
+    A2AUpdateSkillsService,
   ],
   exports: [ServiceApiKeyService],
 })

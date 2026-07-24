@@ -3,10 +3,18 @@ import {
   Controller,
   Headers,
   HttpCode,
+  Inject,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { AgentContractSchemaRegistry } from '../agent-contracts/contract-bundle';
+import type { VerifiedAgentPrincipal } from '../oauth/dpop-resource.service';
+import {
+  A2AAdmissionError,
+  A2AAdmissionService,
+} from './a2a-admission.service';
 import { A2APhaseGateGuard } from './a2a-phase-gate.guard';
 import {
   A2AProtocolValidationError,
@@ -17,13 +25,20 @@ import {
 @UseGuards(A2APhaseGateGuard)
 export class A2AInvokeController {
   private readonly validator = new A2AProtocolValidator();
+  private readonly schemas = new AgentContractSchemaRegistry();
+
+  constructor(
+    @Inject(A2AAdmissionService)
+    private readonly admission: A2AAdmissionService,
+  ) {}
 
   @Post()
   @HttpCode(200)
-  invoke(
+  async invoke(
     @Body() body: unknown,
     @Headers('a2a-version') version: string | undefined,
     @Headers('a2a-extensions') extensions: string | undefined,
+    @Req() httpRequest: { agentPrincipal?: VerifiedAgentPrincipal },
   ) {
     let request;
     try {
@@ -35,18 +50,71 @@ export class A2AInvokeController {
       throw error;
     }
 
-    // HTTP authentication is deliberately denied by A2APhaseGateGuard until
-    // sender-constrained DPoP is implemented in Phase 5. This return remains
-    // fail-closed if the controller is invoked directly in a unit test or a
-    // future guard is misconfigured.
-    return this.error(request.id, -32050, 'Protected A2A business methods are not enabled', {
+    if (!httpRequest.agentPrincipal) {
+      return this.agentError(
+        request.id,
+        'AUTH_REQUIRED',
+        'Complete connected-agent authorization before invoking A2A work.',
+      );
+    }
+    try {
+      return {
+        jsonrpc: '2.0',
+        id: request.id,
+        result: await this.admission.execute(request, httpRequest.agentPrincipal),
+      };
+    } catch (error) {
+      if (error instanceof A2AAdmissionError) {
+        return this.agentError(
+          request.id,
+          this.frozenErrorCode(error.code),
+          error.message,
+          error.retryable,
+        );
+      }
+      throw error;
+    }
+  }
+
+  private agentError(
+    id: unknown,
+    code: string,
+    message: string,
+    retryable = false,
+  ) {
+    const safeMessage = message.slice(0, 500);
+    const data = {
       schemaVersion: 2,
       errorId: randomUUID(),
-      code: 'AUTH_REQUIRED',
-      message: 'Complete connected-agent authorization before invoking A2A work.',
-      retryable: false,
+      code,
+      message: safeMessage,
+      retryable,
+      ...(retryable
+        ? { doNotRetryBefore: new Date(Date.now() + 5_000).toISOString() }
+        : {}),
       occurredAt: new Date().toISOString(),
+    };
+    this.schemas.validate('errorEnvelope', data);
+    return this.error(id, -32050, safeMessage, data);
+  }
+
+  private frozenErrorCode(code: string): string {
+    const mappings: Readonly<Record<string, string>> = Object.freeze({
+      AP2_NOT_ENABLED: 'PAYMENT_AUTHORITY_UNAVAILABLE',
+      TASK_NOT_FOUND: 'RESOURCE_NOT_FOUND',
+      TASK_NOT_CANCELABLE: 'RESOURCE_NOT_ALLOWED',
+      SCOPE_DENIED: 'SCOPE_INSUFFICIENT',
+      GRANT_DENIED: 'CREDENTIAL_REVOKED',
+      CONCURRENCY_LIMIT_EXCEEDED: 'CALL_LIMIT_EXCEEDED',
+      OUTSTANDING_PAYMENT_LIMIT_EXCEEDED: 'COUNT_LIMIT_EXCEEDED',
+      RESPONSE_TOO_LARGE: 'SERVICE_NOT_DELIVERED',
+      SKILL_NOT_ENABLED: 'SKILL_NOT_ALLOWED',
+      INTENT_MISMATCH: 'ACTION_CONSTRAINT_VIOLATION',
+      IDEMPOTENCY_IN_PROGRESS: 'RETRY_SUPPRESSED',
+      INTERNAL_ERROR: 'SERVICE_NOT_DELIVERED',
+      ADMISSION_FAILED: 'SERVICE_NOT_DELIVERED',
     });
+    return mappings[code] ?? code;
   }
 
   private error(

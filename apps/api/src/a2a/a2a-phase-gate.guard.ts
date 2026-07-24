@@ -16,11 +16,14 @@ import {
 import { DIVINR_A2A_RESOURCE } from '../oauth/oauth.constants';
 
 const MAX_A2A_BODY_BYTES = 256 * 1024;
-const MAX_UNAUTHENTICATED_REQUESTS_PER_MINUTE = 60;
+const MAX_SOURCE_REQUESTS_PER_MINUTE = 30;
+const MAX_INSTALLATION_REQUESTS_PER_MINUTE = 60;
+const MAX_GLOBAL_REQUESTS_PER_MINUTE = 1_200;
 
 @Injectable()
 export class A2APhaseGateGuard implements CanActivate {
   private readonly windows = new Map<string, { startedAt: number; count: number }>();
+  private globalWindow = { startedAt: 0, count: 0 };
 
   constructor(
     @Inject(DPoPResourceService)
@@ -55,18 +58,28 @@ export class A2APhaseGateGuard implements CanActivate {
         'A2A JSON-RPC requires Content-Type: application/json',
       );
     }
-    const forwarded = request.headers?.['x-forwarded-for'];
-    const source = (
-      Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0]
-    )?.trim() || request.ip || request.socket?.remoteAddress || 'unknown';
+    // `request.ip` is resolved by the configured Express trust-proxy policy.
+    // Never trust a caller-supplied X-Forwarded-For header directly.
+    const source = request.ip || request.socket?.remoteAddress || 'unknown';
     const now = Date.now();
-    const existing = this.windows.get(source);
+    this.globalWindow = now - this.globalWindow.startedAt >= 60_000
+      ? { startedAt: now, count: 1 }
+      : { ...this.globalWindow, count: this.globalWindow.count + 1 };
+    if (this.globalWindow.count > MAX_GLOBAL_REQUESTS_PER_MINUTE) {
+      throw new HttpException({
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: 'The global A2A request limit has been exceeded.',
+        retryable: true,
+      }, 429);
+    }
+    const sourceKey = `source:${source}`;
+    const existing = this.windows.get(sourceKey);
     const window = !existing || now - existing.startedAt >= 60_000
       ? { startedAt: now, count: 0 }
       : existing;
     window.count += 1;
-    this.windows.set(source, window);
-    if (window.count > MAX_UNAUTHENTICATED_REQUESTS_PER_MINUTE) {
+    this.windows.set(sourceKey, window);
+    if (window.count > MAX_SOURCE_REQUESTS_PER_MINUTE) {
       throw new HttpException({
         code: 'RATE_LIMIT_EXCEEDED',
         message: 'A2A authentication attempts exceeded the per-source limit.',
@@ -87,6 +100,22 @@ export class A2APhaseGateGuard implements CanActivate {
         request.method ?? 'POST',
         DIVINR_A2A_RESOURCE,
       );
+      const installationKey =
+        `installation:${request.agentPrincipal.installationInternalId}`;
+      const installationExisting = this.windows.get(installationKey);
+      const installationWindow =
+        !installationExisting || now - installationExisting.startedAt >= 60_000
+          ? { startedAt: now, count: 0 }
+          : installationExisting;
+      installationWindow.count += 1;
+      this.windows.set(installationKey, installationWindow);
+      if (installationWindow.count > MAX_INSTALLATION_REQUESTS_PER_MINUTE) {
+        throw new HttpException({
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'The connected-agent installation request limit has been exceeded.',
+          retryable: true,
+        }, 429);
+      }
       return true;
     } catch (error) {
       if (error instanceof DPoPNonceRequiredError) {

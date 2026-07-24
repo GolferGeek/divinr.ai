@@ -12,6 +12,10 @@ import {
 import { DATABASE_SERVICE } from '@orchestratorai/planes/database';
 import { A2AInvokeController } from '../../src/a2a/a2a-invoke.controller';
 import { A2APhaseGateGuard } from '../../src/a2a/a2a-phase-gate.guard';
+import {
+  A2AAdmissionError,
+  A2AAdmissionService,
+} from '../../src/a2a/a2a-admission.service';
 import { canonicalJson } from '../../src/agent-contracts/canonical-json';
 import {
   AGENT_KEY_PROVIDER,
@@ -155,6 +159,17 @@ function issueToken(expired: boolean) {
   providers: [
     A2APhaseGateGuard,
     DPoPResourceService,
+    {
+      provide: A2AAdmissionService,
+      useValue: {
+        execute: async () => {
+          throw new A2AAdmissionError(
+            'AUTH_REQUIRED',
+            'OAuth DPoP harness stops after protected-resource authentication.',
+          );
+        },
+      },
+    },
     { provide: DATABASE_SERVICE, useValue: database },
     {
       provide: AGENT_KEY_PROVIDER,

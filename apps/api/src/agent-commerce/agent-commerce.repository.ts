@@ -13,6 +13,7 @@ import type {
   SettlementCommitInput,
   TaskAdmissionInput,
   TaskAdmissionResult,
+  TaskEventInput,
 } from './agent-commerce.types';
 import { canonicalSha256 } from '../agent-contracts/canonical-json';
 
@@ -219,13 +220,64 @@ export class AgentCommerceRepository {
       await transaction.rawQuery(
         `UPDATE agent_commerce.a2a_tasks
             SET quote_id = $2, payment_state = 'payment_required',
-                intent_phase = 'quote', lock_version = lock_version + 1,
+                a2a_state = 'input_required', intent_phase = 'quote',
+                current_intent_hash = $3, lock_version = lock_version + 1,
                 updated_at = now()
           WHERE id = $1
           RETURNING id`,
-        [input.taskId, input.internalQuoteId],
+        [input.taskId, input.internalQuoteId, input.currentIntentHash],
       ),
       'advance task to payment required',
+    );
+    rows(
+      await transaction.rawQuery(
+        `UPDATE agent_commerce.a2a_idempotency
+            SET current_intent_hash = $2, intent_phase = 'quote',
+                response_hash = $3, last_seen_at = now(),
+                lock_version = lock_version + 1
+          WHERE task_id = $1
+          RETURNING id`,
+        [
+          input.taskId,
+          input.currentIntentHash,
+          input.canonicalRequirementHash,
+        ],
+      ),
+      'advance task idempotency to quote',
+    );
+  }
+
+  async appendTaskEvent(
+    transaction: DatabaseTransaction,
+    input: TaskEventInput,
+  ): Promise<void> {
+    rows(
+      await transaction.rawQuery(
+        `INSERT INTO agent_commerce.a2a_task_events (
+           user_id, task_id, sequence, event_type, a2a_state,
+           canonical_event_hash, safe_event_data, occurred_at
+         ) VALUES (
+           $1,$2,COALESCE(
+             $3::integer,
+             (SELECT max(existing.sequence) + 1
+                FROM agent_commerce.a2a_task_events existing
+               WHERE existing.task_id = $2),
+             1
+           ),$4,$5,$6,$7::jsonb,COALESCE($8::timestamptz,now())
+         )
+         RETURNING id`,
+        [
+          input.userId,
+          input.taskId,
+          input.sequence,
+          input.eventType,
+          input.a2aState,
+          input.canonicalEventHash,
+          JSON.stringify(input.safeEventData),
+          input.occurredAt ?? null,
+        ],
+      ),
+      'append A2A task event',
     );
   }
 

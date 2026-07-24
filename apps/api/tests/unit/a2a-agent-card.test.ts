@@ -76,7 +76,11 @@ async function main(): Promise<void> {
     const { signatures: _removed, ...unsignedCard } = card;
     const payload = Buffer.from(canonicalJsonBytes(unsignedCard)).toString('base64url');
     const jwks = await service.getJwks();
-    assert.equal(jwks.keys.length, 2);
+    assert.equal(jwks.keys.length, 4);
+    assert.deepEqual(
+      (jwks.keys as Array<{ gg_role: string }>).map((key) => key.gg_role).sort(),
+      ['agent-card', 'checkout', 'oauth-access-token', 'quote'],
+    );
     const jwk = (jwks.keys as Array<Record<string, unknown>>).find(
       (key) => key.gg_role === 'agent-card',
     ) as {
@@ -153,7 +157,7 @@ async function main(): Promise<void> {
     const configuredProvider = new RegistryBackedAgentKeyProvider(registryDb as never);
     const configuredKey = await configuredProvider.getSigningKey('agent-card');
     assert.equal(configuredKey.fallback, false);
-    assert.equal((await configuredProvider.getPublicKeys()).length, 3);
+    assert.equal((await configuredProvider.getPublicKeys()).length, 5);
 
     delete process.env.DIVINR_AGENT_CARD_PRIVATE_JWK;
     delete process.env.DIVINR_AGENT_CARD_KEY_ID;

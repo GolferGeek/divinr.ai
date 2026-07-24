@@ -113,6 +113,49 @@ function assertDivinrKeyId(keyId: string): void {
   }
 }
 
+const IMPLEMENTED_SIGNING_ROLES = [
+  'agent-card',
+  'oauth-access-token',
+  'checkout',
+  'quote',
+] as const satisfies readonly AgentKeyRole[];
+
+const ROLE_CONFIGURATION: Readonly<Record<
+  (typeof IMPLEMENTED_SIGNING_ROLES)[number],
+  { env: string; keyIdEnv: string; defaultKeyId: string; registryRole: string }
+>> = Object.freeze({
+  'agent-card': {
+    env: 'DIVINR_AGENT_CARD_PRIVATE_JWK',
+    keyIdEnv: 'DIVINR_AGENT_CARD_KEY_ID',
+    defaultKeyId: 'divinr-agent-card-v1',
+    registryRole: 'agent_card',
+  },
+  'oauth-access-token': {
+    env: 'DIVINR_OAUTH_ACCESS_TOKEN_PRIVATE_JWK',
+    keyIdEnv: 'DIVINR_OAUTH_ACCESS_TOKEN_KEY_ID',
+    defaultKeyId: 'divinr-oauth-access-token-v1',
+    registryRole: 'oauth_signing',
+  },
+  checkout: {
+    env: 'DIVINR_CHECKOUT_PRIVATE_JWK',
+    keyIdEnv: 'DIVINR_CHECKOUT_KEY_ID',
+    defaultKeyId: 'divinr-checkout-v1',
+    registryRole: 'ap2_merchant',
+  },
+  quote: {
+    env: 'DIVINR_QUOTE_PRIVATE_JWK',
+    keyIdEnv: 'DIVINR_QUOTE_KEY_ID',
+    defaultKeyId: 'divinr-quote-v1',
+    registryRole: 'quote',
+  },
+});
+
+function implementedRole(role: AgentKeyRole): role is keyof typeof ROLE_CONFIGURATION {
+  return IMPLEMENTED_SIGNING_ROLES.includes(
+    role as (typeof IMPLEMENTED_SIGNING_ROLES)[number],
+  );
+}
+
 @Injectable()
 export class RegistryBackedAgentKeyProvider
 implements AgentKeyProvider {
@@ -126,31 +169,26 @@ implements AgentKeyProvider {
     if (process.env.NODE_ENV === 'production') {
       await this.getSigningKey('agent-card');
       await this.getSigningKey('oauth-access-token');
+      await this.getSigningKey('checkout');
+      await this.getSigningKey('quote');
     }
   }
 
   async getSigningKey(role: AgentKeyRole): Promise<AgentSigningKey> {
-    if (!['agent-card', 'oauth-access-token'].includes(role)) {
+    if (!implementedRole(role)) {
       throw new Error(`Signing key role is not implemented yet: ${role}`);
     }
     const cached = this.signingKeys.get(role);
     if (cached) return cached;
 
-    const configured = role === 'agent-card'
-      ? process.env.DIVINR_AGENT_CARD_PRIVATE_JWK
-      : process.env.DIVINR_OAUTH_ACCESS_TOKEN_PRIVATE_JWK;
-    const keyId = role === 'agent-card'
-      ? process.env.DIVINR_AGENT_CARD_KEY_ID ?? 'divinr-agent-card-v1'
-      : process.env.DIVINR_OAUTH_ACCESS_TOKEN_KEY_ID ?? 'divinr-oauth-access-token-v1';
+    const configuration = ROLE_CONFIGURATION[role];
+    const configured = process.env[configuration.env];
+    const keyId = process.env[configuration.keyIdEnv] ?? configuration.defaultKeyId;
     assertDivinrKeyId(keyId);
     if (!configured) {
       if (process.env.NODE_ENV === 'production') {
         throw new Error(
-          `Production requires externally custodied ${
-            role === 'agent-card'
-              ? 'DIVINR_AGENT_CARD_PRIVATE_JWK'
-              : 'DIVINR_OAUTH_ACCESS_TOKEN_PRIVATE_JWK'
-          }`,
+          `Production requires externally custodied ${configuration.env}`,
         );
       }
       const generated = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -183,6 +221,8 @@ implements AgentKeyProvider {
     const activeKeys = await Promise.all([
       this.getSigningKey('agent-card'),
       this.getSigningKey('oauth-access-token'),
+      this.getSigningKey('checkout'),
+      this.getSigningKey('quote'),
     ]);
     if (activeKeys.every((key) => key.fallback)) {
       return activeKeys.map((key) => key.publicJwk);
@@ -191,7 +231,7 @@ implements AgentKeyProvider {
       `SELECT key_id, key_role, public_jwk, status, updated_at, valid_until
          FROM agent_commerce.cryptographic_key_registry
         WHERE owner_service = 'divinr'
-          AND key_role IN ('agent_card','oauth_signing')
+          AND key_role IN ('agent_card','oauth_signing','ap2_merchant','quote')
           AND status IN ('active','retiring')
           AND valid_from <= now()
           AND (valid_until IS NULL OR valid_until > now())
@@ -202,7 +242,7 @@ implements AgentKeyProvider {
     }
     const rows = (result.data as Array<{
       key_id: string;
-      key_role: 'agent_card' | 'oauth_signing';
+      key_role: 'agent_card' | 'oauth_signing' | 'ap2_merchant' | 'quote';
       public_jwk: Record<string, unknown>;
       status: 'active' | 'retiring';
       updated_at: string;
@@ -240,7 +280,11 @@ implements AgentKeyProvider {
         kid: row.key_id,
         gg_role: row.key_role === 'agent_card'
           ? 'agent-card'
-          : 'oauth-access-token',
+          : row.key_role === 'oauth_signing'
+            ? 'oauth-access-token'
+            : row.key_role === 'ap2_merchant'
+              ? 'checkout'
+              : 'quote',
       };
     });
     for (const signingKey of activeKeys.filter((key) => !key.fallback)) {
@@ -261,7 +305,10 @@ implements AgentKeyProvider {
     role: AgentKeyRole,
     derived: AgentPublicJwk,
   ): Promise<void> {
-    const registryRole = role === 'agent-card' ? 'agent_card' : 'oauth_signing';
+    if (!implementedRole(role)) {
+      throw new Error(`Signing key role is not implemented yet: ${role}`);
+    }
+    const registryRole = ROLE_CONFIGURATION[role].registryRole;
     const result = await this.db.rawQuery(
       `SELECT key_id, algorithm, public_jwk, external_custody_ref, status,
               valid_from, valid_until

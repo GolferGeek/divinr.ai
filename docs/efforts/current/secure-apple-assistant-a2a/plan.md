@@ -11,7 +11,7 @@
 - [x] Phase 3: A2A 1.0 discovery and task protocol
 - [x] Phase 4: Device authorization and connected-agent UI
 - [x] Phase 5: DPoP credentials and recovery
-- [ ] Phase 6: Deterministic admission and paid update skills
+- [x] Phase 6: Deterministic admission and paid update skills
 - [ ] Phase 7: Spark two-node regtest and restricted facades
 - [ ] Phase 8: AP2 and A2A-carried payment exchange
 - [ ] Phase 9: Paid analysis, release, receipts, and refunds
@@ -184,30 +184,43 @@
 
 ## Phase 6: Deterministic Admission and Paid Update Skills
 
-**Status**: Not Started  
+**Status**: Complete
 **Objective**: Admit verified agent principals into the durable common paid-task path and reach exact `payment-required` states for both update skills.
 
 ### Steps
 
-- [ ] 6.1 Add immutable `VerifiedAgentPrincipal`/validated-command types and deterministic middleware for version, extension, size, DPoP, scope, grant, ownership, entitlement, rate/concurrency, schema, product, idempotency, minimization, and audit.
-- [ ] 6.2 Implement atomic task admission/idempotency/events/outbox/audit and tuple-bound poll/list/cancel/continuation access.
-- [ ] 6.3 Implement exact quote/payment-requirement generation and role-specific signing without releasing or generating paid output.
-- [ ] 6.4 Add `general_updates` and `personal_updates` adapters to existing user-scoped services with output schema validation/redaction; adapters receive no raw caller claims.
-- [ ] 6.5 Enforce 60/30/1200 request limits, four concurrent/two outstanding paid tasks, 50-item pages, 256 KiB input, 1 MiB output, and 900-second task lifetime.
-- [ ] 6.6 Add cross-user, scope, entitlement, product/price, schema, idempotency race, rate/concurrency, and prepayment-release tests; add `apps/api/tests/http/a2a-paid-admission-curl.sh`.
+- [x] 6.1 Add immutable `VerifiedAgentPrincipal`/validated-command types and deterministic middleware for version, extension, size, DPoP, scope, grant, ownership, entitlement, rate/concurrency, schema, product, idempotency, minimization, and audit.
+- [x] 6.2 Implement atomic task admission/idempotency/events/outbox/audit and tuple-bound poll/list/cancel/continuation access.
+- [x] 6.3 Implement exact quote/payment-requirement generation and role-specific signing without releasing or generating paid output.
+- [x] 6.4 Add `general_updates` and `personal_updates` adapters to existing user-scoped services with output schema validation/redaction; adapters receive no raw caller claims.
+- [x] 6.5 Enforce 60/30/1200 request limits, four concurrent/two outstanding paid tasks, 50-item pages, 256 KiB input, 1 MiB output, and 900-second task lifetime.
+- [x] 6.6 Add cross-user, scope, entitlement, product/price, schema, idempotency race, rate/concurrency, and prepayment-release tests; add `apps/api/tests/http/a2a-paid-admission-curl.sh`.
 
 ### Quality Gate
 
-- [ ] **Lint**: `pnpm --filter @divinr/api run lint`
-- [ ] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/api run build`
-- [ ] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/agent-admission.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/a2a-update-skills.test.ts && pnpm --filter @divinr/api run test:unit`
-- [ ] **E2E Tests**: `AGENT_COMMERCE_DB_TESTS=true pnpm --filter @divinr/api exec tsx tests/integration/a2a-paid-admission.test.ts`
-- [ ] **Curl Tests**: `AGENT_HTTP_BASE=http://127.0.0.1:7100 bash apps/api/tests/http/a2a-paid-admission-curl.sh`
-- [ ] **Chrome Tests**: N/A for agent endpoint; rerun connected-agent detail to ensure new task/audit references render safely.
-- [ ] **Phase Review**: Compare implementation with PRD Phase 6.
-  - [ ] Effective user is credential-derived and adapters are policy-free.
-  - [ ] Exact quotes are durable/idempotent.
-  - [ ] No result can be released.
+- [x] **Lint**: `pnpm --filter @divinr/api run lint`
+- [x] **Build**: `pnpm --filter @divinr/api run typecheck && pnpm --filter @divinr/api run build`
+- [x] **Unit Tests**: `pnpm --filter @divinr/api exec tsx tests/unit/agent-admission.test.ts && pnpm --filter @divinr/api exec tsx tests/unit/a2a-update-skills.test.ts && pnpm --filter @divinr/api run test:unit`
+- [x] **E2E Tests**: `AGENT_COMMERCE_DB_TESTS=true pnpm --filter @divinr/api exec tsx tests/integration/a2a-paid-admission.test.ts`
+- [x] **Curl Tests**: `AGENT_HTTP_BASE=http://127.0.0.1:7100 bash apps/api/tests/http/a2a-paid-admission-curl.sh`
+- [x] **Chrome Tests**: N/A for agent endpoint; rerun connected-agent detail to ensure new task/audit references render safely.
+- [x] **Phase Review**: Compare implementation with PRD Phase 6.
+  - [x] Effective user is credential-derived and adapters are policy-free.
+  - [x] Exact quotes are durable/idempotent.
+  - [x] No result can be released.
+
+**Implementation note (2026-07-24):** Protected A2A requests now enter a
+credential-derived immutable principal/validated-command boundary. Initial
+update tasks, idempotency, signed exact quote, payment requirement, task event,
+outbox record, and append-oriented audit event commit together; retry and
+tuple-bound poll/list/cancel behavior are covered by the HTTP harness. The
+general/personal adapters read only user-scoped notification data and are not
+invoked before settlement. The isolated Phase 6 invoice is intentionally
+non-payable and production fails closed with `PAYMENT_AUTHORITY_UNAVAILABLE`;
+Phase 7 replaces that provider with the restricted Spark merchant facade.
+No Spark schema, service, or wallet state was changed. Connected-agent
+Playwright regression passed 6/6; Vite continued to emit pre-existing
+messaging/onboarding mock-state warnings outside this effort.
 
 ---
 

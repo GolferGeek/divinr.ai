@@ -45,10 +45,30 @@ export interface QuoteCreationInput {
   requirementId: string;
   canonicalRequirement: unknown;
   canonicalRequirementHash: string;
+  currentIntentHash: string;
   compatibilityProfile: string;
   extensionUri: string;
   invoiceReferenceHash: string;
   expiresAt: string;
+}
+
+export interface TaskEventInput {
+  userId: string;
+  taskId: string;
+  sequence?: number;
+  eventType: string;
+  a2aState:
+    | 'submitted'
+    | 'working'
+    | 'input_required'
+    | 'auth_required'
+    | 'completed'
+    | 'canceled'
+    | 'failed'
+    | 'rejected';
+  canonicalEventHash: string;
+  safeEventData: unknown;
+  occurredAt?: string;
 }
 
 export interface CounterReservationInput {
