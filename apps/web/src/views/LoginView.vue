@@ -6,14 +6,18 @@ import {
   IonCardContent, IonItem, IonInput, IonButton, IonIcon, IonText, IonSpinner,
 } from '@ionic/vue';
 import { analyticsOutline } from 'ionicons/icons';
-import { pinDemoUserToCoreTrading } from '../auth/bootstrap-auth';
+import {
+  getDefaultLoginCredentials,
+  pinDemoUserToCoreTrading,
+} from '../auth/bootstrap-auth';
 import { useAuthStore } from '../stores/auth.store';
 
 const auth = useAuthStore();
 const router = useRouter();
 
-const email = ref('');
-const password = ref('');
+const defaultCredentials = getDefaultLoginCredentials();
+const email = ref(defaultCredentials?.email ?? '');
+const password = ref(defaultCredentials?.password ?? '');
 const error = ref('');
 const loading = ref(false);
 
