@@ -25,10 +25,23 @@ interface MeResponse {
   displayName?: string;
 }
 
+interface DefaultLoginCredentials {
+  email: string;
+  password: string;
+}
+
 export const DEMO_USER_EMAIL = 'demo-user@orchestratorai.io';
 export const DEMO_USER_MASTERY_SEEDED_KEY = 'divinr_demo_user_mastery_seeded';
 
 const API_BASE = '/api';
+
+export function getDefaultLoginCredentials(): DefaultLoginCredentials | null {
+  const email = import.meta.env.VITE_DEFAULT_USER_EMAIL as string | undefined;
+  const password = import.meta.env.VITE_DEFAULT_USER_PASSWORD as string | undefined;
+
+  if (!email || !password) return null;
+  return { email, password };
+}
 
 export async function pinDemoUserToCoreTrading(
   me: MeResponse,
@@ -60,10 +73,9 @@ export async function bootstrapAuth(): Promise<void> {
     return;
   }
 
-  const email = import.meta.env.VITE_DEFAULT_USER_EMAIL as string | undefined;
-  const password = import.meta.env.VITE_DEFAULT_USER_PASSWORD as string | undefined;
+  const credentials = getDefaultLoginCredentials();
 
-  if (!email || !password) {
+  if (!credentials) {
     // No auto-login configured — leave the auth store empty. The user will
     // see auth failures from the API until they manually configure a token.
     console.warn('[bootstrap-auth] VITE_DEFAULT_USER_EMAIL/PASSWORD not set; auto-login skipped.');
@@ -74,7 +86,7 @@ export async function bootstrapAuth(): Promise<void> {
     const loginRes = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(credentials),
     });
     if (!loginRes.ok) {
       const text = await loginRes.text();
