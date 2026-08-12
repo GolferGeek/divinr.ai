@@ -67,7 +67,7 @@ export class AnalystPipelineService {
     }
   }
 
-  @Cron('*/30 * * * *')
+  @Cron(process.env.MARKETS_PIPELINE_CRON ?? '*/30 * * * *')
   async runScheduled(): Promise<void> {
     if (!this.enabled) return;
     this.logger.log('Analyst pipeline starting (scheduled)');

@@ -96,6 +96,7 @@ export class OutcomeTrackingService {
    */
   @Cron('*/15 * * * *')
   async scheduledTracking(): Promise<void> {
+    if (process.env.MARKETS_DISABLE_STANDALONE_CRONS === 'true') return;
     if (this.isDisabled()) return;
     await this.runTracking();
   }

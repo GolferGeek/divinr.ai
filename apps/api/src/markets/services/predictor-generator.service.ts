@@ -115,6 +115,7 @@ export class PredictorGeneratorService {
    */
   @Cron('*/5 * * * *')
   async scheduledGeneration(): Promise<void> {
+    if (process.env.MARKETS_DISABLE_STANDALONE_CRONS === 'true') return;
     if (this.isDisabled()) return;
     await this.runGeneration();
   }

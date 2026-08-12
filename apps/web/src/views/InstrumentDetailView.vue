@@ -20,6 +20,7 @@ import {
 import { arrowBackOutline, refreshOutline } from 'ionicons/icons';
 
 import FirstTouchPanel from '../components/FirstTouchPanel.vue';
+import { renderReasoningMarkdown } from '../utils/render-reasoning-markdown';
 const route = useRoute();
 const api = useApi();
 const { canWrite } = useCanWrite();
@@ -608,7 +609,8 @@ onBeforeUnmount(() => {
           <strong>{{ rowTitle(risk) }}</strong>
           <span>{{ fmtRiskScore(rowScore(risk)) }}</span>
         </div>
-        <p>{{ rowReasoning(risk) }}</p>
+        <!-- eslint-disable-next-line vue/no-v-html -->
+        <div class="reasoning-markdown" v-html="renderReasoningMarkdown(rowReasoning(risk))" />
       </div>
 
       <ion-note v-if="riskDetailRows.length === 0 && riskAssessments.length === 0" color="primary" style="display:block;padding:16px">
@@ -682,6 +684,28 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.reasoning-markdown {
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.reasoning-markdown :deep(h3),
+.reasoning-markdown :deep(h4),
+.reasoning-markdown :deep(h5),
+.reasoning-markdown :deep(h6) {
+  margin: 8px 0 4px;
+  font-size: 0.9rem;
+}
+
+.reasoning-markdown :deep(p) {
+  margin: 4px 0;
+}
+
+.reasoning-markdown :deep(ul) {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+
 .instrument-hero {
   margin-bottom: 16px;
 }

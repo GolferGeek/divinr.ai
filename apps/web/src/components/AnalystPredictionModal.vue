@@ -14,6 +14,7 @@ import { usePortfolioStore, type TradeDestination } from '../stores/portfolio.st
 import { useAuthStore } from '../stores/auth.store';
 import { useAffinityStore } from '../stores/affinity.store';
 import LegalDisclaimer from './LegalDisclaimer.vue';
+import { renderReasoningMarkdown } from '../utils/render-reasoning-markdown';
 
 interface AnalystStance {
   prediction_id: string;
@@ -688,7 +689,8 @@ async function loadChallenges() {
                   <span v-if="call.reasoningTruncated" class="reasoning-truncated">(truncated at 64 KB)</span>
                   <span class="reasoning-meta">{{ call.inputTokens }} in / {{ call.outputTokens }} out</span>
                 </div>
-                <pre class="reasoning-pre">{{ call.reasoningContent }}</pre>
+                <!-- eslint-disable-next-line vue/no-v-html -->
+                <div class="reasoning-markdown" v-html="renderReasoningMarkdown(call.reasoningContent)" />
               </div>
             </div>
           </div>
@@ -1035,9 +1037,7 @@ async function loadChallenges() {
 }
 
 /* Reasoning tab (effort: see-your-reasoning) */
-.reasoning-pre {
-  white-space: pre-wrap;
-  font-family: monospace;
+.reasoning-markdown {
   font-size: 0.8rem;
   max-height: 60vh;
   overflow: auto;
@@ -1046,6 +1046,24 @@ async function loadChallenges() {
   border-radius: 6px;
   padding: 12px;
   margin-top: 8px;
+}
+
+.reasoning-markdown :deep(h3),
+.reasoning-markdown :deep(h4),
+.reasoning-markdown :deep(h5),
+.reasoning-markdown :deep(h6) {
+  margin: 10px 0 4px;
+  font-size: 0.85rem;
+}
+
+.reasoning-markdown :deep(p) {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.reasoning-markdown :deep(ul) {
+  margin: 4px 0 8px;
+  padding-left: 20px;
 }
 
 .reasoning-header {
